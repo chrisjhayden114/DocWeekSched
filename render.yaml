@@ -1,0 +1,19 @@
+# Optional: in Render Dashboard → New → Blueprint, connect the repo and apply this file.
+# Or create a Web Service manually using the same build/start commands.
+
+services:
+  - type: web
+    name: docweeksched-api
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build --workspace=@event-app/api && npm run prisma:deploy --workspace=@event-app/api
+    startCommand: npm run start --workspace=@event-app/api
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: WEB_BASE_URL
+        sync: false

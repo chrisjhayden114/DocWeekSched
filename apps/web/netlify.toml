@@ -1,0 +1,9 @@
+# Monorepo: set "Package directory" to `apps/web` in Netlify → Site configuration → Build & deploy.
+# Install and workspace build run from the repository root (base directory).
+
+[build]
+  command = "npm install && npm run build --workspace=@event-app/web"
+  # Next.js on Netlify (OpenNext) uses this output; framework detection may override publish.
+
+[build.environment]
+  NODE_VERSION = "20"

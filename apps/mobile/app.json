@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Event Hub",
+    "slug": "event-hub",
+    "version": "1.0.0",
+    "sdkVersion": "51.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#eff6ff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#eff6ff"
+      }
+    }
+  }
+}

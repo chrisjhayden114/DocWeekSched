@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ATTENDEE
+  SPEAKER
+}
+
+enum QuestionType {
+  SINGLE
+  MULTI
+  TEXT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         Role
+  passwordHash String
+  createdAt    DateTime @default(now())
+  sessionsAsSpeaker Session[] @relation("SessionSpeaker")
+  conversationMembers ConversationMember[]
+  conversationMessages ConversationMessage[]
+  checkIns     CheckIn[]
+  surveyAnswers SurveyAnswer[]
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  name      String
+  timezone  String
+  startDate DateTime
+  endDate   DateTime
+  sessions  Session[]
+  announcements Announcement[]
+  surveys   Survey[]
+  conversations Conversation[]
+  checkIns  CheckIn[]
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime
+  event       Event    @relation(fields: [eventId], references: [id])
+  eventId     String
+  speaker     User?    @relation("SessionSpeaker", fields: [speakerId], references: [id])
+  speakerId   String?
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   String
+}
+
+model Survey {
+  id        String   @id @default(cuid())
+  title     String
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   String
+  questions SurveyQuestion[]
+}
+
+model SurveyQuestion {
+  id        String   @id @default(cuid())
+  prompt    String
+  type      QuestionType
+  options   String[]
+  survey    Survey   @relation(fields: [surveyId], references: [id])
+  surveyId  String
+  answers   SurveyAnswer[]
+}
+
+model SurveyAnswer {
+  id         String   @id @default(cuid())
+  question   SurveyQuestion @relation(fields: [questionId], references: [id])
+  questionId String
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  answer     String
+  createdAt  DateTime @default(now())
+}
+
+enum ConversationType {
+  EVENT
+  DIRECT
+  GROUP
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  name      String?
+  type      ConversationType
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   String
+  members   ConversationMember[]
+  messages  ConversationMessage[]
+}
+
+model ConversationMember {
+  id             String @id @default(cuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  user           User @relation(fields: [userId], references: [id])
+  userId         String
+
+  @@unique([conversationId, userId])
+}
+
+model ConversationMessage {
+  id             String   @id @default(cuid())
+  body           String
+  createdAt      DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId])
+}
