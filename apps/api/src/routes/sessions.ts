@@ -28,8 +28,14 @@ const messageSchema = z.object({
   body: z.string().min(1),
 });
 
-sessionsRouter.get("/", requireAuth, async (_req, res) => {
-  const event = await getOrCreateEvent();
+sessionsRouter.get("/", requireAuth, async (req, res) => {
+  const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
+  const event = requestedEventId
+    ? await prisma.event.findUnique({ where: { id: requestedEventId } })
+    : await getOrCreateEvent();
+  if (!event) {
+    return res.status(404).json({ error: "Event not found" });
+  }
   const sessions = await prisma.session.findMany({
     where: { eventId: event.id },
     orderBy: { startsAt: "asc" },

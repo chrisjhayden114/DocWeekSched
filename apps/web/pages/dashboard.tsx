@@ -10,7 +10,7 @@ type User = {
   researchInterests?: string | null;
 };
 
-type Event = { id: string; name: string; timezone: string; startDate: string; endDate: string };
+type Event = { id: string; name: string; bannerUrl?: string | null; timezone: string; startDate: string; endDate: string };
 
 type Session = {
   id: string;
@@ -39,23 +39,25 @@ type ConversationMember = { user: { id: string; name: string; role: string } };
 type Conversation = {
   id: string;
   name?: string | null;
-  type: "EVENT" | "DIRECT" | "GROUP";
+  type: "EVENT" | "DIRECT" | "GROUP" | "SESSION";
   members: ConversationMember[];
   messages: { id: string; body: string; createdAt: string; user: { id: string; name: string } }[];
 };
 type Message = { id: string; body: string; createdAt: string; user: { id: string; name: string; role: string } };
 type SessionAttendance = { sessionId: string; status: "JOINING" | "NOT_JOINING" };
 type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
-type EventItem = { id: string; name: string; timezone: string; startDate: string; endDate: string };
+type EventItem = { id: string; name: string; bannerUrl?: string | null; timezone: string; startDate: string; endDate: string };
 
 type CheckIn = { id: string; user: { id: string; name: string; email: string; role: string }; createdAt: string };
 
-const tabs = ["Agenda", "Attendees", "Announcements", "Surveys", "Messages", "Check-In", "Profile"] as const;
+const adminTabs = ["Agenda", "Attendees", "Announcements", "Surveys", "Messages", "Check-In", "Profile"] as const;
+const participantTabs = ["Agenda", "Attendees", "Messages", "Profile"] as const;
+type Tab = (typeof adminTabs)[number];
 
 export default function Dashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [active, setActive] = useState<(typeof tabs)[number]>("Agenda");
+  const [active, setActive] = useState<Tab>("Agenda");
 
   const [event, setEvent] = useState<Event | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -74,6 +76,8 @@ export default function Dashboard() {
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [activeSessionConversationId, setActiveSessionConversationId] = useState<string | null>(null);
   const [sessionMessages, setSessionMessages] = useState<Message[]>([]);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [updatingEvent, setUpdatingEvent] = useState(false);
 
   useEffect(() => {
     const storedToken = window.localStorage.getItem("token");
@@ -88,7 +92,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!token) return;
-    apiFetch<Event>("/event", {}, token).then(setEvent).catch(() => null);
+    const eventRequestInit: RequestInit = activeEventId ? { headers: { "x-event-id": activeEventId } } : {};
+    apiFetch<Event>("/event", eventRequestInit, token).then(setEvent).catch(() => null);
     apiFetch<User>("/auth/me", {}, token).then((freshUser) => {
       setUser(freshUser);
       window.localStorage.setItem("user", JSON.stringify(freshUser));
@@ -97,7 +102,7 @@ export default function Dashboard() {
       setMyAttendance(meta.attendance);
       setLikedSessionIds(meta.likedSessionIds);
     }).catch(() => null);
-  }, [token]);
+  }, [token, activeEventId]);
 
   useEffect(() => {
     const storedEventId = window.localStorage.getItem("activeEventId");
@@ -154,6 +159,13 @@ export default function Dashboard() {
   }, [active, activeConversationId, token]);
 
   const isAdmin = useMemo(() => user?.role === "ADMIN", [user]);
+  const availableTabs = useMemo(() => (isAdmin ? adminTabs : participantTabs), [isAdmin]);
+
+  useEffect(() => {
+    if (!availableTabs.some((tab) => tab === active)) {
+      setActive("Agenda");
+    }
+  }, [availableTabs, active]);
   const sortedSessions = useMemo(
     () => [...sessions].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
     [sessions]
@@ -228,11 +240,34 @@ export default function Dashboard() {
     setActiveConversationId(conversation.id);
   };
 
+  const updateCurrentEvent = async (payload: { name: string; bannerUrl?: string; timezone: string; startDate: string; endDate: string }) => {
+    if (!token) return;
+    setUpdatingEvent(true);
+    try {
+      const requestInit: RequestInit = {
+        method: "PUT",
+        headers: activeEventId ? { "x-event-id": activeEventId } : {},
+        body: JSON.stringify(payload),
+      };
+      const updated = await apiFetch<Event>("/event", requestInit, token);
+      setEvent(updated);
+      if (isAdmin) {
+        const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
+        setAdminEvents(myEvents);
+      }
+    } finally {
+      setUpdatingEvent(false);
+    }
+  };
+
   if (!user) return null;
 
   return (
     <div className="container">
-      <div className="header">
+      {event?.bannerUrl && (
+        <div className="hero-banner" style={{ backgroundImage: `url(${event.bannerUrl})` }} />
+      )}
+      <div className="header app-shell">
         <div>
           <h1>{event?.name || "Event Dashboard"}</h1>
           <p style={{ color: "var(--ink-700)" }}>
@@ -240,11 +275,42 @@ export default function Dashboard() {
             {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
           </p>
         </div>
-        <button className="button secondary" onClick={handleLogout}>Logout</button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {isAdmin && event && (
+            <details className="card" style={{ padding: 12, minWidth: 320 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>Event Settings</summary>
+              <form
+                className="grid"
+                style={{ marginTop: 10 }}
+                onSubmit={async (eventForm) => {
+                  eventForm.preventDefault();
+                  const form = new FormData(eventForm.currentTarget);
+                  await updateCurrentEvent({
+                    name: String(form.get("name") || ""),
+                    bannerUrl: String(form.get("bannerUrl") || ""),
+                    timezone: String(form.get("timezone") || "UTC"),
+                    startDate: new Date(String(form.get("startDate") || "")).toISOString(),
+                    endDate: new Date(String(form.get("endDate") || "")).toISOString(),
+                  });
+                }}
+              >
+                <input className="input" name="name" defaultValue={event.name} required />
+                <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL" />
+                <input className="input" name="timezone" defaultValue={event.timezone} required />
+                <input className="input" type="datetime-local" name="startDate" defaultValue={toLocalInputValue(event.startDate)} required />
+                <input className="input" type="datetime-local" name="endDate" defaultValue={toLocalInputValue(event.endDate)} required />
+                <button className="button" type="submit" disabled={updatingEvent}>
+                  {updatingEvent ? "Saving..." : "Save Event"}
+                </button>
+              </form>
+            </details>
+          )}
+          <button className="button secondary" onClick={handleLogout}>Logout</button>
+        </div>
       </div>
 
       <div className="nav" style={{ marginBottom: 20 }}>
-        {tabs.map((tab) => (
+        {availableTabs.map((tab) => (
           <button key={tab} className={active === tab ? "active" : ""} onClick={() => setActive(tab)}>
             {tab}
           </button>
@@ -278,6 +344,7 @@ export default function Dashboard() {
                 onToggleLike={toggleSessionLike}
                 onEditSession={(session) => setEditingSession(session)}
                 onOpenConversation={openSessionConversation}
+                onOpenDetails={(session) => setSelectedSession(session)}
               />
             )}
             {agendaView === "My Schedule" && (
@@ -291,6 +358,7 @@ export default function Dashboard() {
                   onToggleLike={toggleSessionLike}
                   onEditSession={(session) => setEditingSession(session)}
                   onOpenConversation={openSessionConversation}
+                  onOpenDetails={(session) => setSelectedSession(session)}
                 />
                 {isAdmin && (
                   <ParticipantDailySchedules groupedAgenda={groupedAgenda} />
@@ -459,6 +527,12 @@ export default function Dashboard() {
           )}
         </div>
       )}
+      {selectedSession && (
+        <SessionDetailsModal
+          session={selectedSession}
+          onClose={() => setSelectedSession(null)}
+        />
+      )}
     </div>
   );
 }
@@ -472,6 +546,7 @@ function ScheduleBoard({
   onToggleLike,
   onEditSession,
   onOpenConversation,
+  onOpenDetails,
 }: {
   grouped: Array<{ dayLabel: string; timeSlots: Array<{ timeLabel: string; sessions: Session[] }> }>;
   isAdmin: boolean;
@@ -481,6 +556,7 @@ function ScheduleBoard({
   onToggleLike: (sessionId: string) => void;
   onEditSession: (session: Session) => void;
   onOpenConversation: (sessionId: string) => void;
+  onOpenDetails: (session: Session) => void;
 }) {
   if (grouped.length === 0) {
     return <p style={{ color: "var(--ink-500)" }}>No sessions in this view yet.</p>;
@@ -501,31 +577,36 @@ function ScheduleBoard({
                   const liked = likedSessionIds.includes(s.id);
                   const likeCount = (s.likes || []).length;
                   return (
-                    <article className="schedule-event" key={s.id} title={s.description || "No session description yet."}>
+                    <article
+                      className="schedule-event"
+                      key={s.id}
+                      title={s.description || "No session description yet."}
+                      onClick={() => onOpenDetails(s)}
+                    >
                       <h4>{s.title}</h4>
                       {(s.speakers || s.speaker?.name) && <div className="schedule-speaker">{s.speakers || s.speaker?.name}</div>}
                       {s.location && <div className="schedule-speaker">Location: {s.location}</div>}
                       <div className="schedule-links">
-                        {s.zoomLink && <a href={s.zoomLink} target="_blank" rel="noreferrer">Zoom</a>}
-                        {s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noreferrer">Recording</a>}
-                        {s.fileLink && <a href={s.fileLink} target="_blank" rel="noreferrer">Resources</a>}
-                        {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer">Uploaded File</a>}
+                        {s.zoomLink && <a href={s.zoomLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Zoom</a>}
+                        {s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Recording</a>}
+                        {s.fileLink && <a href={s.fileLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Resources</a>}
+                        {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Uploaded File</a>}
                       </div>
                       <div className="schedule-meta">
                         <span>{formatTimeRange(s.startsAt, s.endsAt)} · {joinedCount} joining · {likeCount} likes</span>
                         <div className="schedule-actions">
-                          <button className={`button ${myStatus === "JOINING" ? "" : "secondary"}`} type="button" onClick={() => onSetAttendance(s.id, "JOINING")}>
+                          <button className={`button ${myStatus === "JOINING" ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onSetAttendance(s.id, "JOINING"); }}>
                             Joining
                           </button>
-                          <button className={`button ${myStatus === "NOT_JOINING" ? "" : "secondary"}`} type="button" onClick={() => onSetAttendance(s.id, "NOT_JOINING")}>
+                          <button className={`button ${myStatus === "NOT_JOINING" ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onSetAttendance(s.id, "NOT_JOINING"); }}>
                             Not Joining
                           </button>
-                          <button className="button secondary" type="button" onClick={() => onOpenConversation(s.id)}>Conversation</button>
-                          <button className={`button ${liked ? "" : "secondary"}`} type="button" onClick={() => onToggleLike(s.id)}>
+                          <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onOpenConversation(s.id); }}>Conversation</button>
+                          <button className={`button ${liked ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onToggleLike(s.id); }}>
                             Like
                           </button>
                           {isAdmin && (
-                            <button className="button secondary" type="button" onClick={() => onEditSession(s)}>Edit</button>
+                            <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onEditSession(s); }}>Edit</button>
                           )}
                         </div>
                       </div>
@@ -612,6 +693,35 @@ function SessionConversationPanel({
   );
 }
 
+function SessionDetailsModal({
+  session,
+  onClose,
+}: {
+  session: Session;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <h3 style={{ margin: 0 }}>{session.title}</h3>
+          <button className="button secondary" type="button" onClick={onClose}>Close</button>
+        </div>
+        <p style={{ color: "var(--ink-500)" }}>{formatTimeRange(session.startsAt, session.endsAt)}</p>
+        {(session.speakers || session.speaker?.name) && <p><strong>Speakers:</strong> {session.speakers || session.speaker?.name}</p>}
+        {session.location && <p><strong>Location:</strong> {session.location}</p>}
+        {session.description && <p>{session.description}</p>}
+        <div className="schedule-links">
+          {session.zoomLink && <a href={session.zoomLink} target="_blank" rel="noreferrer">Join Zoom</a>}
+          {session.recordingUrl && <a href={session.recordingUrl} target="_blank" rel="noreferrer">Recording</a>}
+          {session.fileLink && <a href={session.fileLink} target="_blank" rel="noreferrer">Shared Link</a>}
+          {session.fileUrl && <a href={session.fileUrl} target="_blank" rel="noreferrer">Uploaded File</a>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProfileEditor({
   token,
   user,
@@ -664,6 +774,7 @@ function ProfileEditor({
     const form = new FormData(event.currentTarget);
     const payload = {
       name: String(form.get("eventName") || ""),
+      bannerUrl: String(form.get("eventBannerUrl") || ""),
       timezone: String(form.get("timezone") || "UTC"),
       startDate: new Date(String(form.get("startDate") || "")).toISOString(),
       endDate: new Date(String(form.get("endDate") || "")).toISOString(),
@@ -709,6 +820,7 @@ function ProfileEditor({
           </div>
           <form className="grid" onSubmit={createEvent}>
             <input className="input" name="eventName" placeholder="New event name" required />
+            <input className="input" name="eventBannerUrl" placeholder="Banner image URL (optional)" />
             <input className="input" name="timezone" placeholder="Timezone (e.g. America/New_York)" required />
             <input className="input" type="datetime-local" name="startDate" required />
             <input className="input" type="datetime-local" name="endDate" required />

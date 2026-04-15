@@ -8,13 +8,20 @@ export const eventRouter = Router();
 
 const eventSchema = z.object({
   name: z.string().min(1),
+  bannerUrl: z.union([z.string().url(), z.literal("")]).optional(),
   timezone: z.string().min(1),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
 });
 
-eventRouter.get("/", requireAuth, async (_req, res) => {
-  const event = await getOrCreateEvent();
+eventRouter.get("/", requireAuth, async (req, res) => {
+  const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
+  const event = requestedEventId
+    ? await prisma.event.findUnique({ where: { id: requestedEventId } })
+    : await getOrCreateEvent();
+  if (!event) {
+    return res.status(404).json({ error: "Event not found" });
+  }
   return res.json(event);
 });
 
@@ -35,6 +42,7 @@ eventRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req: AuthedReq
   const created = await prisma.event.create({
     data: {
       name: parsed.data.name,
+      bannerUrl: parsed.data.bannerUrl || null,
       timezone: parsed.data.timezone,
       startDate: new Date(parsed.data.startDate),
       endDate: new Date(parsed.data.endDate),
@@ -51,11 +59,18 @@ eventRouter.put("/", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const event = await getOrCreateEvent();
+  const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
+  const event = requestedEventId
+    ? await prisma.event.findUnique({ where: { id: requestedEventId } })
+    : await getOrCreateEvent();
+  if (!event) {
+    return res.status(404).json({ error: "Event not found" });
+  }
   const updated = await prisma.event.update({
     where: { id: event.id },
     data: {
       name: parsed.data.name,
+      bannerUrl: parsed.data.bannerUrl || null,
       timezone: parsed.data.timezone,
       startDate: new Date(parsed.data.startDate),
       endDate: new Date(parsed.data.endDate),

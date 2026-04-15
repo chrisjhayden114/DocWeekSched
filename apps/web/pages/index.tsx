@@ -42,9 +42,9 @@ export default function Home() {
     <div className="container">
       <div className="header">
         <div>
-          <h1>Event Hub</h1>
+          <h1>Conference Portal</h1>
           <p style={{ color: "var(--ink-700)" }}>
-            Agenda, announcements, check-ins, surveys, and chat in one place.
+            A professional event workspace for schedules, networking, and collaboration.
           </p>
         </div>
         <span className="badge">Blue theme</span>
