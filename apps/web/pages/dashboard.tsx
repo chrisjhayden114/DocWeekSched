@@ -1,11 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
 
-type User = { id: string; name: string; email: string; role: "ADMIN" | "ATTENDEE" | "SPEAKER" };
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "ATTENDEE" | "SPEAKER";
+  photoUrl?: string | null;
+  researchInterests?: string | null;
+};
 
 type Event = { id: string; name: string; timezone: string; startDate: string; endDate: string };
 
-type Session = { id: string; title: string; description?: string; startsAt: string; endsAt: string; speaker?: { name: string }; speakerId?: string | null };
+type Session = {
+  id: string;
+  title: string;
+  description?: string;
+  speakers?: string | null;
+  zoomLink?: string | null;
+  recordingUrl?: string | null;
+  fileUrl?: string | null;
+  fileLink?: string | null;
+  startsAt: string;
+  endsAt: string;
+  speaker?: { name: string };
+  speakerId?: string | null;
+  bookmarks?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
+  attendances?: { userId: string; status: "JOINING" | "NOT_JOINING"; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
+};
 
 type Announcement = { id: string; title: string; body: string; createdAt: string };
 
@@ -20,10 +42,11 @@ type Conversation = {
   messages: { id: string; body: string; createdAt: string; user: { id: string; name: string } }[];
 };
 type Message = { id: string; body: string; createdAt: string; user: { id: string; name: string; role: string } };
+type SessionAttendance = { sessionId: string; status: "JOINING" | "NOT_JOINING" };
 
 type CheckIn = { id: string; user: { id: string; name: string; email: string; role: string }; createdAt: string };
 
-const tabs = ["Agenda", "Attendees", "Announcements", "Surveys", "Messages", "Check-In"] as const;
+const tabs = ["Agenda", "Attendees", "Announcements", "Surveys", "Messages", "Check-In", "Profile"] as const;
 
 export default function Dashboard() {
   const [token, setToken] = useState<string | null>(null);
@@ -40,6 +63,10 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
+  const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
+  const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
+  const [activeSessionConversationId, setActiveSessionConversationId] = useState<string | null>(null);
+  const [sessionMessages, setSessionMessages] = useState<Message[]>([]);
 
   useEffect(() => {
     const storedToken = window.localStorage.getItem("token");
@@ -55,6 +82,11 @@ export default function Dashboard() {
   useEffect(() => {
     if (!token) return;
     apiFetch<Event>("/event", {}, token).then(setEvent).catch(() => null);
+    apiFetch<User>("/auth/me", {}, token).then((freshUser) => {
+      setUser(freshUser);
+      window.localStorage.setItem("user", JSON.stringify(freshUser));
+    }).catch(() => null);
+    apiFetch<SessionAttendance[]>("/sessions/me", {}, token).then(setMyAttendance).catch(() => null);
   }, [token]);
 
   useEffect(() => {
@@ -100,11 +132,53 @@ export default function Dashboard() {
   }, [active, activeConversationId, token]);
 
   const isAdmin = useMemo(() => user?.role === "ADMIN", [user]);
+  const sortedSessions = useMemo(
+    () => [...sessions].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
+    [sessions]
+  );
+  const groupedAgenda = useMemo(() => groupSessionsByDayAndTime(sortedSessions), [sortedSessions]);
+  const joiningSessionIds = useMemo(
+    () => myAttendance.filter((item) => item.status === "JOINING").map((item) => item.sessionId),
+    [myAttendance]
+  );
+  const myScheduledSessions = useMemo(
+    () => sortedSessions.filter((session) => joiningSessionIds.includes(session.id)),
+    [sortedSessions, joiningSessionIds]
+  );
+  const groupedMySchedule = useMemo(() => groupSessionsByDayAndTime(myScheduledSessions), [myScheduledSessions]);
 
   const handleLogout = () => {
     window.localStorage.removeItem("token");
     window.localStorage.removeItem("user");
     window.location.href = "/";
+  };
+
+  const setSessionAttendance = async (sessionId: string, status: "JOINING" | "NOT_JOINING") => {
+    if (!token) return;
+    await apiFetch(`/sessions/${sessionId}/attendance`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }, token);
+    setMyAttendance((prev) => {
+      const rest = prev.filter((item) => item.sessionId !== sessionId);
+      return [...rest, { sessionId, status }];
+    });
+  };
+
+  const openSessionConversation = async (sessionId: string) => {
+    if (!token) return;
+    setActiveSessionConversationId(sessionId);
+    const messagesForSession = await apiFetch<Message[]>(`/sessions/${sessionId}/conversation/messages`, {}, token);
+    setSessionMessages(messagesForSession);
+  };
+
+  const sendSessionMessage = async (body: string) => {
+    if (!token || !activeSessionConversationId) return;
+    const message = await apiFetch<Message>(`/sessions/${activeSessionConversationId}/conversation/messages`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }, token);
+    setSessionMessages((prev) => [...prev, message]);
   };
 
   if (!user) return null;
@@ -114,7 +188,10 @@ export default function Dashboard() {
       <div className="header">
         <div>
           <h1>{event?.name || "Event Dashboard"}</h1>
-          <p style={{ color: "var(--ink-700)" }}>{user.name} · {user.role}</p>
+          <p style={{ color: "var(--ink-700)" }}>
+            {user.name} · {user.role}
+            {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
+          </p>
         </div>
         <button className="button secondary" onClick={handleLogout}>Logout</button>
       </div>
@@ -128,7 +205,54 @@ export default function Dashboard() {
       </div>
 
       {active === "Agenda" && (
-        <div className="grid">
+        <div className="schedule-layout">
+          <div className="card schedule-list">
+            <div className="nav" style={{ marginBottom: 16 }}>
+              <button
+                className={agendaView === "Event Schedule" ? "active" : ""}
+                onClick={() => setAgendaView("Event Schedule")}
+              >
+                Event Schedule
+              </button>
+              <button
+                className={agendaView === "My Schedule" ? "active" : ""}
+                onClick={() => setAgendaView("My Schedule")}
+              >
+                My Schedule
+              </button>
+            </div>
+            {agendaView === "Event Schedule" && (
+              <ScheduleBoard
+                grouped={groupedAgenda}
+                isAdmin={isAdmin}
+                myAttendance={myAttendance}
+                onSetAttendance={setSessionAttendance}
+                onEditSession={(session) => setEditingSession(session)}
+                onOpenConversation={openSessionConversation}
+              />
+            )}
+            {agendaView === "My Schedule" && (
+              <>
+                <ScheduleBoard
+                  grouped={groupedMySchedule}
+                  isAdmin={isAdmin}
+                  myAttendance={myAttendance}
+                  onSetAttendance={setSessionAttendance}
+                  onEditSession={(session) => setEditingSession(session)}
+                  onOpenConversation={openSessionConversation}
+                />
+                {isAdmin && (
+                  <ParticipantDailySchedules groupedAgenda={groupedAgenda} />
+                )}
+              </>
+            )}
+            {activeSessionConversationId && (
+              <SessionConversationPanel
+                messages={sessionMessages}
+                onSend={sendSessionMessage}
+              />
+            )}
+          </div>
           {isAdmin && (
             <SessionForm
               token={token!}
@@ -141,21 +265,6 @@ export default function Dashboard() {
               onCancel={() => setEditingSession(null)}
             />
           )}
-          {sessions.map((s) => (
-            <div className="card" key={s.id}>
-              <h3>{s.title}</h3>
-              <p style={{ color: "var(--ink-700)" }}>{s.description}</p>
-              <p style={{ color: "var(--ink-500)" }}>
-                {new Date(s.startsAt).toLocaleString()} - {new Date(s.endsAt).toLocaleString()}
-              </p>
-              {s.speaker?.name && <span className="badge">Speaker: {s.speaker.name}</span>}
-              {isAdmin && (
-                <div style={{ marginTop: 10 }}>
-                  <button className="button secondary" onClick={() => setEditingSession(s)}>Edit</button>
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       )}
 
@@ -163,8 +272,10 @@ export default function Dashboard() {
         <div className="grid two">
           {attendees.map((a) => (
             <div className="card" key={a.id}>
+              {a.photoUrl && <img src={a.photoUrl} alt={a.name} className="avatar" />}
               <h3>{a.name}</h3>
               <p style={{ color: "var(--ink-700)" }}>{a.email}</p>
+              {a.researchInterests && <p style={{ color: "var(--ink-700)" }}>{a.researchInterests}</p>}
               <span className="badge">{a.role}</span>
             </div>
           ))}
@@ -252,6 +363,18 @@ export default function Dashboard() {
         </div>
       )}
 
+      {active === "Profile" && (
+        <ProfileEditor
+          token={token!}
+          user={user}
+          onSaved={(updated) => {
+            setUser(updated);
+            window.localStorage.setItem("user", JSON.stringify(updated));
+            setAttendees((prev) => prev.map((attendee) => (attendee.id === updated.id ? updated : attendee)));
+          }}
+        />
+      )}
+
       {active === "Check-In" && (
         <div className="grid">
           <CheckInSelf token={token!} />
@@ -268,6 +391,203 @@ export default function Dashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+function ScheduleBoard({
+  grouped,
+  isAdmin,
+  myAttendance,
+  onSetAttendance,
+  onEditSession,
+  onOpenConversation,
+}: {
+  grouped: Array<{ dayLabel: string; timeSlots: Array<{ timeLabel: string; sessions: Session[] }> }>;
+  isAdmin: boolean;
+  myAttendance: SessionAttendance[];
+  onSetAttendance: (sessionId: string, status: "JOINING" | "NOT_JOINING") => void;
+  onEditSession: (session: Session) => void;
+  onOpenConversation: (sessionId: string) => void;
+}) {
+  if (grouped.length === 0) {
+    return <p style={{ color: "var(--ink-500)" }}>No sessions in this view yet.</p>;
+  }
+
+  return (
+    <>
+      {grouped.map((dayGroup) => (
+        <section key={dayGroup.dayLabel} className="schedule-day">
+          <h3 className="schedule-day-heading">{dayGroup.dayLabel}</h3>
+          {dayGroup.timeSlots.map((slot) => (
+            <div key={`${dayGroup.dayLabel}-${slot.timeLabel}`} className="schedule-slot">
+              <div className="schedule-time">{slot.timeLabel}</div>
+              <div className="schedule-events">
+                {slot.sessions.map((s) => {
+                  const myStatus = myAttendance.find((item) => item.sessionId === s.id)?.status;
+                  return (
+                    <article className="schedule-event" key={s.id} title={s.description || "No session description yet."}>
+                      <h4>{s.title}</h4>
+                      {(s.speakers || s.speaker?.name) && <div className="schedule-speaker">{s.speakers || s.speaker?.name}</div>}
+                      <div className="schedule-links">
+                        {s.zoomLink && <a href={s.zoomLink} target="_blank" rel="noreferrer">Zoom</a>}
+                        {s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noreferrer">Recording</a>}
+                        {s.fileLink && <a href={s.fileLink} target="_blank" rel="noreferrer">Resources</a>}
+                        {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer">Uploaded File</a>}
+                      </div>
+                      <div className="schedule-meta">
+                        <span>{formatTimeRange(s.startsAt, s.endsAt)}</span>
+                        <div className="schedule-actions">
+                          <button className={`button ${myStatus === "JOINING" ? "" : "secondary"}`} type="button" onClick={() => onSetAttendance(s.id, "JOINING")}>
+                            Joining
+                          </button>
+                          <button className={`button ${myStatus === "NOT_JOINING" ? "" : "secondary"}`} type="button" onClick={() => onSetAttendance(s.id, "NOT_JOINING")}>
+                            Not Joining
+                          </button>
+                          <button className="button secondary" type="button" onClick={() => onOpenConversation(s.id)}>Conversation</button>
+                          {isAdmin && (
+                            <button className="button secondary" type="button" onClick={() => onEditSession(s)}>Edit</button>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
+    </>
+  );
+}
+
+function ParticipantDailySchedules({
+  groupedAgenda,
+}: {
+  groupedAgenda: Array<{ dayLabel: string; timeSlots: Array<{ timeLabel: string; sessions: Session[] }> }>;
+}) {
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Participant Schedules By Day</h3>
+      {groupedAgenda.map((day) => (
+        <div key={day.dayLabel} style={{ marginBottom: 18 }}>
+          <strong>{day.dayLabel}</strong>
+          {day.timeSlots.map((slot) => (
+            <div key={`${day.dayLabel}-${slot.timeLabel}`} style={{ marginTop: 10 }}>
+              <div style={{ color: "var(--ink-500)", fontWeight: 600 }}>{slot.timeLabel}</div>
+              {slot.sessions.map((session) => (
+                <div key={session.id} style={{ borderBottom: "1px solid var(--border)", padding: "8px 0" }}>
+                  <div style={{ fontWeight: 600 }}>{session.title}</div>
+                  <div style={{ color: "var(--ink-700)" }}>
+                    {(session.attendances || []).filter((attendance) => attendance.status === "JOINING").length > 0
+                      ? `Participants: ${(session.attendances || [])
+                          .filter((attendance) => attendance.status === "JOINING")
+                          .map((attendance) => attendance.user.name)
+                          .join(", ")}`
+                      : "No participants added yet"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SessionConversationPanel({
+  messages,
+  onSend,
+}: {
+  messages: Message[];
+  onSend: (body: string) => Promise<void>;
+}) {
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3 style={{ marginTop: 0 }}>Session Conversation</h3>
+      <form
+        className="grid"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          const body = String(form.get("body") || "");
+          if (!body.trim()) return;
+          await onSend(body);
+          event.currentTarget.reset();
+        }}
+      >
+        <textarea className="textarea" name="body" placeholder="Add to this session conversation..." required />
+        <button className="button" type="submit">Send</button>
+      </form>
+      <div className="grid" style={{ marginTop: 12 }}>
+        {messages.map((message) => (
+          <div key={message.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>
+            <strong>{message.user.name}</strong>
+            <div>{message.body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProfileEditor({
+  token,
+  user,
+  onSaved,
+}: {
+  token: string;
+  user: User;
+  onSaved: (user: User) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(user.photoUrl || null);
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    setPhotoPreview(dataUrl);
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      name: String(form.get("name") || ""),
+      researchInterests: String(form.get("researchInterests") || ""),
+      photoUrl: photoPreview || undefined,
+    };
+    setSaving(true);
+    try {
+      const updated = await apiFetch<User>("/auth/me/profile", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }, token);
+      onSaved(updated);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="card grid" onSubmit={handleSubmit}>
+      <h3 style={{ marginTop: 0 }}>My Profile</h3>
+      {photoPreview && <img src={photoPreview} alt={user.name} className="avatar avatar-large" />}
+      <input className="input" name="photo" type="file" accept="image/*" onChange={handleFileChange} />
+      <input className="input" name="name" defaultValue={user.name} required />
+      <textarea
+        className="textarea"
+        name="researchInterests"
+        defaultValue={user.researchInterests || ""}
+        placeholder="Research interests, projects, and topics you care about"
+        rows={5}
+      />
+      <button className="button" type="submit" disabled={saving}>
+        {saving ? "Saving..." : "Save Profile"}
+      </button>
+    </form>
   );
 }
 
@@ -313,6 +633,11 @@ function SessionForm({
     const payload = {
       title: String(form.get("title") || ""),
       description: String(form.get("description") || ""),
+      speakers: String(form.get("speakers") || ""),
+      zoomLink: String(form.get("zoomLink") || ""),
+      recordingUrl: String(form.get("recordingUrl") || ""),
+      fileLink: String(form.get("fileLink") || ""),
+      fileUrl: String(form.get("fileUrl") || ""),
       startsAt: new Date(String(form.get("startsAt") || "")).toISOString(),
       endsAt: new Date(String(form.get("endsAt") || "")).toISOString(),
       speakerId: String(form.get("speakerId") || "") || undefined,
@@ -336,12 +661,37 @@ function SessionForm({
 
   const defaultStart = editing?.startsAt ? toLocalInputValue(editing.startsAt) : "";
   const defaultEnd = editing?.endsAt ? toLocalInputValue(editing.endsAt) : "";
+  const removeSession = async () => {
+    if (!editing) return;
+    if (!confirm("Delete this session?")) return;
+    await apiFetch(`/sessions/${editing.id}`, { method: "DELETE" }, token);
+    onSaved();
+  };
 
   return (
     <form className="card grid" onSubmit={handleSubmit}>
       <h3>{editing ? "Edit session" : "New session"}</h3>
       <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
       <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
+      <input className="input" name="speakers" placeholder="Speaker(s)" defaultValue={editing?.speakers || ""} />
+      <input className="input" name="zoomLink" placeholder="Zoom link" defaultValue={editing?.zoomLink || ""} />
+      <input className="input" name="recordingUrl" placeholder="Recording URL" defaultValue={editing?.recordingUrl || ""} />
+      <input className="input" name="fileLink" placeholder="Presentation or resource link" defaultValue={editing?.fileLink || ""} />
+      <textarea className="textarea" name="fileUrl" placeholder="Optional file upload (base64 data URL auto-added from upload)" defaultValue={editing?.fileUrl || ""} />
+      <input
+        className="input"
+        type="file"
+        accept="audio/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,image/*"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          const data = await fileToDataUrl(file);
+          const target = event.currentTarget.form?.elements.namedItem("fileUrl");
+          if (target instanceof HTMLTextAreaElement) {
+            target.value = data;
+          }
+        }}
+      />
       <input className="input" type="datetime-local" name="startsAt" required defaultValue={defaultStart} />
       <input className="input" type="datetime-local" name="endsAt" required defaultValue={defaultEnd} />
       <select className="select" name="speakerId" defaultValue={editing?.speakerId || ""}>
@@ -353,7 +703,10 @@ function SessionForm({
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button className="button" type="submit">{editing ? "Save changes" : "Create session"}</button>
         {editing && (
-          <button className="button secondary" type="button" onClick={onCancel}>Cancel</button>
+          <>
+            <button className="button secondary" type="button" onClick={onCancel}>Cancel</button>
+            <button className="button secondary" type="button" onClick={removeSession}>Delete Session</button>
+          </>
         )}
       </div>
     </form>
@@ -547,4 +900,60 @@ function toLocalInputValue(dateString: string) {
   const offset = date.getTimezoneOffset() * 60000;
   const local = new Date(date.getTime() - offset);
   return local.toISOString().slice(0, 16);
+}
+
+function formatEventRange(start: string, end: string) {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  return `${startDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
+function formatTimeRange(start: string, end: string) {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  return `${startDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function groupSessionsByDayAndTime(sessions: Session[]) {
+  const groupedByDay = new Map<string, Session[]>();
+  for (const session of sessions) {
+    const dayKey = new Date(session.startsAt).toDateString();
+    const existing = groupedByDay.get(dayKey) || [];
+    existing.push(session);
+    groupedByDay.set(dayKey, existing);
+  }
+
+  return Array.from(groupedByDay.values()).map((daySessions) => {
+    const firstSession = daySessions[0];
+    const dayLabel = new Date(firstSession.startsAt).toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+
+    const timeMap = new Map<string, Session[]>();
+    for (const session of daySessions) {
+      const timeKey = new Date(session.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const list = timeMap.get(timeKey) || [];
+      list.push(session);
+      timeMap.set(timeKey, list);
+    }
+
+    return {
+      dayLabel,
+      timeSlots: Array.from(timeMap.entries()).map(([timeLabel, slotSessions]) => ({
+        timeLabel,
+        sessions: slotSessions,
+      })),
+    };
+  });
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Unable to read file"));
+    reader.readAsDataURL(file);
+  });
 }

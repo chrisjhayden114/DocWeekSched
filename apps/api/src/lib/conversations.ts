@@ -38,3 +38,20 @@ export async function getDirectConversation(userId: string, otherUserId: string)
     c.members.some((m) => m.userId === otherUserId)
   );
 }
+
+export async function getOrCreateSessionConversation(sessionId: string) {
+  const event = await getOrCreateEvent();
+  const existing = await prisma.conversation.findFirst({
+    where: { eventId: event.id, type: "SESSION", sessionId },
+  });
+  if (existing) return existing;
+
+  return prisma.conversation.create({
+    data: {
+      eventId: event.id,
+      type: "SESSION",
+      sessionId,
+      name: "Session Conversation",
+    },
+  });
+}

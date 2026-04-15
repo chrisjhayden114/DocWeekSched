@@ -1,14 +1,14 @@
 :root {
-  --blue-900: #0b2b6b;
-  --blue-700: #1d4ed8;
-  --blue-500: #3b82f6;
-  --blue-200: #bfdbfe;
-  --blue-50: #eff6ff;
-  --ink-900: #0f172a;
-  --ink-700: #334155;
-  --ink-500: #64748b;
-  --border: #dbeafe;
-  --bg: #f8fbff;
+  --blue-900: #12306b;
+  --blue-700: #1f4ca8;
+  --blue-500: #3578e5;
+  --blue-200: #d3e2fb;
+  --blue-50: #f4f8ff;
+  --ink-900: #121a2b;
+  --ink-700: #3f4d67;
+  --ink-500: #73809a;
+  --border: #d8e1ef;
+  --bg: #f3f5f8;
   --card: #ffffff;
 }
 
@@ -18,9 +18,9 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   color: var(--ink-900);
-  background: radial-gradient(circle at 10% 10%, #e0ecff 0%, #f8fbff 35%, #ffffff 100%);
+  background: var(--bg);
 }
 
 a {
@@ -29,33 +29,33 @@ a {
 }
 
 .container {
-  max-width: 1100px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 32px 20px 60px;
+  padding: 28px 20px 64px;
 }
 
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
 }
 
 .button {
   background: var(--blue-700);
   color: white;
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 10px 16px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .button.secondary {
-  background: var(--blue-50);
-  color: var(--blue-900);
-  border: 1px solid var(--blue-200);
+  background: #fff;
+  color: var(--ink-700);
+  border: 1px solid var(--border);
 }
 
 .input,
@@ -63,7 +63,7 @@ a {
 .textarea {
   width: 100%;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: white;
   font-size: 14px;
@@ -91,9 +91,10 @@ a {
 .nav button {
   background: white;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 8px 14px;
   cursor: pointer;
+  font-weight: 600;
 }
 
 .nav button.active {
@@ -107,15 +108,141 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .badge {
   display: inline-block;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 6px;
   background: var(--blue-50);
   color: var(--blue-900);
   font-size: 12px;
   font-weight: 600;
+}
+
+.schedule-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.schedule-list {
+  padding: 18px 18px 8px;
+}
+
+.schedule-day {
+  border-top: 1px solid var(--border);
+  padding: 14px 0;
+}
+
+.schedule-day:first-of-type {
+  border-top: none;
+  padding-top: 4px;
+}
+
+.schedule-day-heading {
+  margin: 0 0 14px;
+  font-size: 18px;
+  color: var(--ink-900);
+}
+
+.schedule-slot {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+.schedule-time {
+  font-weight: 600;
+  color: var(--ink-700);
+  font-size: 14px;
+  padding-top: 6px;
+}
+
+.schedule-events {
+  display: grid;
+  gap: 10px;
+}
+
+.schedule-event {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+}
+
+.schedule-event h4 {
+  margin: 0 0 5px;
+  font-size: 16px;
+}
+
+.schedule-speaker {
+  color: var(--blue-700);
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.schedule-event p {
+  margin: 0 0 8px;
+  color: var(--ink-700);
+  line-height: 1.45;
+}
+
+.schedule-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-500);
+  font-size: 13px;
+}
+
+.schedule-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.schedule-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.schedule-links a {
+  font-size: 12px;
+  color: var(--blue-700);
+  text-decoration: underline;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.avatar.avatar-large {
+  width: 96px;
+  height: 96px;
+}
+
+@media (min-width: 960px) {
+  .schedule-layout {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .schedule-slot {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }

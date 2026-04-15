@@ -67,6 +67,12 @@ export default function Home() {
                 <option value="SPEAKER">Speaker</option>
                 <option value="ADMIN">Admin</option>
               </select>
+              <textarea
+                className="textarea"
+                name="researchInterests"
+                placeholder="Research interests (optional)"
+                rows={3}
+              />
             </>
           )}
           <input className="input" name="email" type="email" placeholder="Email" required />

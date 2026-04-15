@@ -6,7 +6,7 @@ export const attendeesRouter = Router();
 
 attendeesRouter.get("/", requireAuth, async (_req, res) => {
   const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, photoUrl: true, researchInterests: true },
     orderBy: { name: "asc" },
   });
 

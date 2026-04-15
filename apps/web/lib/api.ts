@@ -1,6 +1,16 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export type AuthResponse = { token: string; user: { id: string; name: string; email: string; role: string } };
+export type AuthResponse = {
+  token: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    photoUrl?: string | null;
+    researchInterests?: string | null;
+  };
+};
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}, token?: string) {
   const res = await fetch(`${API_URL}${path}`, {
