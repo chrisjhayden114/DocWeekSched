@@ -48,6 +48,12 @@ sessionsRouter.get("/", requireAuth, async (_req, res) => {
           user: { select: { id: true, name: true, email: true, photoUrl: true } },
         },
       },
+      likes: {
+        select: {
+          userId: true,
+          user: { select: { id: true, name: true, email: true, photoUrl: true } },
+        },
+      },
     },
   });
   return res.json(sessions);
@@ -58,7 +64,11 @@ sessionsRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
     where: { userId: req.user?.id || "" },
     select: { sessionId: true, status: true },
   });
-  return res.json(saved);
+  const likes = await prisma.sessionLike.findMany({
+    where: { userId: req.user?.id || "" },
+    select: { sessionId: true },
+  });
+  return res.json({ attendance: saved, likedSessionIds: likes.map((like) => like.sessionId) });
 });
 
 sessionsRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
@@ -67,7 +77,13 @@ sessionsRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) =
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const event = await getOrCreateEvent();
+  const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
+  const event = requestedEventId
+    ? await prisma.event.findUnique({ where: { id: requestedEventId } })
+    : await getOrCreateEvent();
+  if (!event) {
+    return res.status(404).json({ error: "Event not found" });
+  }
   const session = await prisma.session.create({
     data: {
       ...parsed.data,
@@ -131,6 +147,33 @@ sessionsRouter.put("/:id/attendance", requireAuth, async (req: AuthedRequest, re
     },
   });
 
+  return res.json({ ok: true });
+});
+
+sessionsRouter.put("/:id/like", requireAuth, async (req: AuthedRequest, res) => {
+  await prisma.sessionLike.upsert({
+    where: {
+      userId_sessionId: {
+        userId: req.user?.id || "",
+        sessionId: req.params.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: req.user?.id || "",
+      sessionId: req.params.id,
+    },
+  });
+  return res.json({ ok: true });
+});
+
+sessionsRouter.delete("/:id/like", requireAuth, async (req: AuthedRequest, res) => {
+  await prisma.sessionLike.deleteMany({
+    where: {
+      userId: req.user?.id || "",
+      sessionId: req.params.id,
+    },
+  });
   return res.json({ ok: true });
 });
 

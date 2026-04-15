@@ -3,6 +3,7 @@ import { apiFetch, AuthResponse } from "../lib/api";
 
 export default function Home() {
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [registerType, setRegisterType] = useState<"participant" | "admin">("participant");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +23,8 @@ export default function Home() {
     const payload = Object.fromEntries(form.entries());
 
     try {
-      const data = await apiFetch<AuthResponse>(`/auth/${mode === "login" ? "login" : "register"}`, {
+      const endpoint = mode === "login" ? "/auth/login" : registerType === "admin" ? "/auth/register-admin" : "/auth/register";
+      const data = await apiFetch<AuthResponse>(endpoint, {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -61,18 +63,38 @@ export default function Home() {
         <form onSubmit={handleSubmit} className="grid" style={{ gap: 12 }}>
           {mode === "register" && (
             <>
+              <div className="nav">
+                <button
+                  type="button"
+                  className={registerType === "participant" ? "active" : ""}
+                  onClick={() => setRegisterType("participant")}
+                >
+                  Participant Join Link
+                </button>
+                <button
+                  type="button"
+                  className={registerType === "admin" ? "active" : ""}
+                  onClick={() => setRegisterType("admin")}
+                >
+                  Admin Join Link
+                </button>
+              </div>
               <input className="input" name="name" placeholder="Full name" required />
-              <select className="select" name="role" defaultValue="ATTENDEE">
-                <option value="ATTENDEE">Attendee</option>
-                <option value="SPEAKER">Speaker</option>
-                <option value="ADMIN">Admin</option>
-              </select>
+              {registerType === "participant" && (
+                <select className="select" name="role" defaultValue="ATTENDEE">
+                  <option value="ATTENDEE">Attendee</option>
+                  <option value="SPEAKER">Speaker</option>
+                </select>
+              )}
               <textarea
                 className="textarea"
                 name="researchInterests"
                 placeholder="Research interests (optional)"
                 rows={3}
               />
+              {registerType === "admin" && (
+                <input className="input" name="inviteCode" placeholder="Admin invite code" required />
+              )}
             </>
           )}
           <input className="input" name="email" type="email" placeholder="Email" required />

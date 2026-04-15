@@ -37,16 +37,16 @@ a {
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 20px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.1);
 }
 
 .button {
   background: var(--blue-700);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 10px 16px;
   font-weight: 600;
   cursor: pointer;
@@ -56,6 +56,7 @@ a {
   background: #fff;
   color: var(--ink-700);
   border: 1px solid var(--border);
+  box-shadow: 0 4px 10px rgba(16, 24, 40, 0.08);
 }
 
 .input,
@@ -63,7 +64,7 @@ a {
 .textarea {
   width: 100%;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: white;
   font-size: 14px;
@@ -91,7 +92,7 @@ a {
 .nav button {
   background: white;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 8px 14px;
   cursor: pointer;
   font-weight: 600;
@@ -114,7 +115,7 @@ a {
 .badge {
   display: inline-block;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--blue-50);
   color: var(--blue-900);
   font-size: 12px;
@@ -168,9 +169,10 @@ a {
 
 .schedule-event {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 0;
   padding: 12px;
   background: #fff;
+  box-shadow: 0 6px 14px rgba(16, 24, 40, 0.08);
 }
 
 .schedule-event h4 {

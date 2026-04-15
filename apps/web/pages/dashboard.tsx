@@ -16,6 +16,7 @@ type Session = {
   id: string;
   title: string;
   description?: string;
+  location?: string | null;
   speakers?: string | null;
   zoomLink?: string | null;
   recordingUrl?: string | null;
@@ -27,6 +28,7 @@ type Session = {
   speakerId?: string | null;
   bookmarks?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
   attendances?: { userId: string; status: "JOINING" | "NOT_JOINING"; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
+  likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
 };
 
 type Announcement = { id: string; title: string; body: string; createdAt: string };
@@ -43,6 +45,8 @@ type Conversation = {
 };
 type Message = { id: string; body: string; createdAt: string; user: { id: string; name: string; role: string } };
 type SessionAttendance = { sessionId: string; status: "JOINING" | "NOT_JOINING" };
+type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
+type EventItem = { id: string; name: string; timezone: string; startDate: string; endDate: string };
 
 type CheckIn = { id: string; user: { id: string; name: string; email: string; role: string }; createdAt: string };
 
@@ -65,6 +69,9 @@ export default function Dashboard() {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
+  const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
+  const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
+  const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [activeSessionConversationId, setActiveSessionConversationId] = useState<string | null>(null);
   const [sessionMessages, setSessionMessages] = useState<Message[]>([]);
 
@@ -86,14 +93,25 @@ export default function Dashboard() {
       setUser(freshUser);
       window.localStorage.setItem("user", JSON.stringify(freshUser));
     }).catch(() => null);
-    apiFetch<SessionAttendance[]>("/sessions/me", {}, token).then(setMyAttendance).catch(() => null);
+    apiFetch<MySessionMeta>("/sessions/me", {}, token).then((meta) => {
+      setMyAttendance(meta.attendance);
+      setLikedSessionIds(meta.likedSessionIds);
+    }).catch(() => null);
   }, [token]);
+
+  useEffect(() => {
+    const storedEventId = window.localStorage.getItem("activeEventId");
+    if (storedEventId) {
+      setActiveEventId(storedEventId);
+    }
+  }, []);
 
   useEffect(() => {
     if (!token) return;
     const load = async () => {
       if (active === "Agenda") {
-        setSessions(await apiFetch<Session[]>("/sessions", {}, token));
+        const sessionRequestInit: RequestInit = activeEventId ? { headers: { "x-event-id": activeEventId } } : {};
+        setSessions(await apiFetch<Session[]>("/sessions", sessionRequestInit, token));
         if (user?.role === "ADMIN" && attendees.length === 0) {
           setAttendees(await apiFetch<User[]>("/attendees", {}, token));
         }
@@ -120,9 +138,13 @@ export default function Dashboard() {
       if (active === "Check-In" && user?.role === "ADMIN") {
         setCheckIns(await apiFetch<CheckIn[]>("/checkins", {}, token));
       }
+      if (user?.role === "ADMIN") {
+        const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
+        setAdminEvents(myEvents);
+      }
     };
     load();
-  }, [active, token, user?.role, activeConversationId]);
+  }, [active, token, user?.role, activeConversationId, activeEventId]);
 
   useEffect(() => {
     if (!token || active !== "Messages" || !activeConversationId) return;
@@ -181,6 +203,31 @@ export default function Dashboard() {
     setSessionMessages((prev) => [...prev, message]);
   };
 
+  const toggleSessionLike = async (sessionId: string) => {
+    if (!token) return;
+    const liked = likedSessionIds.includes(sessionId);
+    if (liked) {
+      await apiFetch(`/sessions/${sessionId}/like`, { method: "DELETE" }, token);
+      setLikedSessionIds((prev) => prev.filter((id) => id !== sessionId));
+      return;
+    }
+    await apiFetch(`/sessions/${sessionId}/like`, { method: "PUT" }, token);
+    setLikedSessionIds((prev) => [...prev, sessionId]);
+  };
+
+  const startDirectMessage = async (userId: string) => {
+    if (!token) return;
+    const conversation = await apiFetch<Conversation>("/conversations/direct", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }, token);
+    if (!conversations.some((c) => c.id === conversation.id)) {
+      setConversations((prev) => [conversation, ...prev]);
+    }
+    setActive("Messages");
+    setActiveConversationId(conversation.id);
+  };
+
   if (!user) return null;
 
   return (
@@ -226,7 +273,9 @@ export default function Dashboard() {
                 grouped={groupedAgenda}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
+                likedSessionIds={likedSessionIds}
                 onSetAttendance={setSessionAttendance}
+                onToggleLike={toggleSessionLike}
                 onEditSession={(session) => setEditingSession(session)}
                 onOpenConversation={openSessionConversation}
               />
@@ -237,7 +286,9 @@ export default function Dashboard() {
                   grouped={groupedMySchedule}
                   isAdmin={isAdmin}
                   myAttendance={myAttendance}
+                  likedSessionIds={likedSessionIds}
                   onSetAttendance={setSessionAttendance}
+                  onToggleLike={toggleSessionLike}
                   onEditSession={(session) => setEditingSession(session)}
                   onOpenConversation={openSessionConversation}
                 />
@@ -276,6 +327,11 @@ export default function Dashboard() {
               <h3>{a.name}</h3>
               <p style={{ color: "var(--ink-700)" }}>{a.email}</p>
               {a.researchInterests && <p style={{ color: "var(--ink-700)" }}>{a.researchInterests}</p>}
+              {a.id !== user.id && (
+                <button className="button secondary" type="button" onClick={() => startDirectMessage(a.id)}>
+                  Message
+                </button>
+              )}
               <span className="badge">{a.role}</span>
             </div>
           ))}
@@ -367,10 +423,23 @@ export default function Dashboard() {
         <ProfileEditor
           token={token!}
           user={user}
+          adminEvents={adminEvents}
+          activeEventId={activeEventId}
           onSaved={(updated) => {
             setUser(updated);
             window.localStorage.setItem("user", JSON.stringify(updated));
             setAttendees((prev) => prev.map((attendee) => (attendee.id === updated.id ? updated : attendee)));
+          }}
+          onEventSelected={(eventId) => {
+            setActiveEventId(eventId);
+            window.localStorage.setItem("activeEventId", eventId);
+            setActive("Agenda");
+          }}
+          onEventCreated={(created) => {
+            setAdminEvents((prev) => [created, ...prev]);
+            setActiveEventId(created.id);
+            window.localStorage.setItem("activeEventId", created.id);
+            setActive("Agenda");
           }}
         />
       )}
@@ -398,14 +467,18 @@ function ScheduleBoard({
   grouped,
   isAdmin,
   myAttendance,
+  likedSessionIds,
   onSetAttendance,
+  onToggleLike,
   onEditSession,
   onOpenConversation,
 }: {
   grouped: Array<{ dayLabel: string; timeSlots: Array<{ timeLabel: string; sessions: Session[] }> }>;
   isAdmin: boolean;
   myAttendance: SessionAttendance[];
+  likedSessionIds: string[];
   onSetAttendance: (sessionId: string, status: "JOINING" | "NOT_JOINING") => void;
+  onToggleLike: (sessionId: string) => void;
   onEditSession: (session: Session) => void;
   onOpenConversation: (sessionId: string) => void;
 }) {
@@ -424,10 +497,14 @@ function ScheduleBoard({
               <div className="schedule-events">
                 {slot.sessions.map((s) => {
                   const myStatus = myAttendance.find((item) => item.sessionId === s.id)?.status;
+                  const joinedCount = (s.attendances || []).filter((attendance) => attendance.status === "JOINING").length;
+                  const liked = likedSessionIds.includes(s.id);
+                  const likeCount = (s.likes || []).length;
                   return (
                     <article className="schedule-event" key={s.id} title={s.description || "No session description yet."}>
                       <h4>{s.title}</h4>
                       {(s.speakers || s.speaker?.name) && <div className="schedule-speaker">{s.speakers || s.speaker?.name}</div>}
+                      {s.location && <div className="schedule-speaker">Location: {s.location}</div>}
                       <div className="schedule-links">
                         {s.zoomLink && <a href={s.zoomLink} target="_blank" rel="noreferrer">Zoom</a>}
                         {s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noreferrer">Recording</a>}
@@ -435,7 +512,7 @@ function ScheduleBoard({
                         {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer">Uploaded File</a>}
                       </div>
                       <div className="schedule-meta">
-                        <span>{formatTimeRange(s.startsAt, s.endsAt)}</span>
+                        <span>{formatTimeRange(s.startsAt, s.endsAt)} · {joinedCount} joining · {likeCount} likes</span>
                         <div className="schedule-actions">
                           <button className={`button ${myStatus === "JOINING" ? "" : "secondary"}`} type="button" onClick={() => onSetAttendance(s.id, "JOINING")}>
                             Joining
@@ -444,6 +521,9 @@ function ScheduleBoard({
                             Not Joining
                           </button>
                           <button className="button secondary" type="button" onClick={() => onOpenConversation(s.id)}>Conversation</button>
+                          <button className={`button ${liked ? "" : "secondary"}`} type="button" onClick={() => onToggleLike(s.id)}>
+                            Like
+                          </button>
                           {isAdmin && (
                             <button className="button secondary" type="button" onClick={() => onEditSession(s)}>Edit</button>
                           )}
@@ -535,11 +615,19 @@ function SessionConversationPanel({
 function ProfileEditor({
   token,
   user,
+  adminEvents,
+  activeEventId,
   onSaved,
+  onEventSelected,
+  onEventCreated,
 }: {
   token: string;
   user: User;
+  adminEvents: EventItem[];
+  activeEventId: string | null;
   onSaved: (user: User) => void;
+  onEventSelected: (eventId: string) => void;
+  onEventCreated: (event: EventItem) => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(user.photoUrl || null);
@@ -571,6 +659,23 @@ function ProfileEditor({
     }
   };
 
+  const createEvent = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      name: String(form.get("eventName") || ""),
+      timezone: String(form.get("timezone") || "UTC"),
+      startDate: new Date(String(form.get("startDate") || "")).toISOString(),
+      endDate: new Date(String(form.get("endDate") || "")).toISOString(),
+    };
+    const created = await apiFetch<EventItem>("/event", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }, token);
+    onEventCreated(created);
+    event.currentTarget.reset();
+  };
+
   return (
     <form className="card grid" onSubmit={handleSubmit}>
       <h3 style={{ marginTop: 0 }}>My Profile</h3>
@@ -587,6 +692,30 @@ function ProfileEditor({
       <button className="button" type="submit" disabled={saving}>
         {saving ? "Saving..." : "Save Profile"}
       </button>
+      {user.role === "ADMIN" && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <h4 style={{ marginTop: 0 }}>My Events</h4>
+          <div className="grid" style={{ gap: 8, marginBottom: 12 }}>
+            {adminEvents.map((eventItem) => (
+              <button
+                key={eventItem.id}
+                type="button"
+                className={activeEventId === eventItem.id ? "button" : "button secondary"}
+                onClick={() => onEventSelected(eventItem.id)}
+              >
+                {eventItem.name}
+              </button>
+            ))}
+          </div>
+          <form className="grid" onSubmit={createEvent}>
+            <input className="input" name="eventName" placeholder="New event name" required />
+            <input className="input" name="timezone" placeholder="Timezone (e.g. America/New_York)" required />
+            <input className="input" type="datetime-local" name="startDate" required />
+            <input className="input" type="datetime-local" name="endDate" required />
+            <button className="button" type="submit">Create Event</button>
+          </form>
+        </div>
+      )}
     </form>
   );
 }
@@ -633,6 +762,7 @@ function SessionForm({
     const payload = {
       title: String(form.get("title") || ""),
       description: String(form.get("description") || ""),
+      location: String(form.get("location") || ""),
       speakers: String(form.get("speakers") || ""),
       zoomLink: String(form.get("zoomLink") || ""),
       recordingUrl: String(form.get("recordingUrl") || ""),
@@ -673,6 +803,7 @@ function SessionForm({
       <h3>{editing ? "Edit session" : "New session"}</h3>
       <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
       <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
+      <input className="input" name="location" placeholder="Location" defaultValue={editing?.location || ""} />
       <input className="input" name="speakers" placeholder="Speaker(s)" defaultValue={editing?.speakers || ""} />
       <input className="input" name="zoomLink" placeholder="Zoom link" defaultValue={editing?.zoomLink || ""} />
       <input className="input" name="recordingUrl" placeholder="Recording URL" defaultValue={editing?.recordingUrl || ""} />

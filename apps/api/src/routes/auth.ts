@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
 import { hashPassword, signToken, verifyPassword } from "../lib/auth";
+import { env } from "../lib/env";
 import { AuthedRequest, requireAuth } from "../lib/middleware";
 
 export const authRouter = Router();
@@ -10,8 +11,15 @@ const registerSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
   password: z.string().min(8),
-  role: z.enum(["ADMIN", "ATTENDEE", "SPEAKER"]).default("ATTENDEE"),
+  role: z.enum(["ATTENDEE", "SPEAKER"]).default("ATTENDEE"),
   researchInterests: z.string().optional(),
+});
+
+const adminRegisterSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1),
+  password: z.string().min(8),
+  inviteCode: z.string().min(1),
 });
 
 authRouter.post("/register", async (req, res) => {
@@ -29,6 +37,31 @@ authRouter.post("/register", async (req, res) => {
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
     data: { email, name, role, researchInterests, passwordHash },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true },
+  });
+
+  const token = signToken({ userId: user.id, role: user.role });
+  return res.json({ user, token });
+});
+
+authRouter.post("/register-admin", async (req, res) => {
+  const parsed = adminRegisterSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  if (!env.adminInviteCode || parsed.data.inviteCode !== env.adminInviteCode) {
+    return res.status(403).json({ error: "Invalid admin invite code" });
+  }
+
+  const { email, name, password } = parsed.data;
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return res.status(409).json({ error: "Email already in use" });
+  }
+
+  const passwordHash = await hashPassword(password);
+  const user = await prisma.user.create({
+    data: { email, name, role: "ADMIN", passwordHash },
     select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true },
   });
 
