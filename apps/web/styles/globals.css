@@ -175,10 +175,31 @@ a:hover {
 
 .app-shell h1,
 .app-shell p,
-.app-shell .help-text,
-.app-shell details,
-.app-shell summary {
+.app-shell .help-text {
   color: white;
+}
+
+.event-settings-wrap {
+  position: relative;
+}
+
+.event-settings-trigger {
+  min-width: 210px;
+}
+
+.event-settings-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(360px, 90vw);
+  z-index: 20;
+  color: var(--ink-900);
+}
+
+.event-settings-title {
+  font-weight: 800;
+  font-size: 16px;
+  margin-bottom: 6px;
 }
 
 .points-pill {

@@ -338,50 +338,59 @@ export default function Dashboard() {
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {isAdmin && event && (
-            <details
-              className="card"
-              style={{ padding: 12, minWidth: 320 }}
-              open={eventSettingsOpen}
-              onToggle={(e) => setEventSettingsOpen((e.currentTarget as HTMLDetailsElement).open)}
-            >
-              <summary style={{ cursor: "pointer", fontWeight: 700 }}>Event Settings</summary>
-              <form
-                className="grid"
-                style={{ marginTop: 10 }}
-                onSubmit={async (eventForm) => {
-                  eventForm.preventDefault();
-                  const form = new FormData(eventForm.currentTarget);
-                  await updateCurrentEvent({
-                    name: String(form.get("name") || ""),
-                    bannerUrl: String(form.get("bannerUrl") || ""),
-                    timezone: String(form.get("timezone") || "UTC"),
-                    startDate: new Date(String(form.get("startDate") || "")).toISOString(),
-                    endDate: new Date(String(form.get("endDate") || "")).toISOString(),
-                  });
-                }}
+            <div className="event-settings-wrap">
+              <button
+                className="button secondary event-settings-trigger"
+                type="button"
+                onClick={() => setEventSettingsOpen((open) => !open)}
               >
-                <input className="input" name="name" defaultValue={event.name} required />
-                <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL or upload below" />
-                <input
-                  className="input"
-                  type="file"
-                  accept="image/*"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const data = await fileToDataUrl(file);
-                    const el = e.currentTarget.form?.elements.namedItem("bannerUrl");
-                    if (el instanceof HTMLInputElement) el.value = data;
-                  }}
-                />
-                <input className="input" name="timezone" defaultValue={event.timezone} required />
-                <input className="input" type="datetime-local" name="startDate" defaultValue={toLocalInputValue(event.startDate)} required />
-                <input className="input" type="datetime-local" name="endDate" defaultValue={toLocalInputValue(event.endDate)} required />
-                <button className="button" type="submit" disabled={updatingEvent}>
-                  {updatingEvent ? "Saving..." : "Save Event"}
-                </button>
-              </form>
-            </details>
+                {eventSettingsOpen ? "Close Event Settings" : "Edit Event Settings"}
+              </button>
+              {eventSettingsOpen && (
+                <div className="card event-settings-panel">
+                  <div className="event-settings-title">Edit This Event</div>
+                  <p className="help-text" style={{ marginTop: 0 }}>
+                    Update the title, banner, location label, and dates for the active event.
+                  </p>
+                  <form
+                    className="grid"
+                    style={{ marginTop: 10 }}
+                    onSubmit={async (eventForm) => {
+                      eventForm.preventDefault();
+                      const form = new FormData(eventForm.currentTarget);
+                      await updateCurrentEvent({
+                        name: String(form.get("name") || ""),
+                        bannerUrl: String(form.get("bannerUrl") || ""),
+                        timezone: String(form.get("timezone") || "UTC"),
+                        startDate: new Date(String(form.get("startDate") || "")).toISOString(),
+                        endDate: new Date(String(form.get("endDate") || "")).toISOString(),
+                      });
+                    }}
+                  >
+                    <input className="input" name="name" defaultValue={event.name} required />
+                    <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL or upload below" />
+                    <input
+                      className="input"
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const data = await fileToDataUrl(file);
+                        const el = e.currentTarget.form?.elements.namedItem("bannerUrl");
+                        if (el instanceof HTMLInputElement) el.value = data;
+                      }}
+                    />
+                    <input className="input" name="timezone" defaultValue={event.timezone} required />
+                    <input className="input" type="datetime-local" name="startDate" defaultValue={toLocalInputValue(event.startDate)} required />
+                    <input className="input" type="datetime-local" name="endDate" defaultValue={toLocalInputValue(event.endDate)} required />
+                    <button className="button" type="submit" disabled={updatingEvent}>
+                      {updatingEvent ? "Saving..." : "Save Event"}
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
           )}
           <button className="button secondary" onClick={handleLogout}>Logout</button>
         </div>
@@ -773,31 +782,55 @@ function ProfileEditor({
   onEventCreated: (event: EventItem) => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(user.photoUrl || null);
+  const [name, setName] = useState(user.name);
+  const [researchInterests, setResearchInterests] = useState(user.researchInterests || "");
+  const [participantType, setParticipantType] = useState<"GRAD_STUDENT" | "PROFESSOR" | "">(
+    user.participantType || "",
+  );
+
+  useEffect(() => {
+    setPhotoPreview(user.photoUrl || null);
+    setName(user.name);
+    setResearchInterests(user.researchInterests || "");
+    setParticipantType(user.participantType || "");
+  }, [user]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    setPhotoPreview(dataUrl);
+    setSaveError(null);
+    try {
+      const dataUrl = await fileToDataUrl(file, { maxWidth: 800, maxHeight: 800, quality: 0.82 });
+      setPhotoPreview(dataUrl);
+    } catch {
+      setSaveError("That image could not be processed. Please try a smaller JPG or PNG.");
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
     const payload = {
-      name: String(form.get("name") || ""),
-      researchInterests: String(form.get("researchInterests") || ""),
+      name: name.trim(),
+      researchInterests,
       photoUrl: photoPreview || undefined,
-      participantType: String(form.get("participantType") || "") || null,
+      participantType: participantType || null,
     };
     setSaving(true);
+    setSaveError(null);
+    setSaveSuccess(null);
     try {
       const updated = await apiFetch<User>("/auth/me/profile", {
         method: "PUT",
         body: JSON.stringify(payload),
       }, token);
       onSaved(updated);
+      setSaveSuccess("Profile saved.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save profile.";
+      setSaveError(message.includes("photoUrl") ? "The selected image is too large. Please choose a smaller one." : "Unable to save profile. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -826,24 +859,39 @@ function ProfileEditor({
       <h3 style={{ marginTop: 0 }}>My Profile</h3>
       {photoPreview && <img src={photoPreview} alt={user.name} className="avatar avatar-large" />}
       <input className="input" name="photo" type="file" accept="image/*" onChange={handleFileChange} />
-      <input className="input" name="name" defaultValue={user.name} required />
+      <input className="input" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
       <div className="profile-choice-group" role="group" aria-label="Participant type">
         <label className="profile-choice">
-          <input type="radio" name="participantType" value="GRAD_STUDENT" defaultChecked={user.participantType === "GRAD_STUDENT"} />
+          <input
+            type="radio"
+            name="participantType"
+            value="GRAD_STUDENT"
+            checked={participantType === "GRAD_STUDENT"}
+            onChange={() => setParticipantType("GRAD_STUDENT")}
+          />
           Grad Student
         </label>
         <label className="profile-choice">
-          <input type="radio" name="participantType" value="PROFESSOR" defaultChecked={user.participantType === "PROFESSOR"} />
+          <input
+            type="radio"
+            name="participantType"
+            value="PROFESSOR"
+            checked={participantType === "PROFESSOR"}
+            onChange={() => setParticipantType("PROFESSOR")}
+          />
           Professor
         </label>
       </div>
       <textarea
         className="textarea"
         name="researchInterests"
-        defaultValue={user.researchInterests || ""}
+        value={researchInterests}
+        onChange={(e) => setResearchInterests(e.target.value)}
         placeholder="Research interests, projects, and topics you care about"
         rows={5}
       />
+      {saveError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{saveError}</p>}
+      {saveSuccess && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{saveSuccess}</p>}
       <button className="button" type="submit" disabled={saving}>
         {saving ? "Saving..." : "Save Profile"}
       </button>
@@ -1436,10 +1484,41 @@ function groupSessionsByDayAndTime(sessions: Session[]) {
   });
 }
 
-function fileToDataUrl(file: File) {
+function fileToDataUrl(
+  file: File,
+  options?: { maxWidth?: number; maxHeight?: number; quality?: number },
+) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onload = () => {
+      const raw = String(reader.result || "");
+      if (!options || !file.type.startsWith("image/")) {
+        resolve(raw);
+        return;
+      }
+
+      const image = new Image();
+      image.onload = () => {
+        const maxWidth = options.maxWidth ?? image.width;
+        const maxHeight = options.maxHeight ?? image.height;
+        const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          resolve(raw);
+          return;
+        }
+        context.drawImage(image, 0, 0, width, height);
+        const output = canvas.toDataURL("image/jpeg", options.quality ?? 0.85);
+        resolve(output);
+      };
+      image.onerror = () => resolve(raw);
+      image.src = raw;
+    };
     reader.onerror = () => reject(reader.error || new Error("Unable to read file"));
     reader.readAsDataURL(file);
   });
