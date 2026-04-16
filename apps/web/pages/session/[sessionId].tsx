@@ -10,6 +10,7 @@ type User = {
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
   photoUrl?: string | null;
   researchInterests?: string | null;
+  participantType?: "GRAD_STUDENT" | "PROFESSOR" | null;
   engagementPoints?: number;
 };
 
@@ -39,7 +40,16 @@ type Session = {
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
 };
 
-type Message = { id: string; body: string; createdAt: string; user: { id: string; name: string; role: string; photoUrl?: string | null } };
+type ThreadAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
+type SessionReply = { id: string; body: string; createdAt: string; author: ThreadAuthor };
+type SessionThread = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  author: ThreadAuthor;
+  replies: SessionReply[];
+};
 
 type SessionAttendance = {
   sessionId: string;
@@ -75,7 +85,8 @@ export default function SessionPage() {
   const [user, setUser] = useState<User | null>(null);
   const [event, setEvent] = useState<Event | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [threads, setThreads] = useState<SessionThread[]>([]);
+  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -91,13 +102,14 @@ export default function SessionPage() {
     if (!token || !sessionId) return;
     const evId = window.localStorage.getItem("activeEventId");
     const ev = withEventHeaders(evId);
-    const [sess, msgs, meta] = await Promise.all([
+    const [sess, threadList, meta] = await Promise.all([
       apiFetch<Session>(`/sessions/${sessionId}`, ev, token),
-      apiFetch<Message[]>(`/sessions/${sessionId}/conversation/messages`, {}, token),
+      apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, {}, token),
       apiFetch<MySessionMeta>("/sessions/me", {}, token),
     ]);
     setSession(sess);
-    setMessages(msgs);
+    setThreads(threadList);
+    setOpenThreadId((current) => current ?? threadList[0]?.id ?? null);
     setMyAttendance(meta.attendance);
     setLikedSessionIds(meta.likedSessionIds);
   }, [token, sessionId]);
@@ -122,15 +134,16 @@ export default function SessionPage() {
       try {
         const evId = window.localStorage.getItem("activeEventId");
         const ev = withEventHeaders(evId);
-        const [evData, sess, msgs, meta] = await Promise.all([
+        const [evData, sess, threadList, meta] = await Promise.all([
           apiFetch<Event>("/event", ev, token),
           apiFetch<Session>(`/sessions/${sessionId}`, ev, token),
-          apiFetch<Message[]>(`/sessions/${sessionId}/conversation/messages`, {}, token),
+          apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, {}, token),
           apiFetch<MySessionMeta>("/sessions/me", {}, token),
         ]);
         setEvent(evData);
         setSession(sess);
-        setMessages(msgs);
+        setThreads(threadList);
+        setOpenThreadId((current) => current ?? threadList[0]?.id ?? null);
         setMyAttendance(meta.attendance);
         setLikedSessionIds(meta.likedSessionIds);
       } catch {
@@ -170,14 +183,36 @@ export default function SessionPage() {
     await reloadSessionAndMessages();
   };
 
-  const sendMessage = async (body: string) => {
+  const createThread = async (title: string, body: string) => {
     if (!token || !sessionId) return;
-    const message = await apiFetch<Message>(`/sessions/${sessionId}/conversation/messages`, {
+    const thread = await apiFetch<SessionThread>(`/sessions/${sessionId}/conversations`, {
+      method: "POST",
+      body: JSON.stringify({ title, body }),
+    }, token);
+    setThreads((prev) => [thread, ...prev]);
+    setOpenThreadId(thread.id);
+    await refreshUser(token);
+  };
+
+  const sendReply = async (threadId: string, body: string) => {
+    if (!token || !sessionId) return;
+    const reply = await apiFetch<SessionReply>(`/sessions/${sessionId}/conversations/${threadId}/replies`, {
       method: "POST",
       body: JSON.stringify({ body }),
     }, token);
-    setMessages((prev) => [...prev, message]);
+    setThreads((prev) =>
+      prev.map((thread) => (
+        thread.id === threadId ? { ...thread, replies: [...thread.replies, reply] } : thread
+      )),
+    );
     await refreshUser(token);
+  };
+
+  const deleteThread = async (threadId: string) => {
+    if (!token || !sessionId) return;
+    await apiFetch(`/sessions/${sessionId}/conversations/${threadId}`, { method: "DELETE" }, token);
+    setThreads((prev) => prev.filter((thread) => thread.id !== threadId));
+    setOpenThreadId((current) => (current === threadId ? null : current));
   };
 
   if (!user || !sessionId) {
@@ -191,11 +226,15 @@ export default function SessionPage() {
   const attendanceLabel = joining && session
     ? (new Date() > new Date(session.endsAt) ? "Joined" : "Joining")
     : "Join";
+  const openThread = threads.find((thread) => thread.id === openThreadId) ?? null;
 
   return (
     <div className="container">
-      {event?.bannerUrl && (
-        <div className="hero-banner" style={{ backgroundImage: `url(${event.bannerUrl})` }} />
+      {event && (
+        <div
+          className="hero-banner"
+          style={event.bannerUrl ? { backgroundImage: `url(${event.bannerUrl})` } : undefined}
+        />
       )}
       <div className="header app-shell">
         <div>
@@ -308,9 +347,9 @@ export default function SessionPage() {
           </div>
 
           <div className="card session-conversation-card">
-            <h3 style={{ marginTop: 0 }}>Session conversation</h3>
+            <h3 style={{ marginTop: 0 }}>Session conversations</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Messages here are tied to this session. Direct and group chats stay under Messages on the dashboard.
+              Start a titled conversation for this session, or open an existing one to read and reply. Direct and group chats stay under Messages on the dashboard.
             </p>
             <form
               className="grid"
@@ -318,33 +357,95 @@ export default function SessionPage() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 const form = new FormData(e.currentTarget);
+                const title = String(form.get("title") || "").trim();
                 const body = String(form.get("body") || "").trim();
-                if (!body) return;
-                await sendMessage(body);
+                if (!title || !body) return;
+                await createThread(title, body);
                 e.currentTarget.reset();
               }}
             >
-              <textarea className="textarea" name="body" placeholder="Post to this session’s discussion…" required rows={3} />
-              <button type="submit" className="button">Send</button>
+              <input className="input" name="title" placeholder="Conversation title" required />
+              <textarea className="textarea" name="body" placeholder="Start a new session conversation…" required rows={3} />
+              <button type="submit" className="button">Start conversation</button>
             </form>
-            <div className="session-message-list">
-              {messages.length === 0 && <p className="help-text">No messages yet — start the thread.</p>}
-              {messages.map((m) => (
-                <div key={m.id} className="session-message-row">
-                  <div className="session-message-author">
-                    {m.user.photoUrl ? (
-                      <img src={m.user.photoUrl} alt="" className="session-message-avatar" />
-                    ) : (
-                      <div className="session-message-avatar session-message-avatar-ph">{m.user.name.charAt(0)}</div>
-                    )}
-                    <div>
-                      <strong>{m.user.name}</strong>
-                      <span className="help-text"> · {m.user.role} · {new Date(m.createdAt).toLocaleString()}</span>
+            <div className="session-thread-layout">
+              <div className="session-thread-list">
+                {threads.length === 0 && <p className="help-text">No conversations yet — start the first one.</p>}
+                {threads.map((thread) => (
+                  <button
+                    key={thread.id}
+                    type="button"
+                    className={`session-thread-link ${thread.id === openThreadId ? "is-active" : ""}`}
+                    onClick={() => setOpenThreadId(thread.id)}
+                  >
+                    <strong>{thread.title}</strong>
+                    <span className="help-text">
+                      {thread.author.name} · {thread.replies.length} replies
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="session-message-list">
+                {!openThread && threads.length > 0 && <p className="help-text">Select a conversation title to read the thread.</p>}
+                {openThread && (
+                  <div className="session-thread-detail">
+                    <div className="session-message-row">
+                      <div className="session-message-author">
+                        {openThread.author.photoUrl ? (
+                          <img src={openThread.author.photoUrl} alt="" className="session-message-avatar" />
+                        ) : (
+                          <div className="session-message-avatar session-message-avatar-ph">{openThread.author.name.charAt(0)}</div>
+                        )}
+                        <div>
+                          <strong>{openThread.title}</strong>
+                          <div className="help-text">
+                            {openThread.author.name} · {openThread.author.role} · {new Date(openThread.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{openThread.body}</p>
+                      {user.role === "ADMIN" && (
+                        <div style={{ marginTop: 10 }}>
+                          <button type="button" className="button secondary" onClick={() => deleteThread(openThread.id)}>
+                            Delete conversation
+                          </button>
+                        </div>
+                      )}
                     </div>
+                    {openThread.replies.map((reply) => (
+                      <div key={reply.id} className="session-message-row">
+                        <div className="session-message-author">
+                          {reply.author.photoUrl ? (
+                            <img src={reply.author.photoUrl} alt="" className="session-message-avatar" />
+                          ) : (
+                            <div className="session-message-avatar session-message-avatar-ph">{reply.author.name.charAt(0)}</div>
+                          )}
+                          <div>
+                            <strong>{reply.author.name}</strong>
+                            <span className="help-text"> · {reply.author.role} · {new Date(reply.createdAt).toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{reply.body}</p>
+                      </div>
+                    ))}
+                    <form
+                      className="grid"
+                      style={{ gap: 8, marginTop: 8 }}
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const form = new FormData(e.currentTarget);
+                        const body = String(form.get("body") || "").trim();
+                        if (!body) return;
+                        await sendReply(openThread.id, body);
+                        e.currentTarget.reset();
+                      }}
+                    >
+                      <textarea className="textarea" name="body" placeholder="Reply to this conversation…" required rows={2} />
+                      <button type="submit" className="button secondary">Reply</button>
+                    </form>
                   </div>
-                  <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{m.body}</p>
-                </div>
-              ))}
+                )}
+              </div>
             </div>
           </div>
         </>

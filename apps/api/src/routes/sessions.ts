@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
-import { getOrCreateSessionConversation } from "../lib/conversations";
 import { getOrCreateEvent } from "../lib/event";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
@@ -29,8 +28,13 @@ const attendanceSchema = z.object({
   joinMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
 });
 
-const messageSchema = z.object({
-  body: z.string().min(1),
+const threadSchema = z.object({
+  title: z.string().min(1).max(500),
+  body: z.string().min(1).max(8000),
+});
+
+const replySchema = z.object({
+  body: z.string().min(1).max(8000),
 });
 
 async function findSessionOr404(sessionId: string) {
@@ -274,71 +278,103 @@ sessionsRouter.delete("/:id/like", requireAuth, async (req: AuthedRequest, res) 
   return res.json({ ok: true });
 });
 
-sessionsRouter.get("/:id/conversation/messages", requireAuth, async (req: AuthedRequest, res) => {
-  const userId = req.user?.id || "";
-  const conversation = await getOrCreateSessionConversation(req.params.id);
-  if (!conversation) {
+sessionsRouter.get("/:id/conversations", requireAuth, async (req, res) => {
+  const session = await findSessionOr404(req.params.id);
+  if (!session) {
     return res.status(404).json({ error: "Session not found" });
   }
 
-  await prisma.conversationMember.upsert({
-    where: {
-      conversationId_userId: {
-        conversationId: conversation.id,
-        userId,
+  const threads = await prisma.sessionDiscussionThread.findMany({
+    where: { sessionId: session.id },
+    orderBy: { createdAt: "desc" },
+    include: {
+      author: { select: { id: true, name: true, role: true, photoUrl: true } },
+      replies: {
+        orderBy: { createdAt: "asc" },
+        include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
       },
     },
-    update: {},
-    create: {
-      conversationId: conversation.id,
-      userId,
-    },
   });
 
-  const messages = await prisma.conversationMessage.findMany({
-    where: { conversationId: conversation.id },
-    orderBy: { createdAt: "asc" },
-    include: { user: { select: { id: true, name: true, role: true, photoUrl: true } } },
-  });
-
-  return res.json(messages);
+  return res.json(threads);
 });
 
-sessionsRouter.post("/:id/conversation/messages", requireAuth, async (req: AuthedRequest, res) => {
-  const parsed = messageSchema.safeParse(req.body);
+sessionsRouter.post("/:id/conversations", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = threadSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const userId = req.user?.id || "";
-  const conversation = await getOrCreateSessionConversation(req.params.id);
-  if (!conversation) {
+  const session = await findSessionOr404(req.params.id);
+  if (!session) {
     return res.status(404).json({ error: "Session not found" });
   }
 
-  await prisma.conversationMember.upsert({
-    where: {
-      conversationId_userId: {
-        conversationId: conversation.id,
-        userId,
-      },
-    },
-    update: {},
-    create: {
-      conversationId: conversation.id,
-      userId,
-    },
-  });
-
-  const message = await prisma.conversationMessage.create({
+  const userId = req.user?.id || "";
+  const thread = await prisma.sessionDiscussionThread.create({
     data: {
-      conversationId: conversation.id,
-      userId,
+      sessionId: session.id,
+      authorId: userId,
+      title: parsed.data.title,
       body: parsed.data.body,
     },
-    include: { user: { select: { id: true, name: true, role: true, photoUrl: true } } },
+    include: {
+      author: { select: { id: true, name: true, role: true, photoUrl: true } },
+      replies: {
+        include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
+      },
+    },
   });
 
-  await awardEngagementPoints(userId, POINTS.SESSION_CHAT_MESSAGE);
-  return res.json(message);
+  await awardEngagementPoints(userId, POINTS.NETWORK_THREAD);
+  return res.json(thread);
+});
+
+sessionsRouter.post("/:id/conversations/:threadId/replies", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = replySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const session = await findSessionOr404(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  const thread = await prisma.sessionDiscussionThread.findFirst({
+    where: { id: req.params.threadId, sessionId: session.id },
+  });
+  if (!thread) {
+    return res.status(404).json({ error: "Conversation not found" });
+  }
+
+  const userId = req.user?.id || "";
+  const reply = await prisma.sessionDiscussionReply.create({
+    data: {
+      threadId: thread.id,
+      authorId: userId,
+      body: parsed.data.body,
+    },
+    include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
+  });
+
+  await awardEngagementPoints(userId, POINTS.NETWORK_REPLY);
+  return res.json(reply);
+});
+
+sessionsRouter.delete("/:id/conversations/:threadId", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
+  const session = await findSessionOr404(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  const thread = await prisma.sessionDiscussionThread.findFirst({
+    where: { id: req.params.threadId, sessionId: session.id },
+  });
+  if (!thread) {
+    return res.status(404).json({ error: "Conversation not found" });
+  }
+
+  await prisma.sessionDiscussionThread.delete({ where: { id: thread.id } });
+  return res.json({ ok: true });
 });

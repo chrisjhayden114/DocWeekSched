@@ -9,6 +9,7 @@ type User = {
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
   photoUrl?: string | null;
   researchInterests?: string | null;
+  participantType?: "GRAD_STUDENT" | "PROFESSOR" | null;
   engagementPoints?: number;
 };
 
@@ -316,8 +317,11 @@ export default function Dashboard() {
 
   return (
     <div className="container">
-      {event?.bannerUrl && (
-        <div className="hero-banner" style={{ backgroundImage: `url(${event.bannerUrl})` }} />
+      {event && (
+        <div
+          className="hero-banner"
+          style={event.bannerUrl ? { backgroundImage: `url(${event.bannerUrl})` } : undefined}
+        />
       )}
       <div className="header app-shell">
         <div>
@@ -414,21 +418,16 @@ export default function Dashboard() {
               />
             )}
             {agendaView === "My Schedule" && (
-              <>
-                <ScheduleBoard
-                  grouped={groupedMySchedule}
-                  isAdmin={isAdmin}
-                  myAttendance={myAttendance}
-                  likedSessionIds={likedSessionIds}
-                  onPatchAttendance={patchSessionAttendance}
-                  onToggleLike={toggleSessionLike}
-                  onEditSession={(session) => setEditingSession(session)}
-                  onGoToSession={goToSessionPage}
-                />
-                {isAdmin && (
-                  <ParticipantDailySchedules groupedAgenda={groupedAgenda} />
-                )}
-              </>
+              <ScheduleBoard
+                grouped={groupedMySchedule}
+                isAdmin={isAdmin}
+                myAttendance={myAttendance}
+                likedSessionIds={likedSessionIds}
+                onPatchAttendance={patchSessionAttendance}
+                onToggleLike={toggleSessionLike}
+                onEditSession={(session) => setEditingSession(session)}
+                onGoToSession={goToSessionPage}
+              />
             )}
           </div>
           {isAdmin && (
@@ -462,6 +461,7 @@ export default function Dashboard() {
       {active === NETWORKING_TAB && (
         <NetworkingBoard
           threads={networkThreads}
+          isAdmin={isAdmin}
           token={token!}
           withEventHeaders={withEventHeaders}
           onThreadsUpdated={async () => {
@@ -782,6 +782,7 @@ function ProfileEditor({
       name: String(form.get("name") || ""),
       researchInterests: String(form.get("researchInterests") || ""),
       photoUrl: photoPreview || undefined,
+      participantType: String(form.get("participantType") || "") || null,
     };
     setSaving(true);
     try {
@@ -819,6 +820,16 @@ function ProfileEditor({
       {photoPreview && <img src={photoPreview} alt={user.name} className="avatar avatar-large" />}
       <input className="input" name="photo" type="file" accept="image/*" onChange={handleFileChange} />
       <input className="input" name="name" defaultValue={user.name} required />
+      <div className="profile-choice-group" role="group" aria-label="Participant type">
+        <label className="profile-choice">
+          <input type="radio" name="participantType" value="GRAD_STUDENT" defaultChecked={user.participantType === "GRAD_STUDENT"} />
+          Grad Student
+        </label>
+        <label className="profile-choice">
+          <input type="radio" name="participantType" value="PROFESSOR" defaultChecked={user.participantType === "PROFESSOR"} />
+          Professor
+        </label>
+      </div>
       <textarea
         className="textarea"
         name="researchInterests"
@@ -1071,6 +1082,11 @@ function AttendeeDirectory({
         <div className="attendee-body">
           <div className="attendee-name">{a.name}</div>
           <div className="attendee-meta">{a.email}</div>
+          {a.participantType && (
+            <div className="attendee-meta attendee-role-note">
+              {a.participantType === "GRAD_STUDENT" ? "Grad Student" : "Professor"}
+            </div>
+          )}
           {a.researchInterests && (
             <div className="attendee-meta attendee-research">{a.researchInterests}</div>
           )}
@@ -1118,11 +1134,13 @@ function AttendeeDirectory({
 
 function NetworkingBoard({
   threads,
+  isAdmin,
   token,
   withEventHeaders,
   onThreadsUpdated,
 }: {
   threads: NetworkThread[];
+  isAdmin: boolean;
   token: string;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onThreadsUpdated: () => Promise<void>;
@@ -1157,6 +1175,16 @@ function NetworkingBoard({
     await onThreadsUpdated();
   }
 
+  async function deleteThread(threadId: string) {
+    await apiFetch(
+      `/network/threads/${threadId}`,
+      withEventHeaders({ method: "DELETE" }),
+      token,
+    );
+    if (openId === threadId) setOpenId(null);
+    await onThreadsUpdated();
+  }
+
   return (
     <div className="grid networking-board">
       <form className="card grid" onSubmit={createThread}>
@@ -1183,6 +1211,13 @@ function NetworkingBoard({
               {open && (
                 <div className="network-thread-body">
                   <p>{t.body}</p>
+                  {isAdmin && (
+                    <div style={{ marginBottom: 10 }}>
+                      <button className="button secondary" type="button" onClick={() => deleteThread(t.id)}>
+                        Delete conversation
+                      </button>
+                    </div>
+                  )}
                   <div className="network-replies">
                     {t.replies.map((r) => (
                       <div key={r.id} className="network-reply">

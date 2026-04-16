@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/db";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
-import { AuthedRequest, requireAuth } from "../lib/middleware";
+import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
 
 export const networkRouter = Router();
 
@@ -85,4 +85,17 @@ networkRouter.post("/threads/:id/replies", requireAuth, async (req: AuthedReques
 
   await awardEngagementPoints(userId, POINTS.NETWORK_REPLY);
   return res.json(reply);
+});
+
+networkRouter.delete("/threads/:id", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
+  const event = await resolveEventFromRequest(req);
+  const thread = await prisma.networkThread.findFirst({
+    where: { id: req.params.id, eventId: event.id },
+  });
+  if (!thread) {
+    return res.status(404).json({ error: "Thread not found" });
+  }
+
+  await prisma.networkThread.delete({ where: { id: thread.id } });
+  return res.json({ ok: true });
 });

@@ -9,6 +9,7 @@ export type AuthResponse = {
     role: string;
     photoUrl?: string | null;
     researchInterests?: string | null;
+    participantType?: "GRAD_STUDENT" | "PROFESSOR" | null;
     engagementPoints?: number;
   };
 };

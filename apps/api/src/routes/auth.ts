@@ -13,6 +13,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
   role: z.enum(["ATTENDEE", "SPEAKER"]).default("ATTENDEE"),
   researchInterests: z.string().optional(),
+  participantType: z.enum(["GRAD_STUDENT", "PROFESSOR"]).optional(),
 });
 
 const adminRegisterSchema = z.object({
@@ -28,7 +29,7 @@ authRouter.post("/register", async (req, res) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const { email, name, password, role, researchInterests } = parsed.data;
+  const { email, name, password, role, researchInterests, participantType } = parsed.data;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return res.status(409).json({ error: "Email already in use" });
@@ -36,8 +37,8 @@ authRouter.post("/register", async (req, res) => {
 
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { email, name, role, researchInterests, passwordHash },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, engagementPoints: true },
+    data: { email, name, role, researchInterests, participantType, passwordHash },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, participantType: true, engagementPoints: true },
   });
 
   const token = signToken({ userId: user.id, role: user.role });
@@ -62,7 +63,7 @@ authRouter.post("/register-admin", async (req, res) => {
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
     data: { email, name, role: "ADMIN", passwordHash },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, engagementPoints: true },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, participantType: true, engagementPoints: true },
   });
 
   const token = signToken({ userId: user.id, role: user.role });
@@ -100,6 +101,7 @@ authRouter.post("/login", async (req, res) => {
       role: user.role,
       photoUrl: user.photoUrl,
       researchInterests: user.researchInterests,
+      participantType: user.participantType,
       engagementPoints: user.engagementPoints,
     },
     token,
@@ -110,12 +112,13 @@ const profileSchema = z.object({
   name: z.string().min(1).optional(),
   researchInterests: z.string().max(4000).optional(),
   photoUrl: z.string().max(2_000_000).optional(),
+  participantType: z.enum(["GRAD_STUDENT", "PROFESSOR"]).nullable().optional(),
 });
 
 authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user?.id || "" },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, engagementPoints: true },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, participantType: true, engagementPoints: true },
   });
 
   if (!user) {
@@ -137,8 +140,9 @@ authRouter.put("/me/profile", requireAuth, async (req: AuthedRequest, res) => {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.researchInterests !== undefined ? { researchInterests: parsed.data.researchInterests } : {}),
       ...(parsed.data.photoUrl !== undefined ? { photoUrl: parsed.data.photoUrl } : {}),
+      ...(parsed.data.participantType !== undefined ? { participantType: parsed.data.participantType } : {}),
     },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, engagementPoints: true },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, participantType: true, engagementPoints: true },
   });
 
   return res.json(user);

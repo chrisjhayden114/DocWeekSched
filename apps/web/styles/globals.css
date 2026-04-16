@@ -28,7 +28,8 @@ body {
   margin: 0;
   font-family: "Lato", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   color: var(--ink-900);
-  background: var(--bg);
+  background:
+    linear-gradient(180deg, rgba(0, 51, 160, 0.18) 0%, rgba(0, 51, 160, 0.1) 220px, #eef3ff 520px, #e8eefb 100%);
   min-height: 100vh;
 }
 
@@ -162,11 +163,20 @@ a:hover {
 }
 
 .app-shell {
-  background: linear-gradient(135deg, rgba(0, 51, 160, 0.08) 0%, rgba(255, 255, 255, 0.98) 100%);
-  border: 1px solid var(--border-strong);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+  background: linear-gradient(135deg, rgba(0, 30, 92, 0.94) 0%, rgba(0, 51, 160, 0.9) 100%);
+  border: 1px solid rgba(232, 197, 71, 0.28);
+  box-shadow: 0 14px 32px rgba(0, 27, 84, 0.28);
   padding: 18px 20px;
   border-radius: 14px;
+  color: white;
+}
+
+.app-shell h1,
+.app-shell p,
+.app-shell .help-text,
+.app-shell details,
+.app-shell summary {
+  color: white;
 }
 
 .points-pill {
@@ -320,7 +330,7 @@ a:hover {
   padding: 6px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .attendance-join-dot {
@@ -348,7 +358,7 @@ a:hover {
 .attendance-join-text {
   font-size: 12px;
   font-weight: 700;
-  color: var(--ink-700);
+  color: var(--ink-900);
   margin-right: 4px;
 }
 
@@ -357,7 +367,7 @@ a:hover {
   border-radius: 999px;
   border: 1px solid var(--border-strong);
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .join-mode-switch button {
@@ -404,11 +414,15 @@ a:hover {
   width: 100%;
   min-height: 190px;
   margin-bottom: 18px;
+  background-color: var(--uk-blue-dark);
+  background-image:
+    linear-gradient(135deg, rgba(0, 30, 92, 0.88) 0%, rgba(0, 51, 160, 0.7) 100%);
+  background-blend-mode: multiply;
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  border: 1px solid var(--border-strong);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(232, 197, 71, 0.24);
+  box-shadow: 0 18px 48px rgba(0, 27, 84, 0.35);
   border-radius: 14px;
 }
 
@@ -591,7 +605,7 @@ a:hover {
 .network-thread-toggle {
   width: 100%;
   text-align: left;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(238, 243, 255, 0.82);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 14px;
@@ -654,8 +668,41 @@ a:hover {
   margin-top: 16px;
 }
 
-.session-message-list {
+.session-thread-layout {
   margin-top: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.session-thread-list {
+  display: grid;
+  gap: 10px;
+}
+
+.session-thread-link {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: #f6f8fc;
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+
+.session-thread-link.is-active,
+.session-thread-link:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 20px rgba(0, 51, 160, 0.08);
+}
+
+.session-thread-detail {
+  display: grid;
+  gap: 14px;
+}
+
+.session-message-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -693,6 +740,39 @@ a:hover {
   color: var(--gold);
   font-weight: 800;
   font-size: 14px;
+}
+
+.profile-choice-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f7f9fd;
+  font-weight: 600;
+}
+
+.profile-choice input {
+  margin: 0;
+}
+
+.attendee-role-note {
+  color: var(--uk-blue-dark);
+  font-weight: 700;
+}
+
+@media (min-width: 900px) {
+  .session-thread-layout {
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    align-items: start;
+  }
 }
 
 @media (min-width: 960px) {

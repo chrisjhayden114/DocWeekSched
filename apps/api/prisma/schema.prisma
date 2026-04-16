@@ -29,6 +29,11 @@ enum SessionJoinMode {
   IN_PERSON
 }
 
+enum ParticipantType {
+  GRAD_STUDENT
+  PROFESSOR
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -36,6 +41,7 @@ model User {
   role         Role
   photoUrl     String?
   researchInterests String?
+  participantType ParticipantType?
   passwordHash String
   engagementPoints Int @default(0)
   createdAt    DateTime @default(now())
@@ -50,6 +56,8 @@ model User {
   surveyAnswers SurveyAnswer[]
   networkThreads NetworkThread[]
   networkReplies NetworkReply[]
+  sessionDiscussionThreads SessionDiscussionThread[]
+  sessionDiscussionReplies SessionDiscussionReply[]
 }
 
 model Event {
@@ -90,6 +98,7 @@ model Session {
   attendances SessionAttendance[]
   likes       SessionLike[]
   conversations Conversation[]
+  discussionThreads SessionDiscussionThread[]
 }
 
 model SessionBookmark {
@@ -234,6 +243,28 @@ model NetworkReply {
   createdAt DateTime @default(now())
   threadId  String
   thread    NetworkThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model SessionDiscussionThread {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replies   SessionDiscussionReply[]
+}
+
+model SessionDiscussionReply {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  threadId  String
+  thread    SessionDiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
