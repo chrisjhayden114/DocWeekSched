@@ -326,9 +326,9 @@ export default function Dashboard() {
         />
       )}
       <div className="header app-shell">
-        <div>
+        <div className="app-shell-title">
           <h1>{event?.name || "Event Dashboard"}</h1>
-          <p style={{ color: "var(--ink-muted)" }}>
+          <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)" }}>
             {user.name} · {user.role}
             {typeof user.engagementPoints === "number" && (
               <> · <span className="points-pill">{user.engagementPoints} pts</span></>
@@ -336,7 +336,7 @@ export default function Dashboard() {
             {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="app-shell-actions">
           {isAdmin && event && (
             <div className="event-settings-wrap">
               <button
@@ -489,7 +489,7 @@ export default function Dashboard() {
 
       {active === "Messages" && (
         <div className="grid two messages-layout">
-          <div className="card">
+          <div className="card message-sidebar-card">
             <h3>Messages</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
               Direct and group chats only. Open any session from the Agenda to see its session-specific discussion.
@@ -543,7 +543,7 @@ export default function Dashboard() {
               />
             </div>
           </div>
-          <div className="card">
+          <div className="card message-thread-card">
             <MessageComposer
               token={token!}
               conversationId={activeConversationId}

@@ -237,14 +237,14 @@ export default function SessionPage() {
         />
       )}
       <div className="header app-shell">
-        <div>
-          <p style={{ margin: "0 0 6px" }}>
+        <div className="app-shell-title">
+          <p className="session-backline" style={{ margin: "0 0 6px" }}>
             <Link href="/dashboard" className="session-back-link">
               ← Back to schedule
             </Link>
           </p>
           <h1 style={{ margin: 0 }}>{event?.name || "Event"}</h1>
-          <p style={{ color: "var(--ink-muted)", margin: "8px 0 0" }}>
+          <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)", margin: "8px 0 0" }}>
             {user.name} · Session discussion {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
           </p>
         </div>

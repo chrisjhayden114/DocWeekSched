@@ -164,6 +164,15 @@ a:hover {
   margin-bottom: 20px;
 }
 
+.app-shell-title {
+  min-width: 0;
+  flex: 1;
+}
+
+.app-shell-subtitle {
+  word-break: break-word;
+}
+
 .app-shell {
   background: linear-gradient(135deg, rgba(0, 30, 92, 0.94) 0%, rgba(0, 51, 160, 0.9) 100%);
   border: 1px solid rgba(232, 197, 71, 0.28);
@@ -200,6 +209,14 @@ a:hover {
   font-weight: 800;
   font-size: 16px;
   margin-bottom: 6px;
+}
+
+.app-shell-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .points-pill {
@@ -657,6 +674,11 @@ a:hover {
   align-items: start;
 }
 
+.message-sidebar-card,
+.message-thread-card {
+  min-width: 0;
+}
+
 .session-back-link {
   font-weight: 700;
   color: var(--gold);
@@ -806,9 +828,94 @@ a:hover {
 }
 
 @media (max-width: 720px) {
+  .container {
+    padding: 16px 12px 40px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell {
+    padding: 16px;
+  }
+
+  .app-shell h1 {
+    font-size: 34px;
+  }
+
+  .app-shell-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .app-shell-actions > .button,
+  .app-shell-actions > .event-settings-wrap,
+  .event-settings-trigger {
+    width: 100%;
+  }
+
+  .event-settings-wrap {
+    width: 100%;
+  }
+
+  .event-settings-panel {
+    position: static;
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .nav {
+    gap: 8px;
+  }
+
+  .nav button {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    text-align: center;
+  }
+
   .schedule-slot {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .schedule-events {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-time {
+    padding-top: 0;
+  }
+
+  .schedule-meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .schedule-actions {
+    width: 100%;
+  }
+
+  .schedule-actions .button {
+    flex: 1 1 140px;
+  }
+
+  .session-attendance-block {
+    width: 100%;
+  }
+
+  .join-mode-switch {
+    width: 100%;
+  }
+
+  .join-mode-switch button {
+    flex: 1;
   }
 
   .attendee-row {
@@ -819,5 +926,77 @@ a:hover {
   .attendee-msg-btn {
     grid-column: 1 / -1;
     justify-self: stretch;
+  }
+
+  .attendee-index {
+    max-width: none;
+    justify-content: flex-start;
+  }
+
+  .messages-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-banner {
+    min-height: 120px;
+  }
+
+  .session-page-image {
+    max-height: 180px;
+  }
+
+  .session-page-toolbar {
+    align-items: stretch;
+  }
+
+  .session-page-toolbar > .button,
+  .session-page-toolbar > .button.secondary,
+  .session-page-toolbar > div {
+    width: 100%;
+  }
+
+  .session-message-author {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .app-shell h1 {
+    font-size: 26px;
+  }
+
+  .nav button {
+    flex-basis: 100%;
+  }
+
+  .attendee-directory-toolbar {
+    padding: 12px;
+  }
+
+  .attendee-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .attendee-avatar-wrap {
+    width: 64px;
+    height: 64px;
+  }
+
+  .attendee-avatar {
+    width: 64px;
+    height: 64px;
+  }
+
+  .profile-choice {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .button,
+  .button.secondary,
+  .session-thread-link,
+  .network-thread-toggle {
+    min-height: 44px;
   }
 }
