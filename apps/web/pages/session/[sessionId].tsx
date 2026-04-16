@@ -188,6 +188,9 @@ export default function SessionPage() {
   const joining = myRow?.status === "JOINING";
   const myMode = myRow?.joinMode ?? "IN_PERSON";
   const liked = sessionId ? likedSessionIds.includes(sessionId) : false;
+  const attendanceLabel = joining && session
+    ? (new Date() > new Date(session.endsAt) ? "Joined" : "Joining")
+    : "Join";
 
   return (
     <div className="container">
@@ -278,7 +281,7 @@ export default function SessionPage() {
                     patchAttendance(joining ? { status: "NOT_JOINING" } : { status: "JOINING", joinMode: "IN_PERSON" })
                   }
                 />
-                <span className="attendance-join-text">{joining ? "Joined" : "Join"}</span>
+                <span className="attendance-join-text">{attendanceLabel}</span>
                 {joining && (
                   <div className="join-mode-switch" role="group" aria-label="Attendance mode">
                     <button

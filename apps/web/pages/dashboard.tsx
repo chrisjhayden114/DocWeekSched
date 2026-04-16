@@ -623,6 +623,9 @@ function ScheduleBoard({
                   const likeCount = (s.likes || []).length;
                   const joining = myStatus === "JOINING";
                   const myMode = myRow?.joinMode ?? "IN_PERSON";
+                  const attendanceLabel = joining
+                    ? (new Date() > new Date(s.endsAt) ? "Joined" : "Joining")
+                    : "Join";
                   return (
                     <article
                       className="schedule-event"
@@ -666,7 +669,7 @@ function ScheduleBoard({
                                 onPatchAttendance(s.id, joining ? { status: "NOT_JOINING" } : { status: "JOINING", joinMode: "IN_PERSON" })
                               }
                             />
-                            <span className="attendance-join-text">{joining ? "Joined" : "Join"}</span>
+                            <span className="attendance-join-text">{attendanceLabel}</span>
                             {joining && (
                               <div className="join-mode-switch" role="group" aria-label="Attendance mode">
                                 <button
