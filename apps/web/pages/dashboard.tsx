@@ -39,8 +39,6 @@ type Session = {
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
 };
 
-type Announcement = { id: string; title: string; body: string; createdAt: string };
-
 type ConversationMember = { user: { id: string; name: string; role: string } };
 type Conversation = {
   id: string;
@@ -58,8 +56,6 @@ type SessionAttendance = {
 type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
 type EventItem = { id: string; name: string; bannerUrl?: string | null; timezone: string; startDate: string; endDate: string };
 
-type CheckIn = { id: string; user: { id: string; name: string; email: string; role: string }; createdAt: string };
-
 type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
 type NetworkReply = { id: string; body: string; createdAt: string; author: NetworkAuthor };
 type NetworkThread = {
@@ -72,7 +68,7 @@ type NetworkThread = {
 };
 
 const NETWORKING_TAB = "Networking & Conversations" as const;
-const adminTabs = ["Agenda", "Attendees", "Announcements", NETWORKING_TAB, "Messages", "Check-In", "Profile"] as const;
+const adminTabs = ["Agenda", "Attendees", NETWORKING_TAB, "Messages", "Profile"] as const;
 const participantTabs = ["Agenda", "Attendees", NETWORKING_TAB, "Messages", "Profile"] as const;
 type Tab = (typeof adminTabs)[number];
 
@@ -85,13 +81,11 @@ export default function Dashboard() {
   const [event, setEvent] = useState<Event | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attendees, setAttendees] = useState<User[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [networkThreads, setNetworkThreads] = useState<NetworkThread[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
-  const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
@@ -157,9 +151,6 @@ export default function Dashboard() {
       if (active === "Attendees") {
         setAttendees(await apiFetch<User[]>("/attendees", {}, token));
       }
-      if (active === "Announcements") {
-        setAnnouncements(await apiFetch<Announcement[]>("/announcements", withEventHeaders(), token));
-      }
       if (active === NETWORKING_TAB) {
         setNetworkThreads(await apiFetch<NetworkThread[]>("/network/threads", withEventHeaders(), token));
       }
@@ -173,9 +164,6 @@ export default function Dashboard() {
         if (attendees.length === 0) {
           setAttendees(await apiFetch<User[]>("/attendees", {}, token));
         }
-      }
-      if (active === "Check-In" && user?.role === "ADMIN") {
-        setCheckIns(await apiFetch<CheckIn[]>("/checkins", withEventHeaders(), token));
       }
       if (user?.role === "ADMIN") {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
@@ -471,25 +459,6 @@ export default function Dashboard() {
         />
       )}
 
-      {active === "Announcements" && (
-        <div className="grid">
-          {isAdmin && (
-            <AnnouncementForm
-              token={token!}
-              withEventHeaders={withEventHeaders}
-              onCreated={(a) => setAnnouncements([a, ...announcements])}
-            />
-          )}
-          {announcements.map((a) => (
-            <div className="card" key={a.id}>
-              <h3>{a.title}</h3>
-              <p>{a.body}</p>
-              <p style={{ color: "var(--ink-500)" }}>{new Date(a.createdAt).toLocaleString()}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
       {active === NETWORKING_TAB && (
         <NetworkingBoard
           threads={networkThreads}
@@ -604,21 +573,6 @@ export default function Dashboard() {
         />
       )}
 
-      {active === "Check-In" && (
-        <div className="grid">
-          <CheckInSelf token={token!} withEventHeaders={withEventHeaders} />
-          {isAdmin && (
-            <div className="card">
-              <h3>Checked In</h3>
-              {checkIns.map((c) => (
-                <div key={c.id} style={{ borderBottom: "1px solid var(--border)", padding: "8px 0" }}>
-                  <strong>{c.user.name}</strong> · {c.user.email}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -909,38 +863,6 @@ function ProfileEditor({
           </form>
         </div>
       )}
-    </form>
-  );
-}
-
-function AnnouncementForm({
-  token,
-  withEventHeaders,
-  onCreated,
-}: {
-  token: string;
-  withEventHeaders: (extra?: RequestInit) => RequestInit;
-  onCreated: (a: Announcement) => void;
-}) {
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
-    const announcement = await apiFetch<Announcement>(
-      "/announcements",
-      withEventHeaders({ method: "POST", body: JSON.stringify(payload) }),
-      token,
-    );
-    onCreated(announcement);
-    event.currentTarget.reset();
-  }
-
-  return (
-    <form className="card grid" onSubmit={handleSubmit}>
-      <h3>New announcement</h3>
-      <input className="input" name="title" placeholder="Title" required />
-      <textarea className="textarea" name="body" placeholder="What’s new?" required />
-      <button className="button">Publish</button>
     </form>
   );
 }
@@ -1413,24 +1335,6 @@ function formatConversationName(conversation: Conversation, currentUser: User) {
   if (conversation.type === "SESSION") return conversation.name || "Session chat";
   const other = conversation.members.find((m) => m.user.id !== currentUser.id);
   return other ? other.user.name : "Direct Chat";
-}
-
-function CheckInSelf({ token, withEventHeaders }: { token: string; withEventHeaders: (extra?: RequestInit) => RequestInit }) {
-  const [status, setStatus] = useState<string | null>(null);
-
-  async function handleCheckIn() {
-    await apiFetch("/checkins", withEventHeaders({ method: "POST" }), token);
-    setStatus("Checked in!");
-  }
-
-  return (
-    <div className="card">
-      <h3>Check in</h3>
-      <p style={{ color: "var(--ink-muted)" }}>Tap below to check yourself in.</p>
-      <button className="button" type="button" onClick={handleCheckIn}>Check in</button>
-      {status && <p style={{ color: "var(--gold)" }}>{status}</p>}
-    </div>
-  );
 }
 
 function toLocalInputValue(dateString: string) {
