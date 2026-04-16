@@ -95,6 +95,7 @@ export default function Dashboard() {
   const [updatingEvent, setUpdatingEvent] = useState(false);
   const [sessionFormKey, setSessionFormKey] = useState(0);
   const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
+  const [eventSettingsOpen, setEventSettingsOpen] = useState(false);
 
   const withEventHeaders = (extra: RequestInit = {}): RequestInit => {
     if (!activeEventId) return extra;
@@ -304,6 +305,7 @@ export default function Dashboard() {
         token,
       );
       setEvent(updated);
+      setEventSettingsOpen(false);
       if (isAdmin) {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
         setAdminEvents(myEvents);
@@ -317,10 +319,10 @@ export default function Dashboard() {
 
   return (
     <div className="container">
-      {event && (
+      {event?.bannerUrl && (
         <div
           className="hero-banner"
-          style={event.bannerUrl ? { backgroundImage: `url(${event.bannerUrl})` } : undefined}
+          style={{ backgroundImage: `url(${event.bannerUrl})` }}
         />
       )}
       <div className="header app-shell">
@@ -336,7 +338,12 @@ export default function Dashboard() {
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {isAdmin && event && (
-            <details className="card" style={{ padding: 12, minWidth: 320 }}>
+            <details
+              className="card"
+              style={{ padding: 12, minWidth: 320 }}
+              open={eventSettingsOpen}
+              onToggle={(e) => setEventSettingsOpen((e.currentTarget as HTMLDetailsElement).open)}
+            >
               <summary style={{ cursor: "pointer", fontWeight: 700 }}>Event Settings</summary>
               <form
                 className="grid"
