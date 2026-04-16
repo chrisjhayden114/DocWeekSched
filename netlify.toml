@@ -1,0 +1,8 @@
+[build]
+  command = "npm install && npm run build --workspace=@event-app/web"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
