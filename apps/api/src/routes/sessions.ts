@@ -33,6 +33,11 @@ const messageSchema = z.object({
   body: z.string().min(1),
 });
 
+async function findSessionOr404(sessionId: string) {
+  const session = await prisma.session.findUnique({ where: { id: sessionId }, select: { id: true } });
+  return session;
+}
+
 sessionsRouter.get("/", requireAuth, async (req, res) => {
   const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
   const event = requestedEventId
@@ -152,6 +157,11 @@ sessionsRouter.put("/:id/attendance", requireAuth, async (req: AuthedRequest, re
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
+  const sessionRow = await findSessionOr404(req.params.id);
+  if (!sessionRow) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
   const userId = req.user?.id || "";
   const prior = await prisma.sessionAttendance.findUnique({
     where: { userId_sessionId: { userId, sessionId: req.params.id } },
@@ -188,6 +198,11 @@ sessionsRouter.put("/:id/attendance", requireAuth, async (req: AuthedRequest, re
 });
 
 sessionsRouter.put("/:id/like", requireAuth, async (req: AuthedRequest, res) => {
+  const sessionRow = await findSessionOr404(req.params.id);
+  if (!sessionRow) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
   const userId = req.user?.id || "";
   const existing = await prisma.sessionLike.findUnique({
     where: { userId_sessionId: { userId, sessionId: req.params.id } },
@@ -202,6 +217,11 @@ sessionsRouter.put("/:id/like", requireAuth, async (req: AuthedRequest, res) => 
 });
 
 sessionsRouter.delete("/:id/like", requireAuth, async (req: AuthedRequest, res) => {
+  const sessionRow = await findSessionOr404(req.params.id);
+  if (!sessionRow) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
   await prisma.sessionLike.deleteMany({
     where: {
       userId: req.user?.id || "",
