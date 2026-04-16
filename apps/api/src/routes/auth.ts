@@ -37,7 +37,7 @@ authRouter.post("/register", async (req, res) => {
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
     data: { email, name, role, researchInterests, passwordHash },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, engagementPoints: true },
   });
 
   const token = signToken({ userId: user.id, role: user.role });
@@ -62,7 +62,7 @@ authRouter.post("/register-admin", async (req, res) => {
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
     data: { email, name, role: "ADMIN", passwordHash },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, engagementPoints: true },
   });
 
   const token = signToken({ userId: user.id, role: user.role });
@@ -93,7 +93,15 @@ authRouter.post("/login", async (req, res) => {
 
   const token = signToken({ userId: user.id, role: user.role });
   return res.json({
-    user: { id: user.id, email: user.email, name: user.name, role: user.role, photoUrl: user.photoUrl, researchInterests: user.researchInterests },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      photoUrl: user.photoUrl,
+      researchInterests: user.researchInterests,
+      engagementPoints: user.engagementPoints,
+    },
     token,
   });
 });
@@ -107,7 +115,7 @@ const profileSchema = z.object({
 authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user?.id || "" },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, engagementPoints: true },
   });
 
   if (!user) {
@@ -130,7 +138,7 @@ authRouter.put("/me/profile", requireAuth, async (req: AuthedRequest, res) => {
       ...(parsed.data.researchInterests !== undefined ? { researchInterests: parsed.data.researchInterests } : {}),
       ...(parsed.data.photoUrl !== undefined ? { photoUrl: parsed.data.photoUrl } : {}),
     },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, engagementPoints: true },
   });
 
   return res.json(user);

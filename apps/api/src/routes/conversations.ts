@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
-import { getOrCreateEvent } from "../lib/event";
 import { getDirectConversation, getOrCreateEventConversation } from "../lib/conversations";
+import { awardEngagementPoints, POINTS } from "../lib/points";
+import { resolveEventFromRequest } from "../lib/requestEvent";
 import { requireAuth, AuthedRequest } from "../lib/middleware";
 
 export const conversationsRouter = Router();
@@ -22,16 +23,13 @@ const messageSchema = z.object({
 
 conversationsRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   const userId = req.user?.id || "";
-  const event = await getOrCreateEvent();
-  await getOrCreateEventConversation();
+  const event = await resolveEventFromRequest(req);
+  await getOrCreateEventConversation(event.id);
 
   const conversations = await prisma.conversation.findMany({
     where: {
       eventId: event.id,
-      OR: [
-        { type: "EVENT" },
-        { members: { some: { userId } } },
-      ],
+      OR: [{ type: "EVENT" }, { members: { some: { userId } } }],
     },
     include: {
       members: { include: { user: { select: { id: true, name: true, role: true } } } },
@@ -51,10 +49,16 @@ conversationsRouter.post("/direct", requireAuth, async (req: AuthedRequest, res)
 
   const userId = req.user?.id || "";
   const otherUserId = parsed.data.userId;
-  const existing = await getDirectConversation(userId, otherUserId);
-  if (existing) return res.json(existing);
+  const event = await resolveEventFromRequest(req);
+  const existing = await getDirectConversation(userId, otherUserId, event.id);
+  if (existing) {
+    const full = await prisma.conversation.findUnique({
+      where: { id: existing.id },
+      include: { members: { include: { user: { select: { id: true, name: true, role: true } } } } },
+    });
+    return res.json(full);
+  }
 
-  const event = await getOrCreateEvent();
   const conversation = await prisma.conversation.create({
     data: {
       eventId: event.id,
@@ -76,7 +80,7 @@ conversationsRouter.post("/group", requireAuth, async (req: AuthedRequest, res) 
   }
 
   const userId = req.user?.id || "";
-  const event = await getOrCreateEvent();
+  const event = await resolveEventFromRequest(req);
   const memberIds = Array.from(new Set([userId, ...parsed.data.memberIds]));
 
   const conversation = await prisma.conversation.create({
@@ -147,5 +151,6 @@ conversationsRouter.post("/:id/messages", requireAuth, async (req: AuthedRequest
     include: { user: { select: { id: true, name: true, role: true } } },
   });
 
+  await awardEngagementPoints(userId, POINTS.MESSAGE);
   return res.json(message);
 });

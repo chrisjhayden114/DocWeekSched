@@ -8,6 +8,7 @@ type User = {
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
   photoUrl?: string | null;
   researchInterests?: string | null;
+  engagementPoints?: number;
 };
 
 type Event = { id: string; name: string; bannerUrl?: string | null; timezone: string; startDate: string; endDate: string };
@@ -22,18 +23,22 @@ type Session = {
   recordingUrl?: string | null;
   fileUrl?: string | null;
   fileLink?: string | null;
+  imageUrl?: string | null;
   startsAt: string;
   endsAt: string;
   speaker?: { name: string };
   speakerId?: string | null;
   bookmarks?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
-  attendances?: { userId: string; status: "JOINING" | "NOT_JOINING"; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
+  attendances?: {
+    userId: string;
+    status: "JOINING" | "NOT_JOINING";
+    joinMode?: "VIRTUAL" | "IN_PERSON" | null;
+    user: Pick<User, "id" | "name" | "email" | "photoUrl">;
+  }[];
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
 };
 
 type Announcement = { id: string; title: string; body: string; createdAt: string };
-
-type Survey = { id: string; title: string; questions: { id: string; prompt: string; type: string; options: string[] }[] };
 
 type ConversationMember = { user: { id: string; name: string; role: string } };
 type Conversation = {
@@ -44,14 +49,30 @@ type Conversation = {
   messages: { id: string; body: string; createdAt: string; user: { id: string; name: string } }[];
 };
 type Message = { id: string; body: string; createdAt: string; user: { id: string; name: string; role: string } };
-type SessionAttendance = { sessionId: string; status: "JOINING" | "NOT_JOINING" };
+type SessionAttendance = {
+  sessionId: string;
+  status: "JOINING" | "NOT_JOINING";
+  joinMode?: "VIRTUAL" | "IN_PERSON" | null;
+};
 type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
 type EventItem = { id: string; name: string; bannerUrl?: string | null; timezone: string; startDate: string; endDate: string };
 
 type CheckIn = { id: string; user: { id: string; name: string; email: string; role: string }; createdAt: string };
 
-const adminTabs = ["Agenda", "Attendees", "Announcements", "Surveys", "Messages", "Check-In", "Profile"] as const;
-const participantTabs = ["Agenda", "Attendees", "Messages", "Profile"] as const;
+type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
+type NetworkReply = { id: string; body: string; createdAt: string; author: NetworkAuthor };
+type NetworkThread = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  author: NetworkAuthor;
+  replies: NetworkReply[];
+};
+
+const NETWORKING_TAB = "Networking & Conversations" as const;
+const adminTabs = ["Agenda", "Attendees", "Announcements", NETWORKING_TAB, "Messages", "Check-In", "Profile"] as const;
+const participantTabs = ["Agenda", "Attendees", NETWORKING_TAB, "Messages", "Profile"] as const;
 type Tab = (typeof adminTabs)[number];
 
 export default function Dashboard() {
@@ -63,7 +84,7 @@ export default function Dashboard() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attendees, setAttendees] = useState<User[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [networkThreads, setNetworkThreads] = useState<NetworkThread[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -78,6 +99,21 @@ export default function Dashboard() {
   const [sessionMessages, setSessionMessages] = useState<Message[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [updatingEvent, setUpdatingEvent] = useState(false);
+  const [sessionFormKey, setSessionFormKey] = useState(0);
+  const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
+
+  const withEventHeaders = (extra: RequestInit = {}): RequestInit => {
+    if (!activeEventId) return extra;
+    const h = (extra.headers as Record<string, string> | undefined) || {};
+    return { ...extra, headers: { ...h, "x-event-id": activeEventId } };
+  };
+
+  const refreshUser = async () => {
+    if (!token) return;
+    const fresh = await apiFetch<User>("/auth/me", {}, token);
+    setUser(fresh);
+    window.localStorage.setItem("user", JSON.stringify(fresh));
+  };
 
   useEffect(() => {
     const storedToken = window.localStorage.getItem("token");
@@ -92,8 +128,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!token) return;
-    const eventRequestInit: RequestInit = activeEventId ? { headers: { "x-event-id": activeEventId } } : {};
-    apiFetch<Event>("/event", eventRequestInit, token).then(setEvent).catch(() => null);
+    apiFetch<Event>("/event", withEventHeaders(), token).then(setEvent).catch(() => null);
     apiFetch<User>("/auth/me", {}, token).then((freshUser) => {
       setUser(freshUser);
       window.localStorage.setItem("user", JSON.stringify(freshUser));
@@ -115,8 +150,7 @@ export default function Dashboard() {
     if (!token) return;
     const load = async () => {
       if (active === "Agenda") {
-        const sessionRequestInit: RequestInit = activeEventId ? { headers: { "x-event-id": activeEventId } } : {};
-        setSessions(await apiFetch<Session[]>("/sessions", sessionRequestInit, token));
+        setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
         if (user?.role === "ADMIN" && attendees.length === 0) {
           setAttendees(await apiFetch<User[]>("/attendees", {}, token));
         }
@@ -125,13 +159,13 @@ export default function Dashboard() {
         setAttendees(await apiFetch<User[]>("/attendees", {}, token));
       }
       if (active === "Announcements") {
-        setAnnouncements(await apiFetch<Announcement[]>("/announcements", {}, token));
+        setAnnouncements(await apiFetch<Announcement[]>("/announcements", withEventHeaders(), token));
       }
-      if (active === "Surveys") {
-        setSurveys(await apiFetch<Survey[]>("/surveys", {}, token));
+      if (active === NETWORKING_TAB) {
+        setNetworkThreads(await apiFetch<NetworkThread[]>("/network/threads", withEventHeaders(), token));
       }
       if (active === "Messages") {
-        const convoList = await apiFetch<Conversation[]>("/conversations", {}, token);
+        const convoList = await apiFetch<Conversation[]>("/conversations", withEventHeaders(), token);
         setConversations(convoList);
         if (!activeConversationId && convoList.length > 0) {
           setActiveConversationId(convoList[0].id);
@@ -141,7 +175,7 @@ export default function Dashboard() {
         }
       }
       if (active === "Check-In" && user?.role === "ADMIN") {
-        setCheckIns(await apiFetch<CheckIn[]>("/checkins", {}, token));
+        setCheckIns(await apiFetch<CheckIn[]>("/checkins", withEventHeaders(), token));
       }
       if (user?.role === "ADMIN") {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
@@ -153,10 +187,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!token || active !== "Messages" || !activeConversationId) return;
-    apiFetch<Message[]>(`/conversations/${activeConversationId}/messages`, {}, token)
+    apiFetch<Message[]>(`/conversations/${activeConversationId}/messages`, withEventHeaders(), token)
       .then(setMessages)
       .catch(() => null);
-  }, [active, activeConversationId, token]);
+  }, [active, activeConversationId, token, activeEventId]);
 
   const isAdmin = useMemo(() => user?.role === "ADMIN", [user]);
   const availableTabs = useMemo(() => (isAdmin ? adminTabs : participantTabs), [isAdmin]);
@@ -181,22 +215,48 @@ export default function Dashboard() {
   );
   const groupedMySchedule = useMemo(() => groupSessionsByDayAndTime(myScheduledSessions), [myScheduledSessions]);
 
+  const messageSearchLower = messageDirectoryQuery.trim().toLowerCase();
+  const filteredMessageAttendees = useMemo(() => {
+    const uid = user?.id;
+    if (!uid) return [];
+    return attendees.filter((a) => {
+      if (a.id === uid) return false;
+      if (!messageSearchLower) return true;
+      const hay = `${a.name} ${a.email || ""} ${a.researchInterests || ""}`.toLowerCase();
+      return hay.includes(messageSearchLower);
+    });
+  }, [attendees, messageSearchLower, user?.id]);
+
+  const filteredConversations = useMemo(() => {
+    if (!user) return [];
+    if (!messageSearchLower) return conversations;
+    return conversations.filter((c) => {
+      const label = formatConversationName(c, user).toLowerCase();
+      if (label.includes(messageSearchLower)) return true;
+      return c.members.some((m) => m.user.name.toLowerCase().includes(messageSearchLower));
+    });
+  }, [conversations, messageSearchLower, user]);
+
   const handleLogout = () => {
     window.localStorage.removeItem("token");
     window.localStorage.removeItem("user");
     window.location.href = "/";
   };
 
-  const setSessionAttendance = async (sessionId: string, status: "JOINING" | "NOT_JOINING") => {
+  const patchSessionAttendance = async (
+    sessionId: string,
+    body: { status: "JOINING" | "NOT_JOINING"; joinMode?: "VIRTUAL" | "IN_PERSON" },
+  ) => {
     if (!token) return;
     await apiFetch(`/sessions/${sessionId}/attendance`, {
       method: "PUT",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     }, token);
-    setMyAttendance((prev) => {
-      const rest = prev.filter((item) => item.sessionId !== sessionId);
-      return [...rest, { sessionId, status }];
-    });
+    const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token);
+    setMyAttendance(meta.attendance);
+    if (body.status === "JOINING") {
+      await refreshUser();
+    }
   };
 
   const openSessionConversation = async (sessionId: string) => {
@@ -213,6 +273,7 @@ export default function Dashboard() {
       body: JSON.stringify({ body }),
     }, token);
     setSessionMessages((prev) => [...prev, message]);
+    await refreshUser();
   };
 
   const toggleSessionLike = async (sessionId: string) => {
@@ -225,14 +286,16 @@ export default function Dashboard() {
     }
     await apiFetch(`/sessions/${sessionId}/like`, { method: "PUT" }, token);
     setLikedSessionIds((prev) => [...prev, sessionId]);
+    await refreshUser();
   };
 
   const startDirectMessage = async (userId: string) => {
     if (!token) return;
-    const conversation = await apiFetch<Conversation>("/conversations/direct", {
-      method: "POST",
-      body: JSON.stringify({ userId }),
-    }, token);
+    const conversation = await apiFetch<Conversation>(
+      "/conversations/direct",
+      withEventHeaders({ method: "POST", body: JSON.stringify({ userId }) }),
+      token,
+    );
     if (!conversations.some((c) => c.id === conversation.id)) {
       setConversations((prev) => [conversation, ...prev]);
     }
@@ -244,12 +307,11 @@ export default function Dashboard() {
     if (!token) return;
     setUpdatingEvent(true);
     try {
-      const requestInit: RequestInit = {
-        method: "PUT",
-        headers: activeEventId ? { "x-event-id": activeEventId } : {},
-        body: JSON.stringify(payload),
-      };
-      const updated = await apiFetch<Event>("/event", requestInit, token);
+      const updated = await apiFetch<Event>(
+        "/event",
+        withEventHeaders({ method: "PUT", body: JSON.stringify(payload) }),
+        token,
+      );
       setEvent(updated);
       if (isAdmin) {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
@@ -270,8 +332,11 @@ export default function Dashboard() {
       <div className="header app-shell">
         <div>
           <h1>{event?.name || "Event Dashboard"}</h1>
-          <p style={{ color: "var(--ink-700)" }}>
+          <p style={{ color: "var(--ink-muted)" }}>
             {user.name} · {user.role}
+            {typeof user.engagementPoints === "number" && (
+              <> · <span className="points-pill">{user.engagementPoints} pts</span></>
+            )}
             {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
           </p>
         </div>
@@ -295,7 +360,19 @@ export default function Dashboard() {
                 }}
               >
                 <input className="input" name="name" defaultValue={event.name} required />
-                <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL" />
+                <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL or upload below" />
+                <input
+                  className="input"
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const data = await fileToDataUrl(file);
+                    const el = e.currentTarget.form?.elements.namedItem("bannerUrl");
+                    if (el instanceof HTMLInputElement) el.value = data;
+                  }}
+                />
                 <input className="input" name="timezone" defaultValue={event.timezone} required />
                 <input className="input" type="datetime-local" name="startDate" defaultValue={toLocalInputValue(event.startDate)} required />
                 <input className="input" type="datetime-local" name="endDate" defaultValue={toLocalInputValue(event.endDate)} required />
@@ -340,7 +417,7 @@ export default function Dashboard() {
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={likedSessionIds}
-                onSetAttendance={setSessionAttendance}
+                onPatchAttendance={patchSessionAttendance}
                 onToggleLike={toggleSessionLike}
                 onEditSession={(session) => setEditingSession(session)}
                 onOpenConversation={openSessionConversation}
@@ -354,7 +431,7 @@ export default function Dashboard() {
                   isAdmin={isAdmin}
                   myAttendance={myAttendance}
                   likedSessionIds={likedSessionIds}
-                  onSetAttendance={setSessionAttendance}
+                  onPatchAttendance={patchSessionAttendance}
                   onToggleLike={toggleSessionLike}
                   onEditSession={(session) => setEditingSession(session)}
                   onOpenConversation={openSessionConversation}
@@ -374,12 +451,17 @@ export default function Dashboard() {
           </div>
           {isAdmin && (
             <SessionForm
+              key={sessionFormKey}
               token={token!}
-              attendees={attendees.filter((a) => a.role === "SPEAKER")}
+              eventHeaders={withEventHeaders}
+              attendees={attendees}
               editing={editingSession}
               onSaved={async () => {
                 setEditingSession(null);
-                setSessions(await apiFetch<Session[]>("/sessions", {}, token!));
+                setActive("Agenda");
+                setSessionFormKey((k) => k + 1);
+                setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token!));
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
               onCancel={() => setEditingSession(null)}
             />
@@ -388,28 +470,21 @@ export default function Dashboard() {
       )}
 
       {active === "Attendees" && (
-        <div className="grid two">
-          {attendees.map((a) => (
-            <div className="card" key={a.id}>
-              {a.photoUrl && <img src={a.photoUrl} alt={a.name} className="avatar" />}
-              <h3>{a.name}</h3>
-              <p style={{ color: "var(--ink-700)" }}>{a.email}</p>
-              {a.researchInterests && <p style={{ color: "var(--ink-700)" }}>{a.researchInterests}</p>}
-              {a.id !== user.id && (
-                <button className="button secondary" type="button" onClick={() => startDirectMessage(a.id)}>
-                  Message
-                </button>
-              )}
-              <span className="badge">{a.role}</span>
-            </div>
-          ))}
-        </div>
+        <AttendeeDirectory
+          attendees={attendees}
+          currentUserId={user.id}
+          onMessage={startDirectMessage}
+        />
       )}
 
       {active === "Announcements" && (
         <div className="grid">
           {isAdmin && (
-            <AnnouncementForm token={token!} onCreated={(a) => setAnnouncements([a, ...announcements])} />
+            <AnnouncementForm
+              token={token!}
+              withEventHeaders={withEventHeaders}
+              onCreated={(a) => setAnnouncements([a, ...announcements])}
+            />
           )}
           {announcements.map((a) => (
             <div className="card" key={a.id}>
@@ -421,27 +496,41 @@ export default function Dashboard() {
         </div>
       )}
 
-      {active === "Surveys" && (
-        <div className="grid">
-          {isAdmin && (
-            <SurveyForm token={token!} onCreated={(s) => setSurveys([...surveys, s])} />
-          )}
-          {surveys.map((s) => (
-            <SurveyCard key={s.id} survey={s} token={token!} />
-          ))}
-        </div>
+      {active === NETWORKING_TAB && (
+        <NetworkingBoard
+          threads={networkThreads}
+          token={token!}
+          withEventHeaders={withEventHeaders}
+          onThreadsUpdated={async () => {
+            setNetworkThreads(await apiFetch<NetworkThread[]>("/network/threads", withEventHeaders(), token!));
+            await refreshUser();
+          }}
+        />
       )}
 
       {active === "Messages" && (
-        <div className="grid two">
+        <div className="grid two messages-layout">
           <div className="card">
-            <h3>Conversations</h3>
+            <h3>Messages</h3>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              Search by name or research interests to find people and filter your chats.
+            </p>
+            <input
+              className="input"
+              type="search"
+              placeholder="Search people and conversations…"
+              value={messageDirectoryQuery}
+              onChange={(e) => setMessageDirectoryQuery(e.target.value)}
+              aria-label="Search people and conversations"
+            />
+            <h4 style={{ marginBottom: 8 }}>Conversations</h4>
             <div className="grid" style={{ gap: 8 }}>
-              {conversations.map((c) => (
+              {filteredConversations.map((c) => (
                 <button
                   key={c.id}
                   className={activeConversationId === c.id ? "button" : "button secondary"}
                   onClick={() => setActiveConversationId(c.id)}
+                  type="button"
                 >
                   {formatConversationName(c, user)}
                 </button>
@@ -449,9 +538,10 @@ export default function Dashboard() {
             </div>
             <div style={{ marginTop: 16 }}>
               <DirectChatForm
-                attendees={attendees}
+                attendees={filteredMessageAttendees}
                 currentUserId={user.id}
                 token={token!}
+                withEventHeaders={withEventHeaders}
                 onCreated={(c) => {
                   setConversations([c, ...conversations]);
                   setActiveConversationId(c.id);
@@ -460,9 +550,10 @@ export default function Dashboard() {
             </div>
             <div style={{ marginTop: 16 }}>
               <GroupChatForm
-                attendees={attendees}
+                attendees={filteredMessageAttendees}
                 currentUserId={user.id}
                 token={token!}
+                withEventHeaders={withEventHeaders}
                 onCreated={(c) => {
                   setConversations([c, ...conversations]);
                   setActiveConversationId(c.id);
@@ -474,7 +565,11 @@ export default function Dashboard() {
             <MessageComposer
               token={token!}
               conversationId={activeConversationId}
-              onSent={(m) => setMessages([...messages, m])}
+              withEventHeaders={withEventHeaders}
+              onSent={async (m) => {
+                setMessages([...messages, m]);
+                await refreshUser();
+              }}
             />
             {messages.map((m) => (
               <div key={m.id} style={{ borderBottom: "1px solid var(--border)", padding: "10px 0" }}>
@@ -514,7 +609,7 @@ export default function Dashboard() {
 
       {active === "Check-In" && (
         <div className="grid">
-          <CheckInSelf token={token!} />
+          <CheckInSelf token={token!} withEventHeaders={withEventHeaders} />
           {isAdmin && (
             <div className="card">
               <h3>Checked In</h3>
@@ -542,7 +637,7 @@ function ScheduleBoard({
   isAdmin,
   myAttendance,
   likedSessionIds,
-  onSetAttendance,
+  onPatchAttendance,
   onToggleLike,
   onEditSession,
   onOpenConversation,
@@ -552,7 +647,10 @@ function ScheduleBoard({
   isAdmin: boolean;
   myAttendance: SessionAttendance[];
   likedSessionIds: string[];
-  onSetAttendance: (sessionId: string, status: "JOINING" | "NOT_JOINING") => void;
+  onPatchAttendance: (
+    sessionId: string,
+    body: { status: "JOINING" | "NOT_JOINING"; joinMode?: "VIRTUAL" | "IN_PERSON" },
+  ) => void | Promise<void>;
   onToggleLike: (sessionId: string) => void;
   onEditSession: (session: Session) => void;
   onOpenConversation: (sessionId: string) => void;
@@ -572,10 +670,16 @@ function ScheduleBoard({
               <div className="schedule-time">{slot.timeLabel}</div>
               <div className="schedule-events">
                 {slot.sessions.map((s) => {
-                  const myStatus = myAttendance.find((item) => item.sessionId === s.id)?.status;
-                  const joinedCount = (s.attendances || []).filter((attendance) => attendance.status === "JOINING").length;
+                  const myRow = myAttendance.find((item) => item.sessionId === s.id);
+                  const myStatus = myRow?.status;
+                  const joiningList = (s.attendances || []).filter((attendance) => attendance.status === "JOINING");
+                  const joinedCount = joiningList.length;
+                  const virtualJoining = joiningList.filter((a) => a.joinMode === "VIRTUAL").length;
+                  const inPersonJoining = joinedCount - virtualJoining;
                   const liked = likedSessionIds.includes(s.id);
                   const likeCount = (s.likes || []).length;
+                  const joining = myStatus === "JOINING";
+                  const myMode = myRow?.joinMode ?? "IN_PERSON";
                   return (
                     <article
                       className="schedule-event"
@@ -583,7 +687,12 @@ function ScheduleBoard({
                       title={s.description || "No session description yet."}
                       onClick={() => onOpenDetails(s)}
                     >
-                      <h4>{s.title}</h4>
+                      <div className="schedule-event-head">
+                        {s.imageUrl && (
+                          <img src={s.imageUrl} alt="" className="schedule-thumb" />
+                        )}
+                        <h4>{s.title}</h4>
+                      </div>
                       {(s.speakers || s.speaker?.name) && <div className="schedule-speaker">{s.speakers || s.speaker?.name}</div>}
                       {s.location && <div className="schedule-speaker">Location: {s.location}</div>}
                       <div className="schedule-links">
@@ -593,14 +702,47 @@ function ScheduleBoard({
                         {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Uploaded File</a>}
                       </div>
                       <div className="schedule-meta">
-                        <span>{formatTimeRange(s.startsAt, s.endsAt)} · {joinedCount} joining · {likeCount} likes</span>
-                        <div className="schedule-actions">
-                          <button className={`button ${myStatus === "JOINING" ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onSetAttendance(s.id, "JOINING"); }}>
-                            Joining
-                          </button>
-                          <button className={`button ${myStatus === "NOT_JOINING" ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onSetAttendance(s.id, "NOT_JOINING"); }}>
-                            Not Joining
-                          </button>
+                        <span>
+                          {formatTimeRange(s.startsAt, s.endsAt)}
+                          {" · "}
+                          {inPersonJoining} in-person · {virtualJoining} virtual · {likeCount} likes
+                        </span>
+                        <div className="schedule-actions schedule-actions-with-attendance">
+                          <div
+                            className="session-attendance-block"
+                            onClick={(event) => event.stopPropagation()}
+                            role="group"
+                            aria-label="Session attendance"
+                          >
+                            <button
+                              type="button"
+                              className={`attendance-join-dot ${joining ? "is-on" : ""}`}
+                              aria-pressed={joining}
+                              aria-label={joining ? "Leave session" : "Join session"}
+                              onClick={() =>
+                                onPatchAttendance(s.id, joining ? { status: "NOT_JOINING" } : { status: "JOINING", joinMode: "IN_PERSON" })
+                              }
+                            />
+                            <span className="attendance-join-text">{joining ? "Joined" : "Join"}</span>
+                            {joining && (
+                              <div className="join-mode-switch" role="group" aria-label="Attendance mode">
+                                <button
+                                  type="button"
+                                  className={myMode === "VIRTUAL" ? "is-active" : ""}
+                                  onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
+                                >
+                                  Virtual
+                                </button>
+                                <button
+                                  type="button"
+                                  className={myMode === "IN_PERSON" ? "is-active" : ""}
+                                  onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "IN_PERSON" })}
+                                >
+                                  In person
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onOpenConversation(s.id); }}>Conversation</button>
                           <button className={`button ${liked ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onToggleLike(s.id); }}>
                             Like
@@ -643,7 +785,10 @@ function ParticipantDailySchedules({
                     {(session.attendances || []).filter((attendance) => attendance.status === "JOINING").length > 0
                       ? `Participants: ${(session.attendances || [])
                           .filter((attendance) => attendance.status === "JOINING")
-                          .map((attendance) => attendance.user.name)
+                          .map((attendance) => {
+                            const tag = attendance.joinMode === "VIRTUAL" ? " (virtual)" : "";
+                            return `${attendance.user.name}${tag}`;
+                          })
                           .join(", ")}`
                       : "No participants added yet"}
                   </div>
@@ -703,6 +848,9 @@ function SessionDetailsModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+        {session.imageUrl && (
+          <img src={session.imageUrl} alt="" className="modal-session-image" />
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
           <h3 style={{ margin: 0 }}>{session.title}</h3>
           <button className="button secondary" type="button" onClick={onClose}>Close</button>
@@ -820,7 +968,19 @@ function ProfileEditor({
           </div>
           <form className="grid" onSubmit={createEvent}>
             <input className="input" name="eventName" placeholder="New event name" required />
-            <input className="input" name="eventBannerUrl" placeholder="Banner image URL (optional)" />
+            <input className="input" name="eventBannerUrl" placeholder="Banner URL (optional)" />
+            <input
+              className="input"
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const data = await fileToDataUrl(file);
+                const el = e.currentTarget.form?.elements.namedItem("eventBannerUrl");
+                if (el instanceof HTMLInputElement) el.value = data;
+              }}
+            />
             <input className="input" name="timezone" placeholder="Timezone (e.g. America/New_York)" required />
             <input className="input" type="datetime-local" name="startDate" required />
             <input className="input" type="datetime-local" name="endDate" required />
@@ -832,15 +992,24 @@ function ProfileEditor({
   );
 }
 
-function AnnouncementForm({ token, onCreated }: { token: string; onCreated: (a: Announcement) => void }) {
+function AnnouncementForm({
+  token,
+  withEventHeaders,
+  onCreated,
+}: {
+  token: string;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  onCreated: (a: Announcement) => void;
+}) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const payload = Object.fromEntries(form.entries());
-    const announcement = await apiFetch<Announcement>("/announcements", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }, token);
+    const announcement = await apiFetch<Announcement>(
+      "/announcements",
+      withEventHeaders({ method: "POST", body: JSON.stringify(payload) }),
+      token,
+    );
     onCreated(announcement);
     event.currentTarget.reset();
   }
@@ -857,48 +1026,53 @@ function AnnouncementForm({ token, onCreated }: { token: string; onCreated: (a: 
 
 function SessionForm({
   token,
+  eventHeaders,
   attendees,
   editing,
   onSaved,
   onCancel,
 }: {
   token: string;
+  eventHeaders: (extra?: RequestInit) => RequestInit;
   attendees: User[];
   editing: Session | null;
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const [submitting, setSubmitting] = useState(false);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const payload = {
-      title: String(form.get("title") || ""),
-      description: String(form.get("description") || ""),
-      location: String(form.get("location") || ""),
-      speakers: String(form.get("speakers") || ""),
-      zoomLink: String(form.get("zoomLink") || ""),
-      recordingUrl: String(form.get("recordingUrl") || ""),
-      fileLink: String(form.get("fileLink") || ""),
-      fileUrl: String(form.get("fileUrl") || ""),
-      startsAt: new Date(String(form.get("startsAt") || "")).toISOString(),
-      endsAt: new Date(String(form.get("endsAt") || "")).toISOString(),
-      speakerId: String(form.get("speakerId") || "") || undefined,
-    };
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const form = new FormData(event.currentTarget);
+      const payload = {
+        title: String(form.get("title") || ""),
+        description: String(form.get("description") || ""),
+        location: String(form.get("location") || ""),
+        speakers: String(form.get("speakers") || ""),
+        imageUrl: String(form.get("imageUrl") || ""),
+        zoomLink: String(form.get("zoomLink") || ""),
+        recordingUrl: String(form.get("recordingUrl") || ""),
+        fileLink: String(form.get("fileLink") || ""),
+        fileUrl: String(form.get("fileUrl") || ""),
+        startsAt: new Date(String(form.get("startsAt") || "")).toISOString(),
+        endsAt: new Date(String(form.get("endsAt") || "")).toISOString(),
+        speakerId: String(form.get("speakerId") || "") || undefined,
+      };
 
-    if (editing) {
-      await apiFetch(`/sessions/${editing.id}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      }, token);
-    } else {
-      await apiFetch("/sessions", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }, token);
+      if (editing) {
+        await apiFetch(`/sessions/${editing.id}`, eventHeaders({ method: "PUT", body: JSON.stringify(payload) }), token);
+      } else {
+        await apiFetch("/sessions", eventHeaders({ method: "POST", body: JSON.stringify(payload) }), token);
+      }
+
+      if (!editing) event.currentTarget.reset();
+      onSaved();
+    } finally {
+      setSubmitting(false);
     }
-
-    event.currentTarget.reset();
-    onSaved();
   }
 
   const defaultStart = editing?.startsAt ? toLocalInputValue(editing.startsAt) : "";
@@ -916,11 +1090,52 @@ function SessionForm({
       <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
       <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
       <input className="input" name="location" placeholder="Location" defaultValue={editing?.location || ""} />
-      <input className="input" name="speakers" placeholder="Speaker(s)" defaultValue={editing?.speakers || ""} />
+      <label className="help-text" style={{ margin: 0 }}>
+        Session image or icon (URL or upload)
+      </label>
+      <input className="input" name="imageUrl" placeholder="Image URL" defaultValue={editing?.imageUrl || ""} />
+      <input
+        className="input"
+        type="file"
+        accept="image/*"
+        onChange={async (ev) => {
+          const file = ev.target.files?.[0];
+          if (!file) return;
+          const data = await fileToDataUrl(file);
+          const target = ev.currentTarget.form?.elements.namedItem("imageUrl");
+          if (target instanceof HTMLInputElement) target.value = data;
+        }}
+      />
+      <label className="help-text" style={{ margin: 0 }}>
+        Speaker names (free text — use for guests who are not in the directory)
+      </label>
+      <input className="input" name="speakers" placeholder="e.g. Dr. Jane Smith, keynote panel…" defaultValue={editing?.speakers || ""} />
+      <label className="help-text" style={{ margin: 0 }}>
+        Or link a registered participant as primary speaker
+      </label>
+      <select className="select" name="speakerId" defaultValue={editing?.speakerId || ""}>
+        <option value="">No linked directory speaker</option>
+        {attendees.map((a) => (
+          <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
+        ))}
+      </select>
       <input className="input" name="zoomLink" placeholder="Zoom link" defaultValue={editing?.zoomLink || ""} />
+      <label className="help-text" style={{ margin: 0 }}>Recording (URL or upload)</label>
       <input className="input" name="recordingUrl" placeholder="Recording URL" defaultValue={editing?.recordingUrl || ""} />
+      <input
+        className="input"
+        type="file"
+        accept="audio/*,video/*"
+        onChange={async (ev) => {
+          const file = ev.target.files?.[0];
+          if (!file) return;
+          const data = await fileToDataUrl(file);
+          const target = ev.currentTarget.form?.elements.namedItem("recordingUrl");
+          if (target instanceof HTMLInputElement) target.value = data;
+        }}
+      />
       <input className="input" name="fileLink" placeholder="Presentation or resource link" defaultValue={editing?.fileLink || ""} />
-      <textarea className="textarea" name="fileUrl" placeholder="Optional file upload (base64 data URL auto-added from upload)" defaultValue={editing?.fileUrl || ""} />
+      <textarea className="textarea" name="fileUrl" placeholder="Optional materials upload (filled automatically)" defaultValue={editing?.fileUrl || ""} />
       <input
         className="input"
         type="file"
@@ -937,14 +1152,10 @@ function SessionForm({
       />
       <input className="input" type="datetime-local" name="startsAt" required defaultValue={defaultStart} />
       <input className="input" type="datetime-local" name="endsAt" required defaultValue={defaultEnd} />
-      <select className="select" name="speakerId" defaultValue={editing?.speakerId || ""}>
-        <option value="">Assign speaker (optional)</option>
-        {attendees.map((a) => (
-          <option key={a.id} value={a.id}>{a.name}</option>
-        ))}
-      </select>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button className="button" type="submit">{editing ? "Save changes" : "Create session"}</button>
+        <button className="button" type="submit" disabled={submitting}>
+          {submitting ? "Saving…" : editing ? "Save changes" : "Create session"}
+        </button>
         {editing && (
           <>
             <button className="button secondary" type="button" onClick={onCancel}>Cancel</button>
@@ -956,75 +1167,231 @@ function SessionForm({
   );
 }
 
-function SurveyForm({ token, onCreated }: { token: string; onCreated: (s: Survey) => void }) {
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const title = String(form.get("title") || "");
-    const question = String(form.get("question") || "");
-    const survey = await apiFetch<Survey>("/surveys", {
-      method: "POST",
-      body: JSON.stringify({
-        title,
-        questions: [{ prompt: question, type: "TEXT" }],
-      }),
-    }, token);
-    onCreated(survey);
-    event.currentTarget.reset();
-  }
-
-  return (
-    <form className="card grid" onSubmit={handleSubmit}>
-      <h3>New survey</h3>
-      <input className="input" name="title" placeholder="Survey title" required />
-      <input className="input" name="question" placeholder="Single question" required />
-      <button className="button">Create survey</button>
-    </form>
+function AttendeeAvatar({ photoUrl, name }: { photoUrl?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const showImg = Boolean(photoUrl) && !failed;
+  return showImg ? (
+    <img
+      src={photoUrl!}
+      alt={`${name} profile`}
+      className="attendee-avatar"
+      referrerPolicy="no-referrer"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    <div className="attendee-avatar attendee-avatar-placeholder" aria-hidden>
+      {name.charAt(0).toUpperCase()}
+    </div>
   );
 }
 
-function SurveyCard({ survey, token }: { survey: Survey; token: string }) {
-  async function submitAnswer(event: React.FormEvent<HTMLFormElement>) {
+function AttendeeDirectory({
+  attendees,
+  currentUserId,
+  onMessage,
+}: {
+  attendees: User[];
+  currentUserId: string;
+  onMessage: (userId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    const list = [...attendees].sort((a, b) => a.name.localeCompare(b.name));
+    if (!q) return list;
+    return list.filter((a) => {
+      const hay = `${a.name} ${a.email} ${a.researchInterests || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [attendees, q]);
+
+  let lastLetter = "";
+  const rows = filtered.map((a) => {
+    const initial = (a.name.trim()[0] || "#").toUpperCase();
+    const letter = /[A-Z]/.test(initial) ? initial : "#";
+    const isNewLetter = letter !== lastLetter;
+    if (isNewLetter) lastLetter = letter;
+    return (
+      <div
+        className="attendee-row"
+        key={a.id}
+        id={isNewLetter ? `attendee-letter-${letter}` : undefined}
+      >
+        <div className="attendee-avatar-wrap">
+          <AttendeeAvatar photoUrl={a.photoUrl} name={a.name} />
+          <span className={`attendee-role-badge role-${a.role.toLowerCase()}`}>{a.role}</span>
+        </div>
+        <div className="attendee-body">
+          <div className="attendee-name">{a.name}</div>
+          <div className="attendee-meta">{a.email}</div>
+          {a.researchInterests && (
+            <div className="attendee-meta attendee-research">{a.researchInterests}</div>
+          )}
+        </div>
+        {a.id !== currentUserId ? (
+          <button className="button attendee-msg-btn" type="button" onClick={() => onMessage(a.id)}>
+            Message
+          </button>
+        ) : (
+          <span className="help-text">You</span>
+        )}
+      </div>
+    );
+  });
+
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  return (
+    <div className="attendee-directory card">
+      <div className="attendee-directory-toolbar">
+        <input
+          className="input attendee-search"
+          type="search"
+          placeholder="Search by name, email, or research interests"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search attendees"
+        />
+        <div className="attendee-index" aria-label="Jump to letter">
+          {letters.map((L) => (
+            <button
+              key={L}
+              type="button"
+              className="attendee-index-letter"
+              onClick={() => document.getElementById(`attendee-letter-${L}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              {L}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="attendee-rows">{rows}</div>
+    </div>
+  );
+}
+
+function NetworkingBoard({
+  threads,
+  token,
+  withEventHeaders,
+  onThreadsUpdated,
+}: {
+  threads: NetworkThread[];
+  token: string;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  onThreadsUpdated: () => Promise<void>;
+}) {
+  const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
+
+  async function createThread(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const answers = survey.questions.map((q) => ({
-      questionId: q.id,
-      answer: String(form.get(q.id) || ""),
-    }));
-    await apiFetch(`/surveys/${survey.id}/answers`, {
-      method: "POST",
-      body: JSON.stringify({ answers }),
-    }, token);
+    await apiFetch(
+      "/network/threads",
+      withEventHeaders({
+        method: "POST",
+        body: JSON.stringify({
+          title: String(form.get("title") || ""),
+          body: String(form.get("body") || ""),
+        }),
+      }),
+      token,
+    );
     event.currentTarget.reset();
-    alert("Thanks for your response!");
+    await onThreadsUpdated();
+  }
+
+  async function sendReply(threadId: string, body: string) {
+    if (!body.trim()) return;
+    await apiFetch(
+      `/network/threads/${threadId}/replies`,
+      withEventHeaders({ method: "POST", body: JSON.stringify({ body }) }),
+      token,
+    );
+    await onThreadsUpdated();
   }
 
   return (
-    <form className="card grid" onSubmit={submitAnswer}>
-      <h3>{survey.title}</h3>
-      {survey.questions.map((q) => (
-        <input key={q.id} className="input" name={q.id} placeholder={q.prompt} required />
-      ))}
-      <button className="button secondary" type="submit">Submit</button>
-    </form>
+    <div className="grid networking-board">
+      <form className="card grid" onSubmit={createThread}>
+        <h3 style={{ marginTop: 0 }}>Start a discussion</h3>
+        <p className="help-text" style={{ margin: 0 }}>
+          Introduce yourself or start a thread everyone registered can see and reply to.
+        </p>
+        <input className="input" name="title" placeholder="Title" required />
+        <textarea className="textarea" name="body" placeholder="Your message…" required rows={4} />
+        <button className="button" type="submit">Post</button>
+      </form>
+      <div className="network-thread-list">
+        {threads.length === 0 && <p className="help-text">No discussions yet — be the first to post.</p>}
+        {threads.map((t) => {
+          const open = openId === t.id;
+          return (
+            <div className="card network-thread" key={t.id}>
+              <button type="button" className="network-thread-toggle" onClick={() => setOpenId(open ? null : t.id)}>
+                <strong>{t.title}</strong>
+                <span className="help-text">
+                  {t.author.name} · {new Date(t.createdAt).toLocaleString()}
+                </span>
+              </button>
+              {open && (
+                <div className="network-thread-body">
+                  <p>{t.body}</p>
+                  <div className="network-replies">
+                    {t.replies.map((r) => (
+                      <div key={r.id} className="network-reply">
+                        <strong>{r.author.name}</strong>
+                        <span className="help-text"> · {new Date(r.createdAt).toLocaleString()}</span>
+                        <p>{r.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <form
+                    className="grid"
+                    style={{ gap: 8, marginTop: 8 }}
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const form = new FormData(e.currentTarget);
+                      const body = String(form.get("body") || "");
+                      await sendReply(t.id, body);
+                      e.currentTarget.reset();
+                    }}
+                  >
+                    <textarea className="textarea" name="body" placeholder="Write a public reply…" required rows={2} />
+                    <button className="button secondary" type="submit">Reply</button>
+                  </form>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
 function MessageComposer({
   token,
   conversationId,
+  withEventHeaders,
   onSent,
-}: { token: string; conversationId: string | null; onSent: (m: Message) => void }) {
+}: {
+  token: string;
+  conversationId: string | null;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  onSent: (m: Message) => void | Promise<void>;
+}) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!conversationId) return;
     const form = new FormData(event.currentTarget);
     const payload = Object.fromEntries(form.entries());
-    const message = await apiFetch<Message>(`/conversations/${conversationId}/messages`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }, token);
-    onSent(message);
+    const message = await apiFetch<Message>(
+      `/conversations/${conversationId}/messages`,
+      withEventHeaders({ method: "POST", body: JSON.stringify(payload) }),
+      token,
+    );
+    await onSent(message);
     event.currentTarget.reset();
   }
 
@@ -1041,11 +1408,13 @@ function DirectChatForm({
   attendees,
   currentUserId,
   token,
+  withEventHeaders,
   onCreated,
 }: {
   attendees: User[];
   currentUserId: string;
   token: string;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
   onCreated: (c: Conversation) => void;
 }) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -1053,10 +1422,11 @@ function DirectChatForm({
     const form = new FormData(event.currentTarget);
     const userId = String(form.get("userId") || "");
     if (!userId) return;
-    const conversation = await apiFetch<Conversation>("/conversations/direct", {
-      method: "POST",
-      body: JSON.stringify({ userId }),
-    }, token);
+    const conversation = await apiFetch<Conversation>(
+      "/conversations/direct",
+      withEventHeaders({ method: "POST", body: JSON.stringify({ userId }) }),
+      token,
+    );
     onCreated(conversation);
   }
 
@@ -1069,7 +1439,7 @@ function DirectChatForm({
           <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
         ))}
       </select>
-      <button className="button secondary">Start</button>
+      <button className="button secondary" type="submit">Start</button>
     </form>
   );
 }
@@ -1078,11 +1448,13 @@ function GroupChatForm({
   attendees,
   currentUserId,
   token,
+  withEventHeaders,
   onCreated,
 }: {
   attendees: User[];
   currentUserId: string;
   token: string;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
   onCreated: (c: Conversation) => void;
 }) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -1091,10 +1463,11 @@ function GroupChatForm({
     const name = String(form.get("name") || "");
     const memberIds = form.getAll("memberIds").map((id) => String(id)).filter((id) => id && id !== currentUserId);
     if (!name || memberIds.length === 0) return;
-    const conversation = await apiFetch<Conversation>("/conversations/group", {
-      method: "POST",
-      body: JSON.stringify({ name, memberIds }),
-    }, token);
+    const conversation = await apiFetch<Conversation>(
+      "/conversations/group",
+      withEventHeaders({ method: "POST", body: JSON.stringify({ name, memberIds }) }),
+      token,
+    );
     onCreated(conversation);
     event.currentTarget.reset();
   }
@@ -1108,7 +1481,7 @@ function GroupChatForm({
           <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
         ))}
       </select>
-      <button className="button secondary">Create</button>
+      <button className="button secondary" type="submit">Create</button>
     </form>
   );
 }
@@ -1120,20 +1493,20 @@ function formatConversationName(conversation: Conversation, currentUser: User) {
   return other ? other.user.name : "Direct Chat";
 }
 
-function CheckInSelf({ token }: { token: string }) {
+function CheckInSelf({ token, withEventHeaders }: { token: string; withEventHeaders: (extra?: RequestInit) => RequestInit }) {
   const [status, setStatus] = useState<string | null>(null);
 
   async function handleCheckIn() {
-    await apiFetch("/checkins", { method: "POST" }, token);
+    await apiFetch("/checkins", withEventHeaders({ method: "POST" }), token);
     setStatus("Checked in!");
   }
 
   return (
     <div className="card">
       <h3>Check in</h3>
-      <p style={{ color: "var(--ink-700)" }}>Tap below to check yourself in.</p>
-      <button className="button" onClick={handleCheckIn}>Check in</button>
-      {status && <p style={{ color: "var(--blue-700)" }}>{status}</p>}
+      <p style={{ color: "var(--ink-muted)" }}>Tap below to check yourself in.</p>
+      <button className="button" type="button" onClick={handleCheckIn}>Check in</button>
+      {status && <p style={{ color: "var(--gold)" }}>{status}</p>}
     </div>
   );
 }

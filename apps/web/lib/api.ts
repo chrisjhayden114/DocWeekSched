@@ -9,6 +9,7 @@ export type AuthResponse = {
     role: string;
     photoUrl?: string | null;
     researchInterests?: string | null;
+    engagementPoints?: number;
   };
 };
 

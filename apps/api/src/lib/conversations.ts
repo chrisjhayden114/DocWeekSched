@@ -1,27 +1,24 @@
 import { prisma } from "./db";
-import { getOrCreateEvent } from "./event";
 
-export async function getOrCreateEventConversation() {
-  const event = await getOrCreateEvent();
+export async function getOrCreateEventConversation(eventId: string) {
   const existing = await prisma.conversation.findFirst({
-    where: { eventId: event.id, type: "EVENT" },
+    where: { eventId, type: "EVENT" },
   });
   if (existing) return existing;
 
   return prisma.conversation.create({
     data: {
-      eventId: event.id,
+      eventId,
       type: "EVENT",
       name: "Event Chat",
     },
   });
 }
 
-export async function getDirectConversation(userId: string, otherUserId: string) {
-  const event = await getOrCreateEvent();
+export async function getDirectConversation(userId: string, otherUserId: string, eventId: string) {
   const conversations = await prisma.conversation.findMany({
     where: {
-      eventId: event.id,
+      eventId,
       type: "DIRECT",
       members: {
         some: {
@@ -32,25 +29,31 @@ export async function getDirectConversation(userId: string, otherUserId: string)
     include: { members: true },
   });
 
-  return conversations.find((c) =>
-    c.members.length === 2 &&
-    c.members.some((m) => m.userId === userId) &&
-    c.members.some((m) => m.userId === otherUserId)
+  return conversations.find(
+    (c) =>
+      c.members.length === 2 &&
+      c.members.some((m) => m.userId === userId) &&
+      c.members.some((m) => m.userId === otherUserId)
   );
 }
 
 export async function getOrCreateSessionConversation(sessionId: string) {
-  const event = await getOrCreateEvent();
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    select: { id: true, eventId: true },
+  });
+  if (!session) return null;
+
   const existing = await prisma.conversation.findFirst({
-    where: { eventId: event.id, type: "SESSION", sessionId },
+    where: { eventId: session.eventId, type: "SESSION", sessionId: session.id },
   });
   if (existing) return existing;
 
   return prisma.conversation.create({
     data: {
-      eventId: event.id,
+      eventId: session.eventId,
       type: "SESSION",
-      sessionId,
+      sessionId: session.id,
       name: "Session Conversation",
     },
   });

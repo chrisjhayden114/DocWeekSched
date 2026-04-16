@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { prisma } from "../lib/db";
-import { getOrCreateEvent } from "../lib/event";
+import { resolveEventFromRequest } from "../lib/requestEvent";
 import { requireAuth, requireRole, AuthedRequest } from "../lib/middleware";
 
 export const checkinRouter = Router();
 
 checkinRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
-  const event = await getOrCreateEvent();
+  const event = await resolveEventFromRequest(req);
   const checkIn = await prisma.checkIn.upsert({
     where: { userId_eventId: { userId: req.user?.id || "", eventId: event.id } },
     update: {},
@@ -17,7 +17,7 @@ checkinRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
 });
 
 checkinRouter.post("/:userId", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
-  const event = await getOrCreateEvent();
+  const event = await resolveEventFromRequest(req);
   const checkIn = await prisma.checkIn.upsert({
     where: { userId_eventId: { userId: req.params.userId, eventId: event.id } },
     update: {},
@@ -27,8 +27,8 @@ checkinRouter.post("/:userId", requireAuth, requireRole(["ADMIN"]), async (req, 
   return res.json(checkIn);
 });
 
-checkinRouter.get("/", requireAuth, requireRole(["ADMIN"]), async (_req, res) => {
-  const event = await getOrCreateEvent();
+checkinRouter.get("/", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
+  const event = await resolveEventFromRequest(req);
   const checkIns = await prisma.checkIn.findMany({
     where: { eventId: event.id },
     include: { user: { select: { id: true, name: true, email: true, role: true } } },

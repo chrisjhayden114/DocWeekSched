@@ -24,6 +24,11 @@ enum SessionAttendanceStatus {
   NOT_JOINING
 }
 
+enum SessionJoinMode {
+  VIRTUAL
+  IN_PERSON
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -32,6 +37,7 @@ model User {
   photoUrl     String?
   researchInterests String?
   passwordHash String
+  engagementPoints Int @default(0)
   createdAt    DateTime @default(now())
   sessionBookmarks SessionBookmark[]
   sessionAttendances SessionAttendance[]
@@ -42,6 +48,8 @@ model User {
   conversationMessages ConversationMessage[]
   checkIns     CheckIn[]
   surveyAnswers SurveyAnswer[]
+  networkThreads NetworkThread[]
+  networkReplies NetworkReply[]
 }
 
 model Event {
@@ -56,6 +64,7 @@ model Event {
   surveys   Survey[]
   conversations Conversation[]
   checkIns  CheckIn[]
+  networkThreads NetworkThread[]
   createdBy   User?   @relation("EventCreator", fields: [createdById], references: [id])
   createdById String?
 }
@@ -66,6 +75,7 @@ model Session {
   description String?
   location    String?
   speakers    String?
+  imageUrl    String?
   zoomLink    String?
   recordingUrl String?
   fileUrl     String?
@@ -100,6 +110,7 @@ model SessionAttendance {
   session   Session  @relation(fields: [sessionId], references: [id])
   sessionId String
   status    SessionAttendanceStatus
+  joinMode  SessionJoinMode?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -203,4 +214,26 @@ model CheckIn {
   createdAt DateTime @default(now())
 
   @@unique([userId, eventId])
+}
+
+model NetworkThread {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replies   NetworkReply[]
+}
+
+model NetworkReply {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  threadId  String
+  thread    NetworkThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }

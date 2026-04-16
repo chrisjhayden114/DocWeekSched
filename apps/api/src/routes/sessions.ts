@@ -3,18 +3,22 @@ import { z } from "zod";
 import { prisma } from "../lib/db";
 import { getOrCreateSessionConversation } from "../lib/conversations";
 import { getOrCreateEvent } from "../lib/event";
+import { awardEngagementPoints, POINTS } from "../lib/points";
 import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
 
 export const sessionsRouter = Router();
+
+const optionalLink = z.string().max(5_000_000).optional();
 
 const sessionSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   speakers: z.string().optional(),
-  zoomLink: z.union([z.string().url(), z.literal("")]).optional(),
-  recordingUrl: z.union([z.string().url(), z.literal("")]).optional(),
-  fileUrl: z.string().optional(),
-  fileLink: z.union([z.string().url(), z.literal("")]).optional(),
+  imageUrl: optionalLink,
+  zoomLink: optionalLink,
+  recordingUrl: optionalLink,
+  fileUrl: optionalLink,
+  fileLink: optionalLink,
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
   speakerId: z.string().optional(),
@@ -22,6 +26,7 @@ const sessionSchema = z.object({
 
 const attendanceSchema = z.object({
   status: z.enum(["JOINING", "NOT_JOINING"]),
+  joinMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
 });
 
 const messageSchema = z.object({
@@ -51,6 +56,7 @@ sessionsRouter.get("/", requireAuth, async (req, res) => {
         select: {
           userId: true,
           status: true,
+          joinMode: true,
           user: { select: { id: true, name: true, email: true, photoUrl: true } },
         },
       },
@@ -68,7 +74,7 @@ sessionsRouter.get("/", requireAuth, async (req, res) => {
 sessionsRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   const saved = await prisma.sessionAttendance.findMany({
     where: { userId: req.user?.id || "" },
-    select: { sessionId: true, status: true },
+    select: { sessionId: true, status: true, joinMode: true },
   });
   const likes = await prisma.sessionLike.findMany({
     where: { userId: req.user?.id || "" },
@@ -92,9 +98,13 @@ sessionsRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) =
   }
   const session = await prisma.session.create({
     data: {
-      ...parsed.data,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      speakers: parsed.data.speakers,
+      imageUrl: parsed.data.imageUrl || null,
       zoomLink: parsed.data.zoomLink || null,
       recordingUrl: parsed.data.recordingUrl || null,
+      fileUrl: parsed.data.fileUrl || null,
       fileLink: parsed.data.fileLink || null,
       speakerId: parsed.data.speakerId || null,
       startsAt: new Date(parsed.data.startsAt),
@@ -114,9 +124,13 @@ sessionsRouter.put("/:id", requireAuth, requireRole(["ADMIN"]), async (req, res)
   const session = await prisma.session.update({
     where: { id: req.params.id },
     data: {
-      ...parsed.data,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      speakers: parsed.data.speakers,
+      imageUrl: parsed.data.imageUrl || null,
       zoomLink: parsed.data.zoomLink || null,
       recordingUrl: parsed.data.recordingUrl || null,
+      fileUrl: parsed.data.fileUrl || null,
       fileLink: parsed.data.fileLink || null,
       speakerId: parsed.data.speakerId || null,
       startsAt: new Date(parsed.data.startsAt),
@@ -138,38 +152,52 @@ sessionsRouter.put("/:id/attendance", requireAuth, async (req: AuthedRequest, re
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
+  const userId = req.user?.id || "";
+  const prior = await prisma.sessionAttendance.findUnique({
+    where: { userId_sessionId: { userId, sessionId: req.params.id } },
+  });
+
+  const nextJoinMode =
+    parsed.data.status === "NOT_JOINING"
+      ? null
+      : parsed.data.joinMode ?? prior?.joinMode ?? "IN_PERSON";
+
   await prisma.sessionAttendance.upsert({
     where: {
       userId_sessionId: {
-        userId: req.user?.id || "",
+        userId,
         sessionId: req.params.id,
       },
     },
-    update: { status: parsed.data.status },
+    update: { status: parsed.data.status, joinMode: nextJoinMode },
     create: {
-      userId: req.user?.id || "",
+      userId,
       sessionId: req.params.id,
       status: parsed.data.status,
+      joinMode: parsed.data.status === "NOT_JOINING" ? null : parsed.data.joinMode ?? "IN_PERSON",
     },
   });
+
+  const wasJoining = prior?.status === "JOINING";
+  const nowJoining = parsed.data.status === "JOINING";
+  if (nowJoining && !wasJoining) {
+    await awardEngagementPoints(userId, POINTS.SESSION_JOIN);
+  }
 
   return res.json({ ok: true });
 });
 
 sessionsRouter.put("/:id/like", requireAuth, async (req: AuthedRequest, res) => {
-  await prisma.sessionLike.upsert({
-    where: {
-      userId_sessionId: {
-        userId: req.user?.id || "",
-        sessionId: req.params.id,
-      },
-    },
-    update: {},
-    create: {
-      userId: req.user?.id || "",
-      sessionId: req.params.id,
-    },
+  const userId = req.user?.id || "";
+  const existing = await prisma.sessionLike.findUnique({
+    where: { userId_sessionId: { userId, sessionId: req.params.id } },
   });
+  if (!existing) {
+    await prisma.sessionLike.create({
+      data: { userId, sessionId: req.params.id },
+    });
+    await awardEngagementPoints(userId, POINTS.SESSION_LIKE);
+  }
   return res.json({ ok: true });
 });
 
@@ -186,6 +214,9 @@ sessionsRouter.delete("/:id/like", requireAuth, async (req: AuthedRequest, res) 
 sessionsRouter.get("/:id/conversation/messages", requireAuth, async (req: AuthedRequest, res) => {
   const userId = req.user?.id || "";
   const conversation = await getOrCreateSessionConversation(req.params.id);
+  if (!conversation) {
+    return res.status(404).json({ error: "Session not found" });
+  }
 
   await prisma.conversationMember.upsert({
     where: {
@@ -218,6 +249,9 @@ sessionsRouter.post("/:id/conversation/messages", requireAuth, async (req: Authe
 
   const userId = req.user?.id || "";
   const conversation = await getOrCreateSessionConversation(req.params.id);
+  if (!conversation) {
+    return res.status(404).json({ error: "Session not found" });
+  }
 
   await prisma.conversationMember.upsert({
     where: {
@@ -242,5 +276,6 @@ sessionsRouter.post("/:id/conversation/messages", requireAuth, async (req: Authe
     include: { user: { select: { id: true, name: true, role: true, photoUrl: true } } },
   });
 
+  await awardEngagementPoints(userId, POINTS.SESSION_CHAT_MESSAGE);
   return res.json(message);
 });

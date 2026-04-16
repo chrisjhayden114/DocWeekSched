@@ -8,7 +8,7 @@ export const eventRouter = Router();
 
 const eventSchema = z.object({
   name: z.string().min(1),
-  bannerUrl: z.union([z.string().url(), z.literal("")]).optional(),
+  bannerUrl: z.string().max(2_000_000).optional(),
   timezone: z.string().min(1),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
@@ -42,7 +42,7 @@ eventRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req: AuthedReq
   const created = await prisma.event.create({
     data: {
       name: parsed.data.name,
-      bannerUrl: parsed.data.bannerUrl || null,
+      bannerUrl: parsed.data.bannerUrl?.trim() || null,
       timezone: parsed.data.timezone,
       startDate: new Date(parsed.data.startDate),
       endDate: new Date(parsed.data.endDate),
@@ -70,7 +70,7 @@ eventRouter.put("/", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
     where: { id: event.id },
     data: {
       name: parsed.data.name,
-      bannerUrl: parsed.data.bannerUrl || null,
+      bannerUrl: parsed.data.bannerUrl?.trim() || null,
       timezone: parsed.data.timezone,
       startDate: new Date(parsed.data.startDate),
       endDate: new Date(parsed.data.endDate),

@@ -9,6 +9,7 @@ import { surveysRouter } from "./routes/surveys";
 import { conversationsRouter } from "./routes/conversations";
 import { attendeesRouter } from "./routes/attendees";
 import { checkinRouter } from "./routes/checkin";
+import { networkRouter } from "./routes/network";
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use("/surveys", surveysRouter);
 app.use("/conversations", conversationsRouter);
 app.use("/attendees", attendeesRouter);
 app.use("/checkins", checkinRouter);
+app.use("/network", networkRouter);
 
 app.listen(env.apiPort, () => {
   console.log(`API listening on ${env.apiPort}`);
