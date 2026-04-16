@@ -7,3 +7,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+# Ensures dynamic routes (e.g. /session/[sessionId]) and API routes work on Netlify.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
