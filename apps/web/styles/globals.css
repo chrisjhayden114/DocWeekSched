@@ -622,6 +622,81 @@ a:hover {
   align-items: start;
 }
 
+.session-back-link {
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.session-back-link:hover {
+  text-decoration: underline;
+}
+
+.session-page-header {
+  margin-bottom: 16px;
+}
+
+.session-page-image {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+}
+
+.session-page-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.session-conversation-card {
+  margin-top: 16px;
+}
+
+.session-message-list {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.session-message-row {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.session-message-row:last-child {
+  border-bottom: none;
+}
+
+.session-message-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-message-avatar,
+.session-message-avatar-ph {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+}
+
+.session-message-avatar-ph {
+  display: grid;
+  place-items: center;
+  background: rgba(0, 51, 160, 0.35);
+  color: var(--gold);
+  font-weight: 800;
+  font-size: 14px;
+}
+
 @media (min-width: 960px) {
   .schedule-layout {
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);

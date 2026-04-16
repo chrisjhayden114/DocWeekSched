@@ -88,6 +88,49 @@ sessionsRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   return res.json({ attendance: saved, likedSessionIds: likes.map((like) => like.sessionId) });
 });
 
+sessionsRouter.get("/:id", requireAuth, async (req, res) => {
+  const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
+  const event = requestedEventId
+    ? await prisma.event.findUnique({ where: { id: requestedEventId } })
+    : await getOrCreateEvent();
+  if (!event) {
+    return res.status(404).json({ error: "Event not found" });
+  }
+
+  const session = await prisma.session.findFirst({
+    where: { id: req.params.id, eventId: event.id },
+    include: {
+      speaker: { select: { id: true, name: true } },
+      bookmarks: {
+        select: {
+          userId: true,
+          user: { select: { id: true, name: true, email: true, photoUrl: true } },
+        },
+      },
+      attendances: {
+        select: {
+          userId: true,
+          status: true,
+          joinMode: true,
+          user: { select: { id: true, name: true, email: true, photoUrl: true } },
+        },
+      },
+      likes: {
+        select: {
+          userId: true,
+          user: { select: { id: true, name: true, email: true, photoUrl: true } },
+        },
+      },
+    },
+  });
+
+  if (!session) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  return res.json(session);
+});
+
 sessionsRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
   const parsed = sessionSchema.safeParse(req.body);
   if (!parsed.success) {

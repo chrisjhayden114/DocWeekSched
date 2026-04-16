@@ -1,3 +1,4 @@
+import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
 
@@ -76,6 +77,7 @@ const participantTabs = ["Agenda", "Attendees", NETWORKING_TAB, "Messages", "Pro
 type Tab = (typeof adminTabs)[number];
 
 export default function Dashboard() {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [active, setActive] = useState<Tab>("Agenda");
@@ -95,9 +97,6 @@ export default function Dashboard() {
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
-  const [activeSessionConversationId, setActiveSessionConversationId] = useState<string | null>(null);
-  const [sessionMessages, setSessionMessages] = useState<Message[]>([]);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [updatingEvent, setUpdatingEvent] = useState(false);
   const [sessionFormKey, setSessionFormKey] = useState(0);
   const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
@@ -167,8 +166,9 @@ export default function Dashboard() {
       if (active === "Messages") {
         const convoList = await apiFetch<Conversation[]>("/conversations", withEventHeaders(), token);
         setConversations(convoList);
-        if (!activeConversationId && convoList.length > 0) {
-          setActiveConversationId(convoList[0].id);
+        const firstDm = convoList.find((c) => c.type !== "SESSION");
+        if (!activeConversationId && firstDm) {
+          setActiveConversationId(firstDm.id);
         }
         if (attendees.length === 0) {
           setAttendees(await apiFetch<User[]>("/attendees", {}, token));
@@ -191,6 +191,15 @@ export default function Dashboard() {
       .then(setMessages)
       .catch(() => null);
   }, [active, activeConversationId, token, activeEventId]);
+
+  useEffect(() => {
+    if (active !== "Messages" || !activeConversationId) return;
+    const cur = conversations.find((c) => c.id === activeConversationId);
+    if (cur?.type === "SESSION") {
+      const next = conversations.find((c) => c.type !== "SESSION");
+      setActiveConversationId(next?.id ?? null);
+    }
+  }, [active, conversations, activeConversationId]);
 
   const isAdmin = useMemo(() => user?.role === "ADMIN", [user]);
   const availableTabs = useMemo(() => (isAdmin ? adminTabs : participantTabs), [isAdmin]);
@@ -216,6 +225,12 @@ export default function Dashboard() {
   const groupedMySchedule = useMemo(() => groupSessionsByDayAndTime(myScheduledSessions), [myScheduledSessions]);
 
   const messageSearchLower = messageDirectoryQuery.trim().toLowerCase();
+
+  const messagingConversations = useMemo(
+    () => conversations.filter((c) => c.type !== "SESSION"),
+    [conversations],
+  );
+
   const filteredMessageAttendees = useMemo(() => {
     const uid = user?.id;
     if (!uid) return [];
@@ -229,13 +244,13 @@ export default function Dashboard() {
 
   const filteredConversations = useMemo(() => {
     if (!user) return [];
-    if (!messageSearchLower) return conversations;
-    return conversations.filter((c) => {
+    if (!messageSearchLower) return messagingConversations;
+    return messagingConversations.filter((c) => {
       const label = formatConversationName(c, user).toLowerCase();
       if (label.includes(messageSearchLower)) return true;
       return c.members.some((m) => m.user.name.toLowerCase().includes(messageSearchLower));
     });
-  }, [conversations, messageSearchLower, user]);
+  }, [messagingConversations, messageSearchLower, user]);
 
   const handleLogout = () => {
     window.localStorage.removeItem("token");
@@ -259,21 +274,8 @@ export default function Dashboard() {
     }
   };
 
-  const openSessionConversation = async (sessionId: string) => {
-    if (!token) return;
-    setActiveSessionConversationId(sessionId);
-    const messagesForSession = await apiFetch<Message[]>(`/sessions/${sessionId}/conversation/messages`, {}, token);
-    setSessionMessages(messagesForSession);
-  };
-
-  const sendSessionMessage = async (body: string) => {
-    if (!token || !activeSessionConversationId) return;
-    const message = await apiFetch<Message>(`/sessions/${activeSessionConversationId}/conversation/messages`, {
-      method: "POST",
-      body: JSON.stringify({ body }),
-    }, token);
-    setSessionMessages((prev) => [...prev, message]);
-    await refreshUser();
+  const goToSessionPage = (sessionId: string) => {
+    router.push(`/session/${sessionId}`);
   };
 
   const toggleSessionLike = async (sessionId: string) => {
@@ -420,8 +422,7 @@ export default function Dashboard() {
                 onPatchAttendance={patchSessionAttendance}
                 onToggleLike={toggleSessionLike}
                 onEditSession={(session) => setEditingSession(session)}
-                onOpenConversation={openSessionConversation}
-                onOpenDetails={(session) => setSelectedSession(session)}
+                onGoToSession={goToSessionPage}
               />
             )}
             {agendaView === "My Schedule" && (
@@ -434,19 +435,12 @@ export default function Dashboard() {
                   onPatchAttendance={patchSessionAttendance}
                   onToggleLike={toggleSessionLike}
                   onEditSession={(session) => setEditingSession(session)}
-                  onOpenConversation={openSessionConversation}
-                  onOpenDetails={(session) => setSelectedSession(session)}
+                  onGoToSession={goToSessionPage}
                 />
                 {isAdmin && (
                   <ParticipantDailySchedules groupedAgenda={groupedAgenda} />
                 )}
               </>
-            )}
-            {activeSessionConversationId && (
-              <SessionConversationPanel
-                messages={sessionMessages}
-                onSend={sendSessionMessage}
-              />
             )}
           </div>
           {isAdmin && (
@@ -512,6 +506,9 @@ export default function Dashboard() {
         <div className="grid two messages-layout">
           <div className="card">
             <h3>Messages</h3>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              Direct and group chats only. Open any session from the Agenda to see its session-specific discussion.
+            </p>
             <p className="help-text" style={{ marginTop: 0 }}>
               Search by name or research interests to find people and filter your chats.
             </p>
@@ -622,12 +619,6 @@ export default function Dashboard() {
           )}
         </div>
       )}
-      {selectedSession && (
-        <SessionDetailsModal
-          session={selectedSession}
-          onClose={() => setSelectedSession(null)}
-        />
-      )}
     </div>
   );
 }
@@ -640,8 +631,7 @@ function ScheduleBoard({
   onPatchAttendance,
   onToggleLike,
   onEditSession,
-  onOpenConversation,
-  onOpenDetails,
+  onGoToSession,
 }: {
   grouped: Array<{ dayLabel: string; timeSlots: Array<{ timeLabel: string; sessions: Session[] }> }>;
   isAdmin: boolean;
@@ -653,8 +643,7 @@ function ScheduleBoard({
   ) => void | Promise<void>;
   onToggleLike: (sessionId: string) => void;
   onEditSession: (session: Session) => void;
-  onOpenConversation: (sessionId: string) => void;
-  onOpenDetails: (session: Session) => void;
+  onGoToSession: (sessionId: string) => void;
 }) {
   if (grouped.length === 0) {
     return <p style={{ color: "var(--ink-500)" }}>No sessions in this view yet.</p>;
@@ -685,7 +674,7 @@ function ScheduleBoard({
                       className="schedule-event"
                       key={s.id}
                       title={s.description || "No session description yet."}
-                      onClick={() => onOpenDetails(s)}
+                      onClick={() => onGoToSession(s.id)}
                     >
                       <div className="schedule-event-head">
                         {s.imageUrl && (
@@ -743,7 +732,7 @@ function ScheduleBoard({
                               </div>
                             )}
                           </div>
-                          <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onOpenConversation(s.id); }}>Conversation</button>
+                          <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onGoToSession(s.id); }}>Conversation</button>
                           <button className={`button ${liked ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onToggleLike(s.id); }}>
                             Like
                           </button>
@@ -798,74 +787,6 @@ function ParticipantDailySchedules({
           ))}
         </div>
       ))}
-    </div>
-  );
-}
-
-function SessionConversationPanel({
-  messages,
-  onSend,
-}: {
-  messages: Message[];
-  onSend: (body: string) => Promise<void>;
-}) {
-  return (
-    <div className="card" style={{ marginTop: 16 }}>
-      <h3 style={{ marginTop: 0 }}>Session Conversation</h3>
-      <form
-        className="grid"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          const body = String(form.get("body") || "");
-          if (!body.trim()) return;
-          await onSend(body);
-          event.currentTarget.reset();
-        }}
-      >
-        <textarea className="textarea" name="body" placeholder="Add to this session conversation..." required />
-        <button className="button" type="submit">Send</button>
-      </form>
-      <div className="grid" style={{ marginTop: 12 }}>
-        {messages.map((message) => (
-          <div key={message.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>
-            <strong>{message.user.name}</strong>
-            <div>{message.body}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SessionDetailsModal({
-  session,
-  onClose,
-}: {
-  session: Session;
-  onClose: () => void;
-}) {
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-        {session.imageUrl && (
-          <img src={session.imageUrl} alt="" className="modal-session-image" />
-        )}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-          <h3 style={{ margin: 0 }}>{session.title}</h3>
-          <button className="button secondary" type="button" onClick={onClose}>Close</button>
-        </div>
-        <p style={{ color: "var(--ink-500)" }}>{formatTimeRange(session.startsAt, session.endsAt)}</p>
-        {(session.speakers || session.speaker?.name) && <p><strong>Speakers:</strong> {session.speakers || session.speaker?.name}</p>}
-        {session.location && <p><strong>Location:</strong> {session.location}</p>}
-        {session.description && <p>{session.description}</p>}
-        <div className="schedule-links">
-          {session.zoomLink && <a href={session.zoomLink} target="_blank" rel="noreferrer">Join Zoom</a>}
-          {session.recordingUrl && <a href={session.recordingUrl} target="_blank" rel="noreferrer">Recording</a>}
-          {session.fileLink && <a href={session.fileLink} target="_blank" rel="noreferrer">Shared Link</a>}
-          {session.fileUrl && <a href={session.fileUrl} target="_blank" rel="noreferrer">Uploaded File</a>}
-        </div>
-      </div>
     </div>
   );
 }
@@ -1489,6 +1410,7 @@ function GroupChatForm({
 function formatConversationName(conversation: Conversation, currentUser: User) {
   if (conversation.type === "EVENT") return conversation.name || "Event Chat";
   if (conversation.type === "GROUP") return conversation.name || "Group Chat";
+  if (conversation.type === "SESSION") return conversation.name || "Session chat";
   const other = conversation.members.find((m) => m.user.id !== currentUser.id);
   return other ? other.user.name : "Direct Chat";
 }
