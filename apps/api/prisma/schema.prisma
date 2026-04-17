@@ -81,6 +81,7 @@ model Event {
   name      String
   slug      String   @unique
   bannerUrl String?
+  logoUrl   String?
   timezone  String
   startDate DateTime
   endDate   DateTime

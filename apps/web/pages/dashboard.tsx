@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
+import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
 import { apiFetch } from "../lib/api";
 
 type User = {
@@ -18,6 +19,7 @@ type Event = {
   name: string;
   slug: string;
   bannerUrl?: string | null;
+  logoUrl?: string | null;
   timezone: string;
   startDate: string;
   endDate: string;
@@ -68,6 +70,7 @@ type EventItem = {
   name: string;
   slug: string;
   bannerUrl?: string | null;
+  logoUrl?: string | null;
   timezone: string;
   startDate: string;
   endDate: string;
@@ -101,6 +104,25 @@ function engagementGemTier(points?: number): { tierClass: string; label: string 
   if (points < 25) return { tierClass: "points-gem-tier-2", label: "Ruby" };
   if (points < 50) return { tierClass: "points-gem-tier-3", label: "Emerald" };
   return { tierClass: "points-gem-tier-4", label: "Diamond" };
+}
+
+function EngagementGemMark() {
+  return (
+    <svg className="points-gem-icon" viewBox="0 0 24 24" aria-hidden="true">
+      {/* Faceted brilliant: table + left/right pavilions (light from upper-right) */}
+      <path d="M12 4L8 9.75h8L12 4z" fill="currentColor" opacity={0.2} />
+      <path d="M8 9.75L12 11.25L12 20.5L6.75 13.5L8 9.75z" fill="currentColor" opacity={0.46} />
+      <path d="M16 9.75L12 11.25L12 20.5L17.25 13.5L16 9.75z" fill="currentColor" opacity={0.78} />
+      <path
+        d="M12 4L8 9.75M12 4L16 9.75M8 9.75h8M6.75 13.5L12 20.5L17.25 13.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={0.85}
+        strokeLinejoin="round"
+        opacity={0.38}
+      />
+    </svg>
+  );
 }
 
 export default function Dashboard() {
@@ -359,6 +381,7 @@ export default function Dashboard() {
     name: string;
     slug?: string;
     bannerUrl?: string;
+    logoUrl?: string;
     timezone: string;
     startDate: string;
     endDate: string;
@@ -394,7 +417,12 @@ export default function Dashboard() {
       )}
       <div className="header app-shell">
         <div className="app-shell-title">
-          <h1>{event?.name || "Event Dashboard"}</h1>
+          <div className="app-shell-heading-row">
+            {event?.logoUrl ? (
+              <img src={event.logoUrl} alt="" className="app-shell-logo" width={48} height={48} />
+            ) : null}
+            <h1 className="app-shell-heading-title">{event?.name || "Event Dashboard"}</h1>
+          </div>
           <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)" }}>
             {user.name} · {user.role}
             {typeof user.engagementPoints === "number" && (
@@ -404,9 +432,7 @@ export default function Dashboard() {
                   className={`points-gem ${engagementGemTier(user.engagementPoints).tierClass}`}
                   title={`${engagementGemTier(user.engagementPoints).label} · ${user.engagementPoints} engagement pts`}
                 >
-                  <svg className="points-gem-icon" viewBox="0 0 24 24" aria-hidden="true">
-                                       <path fill="currentColor" d="M12 2.5l6.8 8L12 21.5l-6.8-11L12 2.5z" />
-                  </svg>
+                  <EngagementGemMark />
                   <span>{user.engagementPoints}</span>
                 </span>
               </>
@@ -428,7 +454,7 @@ export default function Dashboard() {
                 <div className="card event-settings-panel">
                   <div className="event-settings-title">Edit This Event</div>
                   <p className="help-text" style={{ marginTop: 0 }}>
-                    Update the title, banner, location label, and dates for the active event.
+                    Update the title, header logo, banner, slug, and dates for the active event.
                   </p>
                   <form
                     className="grid"
@@ -440,6 +466,7 @@ export default function Dashboard() {
                         name: String(form.get("name") || ""),
                         slug: String(form.get("slug") || "").trim() || undefined,
                         bannerUrl: String(form.get("bannerUrl") || ""),
+                        logoUrl: String(form.get("logoUrl") || "").trim() || undefined,
                         timezone: String(form.get("timezone") || "UTC"),
                         startDate: new Date(String(form.get("startDate") || "")).toISOString(),
                         endDate: new Date(String(form.get("endDate") || "")).toISOString(),
@@ -457,6 +484,22 @@ export default function Dashboard() {
                       defaultValue={event.slug}
                       pattern="[a-z0-9]+(-[a-z0-9]+)*"
                       title="Lowercase letters, numbers, and single hyphens"
+                    />
+                    <label className="help-text" style={{ margin: 0 }}>
+                      Header logo (square PNG/JPG; appears next to the event title)
+                    </label>
+                    <input className="input" name="logoUrl" defaultValue={event.logoUrl || ""} placeholder="Logo URL or upload below" />
+                    <input
+                      className="input"
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const data = await fileToDataUrl(file, { maxWidth: 512, maxHeight: 512, quality: 0.88 });
+                        const el = e.currentTarget.form?.elements.namedItem("logoUrl");
+                        if (el instanceof HTMLInputElement) el.value = data;
+                      }}
                     />
                     <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL or upload below" />
                     <input
@@ -488,8 +531,11 @@ export default function Dashboard() {
 
       <div className="nav" style={{ marginBottom: 20 }}>
         {availableTabs.map((tab) => (
-          <button key={tab} className={active === tab ? "active" : ""} onClick={() => setActive(tab)}>
-            {tab}
+          <button key={tab} type="button" className={active === tab ? "active" : ""} onClick={() => setActive(tab)}>
+            <span className="nav-tab-inner">
+              <MainNavIcon tab={tab} />
+              <span>{tab}</span>
+            </span>
           </button>
         ))}
       </div>
@@ -497,14 +543,21 @@ export default function Dashboard() {
       {active === "Agenda" && (
         <div className="schedule-layout">
           <div className="card schedule-list">
-            <div className="nav" style={{ marginBottom: 16 }}>
+            <div className="nav agenda-view-toggle" role="tablist" aria-label="Schedule views">
               <button
+                type="button"
+                role="tab"
+                aria-selected={agendaView === "Event Schedule"}
                 className={agendaView === "Event Schedule" ? "active" : ""}
                 onClick={() => setAgendaView("Event Schedule")}
               >
                 Event Schedule
               </button>
+              <span className="agenda-view-toggle-divider" aria-hidden="true" />
               <button
+                type="button"
+                role="tab"
+                aria-selected={agendaView === "My Schedule"}
                 className={agendaView === "My Schedule" ? "active" : ""}
                 onClick={() => setAgendaView("My Schedule")}
               >
@@ -999,6 +1052,7 @@ function ProfileEditor({
     const payload = {
       name: String(form.get("eventName") || ""),
       bannerUrl: String(form.get("eventBannerUrl") || ""),
+      logoUrl: String(form.get("eventLogoUrl") || "").trim() || undefined,
       timezone: String(form.get("timezone") || "UTC"),
       startDate: new Date(String(form.get("startDate") || "")).toISOString(),
       endDate: new Date(String(form.get("endDate") || "")).toISOString(),
@@ -1137,6 +1191,19 @@ function ProfileEditor({
           </div>
           <form className="grid" onSubmit={createEvent}>
             <input className="input" name="eventName" placeholder="New event name" required />
+            <input className="input" name="eventLogoUrl" placeholder="Header logo URL (optional)" />
+            <input
+              className="input"
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const data = await fileToDataUrl(file, { maxWidth: 512, maxHeight: 512, quality: 0.88 });
+                const el = e.currentTarget.form?.elements.namedItem("eventLogoUrl");
+                if (el instanceof HTMLInputElement) el.value = data;
+              }}
+            />
             <input className="input" name="eventBannerUrl" placeholder="Banner URL (optional)" />
             <input
               className="input"
@@ -1412,21 +1479,12 @@ function AttendeeDirectory({
   );
 }
 
-function communityChannelEmoji(ch: string | undefined) {
-  switch (ch) {
-    case "MEETUP":
-      return String.fromCodePoint(0x1f465);
-    case "MOMENTS":
-      return String.fromCodePoint(0x1f5bc, 0xfe0f);
-    case "LOCAL":
-      return String.fromCodePoint(0x1f37d);
-    case "ICEBREAKER":
-      return String.fromCodePoint(0x1f9ca);
-    default:
-      return String.fromCodePoint(0x1f4ac);
+function networkThreadChannelKey(ch: string | undefined): CommunityPillKey {
+  if (ch === "MEETUP" || ch === "MOMENTS" || ch === "LOCAL" || ch === "ICEBREAKER" || ch === "GENERAL") {
+    return ch;
   }
+  return "GENERAL";
 }
-
 
 function CommunityBoard({
   threads,
@@ -1536,7 +1594,10 @@ function CommunityBoard({
               className={channelFilter === p.key ? "is-active" : ""}
               onClick={() => onChannelChange(p.key)}
             >
-              {p.label}
+              <span className="community-pill-inner">
+                <CommunityPillIcon channel={p.key} />
+                <span>{p.label}</span>
+              </span>
             </button>
           ))}
         </div>
@@ -1608,12 +1669,13 @@ function CommunityBoard({
           {threads.map((t) => {
             const open = openId === t.id;
             const ch = t.channel || "GENERAL";
+            const channelIconKey = networkThreadChannelKey(ch);
             const lastReply = t.replies[t.replies.length - 1];
             return (
               <div key={t.id}>
                 <div className="community-thread-row">
                   <div className={`community-thread-icon ${ch}`} aria-hidden>
-                    {communityChannelEmoji(ch)}
+                    <CommunityPillIcon channel={channelIconKey} size={22} />
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div className="community-thread-meta">

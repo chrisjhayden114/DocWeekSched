@@ -17,7 +17,15 @@ type User = {
   engagementPoints?: number;
 };
 
-type Event = { id: string; name: string; bannerUrl?: string | null; timezone: string; startDate: string; endDate: string };
+type Event = {
+  id: string;
+  name: string;
+  bannerUrl?: string | null;
+  logoUrl?: string | null;
+  timezone: string;
+  startDate: string;
+  endDate: string;
+};
 
 type Session = {
   id: string;
@@ -327,7 +335,24 @@ export default function SessionPage() {
               ← Back to schedule
             </Link>
           </p>
-          <h1 style={{ margin: 0 }}>{event?.name || "Event"}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            {event?.logoUrl ? (
+              <img
+                src={event.logoUrl}
+                alt=""
+                width={44}
+                height={44}
+                style={{
+                  objectFit: "contain",
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  padding: 4,
+                }}
+              />
+            ) : null}
+            <h1 style={{ margin: 0 }}>{event?.name || "Event"}</h1>
+          </div>
           <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)", margin: "8px 0 0" }}>
             {user.name} · Session discussion {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
           </p>

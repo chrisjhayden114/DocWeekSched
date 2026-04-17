@@ -176,6 +176,36 @@ a:hover {
   box-shadow: 0 8px 20px rgba(0, 51, 160, 0.35);
 }
 
+.nav-tab-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-tab-inner svg {
+  flex-shrink: 0;
+  opacity: 0.88;
+}
+
+.nav button.active .nav-tab-inner svg {
+  opacity: 1;
+}
+
+.community-pill-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.community-pill-inner svg {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.community-subnav button.is-active .community-pill-inner svg {
+  opacity: 1;
+}
+
 .header h1 {
   font-family: "Merriweather", Georgia, serif;
   font-weight: 700;
@@ -195,6 +225,30 @@ a:hover {
 .app-shell-title {
   min-width: 0;
   flex: 1;
+}
+
+.app-shell-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.app-shell-heading-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.app-shell-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  padding: 4px;
+  flex-shrink: 0;
 }
 
 .app-shell-subtitle {
@@ -277,7 +331,7 @@ a:hover {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
-  filter: drop-shadow(0 0 1px rgba(15, 23, 42, 0.25));
+  filter: drop-shadow(0.5px 1px 0.5px rgba(15, 23, 42, 0.28)) drop-shadow(-0.5px -0.5px 0.5px rgba(255, 255, 255, 0.2));
 }
 
 /* Quartz → sapphire → ruby → emerald → diamond */
@@ -327,6 +381,51 @@ a:hover {
 
 .schedule-list {
   padding: 18px 18px 8px;
+}
+
+/* Agenda: Event vs My schedule — paired controls with a clear divider (esp. narrow screens) */
+.agenda-view-toggle {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  width: 100%;
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #eef2f8;
+}
+
+.agenda-view-toggle button {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.agenda-view-toggle button.active {
+  box-shadow: none;
+}
+
+.agenda-view-toggle button:not(.active) {
+  color: var(--ink-700);
+}
+
+.agenda-view-toggle button:active:not(:disabled) {
+  transform: none;
+}
+
+.agenda-view-toggle-divider {
+  width: 1px;
+  flex-shrink: 0;
+  align-self: stretch;
+  background: var(--border);
 }
 
 .schedule-day {
@@ -844,8 +943,12 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
   flex-shrink: 0;
+}
+
+.community-thread-icon svg {
+  display: block;
+  color: rgba(30, 41, 59, 0.88);
 }
 
 .community-thread-icon.GENERAL {
@@ -1163,6 +1266,10 @@ a:hover {
     text-align: center;
   }
 
+  .nav.agenda-view-toggle button {
+    flex: 1 1 0;
+  }
+
   .schedule-slot {
     grid-template-columns: 1fr;
     gap: 8px;
@@ -1250,6 +1357,11 @@ a:hover {
 
   .nav button {
     flex-basis: 100%;
+  }
+
+  .nav.agenda-view-toggle button {
+    flex-basis: 0;
+    flex-grow: 1;
   }
 
   .attendee-directory-toolbar {
