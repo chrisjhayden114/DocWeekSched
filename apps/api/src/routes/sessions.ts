@@ -513,6 +513,37 @@ sessionsRouter.post("/:id/conversations/:threadId/replies", requireAuth, async (
   return res.json(reply);
 });
 
+sessionsRouter.delete(
+  "/:id/conversations/:threadId/replies/:replyId",
+  requireAuth,
+  requireRole(["ADMIN"]),
+  async (req, res) => {
+    const session = await findSessionOr404(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    const thread = await prisma.sessionDiscussionThread.findFirst({
+      where: { id: req.params.threadId, sessionId: session.id },
+      select: { id: true },
+    });
+    if (!thread) {
+      return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    const reply = await prisma.sessionDiscussionReply.findFirst({
+      where: { id: req.params.replyId, threadId: thread.id },
+      select: { id: true },
+    });
+    if (!reply) {
+      return res.status(404).json({ error: "Reply not found" });
+    }
+
+    await prisma.sessionDiscussionReply.delete({ where: { id: reply.id } });
+    return res.json({ ok: true });
+  },
+);
+
 sessionsRouter.delete("/:id/conversations/:threadId", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
   const session = await findSessionOr404(req.params.id);
   if (!session) {

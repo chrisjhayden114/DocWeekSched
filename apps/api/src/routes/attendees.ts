@@ -177,3 +177,34 @@ attendeesRouter.post("/invite-bulk", requireAuth, requireRole(["ADMIN"]), async 
 
   return res.json({ ok: true, sentCount: sent.length, failedCount: failed.length, sent, failed });
 });
+
+attendeesRouter.delete("/:id", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
+  const targetId = req.params.id;
+  const actorId = req.user?.id || "";
+  if (!targetId) return res.status(400).json({ error: "User id is required" });
+  if (targetId === actorId) return res.status(400).json({ error: "You cannot delete your own admin account" });
+
+  const user = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { id: true, role: true, eventsCreated: { select: { id: true } } },
+  });
+  if (!user) return res.status(404).json({ error: "Participant not found" });
+  if (user.role === "ADMIN") return res.status(403).json({ error: "Admin accounts cannot be deleted here" });
+  if (user.eventsCreated.length > 0) {
+    return res.status(400).json({ error: "This user owns events and cannot be deleted from participants." });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.sessionBookmark.deleteMany({ where: { userId: targetId } });
+    await tx.sessionAttendance.deleteMany({ where: { userId: targetId } });
+    await tx.sessionLike.deleteMany({ where: { userId: targetId } });
+    await tx.sessionResource.deleteMany({ where: { userId: targetId } });
+    await tx.surveyAnswer.deleteMany({ where: { userId: targetId } });
+    await tx.checkIn.deleteMany({ where: { userId: targetId } });
+    await tx.conversationMessage.deleteMany({ where: { userId: targetId } });
+    await tx.conversationMember.deleteMany({ where: { userId: targetId } });
+    await tx.user.delete({ where: { id: targetId } });
+  });
+
+  return res.json({ ok: true });
+});

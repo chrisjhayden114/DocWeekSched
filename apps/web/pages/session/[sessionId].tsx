@@ -14,7 +14,7 @@ type User = {
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
   photoUrl?: string | null;
   researchInterests?: string | null;
-  participantType?: "GRAD_STUDENT" | "PROFESSOR" | null;
+  participantType?: "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | null;
   engagementPoints?: number;
 };
 
@@ -298,6 +298,16 @@ export default function SessionPage() {
     await apiFetch(`/sessions/${sessionId}/conversations/${threadId}`, { method: "DELETE" }, token);
     setThreads((prev) => prev.filter((thread) => thread.id !== threadId));
     setOpenThreadId((current) => (current === threadId ? null : current));
+  };
+
+  const deleteReply = async (threadId: string, replyId: string) => {
+    if (!token || !sessionId) return;
+    await apiFetch(`/sessions/${sessionId}/conversations/${threadId}/replies/${replyId}`, { method: "DELETE" }, token);
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === threadId ? { ...thread, replies: thread.replies.filter((row) => row.id !== replyId) } : thread,
+      ),
+    );
   };
 
   const deleteResource = async (resourceId: string) => {
@@ -676,6 +686,16 @@ export default function SessionPage() {
                           </div>
                         </div>
                         <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{reply.body}</p>
+                        {user.role === "ADMIN" && (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            style={{ marginTop: 8 }}
+                            onClick={() => deleteReply(openThread.id, reply.id)}
+                          >
+                            Delete reply
+                          </button>
+                        )}
                       </div>
                     ))}
                     <form

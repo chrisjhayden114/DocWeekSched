@@ -11,7 +11,7 @@ type User = {
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
   photoUrl?: string | null;
   researchInterests?: string | null;
-  participantType?: "GRAD_STUDENT" | "PROFESSOR" | null;
+  participantType?: "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | null;
   engagementPoints?: number;
   inviteStatus?: "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED";
   inviteExpiresAt?: string | null;
@@ -856,6 +856,7 @@ export default function Dashboard() {
                     <th>Role</th>
                     <th>Invite / join status</th>
                     <th>Link expires</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -869,6 +870,30 @@ export default function Dashboard() {
                         {a.inviteStatus === "PENDING_SETUP" && a.inviteExpiresAt
                           ? new Date(a.inviteExpiresAt).toLocaleString()
                           : "—"}
+                      </td>
+                      <td>
+                        {a.role !== "ADMIN" ? (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            onClick={async () => {
+                              const ok = window.confirm(
+                                `Delete ${a.name} (${a.email}) and remove their posts, replies, likes, and participation data?`,
+                              );
+                              if (!ok) return;
+                              try {
+                                await apiFetch(`/attendees/${a.id}`, { method: "DELETE" }, token!);
+                                setAttendees((prev) => prev.filter((row) => row.id !== a.id));
+                              } catch (err) {
+                                window.alert(err instanceof Error ? err.message : "Could not delete participant.");
+                              }
+                            }}
+                          >
+                            Delete participant
+                          </button>
+                        ) : (
+                          <span className="help-text">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1701,7 +1726,9 @@ function ProfileEditor({
   const [photoPreview, setPhotoPreview] = useState<string | null>(user.photoUrl || null);
   const [name, setName] = useState(user.name);
   const [researchInterests, setResearchInterests] = useState(user.researchInterests || "");
-  const [participantType, setParticipantType] = useState<"GRAD_STUDENT" | "PROFESSOR" | "">(
+  const [participantType, setParticipantType] = useState<
+    "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | ""
+  >(
     user.participantType || "",
   );
   const [resettingEngagement, setResettingEngagement] = useState(false);
@@ -1776,28 +1803,22 @@ function ProfileEditor({
       {photoPreview && <img src={photoPreview} alt={user.name} className="avatar avatar-large" />}
       <input className="input" name="photo" type="file" accept="image/*" onChange={handleFileChange} />
       <input className="input" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
-      <div className="profile-choice-group" role="group" aria-label="Participant type">
-        <label className="profile-choice">
-          <input
-            type="radio"
-            name="participantType"
-            value="GRAD_STUDENT"
-            checked={participantType === "GRAD_STUDENT"}
-            onChange={() => setParticipantType("GRAD_STUDENT")}
-          />
-          Grad Student
-        </label>
-        <label className="profile-choice">
-          <input
-            type="radio"
-            name="participantType"
-            value="PROFESSOR"
-            checked={participantType === "PROFESSOR"}
-            onChange={() => setParticipantType("PROFESSOR")}
-          />
-          Professor
-        </label>
-      </div>
+      <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+        Participant type
+        <select
+          className="select"
+          name="participantType"
+          value={participantType}
+          onChange={(e) => setParticipantType(e.target.value as typeof participantType)}
+        >
+          <option value="">Choose one (optional)</option>
+          <option value="GRAD_STUDENT">Grad Student</option>
+          <option value="EDD_STUDENT">EdD Student</option>
+          <option value="PHD_STUDENT">PhD Student</option>
+          <option value="EDL_ALUMNI">EDL Alumni</option>
+          <option value="PROFESSOR">Professor</option>
+        </select>
+      </label>
       <textarea
         className="textarea"
         name="researchInterests"
@@ -2108,7 +2129,7 @@ function AttendeeDirectory({
           <div className="attendee-meta">{a.email}</div>
           {a.participantType && (
             <div className="attendee-meta attendee-role-note">
-              {a.participantType === "GRAD_STUDENT" ? "Grad Student" : "Professor"}
+              {participantTypeLabel(a.participantType)}
             </div>
           )}
           {a.researchInterests && (
@@ -2307,6 +2328,11 @@ function CommunityBoard({
   async function deleteThread(threadId: string) {
     await apiFetch(`/network/threads/${threadId}`, withEventHeaders({ method: "DELETE" }), token);
     if (openId === threadId) setOpenId(null);
+    await onThreadsUpdated();
+  }
+
+  async function deleteThreadReply(threadId: string, replyId: string) {
+    await apiFetch(`/network/threads/${threadId}/replies/${replyId}`, withEventHeaders({ method: "DELETE" }), token);
     await onThreadsUpdated();
   }
 
@@ -2679,6 +2705,16 @@ function CommunityBoard({
                           <strong>{r.author.name}</strong>
                           <span className="help-text"> · {new Date(r.createdAt).toLocaleString()}</span>
                           <p>{r.body}</p>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              className="button secondary"
+                              onClick={() => deleteThreadReply(t.id, r.id)}
+                              style={{ marginTop: 6 }}
+                            >
+                              Delete reply
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2870,6 +2906,15 @@ function inviteStatusLabel(attendee: User) {
   if (attendee.inviteStatus === "INVITE_EXPIRED") return "Invite expired";
   if (attendee.inviteStatus === "ACTIVE") return "Joined";
   return "—";
+}
+
+function participantTypeLabel(type?: User["participantType"] | "") {
+  if (type === "GRAD_STUDENT") return "Grad Student";
+  if (type === "EDD_STUDENT") return "EdD Student";
+  if (type === "PHD_STUDENT") return "PhD Student";
+  if (type === "EDL_ALUMNI") return "EDL Alumni";
+  if (type === "PROFESSOR") return "Professor";
+  return "";
 }
 
 function formatConversationName(conversation: Conversation, currentUser: User) {

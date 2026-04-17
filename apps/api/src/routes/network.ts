@@ -211,6 +211,28 @@ networkRouter.post("/threads/:id/replies", requireAuth, async (req: AuthedReques
   return res.json(reply);
 });
 
+networkRouter.delete("/threads/:id/replies/:replyId", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
+  const event = await resolveEventFromRequest(req);
+  const thread = await prisma.networkThread.findFirst({
+    where: { id: req.params.id, eventId: event.id },
+    select: { id: true },
+  });
+  if (!thread) {
+    return res.status(404).json({ error: "Thread not found" });
+  }
+
+  const reply = await prisma.networkReply.findFirst({
+    where: { id: req.params.replyId, threadId: thread.id },
+    select: { id: true },
+  });
+  if (!reply) {
+    return res.status(404).json({ error: "Reply not found" });
+  }
+
+  await prisma.networkReply.delete({ where: { id: reply.id } });
+  return res.json({ ok: true });
+});
+
 networkRouter.delete("/threads/:id", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
   const event = await resolveEventFromRequest(req);
   const thread = await prisma.networkThread.findFirst({

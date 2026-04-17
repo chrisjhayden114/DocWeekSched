@@ -31,6 +31,9 @@ enum SessionJoinMode {
 
 enum ParticipantType {
   GRAD_STUDENT
+  EDD_STUDENT
+  PHD_STUDENT
+  EDL_ALUMNI
   PROFESSOR
 }
 

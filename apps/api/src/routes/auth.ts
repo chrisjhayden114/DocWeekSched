@@ -13,7 +13,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
   role: z.enum(["ATTENDEE", "SPEAKER"]).default("ATTENDEE"),
   researchInterests: z.string().optional(),
-  participantType: z.enum(["GRAD_STUDENT", "PROFESSOR"]).optional(),
+  participantType: z.enum(["GRAD_STUDENT", "EDD_STUDENT", "PHD_STUDENT", "EDL_ALUMNI", "PROFESSOR"]).optional(),
 });
 
 const adminRegisterSchema = z.object({
@@ -112,7 +112,10 @@ const profileSchema = z.object({
   name: z.string().min(1).optional(),
   researchInterests: z.string().max(4000).optional(),
   photoUrl: z.string().max(2_000_000).optional(),
-  participantType: z.enum(["GRAD_STUDENT", "PROFESSOR"]).nullable().optional(),
+  participantType: z
+    .enum(["GRAD_STUDENT", "EDD_STUDENT", "PHD_STUDENT", "EDL_ALUMNI", "PROFESSOR"])
+    .nullable()
+    .optional(),
 });
 
 authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
