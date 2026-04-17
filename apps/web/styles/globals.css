@@ -64,13 +64,29 @@ a:hover {
   padding: 10px 18px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 75ms ease, box-shadow 75ms ease, filter 75ms ease;
 }
 
-.button:hover {
+.button:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 10px 24px rgba(0, 51, 160, 0.35);
   filter: brightness(1.05);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  filter: brightness(0.94);
+  transition: none;
+}
+
+.button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  filter: none;
 }
 
 .button.secondary {
@@ -80,8 +96,12 @@ a:hover {
   box-shadow: none;
 }
 
-.button.secondary:hover {
+.button.secondary:hover:not(:disabled) {
   border-color: var(--border-strong);
+}
+
+.button.secondary:active:not(:disabled) {
+  filter: brightness(0.96);
 }
 
 .input,
@@ -139,6 +159,14 @@ a:hover {
   cursor: pointer;
   font-weight: 600;
   color: var(--ink-700);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 70ms ease, background 70ms ease, border-color 70ms ease, box-shadow 70ms ease;
+}
+
+.nav button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: none;
 }
 
 .nav button.active {
@@ -427,11 +455,18 @@ a:hover {
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 
 .attendance-join-dot:hover {
   border-color: var(--gold);
+}
+
+.attendance-join-dot:active {
+  transform: scale(0.9);
+  transition: none;
 }
 
 .attendance-join-dot.is-on {
@@ -463,6 +498,14 @@ a:hover {
   font-weight: 700;
   padding: 6px 12px;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 60ms ease, color 60ms ease;
+}
+
+.join-mode-switch button:active {
+  filter: brightness(0.92);
+  transition: none;
 }
 
 .join-mode-switch button.is-active {
@@ -723,10 +766,18 @@ a:hover {
   font-size: 13px;
   cursor: pointer;
   color: var(--ink-900);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 70ms ease, border-color 70ms ease, box-shadow 70ms ease;
 }
 
 .agenda-add-my-btn:hover {
   border-color: var(--uk-blue);
+}
+
+.agenda-add-my-btn:active {
+  transform: scale(0.97);
+  transition: none;
 }
 
 .agenda-add-my-btn .sub {
@@ -752,6 +803,14 @@ a:hover {
   font-size: 13px;
   cursor: pointer;
   color: var(--ink-700);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 70ms ease, background 70ms ease, border-color 70ms ease, color 70ms ease;
+}
+
+.community-subnav button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: none;
 }
 
 .community-subnav button.is-active {
@@ -861,10 +920,18 @@ a:hover {
   color: inherit;
   display: grid;
   gap: 4px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 70ms ease, border-color 70ms ease, background 70ms ease;
 }
 
 .network-thread-toggle:hover {
   border-color: var(--border-strong);
+}
+
+.network-thread-toggle:active {
+  transform: scale(0.995);
+  transition: none;
 }
 
 .network-thread-body {
@@ -942,6 +1009,14 @@ a:hover {
   cursor: pointer;
   display: grid;
   gap: 4px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 70ms ease, border-color 70ms ease, box-shadow 70ms ease;
+}
+
+.session-thread-link:active {
+  transform: scale(0.995);
+  transition: none;
 }
 
 .session-thread-link.is-active,

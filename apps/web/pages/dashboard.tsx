@@ -285,14 +285,32 @@ export default function Dashboard() {
     body: { status: "JOINING" | "NOT_JOINING"; joinMode?: "VIRTUAL" | "IN_PERSON" },
   ) => {
     if (!token) return;
-    await apiFetch(`/sessions/${sessionId}/attendance`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }, token);
-    const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token);
-    setMyAttendance(meta.attendance);
-    if (body.status === "JOINING") {
-      await refreshUser();
+    const prevAttendance = myAttendance;
+    setMyAttendance((rows) => {
+      const rest = rows.filter((r) => r.sessionId !== sessionId);
+      if (body.status === "NOT_JOINING") return rest;
+      return [
+        ...rest,
+        {
+          sessionId,
+          status: "JOINING" as const,
+          joinMode: body.joinMode ?? "IN_PERSON",
+        },
+      ];
+    });
+    try {
+      await apiFetch(`/sessions/${sessionId}/attendance`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }, token);
+      const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token);
+      setMyAttendance(meta.attendance);
+      setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
+      if (body.status === "JOINING") {
+        void refreshUser();
+      }
+    } catch {
+      setMyAttendance(prevAttendance);
     }
   };
 
@@ -303,14 +321,24 @@ export default function Dashboard() {
   const toggleSessionLike = async (sessionId: string) => {
     if (!token) return;
     const liked = likedSessionIds.includes(sessionId);
+    const prevLikes = likedSessionIds;
     if (liked) {
-      await apiFetch(`/sessions/${sessionId}/like`, { method: "DELETE" }, token);
       setLikedSessionIds((prev) => prev.filter((id) => id !== sessionId));
+      try {
+        await apiFetch(`/sessions/${sessionId}/like`, { method: "DELETE" }, token);
+        void refreshUser();
+      } catch {
+        setLikedSessionIds(prevLikes);
+      }
       return;
     }
-    await apiFetch(`/sessions/${sessionId}/like`, { method: "PUT" }, token);
     setLikedSessionIds((prev) => [...prev, sessionId]);
-    await refreshUser();
+    try {
+      await apiFetch(`/sessions/${sessionId}/like`, { method: "PUT" }, token);
+      void refreshUser();
+    } catch {
+      setLikedSessionIds(prevLikes);
+    }
   };
 
   const startDirectMessage = async (userId: string) => {
@@ -818,9 +846,10 @@ function ScheduleBoard({
               <button
                 type="button"
                 className="button"
-                onClick={async () => {
-                  await onPatchAttendance(agendaModalSessionId, { status: "JOINING", joinMode: "IN_PERSON" });
+                onClick={() => {
+                  const id = agendaModalSessionId;
                   setAgendaModalSessionId(null);
+                  if (id) void onPatchAttendance(id, { status: "JOINING", joinMode: "IN_PERSON" });
                 }}
               >
                 In person
@@ -828,9 +857,10 @@ function ScheduleBoard({
               <button
                 type="button"
                 className="button secondary"
-                onClick={async () => {
-                  await onPatchAttendance(agendaModalSessionId, { status: "JOINING", joinMode: "VIRTUAL" });
+                onClick={() => {
+                  const id = agendaModalSessionId;
                   setAgendaModalSessionId(null);
+                  if (id) void onPatchAttendance(id, { status: "JOINING", joinMode: "VIRTUAL" });
                 }}
               >
                 Virtually

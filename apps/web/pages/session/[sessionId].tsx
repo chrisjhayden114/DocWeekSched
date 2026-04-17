@@ -207,28 +207,56 @@ export default function SessionPage() {
 
   const patchAttendance = async (body: { status: "JOINING" | "NOT_JOINING"; joinMode?: "VIRTUAL" | "IN_PERSON" }) => {
     if (!token || !sessionId) return;
-    await apiFetch(`/sessions/${sessionId}/attendance`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }, token);
-    const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token);
-    setMyAttendance(meta.attendance);
-    if (body.status === "JOINING") await refreshUser(token);
-    await reloadSessionAndMessages();
+    const prevAttendance = myAttendance;
+    setMyAttendance((rows) => {
+      const rest = rows.filter((r) => r.sessionId !== sessionId);
+      if (body.status === "NOT_JOINING") return rest;
+      return [
+        ...rest,
+        {
+          sessionId,
+          status: "JOINING" as const,
+          joinMode: body.joinMode ?? "IN_PERSON",
+        },
+      ];
+    });
+    try {
+      await apiFetch(`/sessions/${sessionId}/attendance`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }, token);
+      const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token);
+      setMyAttendance(meta.attendance);
+      if (body.status === "JOINING") void refreshUser(token);
+      void reloadSessionAndMessages();
+    } catch {
+      setMyAttendance(prevAttendance);
+    }
   };
 
   const toggleLike = async () => {
     if (!token || !sessionId) return;
     const liked = likedSessionIds.includes(sessionId);
+    const prevLikes = likedSessionIds;
     if (liked) {
-      await apiFetch(`/sessions/${sessionId}/like`, { method: "DELETE" }, token);
       setLikedSessionIds((prev) => prev.filter((id) => id !== sessionId));
+      try {
+        await apiFetch(`/sessions/${sessionId}/like`, { method: "DELETE" }, token);
+        void refreshUser(token);
+        void reloadSessionAndMessages();
+      } catch {
+        setLikedSessionIds(prevLikes);
+      }
     } else {
-      await apiFetch(`/sessions/${sessionId}/like`, { method: "PUT" }, token);
       setLikedSessionIds((prev) => [...prev, sessionId]);
+      try {
+        await apiFetch(`/sessions/${sessionId}/like`, { method: "PUT" }, token);
+        void refreshUser(token);
+        void reloadSessionAndMessages();
+      } catch {
+        setLikedSessionIds(prevLikes);
+      }
     }
-    await refreshUser(token);
-    await reloadSessionAndMessages();
   };
 
   const createThread = async (title: string, body: string) => {
