@@ -79,6 +79,25 @@ type EventItem = {
   endDate: string;
 };
 
+function asEventItem(event: Event): EventItem {
+  return {
+    id: event.id,
+    name: event.name,
+    slug: event.slug,
+    bannerUrl: event.bannerUrl,
+    logoUrl: event.logoUrl,
+    timezone: event.timezone,
+    startDate: event.startDate,
+    endDate: event.endDate,
+  };
+}
+
+function mergeAdminEvents(list: EventItem[], current: Event | null): EventItem[] {
+  if (!current) return list;
+  if (list.some((row) => row.id === current.id)) return list;
+  return [asEventItem(current), ...list];
+}
+
 type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
 type NetworkReply = { id: string; body: string; createdAt: string; author: NetworkAuthor };
 type NetworkThread = {
@@ -272,11 +291,16 @@ export default function Dashboard() {
       }
       if (user?.role === "ADMIN") {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
-        setAdminEvents(myEvents);
+        setAdminEvents(mergeAdminEvents(myEvents, event));
       }
     };
     load();
-  }, [active, token, user?.role, activeConversationId, activeEventId, communityChannel]);
+  }, [active, token, user?.role, activeConversationId, activeEventId, communityChannel, event]);
+
+  useEffect(() => {
+    if (user?.role !== "ADMIN" || !event) return;
+    setAdminEvents((prev) => mergeAdminEvents(prev, event));
+  }, [user?.role, event]);
 
   useEffect(() => {
     if (!token || active !== "Messages" || !activeConversationId) return;
@@ -517,7 +541,7 @@ export default function Dashboard() {
       setEventSettingsOpen(false);
       if (isAdmin) {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
-        setAdminEvents(myEvents);
+        setAdminEvents(mergeAdminEvents(myEvents, updated));
       }
     } catch (err) {
       const message =
@@ -1103,7 +1127,7 @@ export default function Dashboard() {
             setActive("Agenda");
           }}
           onEventCreated={(created) => {
-            setAdminEvents((prev) => [created, ...prev]);
+            setAdminEvents((prev) => mergeAdminEvents([created, ...prev], event));
             setActiveEventId(created.id);
             window.localStorage.setItem("activeEventId", created.id);
             setActive("Agenda");
