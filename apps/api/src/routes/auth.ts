@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/db";
 import { hashPassword, signToken, verifyPassword } from "../lib/auth";
 import { env } from "../lib/env";
-import { AuthedRequest, requireAuth } from "../lib/middleware";
+import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
 
 export const authRouter = Router();
 
@@ -128,6 +128,26 @@ authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   return res.json(user);
 });
 
+const meSelect = {
+  id: true,
+  email: true,
+  name: true,
+  role: true,
+  photoUrl: true,
+  researchInterests: true,
+  participantType: true,
+  engagementPoints: true,
+} as const;
+
+authRouter.post("/me/reset-engagement", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
+  const user = await prisma.user.update({
+    where: { id: req.user?.id || "" },
+    data: { engagementPoints: 0 },
+    select: meSelect,
+  });
+  return res.json(user);
+});
+
 authRouter.put("/me/profile", requireAuth, async (req: AuthedRequest, res) => {
   const parsed = profileSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -142,7 +162,7 @@ authRouter.put("/me/profile", requireAuth, async (req: AuthedRequest, res) => {
       ...(parsed.data.photoUrl !== undefined ? { photoUrl: parsed.data.photoUrl } : {}),
       ...(parsed.data.participantType !== undefined ? { participantType: parsed.data.participantType } : {}),
     },
-    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, participantType: true, engagementPoints: true },
+    select: meSelect,
   });
 
   return res.json(user);

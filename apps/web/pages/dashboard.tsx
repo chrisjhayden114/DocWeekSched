@@ -753,16 +753,32 @@ export default function Dashboard() {
 
       {active === PARTICIPANTS_INVITES_TAB && isAdmin && (
         <div className="grid" style={{ gap: 16 }}>
-          <AdminParticipantInviteCard
-            token={token!}
-            withEventHeaders={withEventHeaders}
-            activeEventId={activeEventId}
-            eventSlug={event?.slug ?? null}
-            onInvited={async () => {
-              const list = await apiFetch<User[]>("/attendees", {}, token!);
-              setAttendees(list);
-            }}
-          />
+          <div className="card" style={{ padding: 18 }}>
+            <h3 style={{ marginTop: 0 }}>Add participants</h3>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              Invite people by email so they receive a link to set a password and confirm their profile. You need an{" "}
+              <strong>active event</strong> selected (Profile → My Events).
+            </p>
+            <AdminParticipantInviteCard
+              token={token!}
+              withEventHeaders={withEventHeaders}
+              activeEventId={activeEventId}
+              eventSlug={event?.slug ?? null}
+              onInvited={async () => {
+                const list = await apiFetch<User[]>("/attendees", {}, token!);
+                setAttendees(list);
+              }}
+            />
+            <BulkInviteCsvCard
+              token={token!}
+              withEventHeaders={withEventHeaders}
+              activeEventId={activeEventId}
+              onDone={async () => {
+                const list = await apiFetch<User[]>("/attendees", {}, token!);
+                setAttendees(list);
+              }}
+            />
+          </div>
           <div className="card" style={{ padding: 18 }}>
             <h3 style={{ marginTop: 0 }}>Roster &amp; invitations</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
@@ -1306,12 +1322,16 @@ function AdminParticipantInviteCard({
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
-
-  if (!activeEventId) return null;
+  const canInvite = Boolean(activeEventId);
 
   return (
-    <div className="card admin-invite-card" style={{ marginBottom: 16 }}>
-      <h4 style={{ marginTop: 0 }}>Invite participants</h4>
+    <div className="admin-invite-card" style={{ marginBottom: 20 }}>
+      <h4 style={{ marginTop: 0 }}>Invite one person</h4>
+      {!canInvite ? (
+        <p className="help-text" style={{ marginTop: 0, color: "#b42318", fontWeight: 600 }}>
+          No active event is selected. Open <strong>Profile</strong>, scroll to <strong>My Events</strong>, and click your event. Then return here to send invites.
+        </p>
+      ) : null}
       <p className="help-text" style={{ marginTop: 0 }}>
         Add name, email, photo, and description. We create their account and email a setup link (configure{" "}
         <code>RESEND_API_KEY</code> on the API). If email isn&apos;t configured, copy the invite URL from the success message or server logs.
@@ -1327,6 +1347,7 @@ function AdminParticipantInviteCard({
         style={{ gap: 8 }}
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!canInvite) return;
           setInviteBusy(true);
           setInviteError(null);
           setInviteMessage(null);
@@ -1355,14 +1376,21 @@ function AdminParticipantInviteCard({
           }
         }}
       >
-        <input className="input" name="inviteEmail" type="email" placeholder="Email" required />
-        <input className="input" name="inviteName" placeholder="Display name" required />
-        <textarea className="textarea" name="inviteBio" placeholder="Description / research interests (optional)" rows={3} />
-        <input className="input" name="invitePhotoUrl" placeholder="Photo URL or leave blank" />
+        <input className="input" name="inviteEmail" type="email" placeholder="Email" required disabled={!canInvite || inviteBusy} />
+        <input className="input" name="inviteName" placeholder="Display name" required disabled={!canInvite || inviteBusy} />
+        <textarea
+          className="textarea"
+          name="inviteBio"
+          placeholder="Description / research interests (optional)"
+          rows={3}
+          disabled={!canInvite || inviteBusy}
+        />
+        <input className="input" name="invitePhotoUrl" placeholder="Photo URL or leave blank" disabled={!canInvite || inviteBusy} />
         <input
           className="input"
           type="file"
           accept="image/*"
+          disabled={!canInvite || inviteBusy}
           onChange={async (ev) => {
             const file = ev.currentTarget.files?.[0];
             if (!file) return;
@@ -1371,12 +1399,218 @@ function AdminParticipantInviteCard({
             if (target instanceof HTMLInputElement) target.value = data;
           }}
         />
-        <button className="button secondary" type="submit" disabled={inviteBusy}>
+        <button className="button secondary" type="submit" disabled={!canInvite || inviteBusy}>
           {inviteBusy ? "Sending…" : "Create profile & send invite"}
         </button>
         {inviteMessage && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{inviteMessage}</p>}
         {inviteError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{inviteError}</p>}
       </form>
+    </div>
+  );
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      out.push(cur.trim());
+      cur = "";
+    } else {
+      cur += c;
+    }
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+type ParsedInviteRow = { email: string; name: string; researchInterests?: string; photoUrl?: string };
+
+function parseParticipantInviteCsv(text: string): { ok: true; rows: ParsedInviteRow[] } | { ok: false; error: string } {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (lines.length < 2) {
+    return { ok: false, error: "Add a header row plus at least one participant row." };
+  }
+  const header = parseCsvLine(lines[0]).map((h) =>
+    h
+      .replace(/^\uFEFF/, "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_"),
+  );
+  const emailIdx = header.findIndex((h) => h === "email" || h === "e-mail" || h === "e_mail");
+  const nameIdx = header.findIndex((h) =>
+    ["name", "full_name", "display_name", "participant", "participant_name"].includes(h),
+  );
+  if (emailIdx < 0 || nameIdx < 0) {
+    return {
+      ok: false,
+      error:
+        'The first row must include columns "email" and "name". Optional columns: description (or bio, research_interests), photo_url.',
+    };
+  }
+  const descIdx = header.findIndex((h) =>
+    ["description", "bio", "research_interests", "research", "notes", "details"].includes(h),
+  );
+  const photoIdx = header.findIndex((h) => ["photo_url", "photo", "image_url", "avatar"].includes(h));
+
+  const rows: ParsedInviteRow[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseCsvLine(lines[i]);
+    const email = (cells[emailIdx] || "").trim();
+    const name = (cells[nameIdx] || "").trim();
+    if (!email && !name) continue;
+    if (!email || !name) {
+      return { ok: false, error: `Row ${i + 1}: both email and name are required.` };
+    }
+    const row: ParsedInviteRow = { email, name };
+    if (descIdx >= 0) {
+      const d = (cells[descIdx] || "").trim();
+      if (d) row.researchInterests = d;
+    }
+    if (photoIdx >= 0) {
+      const p = (cells[photoIdx] || "").trim();
+      if (p) row.photoUrl = p;
+    }
+    rows.push(row);
+  }
+  if (rows.length === 0) {
+    return { ok: false, error: "No data rows found under the header." };
+  }
+  if (rows.length > 200) {
+    return { ok: false, error: "Maximum 200 rows per upload. Split into multiple CSV files." };
+  }
+  return { ok: true, rows };
+}
+
+function BulkInviteCsvCard({
+  token,
+  withEventHeaders,
+  activeEventId,
+  onDone,
+}: {
+  token: string;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  activeEventId: string | null;
+  onDone?: () => void | Promise<void>;
+}) {
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkParseError, setBulkParseError] = useState<string | null>(null);
+  const [bulkRows, setBulkRows] = useState<ParsedInviteRow[] | null>(null);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const canInvite = Boolean(activeEventId);
+
+  function downloadExampleCsv() {
+    const csv = `email,name,description,photo_url
+colleague@university.edu,Jane Participant,Optional bio text,
+other@university.edu,John Example,,
+`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "participant-invites-example.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  return (
+    <div className="admin-bulk-invite-card">
+      <hr style={{ margin: "0 0 20px", border: 0, borderTop: "1px solid var(--border)" }} />
+      <h4 style={{ marginTop: 0 }}>Bulk invite from spreadsheet</h4>
+      <p className="help-text" style={{ marginTop: 0 }}>
+        Upload a <strong>CSV</strong> file (export from Excel or Google Sheets). Each row becomes one invite email with the same
+        setup flow as above. Duplicate emails in the file are only sent once.
+      </p>
+      <button type="button" className="button secondary" style={{ marginBottom: 8 }} onClick={downloadExampleCsv}>
+        Download example CSV
+      </button>
+      <input
+        className="input"
+        type="file"
+        accept=".csv,text/csv"
+        disabled={!canInvite || bulkBusy}
+        onChange={async (ev) => {
+          setBulkParseError(null);
+          setBulkRows(null);
+          setBulkResult(null);
+          const file = ev.target.files?.[0];
+          if (!file) return;
+          const text = await file.text();
+          const parsed = parseParticipantInviteCsv(text);
+          if (!parsed.ok) {
+            setBulkParseError(parsed.error);
+            return;
+          }
+          setBulkRows(parsed.rows);
+        }}
+      />
+      {bulkParseError ? (
+        <p className="help-text" style={{ color: "#b42318", margin: "8px 0 0" }}>
+          {bulkParseError}
+        </p>
+      ) : null}
+      {bulkRows ? (
+        <p className="help-text" style={{ margin: "8px 0 0" }}>
+          Ready to invite <strong>{bulkRows.length}</strong> people (after removing duplicate emails).
+        </p>
+      ) : null}
+      <button
+        type="button"
+        className="button"
+        style={{ marginTop: 10 }}
+        disabled={!canInvite || bulkBusy || !bulkRows?.length}
+        onClick={async () => {
+          if (!bulkRows?.length || !canInvite) return;
+          setBulkBusy(true);
+          setBulkResult(null);
+          try {
+            const res = await apiFetch<{
+              sentCount: number;
+              failedCount: number;
+              failed: { email: string; error: string }[];
+            }>(
+              "/attendees/invite-bulk",
+              withEventHeaders({
+                method: "POST",
+                body: JSON.stringify({ invites: bulkRows }),
+              }),
+              token,
+            );
+            const failedLines =
+              res.failed?.map((f) => `${f.email}: ${f.error}`).join("; ") || "";
+            setBulkResult(
+              `Sent ${res.sentCount} invite(s). ${res.failedCount ? `Could not send ${res.failedCount}: ${failedLines}` : "All rows processed."}`,
+            );
+            setBulkRows(null);
+            await onDone?.();
+          } catch (err) {
+            setBulkResult(err instanceof Error ? err.message : "Bulk invite failed.");
+          } finally {
+            setBulkBusy(false);
+          }
+        }}
+      >
+        {bulkBusy ? "Sending invites…" : "Send all invites from CSV"}
+      </button>
+      {bulkResult ? <p className="help-text" style={{ margin: "10px 0 0" }}>{bulkResult}</p> : null}
     </div>
   );
 }
@@ -1409,6 +1643,7 @@ function ProfileEditor({
   const [participantType, setParticipantType] = useState<"GRAD_STUDENT" | "PROFESSOR" | "">(
     user.participantType || "",
   );
+  const [resettingEngagement, setResettingEngagement] = useState(false);
 
   useEffect(() => {
     setPhotoPreview(user.photoUrl || null);
@@ -1515,6 +1750,37 @@ function ProfileEditor({
       <button className="button" type="submit" disabled={saving}>
         {saving ? "Saving..." : "Save Profile"}
       </button>
+      {user.role === "ADMIN" && (
+        <div className="card" style={{ marginTop: 12, padding: 16 }}>
+          <h4 style={{ marginTop: 0 }}>Engagement points</h4>
+          <p className="help-text" style={{ marginTop: 0 }}>
+            If your score is inflated from testing the app, you can reset <strong>your own</strong> points to zero. This only affects your account.
+          </p>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={resettingEngagement}
+            onClick={async () => {
+              if (!window.confirm("Reset your engagement points to zero?")) return;
+              setResettingEngagement(true);
+              setSaveError(null);
+              setSaveSuccess(null);
+              try {
+                const updated = await apiFetch<User>("/auth/me/reset-engagement", { method: "POST" }, token);
+                onSaved(updated);
+                window.localStorage.setItem("user", JSON.stringify(updated));
+                setSaveSuccess("Engagement points reset to zero.");
+              } catch (e) {
+                setSaveError(e instanceof Error ? e.message : "Could not reset points.");
+              } finally {
+                setResettingEngagement(false);
+              }
+            }}
+          >
+            {resettingEngagement ? "Resetting…" : "Reset my points to zero"}
+          </button>
+        </div>
+      )}
       {user.role === "ADMIN" && (
         <div className="card" style={{ marginTop: 12 }}>
           <h4 style={{ marginTop: 0 }}>My Events</h4>
