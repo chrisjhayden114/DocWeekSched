@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { apiFetch } from "../lib/api";
@@ -226,6 +226,15 @@ export default function Dashboard() {
       setActiveEventId(storedEventId);
     }
   }, []);
+
+  const didAutoFillActiveEvent = useRef(false);
+  useEffect(() => {
+    if (didAutoFillActiveEvent.current || activeEventId) return;
+    if (!event?.id) return;
+    didAutoFillActiveEvent.current = true;
+    setActiveEventId(event.id);
+    window.localStorage.setItem("activeEventId", event.id);
+  }, [event?.id, activeEventId]);
 
   useEffect(() => {
     if (!token) return;
@@ -756,9 +765,37 @@ export default function Dashboard() {
           <div className="card" style={{ padding: 18 }}>
             <h3 style={{ marginTop: 0 }}>Add participants</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Invite people by email so they receive a link to set a password and confirm their profile. You need an{" "}
-              <strong>active event</strong> selected (Profile → My Events).
+              Invite people by email so they receive a link to set a password and confirm their profile. Invites are tied to
+              whichever event you select below (same as Profile → My Events).
             </p>
+            {adminEvents.length > 0 ? (
+              <label className="help-text" style={{ margin: "12px 0 6px", display: "grid", gap: 6 }}>
+                Event for invites &amp; roster
+                <select
+                  className="select"
+                  value={activeEventId ?? ""}
+                  onChange={(e) => {
+                    const id = e.target.value || null;
+                    setActiveEventId(id);
+                    if (id) window.localStorage.setItem("activeEventId", id);
+                    else window.localStorage.removeItem("activeEventId");
+                  }}
+                >
+                  <option value="" disabled>
+                    Choose an event…
+                  </option>
+                  {adminEvents.map((ev) => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="help-text" style={{ color: "#b42318", margin: "12px 0 0" }}>
+                No events found. Create one under <strong>Profile</strong> → <strong>My Events</strong>.
+              </p>
+            )}
             <AdminParticipantInviteCard
               token={token!}
               withEventHeaders={withEventHeaders}
@@ -1890,9 +1927,13 @@ function SessionForm({
   const defaultEnd = editing?.endsAt ? toLocalInputValue(editing.endsAt) : "";
   const removeSession = async () => {
     if (!editing) return;
-    if (!confirm("Delete this session?")) return;
-    await apiFetch(`/sessions/${editing.id}`, { method: "DELETE" }, token);
-    onSaved();
+    if (!window.confirm("Delete this session? This cannot be undone.")) return;
+    try {
+      await apiFetch(`/sessions/${editing.id}`, eventHeaders({ method: "DELETE" }), token);
+      onSaved();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not delete session.");
+    }
   };
 
   return (

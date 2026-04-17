@@ -325,7 +325,27 @@ sessionsRouter.put("/:id", requireAuth, requireRole(["ADMIN"]), async (req, res)
 });
 
 sessionsRouter.delete("/:id", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
-  await prisma.session.delete({ where: { id: req.params.id } });
+  const sessionId = req.params.id;
+  const session = await prisma.session.findUnique({ where: { id: sessionId }, select: { id: true } });
+  if (!session) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.sessionBookmark.deleteMany({ where: { sessionId } });
+    await tx.sessionAttendance.deleteMany({ where: { sessionId } });
+    await tx.sessionLike.deleteMany({ where: { sessionId } });
+
+    const conv = await tx.conversation.findFirst({ where: { sessionId } });
+    if (conv) {
+      await tx.conversationMessage.deleteMany({ where: { conversationId: conv.id } });
+      await tx.conversationMember.deleteMany({ where: { conversationId: conv.id } });
+      await tx.conversation.delete({ where: { id: conv.id } });
+    }
+
+    await tx.session.delete({ where: { id: sessionId } });
+  });
+
   return res.json({ ok: true });
 });
 
