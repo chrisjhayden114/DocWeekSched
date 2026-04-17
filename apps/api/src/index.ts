@@ -15,7 +15,7 @@ import { notificationsRouter } from "./routes/notifications";
 const app = express();
 
 app.use(cors({ origin: env.webBaseUrl, credentials: true }));
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "25mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

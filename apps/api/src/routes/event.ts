@@ -17,8 +17,8 @@ const slugField = z
 const eventSchema = z.object({
   name: z.string().min(1),
   slug: slugField,
-  bannerUrl: z.string().max(2_000_000).optional(),
-  logoUrl: z.string().max(2_000_000).optional(),
+  bannerUrl: z.string().max(12_000_000).optional(),
+  logoUrl: z.string().max(12_000_000).optional(),
   timezone: z.string().min(1),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),

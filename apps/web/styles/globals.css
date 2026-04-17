@@ -423,6 +423,12 @@ a:hover {
   color: white;
 }
 
+.app-shell--with-banner {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 .app-shell h1,
 .app-shell p,
 .app-shell .help-text {
@@ -450,6 +456,29 @@ a:hover {
   font-weight: 800;
   font-size: 16px;
   margin-bottom: 6px;
+}
+
+.invite-status-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.invite-status-table th,
+.invite-status-table td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.invite-status-table th {
+  background: rgba(0, 30, 92, 0.06);
+  font-weight: 700;
+}
+
+.message-composer-form {
+  margin: 0;
 }
 
 .app-shell-actions {
@@ -1211,6 +1240,21 @@ a:hover {
 .community-open-btn {
   align-self: center;
   white-space: nowrap;
+}
+
+.icebreaker-hero {
+  margin-bottom: 16px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.icebreaker-hero-img {
+  display: block;
+  width: 100%;
+  max-height: min(280px, 42vw);
+  object-fit: cover;
+  object-position: center 35%;
 }
 
 /* Networking */

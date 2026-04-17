@@ -12,17 +12,59 @@ export const attendeesRouter = Router();
 const inviteSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
-  photoUrl: z.string().max(2_000_000).optional(),
+  photoUrl: z.string().max(12_000_000).optional(),
   researchInterests: z.string().max(4000).optional(),
 });
 
-attendeesRouter.get("/", requireAuth, async (_req, res) => {
+const attendeePublicSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  photoUrl: true,
+  researchInterests: true,
+  participantType: true,
+} as const;
+
+attendeesRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
+  const isAdmin = req.user?.role === "ADMIN";
+
+  if (!isAdmin) {
+    const users = await prisma.user.findMany({
+      select: attendeePublicSelect,
+      orderBy: { name: "asc" },
+    });
+    return res.json(users);
+  }
+
   const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true, photoUrl: true, researchInterests: true, participantType: true },
+    select: {
+      ...attendeePublicSelect,
+      profileSetupToken: true,
+      profileSetupTokenExpiresAt: true,
+    },
     orderBy: { name: "asc" },
   });
 
-  return res.json(users);
+  return res.json(
+    users.map((u) => {
+      const pending = u.profileSetupToken != null;
+      const expiresAt = u.profileSetupTokenExpiresAt;
+      const expired = pending && expiresAt != null && expiresAt.getTime() < Date.now();
+      const inviteStatus = !pending ? "ACTIVE" : expired ? "INVITE_EXPIRED" : "PENDING_SETUP";
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        photoUrl: u.photoUrl,
+        researchInterests: u.researchInterests,
+        participantType: u.participantType,
+        inviteStatus,
+        inviteExpiresAt: pending && expiresAt ? expiresAt.toISOString() : null,
+      };
+    }),
+  );
 });
 
 attendeesRouter.post("/invite", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {

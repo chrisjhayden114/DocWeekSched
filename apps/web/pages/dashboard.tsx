@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { apiFetch } from "../lib/api";
@@ -13,6 +13,8 @@ type User = {
   researchInterests?: string | null;
   participantType?: "GRAD_STUDENT" | "PROFESSOR" | null;
   engagementPoints?: number;
+  inviteStatus?: "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED";
+  inviteExpiresAt?: string | null;
 };
 
 type Event = {
@@ -86,6 +88,7 @@ type NetworkThread = {
   channel?: "GENERAL" | "MEETUP" | "MOMENTS" | "LOCAL" | "ICEBREAKER";
   meetupMode?: "VIRTUAL" | "IN_PERSON" | null;
   meetupStartsAt?: string | null;
+  meetupMeetingUrl?: string | null;
   meetupInviteEveryone?: boolean;
   meetupParticipantIds?: string[];
   taggedUserIds?: string[];
@@ -109,7 +112,16 @@ type UserNotificationRow = {
 };
 
 const COMMUNITY_TAB = "Community" as const;
-const adminTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Notifications", "Profile"] as const;
+const PARTICIPANTS_INVITES_TAB = "Participants and Invites" as const;
+const adminTabs = [
+  "Agenda",
+  "Attendees",
+  PARTICIPANTS_INVITES_TAB,
+  COMMUNITY_TAB,
+  "Messages",
+  "Notifications",
+  "Profile",
+] as const;
 const participantTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Notifications", "Profile"] as const;
 type Tab = (typeof adminTabs)[number];
 
@@ -166,6 +178,7 @@ export default function Dashboard() {
   const [sessionFormKey, setSessionFormKey] = useState(0);
   const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
   const [eventSettingsOpen, setEventSettingsOpen] = useState(false);
+  const [eventSettingsError, setEventSettingsError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<UserNotificationRow[]>([]);
   const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
   const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
@@ -223,7 +236,7 @@ export default function Dashboard() {
           setAttendees(await apiFetch<User[]>("/attendees", {}, token));
         }
       }
-      if (active === "Attendees") {
+      if (active === "Attendees" || active === PARTICIPANTS_INVITES_TAB) {
         setAttendees(await apiFetch<User[]>("/attendees", {}, token));
       }
       if (active === COMMUNITY_TAB) {
@@ -258,9 +271,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!token || active !== "Messages" || !activeConversationId) return;
+    setMessages([]);
+    let cancelled = false;
     apiFetch<Message[]>(`/conversations/${activeConversationId}/messages`, withEventHeaders(), token)
-      .then(setMessages)
+      .then((rows) => {
+        if (!cancelled) setMessages(rows);
+      })
       .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
   }, [active, activeConversationId, token, activeEventId]);
 
   useEffect(() => {
@@ -380,6 +400,11 @@ export default function Dashboard() {
     });
   }, [directAndGroupConversations, messageSearchLower, user]);
 
+  const activeConversation = useMemo(() => {
+    if (!activeConversationId) return null;
+    return conversations.find((c) => c.id === activeConversationId) ?? null;
+  }, [conversations, activeConversationId]);
+
   const handleLogout = () => {
     window.localStorage.removeItem("token");
     window.localStorage.removeItem("user");
@@ -472,6 +497,7 @@ export default function Dashboard() {
   }) => {
     if (!token) return;
     setUpdatingEvent(true);
+    setEventSettingsError(null);
     try {
       const updated = await apiFetch<Event>(
         "/event",
@@ -484,6 +510,10 @@ export default function Dashboard() {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
         setAdminEvents(myEvents);
       }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not save event. If you uploaded large images, try a smaller file.";
+      setEventSettingsError(message);
     } finally {
       setUpdatingEvent(false);
     }
@@ -491,15 +521,15 @@ export default function Dashboard() {
 
   if (!user) return null;
 
+  const appShellBannerStyle: CSSProperties | undefined = event?.bannerUrl
+    ? {
+        backgroundImage: `linear-gradient(135deg, rgba(0, 30, 92, 0.88) 0%, rgba(0, 51, 160, 0.78) 100%), url(${JSON.stringify(event.bannerUrl)})`,
+      }
+    : undefined;
+
   return (
     <div className="container">
-      {event?.bannerUrl && (
-        <div
-          className="hero-banner"
-          style={{ backgroundImage: `url(${event.bannerUrl})` }}
-        />
-      )}
-      <div className="header app-shell">
+      <div className={`header app-shell${event?.bannerUrl ? " app-shell--with-banner" : ""}`} style={appShellBannerStyle}>
         <div className="app-shell-title">
           <div className="app-shell-heading-row">
             {event?.logoUrl ? (
@@ -530,7 +560,10 @@ export default function Dashboard() {
               <button
                 className="button secondary event-settings-trigger"
                 type="button"
-                onClick={() => setEventSettingsOpen((open) => !open)}
+                onClick={() => {
+                  setEventSettingsError(null);
+                  setEventSettingsOpen((open) => !open);
+                }}
               >
                 {eventSettingsOpen ? "Close Event Settings" : "Edit Event Settings"}
               </button>
@@ -593,11 +626,16 @@ export default function Dashboard() {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        const data = await fileToDataUrl(file);
+                        const data = await fileToDataUrl(file, { maxWidth: 1920, maxHeight: 720, quality: 0.82 });
                         const el = e.currentTarget.form?.elements.namedItem("bannerUrl");
                         if (el instanceof HTMLInputElement) el.value = data;
                       }}
                     />
+                    {eventSettingsError ? (
+                      <p className="help-text" style={{ color: "#b42318", margin: 0 }}>
+                        {eventSettingsError}
+                      </p>
+                    ) : null}
                     <input className="input" name="timezone" defaultValue={event.timezone} required />
                     <input className="input" type="datetime-local" name="startDate" defaultValue={toLocalInputValue(event.startDate)} required />
                     <input className="input" type="datetime-local" name="endDate" defaultValue={toLocalInputValue(event.endDate)} required />
@@ -705,20 +743,63 @@ export default function Dashboard() {
 
       {active === "Attendees" && (
         <>
-          {isAdmin && (
-            <AdminParticipantInviteCard
-              token={token!}
-              withEventHeaders={withEventHeaders}
-              activeEventId={activeEventId}
-              eventSlug={event?.slug ?? null}
-            />
-          )}
           <AttendeeDirectory
             attendees={attendees}
             currentUserId={user.id}
             onMessage={startDirectMessage}
           />
         </>
+      )}
+
+      {active === PARTICIPANTS_INVITES_TAB && isAdmin && (
+        <div className="grid" style={{ gap: 16 }}>
+          <AdminParticipantInviteCard
+            token={token!}
+            withEventHeaders={withEventHeaders}
+            activeEventId={activeEventId}
+            eventSlug={event?.slug ?? null}
+            onInvited={async () => {
+              const list = await apiFetch<User[]>("/attendees", {}, token!);
+              setAttendees(list);
+            }}
+          />
+          <div className="card" style={{ padding: 18 }}>
+            <h3 style={{ marginTop: 0 }}>Roster &amp; invitations</h3>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              <strong>Joined</strong> means the account is active (invite completed, or they registered another way).{" "}
+              <strong>Pending</strong> means they were emailed a setup link and have not finished creating their password.{" "}
+              <strong>Expired</strong> means that link is past its date — invite them again with the same email only after resolving the existing record if the app reports a conflict.
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table className="invite-status-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Invite / join status</th>
+                    <th>Link expires</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendees.map((a) => (
+                    <tr key={a.id}>
+                      <td>{a.name}</td>
+                      <td>{a.email}</td>
+                      <td>{a.role}</td>
+                      <td>{inviteStatusLabel(a)}</td>
+                      <td>
+                        {a.inviteStatus === "PENDING_SETUP" && a.inviteExpiresAt
+                          ? new Date(a.inviteExpiresAt).toLocaleString()
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {active === COMMUNITY_TAB && (
@@ -824,37 +905,55 @@ export default function Dashboard() {
       {active === "Messages" && (
         <div className="grid two messages-layout">
           <div className="card message-sidebar-card">
-            <h3>Messages</h3>
+            <h3 style={{ marginTop: 0 }}>Messages</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              <strong>Everyone — event chat</strong> is the place for organizers to reach all participants. When an admin posts there, everyone gets a notification. Session Q&amp;A stays on each session page.
+              <strong>Direct:</strong> pick someone below and click <strong>Start chat</strong>, then select their name under &quot;Your chats&quot;.{" "}
+              <strong>Everyone — event chat</strong> reaches all attendees; admins can broadcast there. Session Q&amp;A stays on each session page.
             </p>
-            <p className="help-text" style={{ marginTop: 0 }}>
-              Search below to filter direct and group chats by name or research interests.
-            </p>
+            <DirectChatForm
+              attendees={filteredMessageAttendees}
+              currentUserId={user.id}
+              token={token!}
+              withEventHeaders={withEventHeaders}
+              onCreated={(c) => {
+                setConversations([c, ...conversations]);
+                setActiveConversationId(c.id);
+              }}
+            />
+            <GroupChatForm
+              attendees={filteredMessageAttendees}
+              currentUserId={user.id}
+              token={token!}
+              withEventHeaders={withEventHeaders}
+              onCreated={(c) => {
+                setConversations([c, ...conversations]);
+                setActiveConversationId(c.id);
+              }}
+            />
+            <hr style={{ margin: "18px 0", border: 0, borderTop: "1px solid var(--border)" }} />
+            <label className="help-text" htmlFor="message-directory-search" style={{ display: "block", marginBottom: 6 }}>
+              Filter people and chat names
+            </label>
             <input
+              id="message-directory-search"
               className="input"
               type="search"
-              placeholder="Search people and conversations…"
+              placeholder="Type a name, email, or topic…"
               value={messageDirectoryQuery}
               onChange={(e) => setMessageDirectoryQuery(e.target.value)}
               aria-label="Search people and conversations"
             />
-            {eventWideConversation && (
-              <>
-                <h4 style={{ marginBottom: 8 }}>Event-wide</h4>
-                <div className="grid" style={{ gap: 8, marginBottom: 16 }}>
-                  <button
-                    type="button"
-                    className={activeConversationId === eventWideConversation.id ? "button" : "button secondary"}
-                    onClick={() => setActiveConversationId(eventWideConversation.id)}
-                  >
-                    {formatConversationName(eventWideConversation, user)}
-                  </button>
-                </div>
-              </>
-            )}
-            <h4 style={{ marginBottom: 8 }}>Direct &amp; group</h4>
+            <h4 style={{ margin: "16px 0 8px" }}>Your chats</h4>
             <div className="grid" style={{ gap: 8 }}>
+              {eventWideConversation ? (
+                <button
+                  type="button"
+                  className={activeConversationId === eventWideConversation.id ? "button" : "button secondary"}
+                  onClick={() => setActiveConversationId(eventWideConversation.id)}
+                >
+                  {formatConversationName(eventWideConversation, user)}
+                </button>
+              ) : null}
               {filteredDirectAndGroup.map((c) => (
                 <button
                   key={c.id}
@@ -866,32 +965,57 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
-            <div style={{ marginTop: 16 }}>
-              <DirectChatForm
-                attendees={filteredMessageAttendees}
-                currentUserId={user.id}
-                token={token!}
-                withEventHeaders={withEventHeaders}
-                onCreated={(c) => {
-                  setConversations([c, ...conversations]);
-                  setActiveConversationId(c.id);
-                }}
-              />
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <GroupChatForm
-                attendees={filteredMessageAttendees}
-                currentUserId={user.id}
-                token={token!}
-                withEventHeaders={withEventHeaders}
-                onCreated={(c) => {
-                  setConversations([c, ...conversations]);
-                  setActiveConversationId(c.id);
-                }}
-              />
-            </div>
           </div>
-          <div className="card message-thread-card">
+          <div
+            className="card message-thread-card"
+            style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 320 }}
+          >
+            <div>
+              <h3 style={{ margin: 0 }}>
+                {activeConversation && user
+                  ? formatConversationName(activeConversation, user)
+                  : "Choose a conversation"}
+              </h3>
+              <p className="help-text" style={{ margin: "6px 0 0" }}>
+                {activeConversation?.type === "EVENT"
+                  ? "Everyone at this event can read and post here. When an admin posts, participants get a notification."
+                  : activeConversation?.type === "GROUP"
+                    ? "Only people in this group see these messages."
+                    : activeConversation
+                      ? "Only you and this person are in this thread."
+                      : "Select a chat on the left, or start one by choosing a participant."}
+              </p>
+            </div>
+            <div
+              className="message-thread-scroll"
+              style={{
+                flex: 1,
+                minHeight: 140,
+                maxHeight: 440,
+                overflowY: "auto",
+                borderTop: "1px solid var(--border)",
+                borderBottom: "1px solid var(--border)",
+                padding: "10px 0",
+              }}
+            >
+              {!activeConversationId ? (
+                <p className="help-text" style={{ margin: 0 }}>
+                  Pick a conversation from the list.
+                </p>
+              ) : messages.length === 0 ? (
+                <p className="help-text" style={{ margin: 0 }}>
+                  No messages yet — introduce yourself below.
+                </p>
+              ) : (
+                messages.map((m) => (
+                  <div key={m.id} style={{ borderBottom: "1px solid var(--border)", padding: "10px 0" }}>
+                    <strong>{m.user.name}</strong> <span style={{ color: "var(--ink-500)" }}>({m.user.role})</span>
+                    <p style={{ margin: "4px 0" }}>{m.body}</p>
+                    <small style={{ color: "var(--ink-500)" }}>{new Date(m.createdAt).toLocaleString()}</small>
+                  </div>
+                ))
+              )}
+            </div>
             <MessageComposer
               token={token!}
               conversationId={activeConversationId}
@@ -904,13 +1028,6 @@ export default function Dashboard() {
                   .catch(() => null);
               }}
             />
-            {messages.map((m) => (
-              <div key={m.id} style={{ borderBottom: "1px solid var(--border)", padding: "10px 0" }}>
-                <strong>{m.user.name}</strong> <span style={{ color: "var(--ink-500)" }}>({m.user.role})</span>
-                <p style={{ margin: "4px 0" }}>{m.body}</p>
-                <small style={{ color: "var(--ink-500)" }}>{new Date(m.createdAt).toLocaleString()}</small>
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -922,7 +1039,6 @@ export default function Dashboard() {
           adminEvents={adminEvents}
           activeEventId={activeEventId}
           withEventHeaders={withEventHeaders}
-          activeEventSlug={event?.slug ?? null}
           onSaved={(updated) => {
             setUser(updated);
             window.localStorage.setItem("user", JSON.stringify(updated));
@@ -1179,11 +1295,13 @@ function AdminParticipantInviteCard({
   withEventHeaders,
   activeEventId,
   eventSlug,
+  onInvited,
 }: {
   token: string;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   activeEventId: string | null;
   eventSlug: string | null;
+  onInvited?: () => void | Promise<void>;
 }) {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
@@ -1229,6 +1347,7 @@ function AdminParticipantInviteCard({
             );
             setInviteMessage(`Invite sent. Link (also in email): ${res.inviteUrl}`);
             e.currentTarget.reset();
+            await onInvited?.();
           } catch (err) {
             setInviteError(err instanceof Error ? err.message : "Invite failed.");
           } finally {
@@ -1268,7 +1387,6 @@ function ProfileEditor({
   adminEvents,
   activeEventId,
   withEventHeaders,
-  activeEventSlug,
   onSaved,
   onEventSelected,
   onEventCreated,
@@ -1278,7 +1396,6 @@ function ProfileEditor({
   adminEvents: EventItem[];
   activeEventId: string | null;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
-  activeEventSlug: string | null;
   onSaved: (user: User) => void;
   onEventSelected: (eventId: string) => void;
   onEventCreated: (event: EventItem) => void;
@@ -1398,16 +1515,6 @@ function ProfileEditor({
       <button className="button" type="submit" disabled={saving}>
         {saving ? "Saving..." : "Save Profile"}
       </button>
-      {user.role === "ADMIN" && activeEventId && (
-        <div style={{ marginTop: 12 }}>
-          <AdminParticipantInviteCard
-            token={token}
-            withEventHeaders={withEventHeaders}
-            activeEventId={activeEventId}
-            eventSlug={activeEventSlug}
-          />
-        </div>
-      )}
       {user.role === "ADMIN" && (
         <div className="card" style={{ marginTop: 12 }}>
           <h4 style={{ marginTop: 0 }}>My Events</h4>
@@ -1446,7 +1553,7 @@ function ProfileEditor({
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                const data = await fileToDataUrl(file);
+                const data = await fileToDataUrl(file, { maxWidth: 1920, maxHeight: 720, quality: 0.82 });
                 const el = e.currentTarget.form?.elements.namedItem("eventBannerUrl");
                 if (el instanceof HTMLInputElement) el.value = data;
               }}
@@ -1725,6 +1832,13 @@ function networkThreadChannelKey(ch: string | undefined): CommunityPillKey {
   return "GENERAL";
 }
 
+function ensureHttpUrl(url: string): string {
+  const t = url.trim();
+  if (!t) return t;
+  if (/^https?:\/\//i.test(t)) return t;
+  return `https://${t}`;
+}
+
 function threadImageGallery(t: NetworkThread): string[] {
   const fromList = [...(t.imageUrls ?? [])].filter(Boolean);
   if (t.imageUrl && !fromList.includes(t.imageUrl)) {
@@ -1762,6 +1876,7 @@ function CommunityBoard({
   const [composeChannel, setComposeChannel] = useState<Exclude<CommunityChannelFilter, "ALL">>("GENERAL");
   const [meetupInviteEveryone, setMeetupInviteEveryone] = useState(false);
   const [meetupParticipantIds, setMeetupParticipantIds] = useState<string[]>([]);
+  const [meetupComposeMode, setMeetupComposeMode] = useState<"IN_PERSON" | "VIRTUAL">("IN_PERSON");
   const [momentImageUrls, setMomentImageUrls] = useState<string[]>([]);
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
   const [postingThread, setPostingThread] = useState(false);
@@ -1798,8 +1913,7 @@ function CommunityBoard({
       channel: composeChannel,
     };
     if (composeChannel === "MEETUP") {
-      const mode = String(form.get("meetupMode") || "IN_PERSON");
-      payload.meetupMode = mode === "VIRTUAL" ? "VIRTUAL" : "IN_PERSON";
+      payload.meetupMode = meetupComposeMode;
       const start = String(form.get("meetupStartsAt") || "").trim();
       if (start) {
         payload.meetupStartsAt = new Date(start).toISOString();
@@ -1807,6 +1921,14 @@ function CommunityBoard({
       payload.meetupInviteEveryone = meetupInviteEveryone;
       if (!meetupInviteEveryone) {
         payload.meetupParticipantIds = meetupParticipantIds;
+      }
+      if (meetupComposeMode === "VIRTUAL") {
+        const link = String(form.get("meetupMeetingUrl") || "").trim();
+        if (!link) {
+          window.alert("Add a video link for virtual meet-ups (Zoom, Google Meet, Teams, etc.).");
+          return;
+        }
+        payload.meetupMeetingUrl = link;
       }
     }
     if (composeChannel === "MOMENTS") {
@@ -1830,6 +1952,7 @@ function CommunityBoard({
       event.currentTarget.reset();
       setMeetupInviteEveryone(false);
       setMeetupParticipantIds([]);
+      setMeetupComposeMode("IN_PERSON");
       setMomentImageUrls([]);
       setTaggedUserIds([]);
       await onThreadsUpdated();
@@ -1877,7 +2000,17 @@ function CommunityBoard({
             : "Open discussion for everyone at this event.";
 
   return (
-    <div className="grid networking-board">
+    <>
+      {channelFilter === "ICEBREAKER" && (
+        <div className="icebreaker-hero card">
+          <img
+            src="/community/icebreaker-hero.png"
+            alt="Friendly polar bears breaking the ice — share a quick intro and welcome others"
+            className="icebreaker-hero-img"
+          />
+        </div>
+      )}
+      <div className="grid networking-board">
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Community</h3>
         <p className="help-text" style={{ marginTop: 0 }}>
@@ -1961,14 +2094,43 @@ function CommunityBoard({
           <>
             <div className="join-mode-switch" role="group" aria-label="Meet-up format">
               <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input type="radio" name="meetupMode" value="IN_PERSON" defaultChecked />
+                <input
+                  type="radio"
+                  name="meetupMode"
+                  value="IN_PERSON"
+                  checked={meetupComposeMode === "IN_PERSON"}
+                  onChange={() => setMeetupComposeMode("IN_PERSON")}
+                />
                 In person
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input type="radio" name="meetupMode" value="VIRTUAL" />
+                <input
+                  type="radio"
+                  name="meetupMode"
+                  value="VIRTUAL"
+                  checked={meetupComposeMode === "VIRTUAL"}
+                  onChange={() => setMeetupComposeMode("VIRTUAL")}
+                />
                 Virtual
               </label>
             </div>
+            {meetupComposeMode === "VIRTUAL" && (
+              <>
+                <label className="help-text" style={{ margin: 0 }} htmlFor="meetup-meeting-url">
+                  Video meeting link
+                </label>
+                <input
+                  id="meetup-meeting-url"
+                  className="input"
+                  name="meetupMeetingUrl"
+                  placeholder="Paste Zoom, Google Meet, Microsoft Teams, or other link"
+                  autoComplete="off"
+                />
+                <p className="help-text" style={{ margin: 0 }}>
+                  Participants use this link to join at the scheduled time.
+                </p>
+              </>
+            )}
             <input className="input" type="datetime-local" name="meetupStartsAt" />
             <label className="help-text" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
               <input
@@ -2123,6 +2285,11 @@ function CommunityBoard({
                         {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
                       </div>
                     )}
+                    {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
+                      <div className="community-thread-foot">
+                        <OnlineMeetingLink href={ensureHttpUrl(t.meetupMeetingUrl)} />
+                      </div>
+                    ) : null}
                     {ch === "MOMENTS" && taggedNames.length > 0 && (
                       <div className="community-thread-foot">Tagged: {taggedNames.join(", ")}</div>
                     )}
@@ -2155,6 +2322,11 @@ function CommunityBoard({
                       </div>
                     )}
                     <p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p>
+                    {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
+                      <p style={{ margin: "12px 0" }}>
+                        <OnlineMeetingLink href={ensureHttpUrl(t.meetupMeetingUrl)} />
+                      </p>
+                    ) : null}
                     {isAdmin && (
                       <div style={{ marginBottom: 10 }}>
                         <button className="button secondary" type="button" onClick={() => deleteThread(t.id)}>
@@ -2201,6 +2373,7 @@ function CommunityBoard({
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -2237,9 +2410,18 @@ function MessageComposer({
   }
 
   return (
-    <form className="card grid" onSubmit={handleSubmit}>
-      <h3>Chat</h3>
-      <textarea className="textarea" name="body" placeholder="Write a message" required disabled={sending} />
+    <form className="message-composer-form grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
+      <label className="help-text" style={{ margin: 0 }} htmlFor="message-composer-body">
+        Your message
+      </label>
+      <textarea
+        id="message-composer-body"
+        className="textarea"
+        name="body"
+        placeholder="Write something…"
+        required
+        disabled={sending}
+      />
       <button className="button" disabled={!conversationId || sending}>
         {sending ? "Sending…" : "Send"}
       </button>
@@ -2274,15 +2456,27 @@ function DirectChatForm({
   }
 
   return (
-    <form className="grid" onSubmit={handleSubmit}>
-      <h4>Start direct chat</h4>
-      <select className="select" name="userId" required defaultValue="">
-        <option value="" disabled>Select attendee</option>
+    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8, marginBottom: 12 }}>
+      <h4 style={{ margin: 0 }}>Message someone one-on-one</h4>
+      <p className="help-text" style={{ margin: 0 }}>
+        Choose a participant, then <strong>Start chat</strong>. The thread appears under &quot;Your chats&quot;.
+      </p>
+      <label className="help-text" style={{ margin: 0 }} htmlFor="direct-chat-participant">
+        Participant
+      </label>
+      <select id="direct-chat-participant" className="select" name="userId" required defaultValue="">
+        <option value="" disabled>
+          Choose a participant…
+        </option>
         {attendees.filter((a) => a.id !== currentUserId).map((a) => (
-          <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
+          <option key={a.id} value={a.id}>
+            {a.name} ({a.role})
+          </option>
         ))}
       </select>
-      <button className="button secondary" type="submit">Start</button>
+      <button className="button secondary" type="submit">
+        Start chat
+      </button>
     </form>
   );
 }
@@ -2316,8 +2510,11 @@ function GroupChatForm({
   }
 
   return (
-    <form className="grid" onSubmit={handleSubmit}>
-      <h4>Create group chat</h4>
+    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
+      <h4 style={{ margin: 0 }}>Create a group chat</h4>
+      <p className="help-text" style={{ margin: 0 }}>
+        Name the group and select at least one other person (hold Ctrl/Cmd to pick multiple).
+      </p>
       <input className="input" name="name" placeholder="Group name" required />
       <select className="select" name="memberIds" multiple size={4} required>
         {attendees.filter((a) => a.id !== currentUserId).map((a) => (
@@ -2327,6 +2524,13 @@ function GroupChatForm({
       <button className="button secondary" type="submit">Create</button>
     </form>
   );
+}
+
+function inviteStatusLabel(attendee: User) {
+  if (attendee.inviteStatus === "PENDING_SETUP") return "Pending — has not finished signup";
+  if (attendee.inviteStatus === "INVITE_EXPIRED") return "Invite expired";
+  if (attendee.inviteStatus === "ACTIVE") return "Joined";
+  return "—";
 }
 
 function formatConversationName(conversation: Conversation, currentUser: User) {

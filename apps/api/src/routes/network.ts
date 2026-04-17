@@ -15,6 +15,7 @@ const threadSchema = z.object({
   channel: z.nativeEnum(NetworkChannel).optional(),
   meetupMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
   meetupStartsAt: z.string().datetime().optional(),
+  meetupMeetingUrl: z.string().max(4000).optional(),
   meetupInviteEveryone: z.boolean().optional(),
   meetupParticipantIds: z.array(z.string().min(1)).max(500).optional(),
   taggedUserIds: z.array(z.string().min(1)).max(80).optional(),
@@ -61,6 +62,8 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
   let meetupParticipantIds: string[] = [];
   let taggedUserIds: string[] = [];
 
+  let meetupMeetingUrl: string | null = null;
+
   if (channel === NetworkChannel.MEETUP) {
     meetupInviteEveryone = parsed.data.meetupInviteEveryone === true;
     meetupParticipantIds = Array.from(new Set(parsed.data.meetupParticipantIds ?? []));
@@ -75,6 +78,16 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
       if (n !== meetupParticipantIds.length) {
         return res.status(400).json({ error: "One or more participants are invalid." });
       }
+    }
+    const mode = parsed.data.meetupMode ?? null;
+    if (mode === "VIRTUAL") {
+      const raw = parsed.data.meetupMeetingUrl?.trim() ?? "";
+      if (!raw) {
+        return res.status(400).json({
+          error: "Virtual meet-ups need a video link (Zoom, Google Meet, Microsoft Teams, etc.).",
+        });
+      }
+      meetupMeetingUrl = raw.slice(0, 4000);
     }
   }
 
@@ -107,6 +120,7 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
       channel,
       meetupMode: parsed.data.meetupMode ?? null,
       meetupStartsAt: parsed.data.meetupStartsAt ? new Date(parsed.data.meetupStartsAt) : null,
+      meetupMeetingUrl,
       meetupInviteEveryone,
       meetupParticipantIds,
       taggedUserIds,

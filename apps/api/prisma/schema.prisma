@@ -258,6 +258,7 @@ model NetworkThread {
   channel   NetworkChannel @default(GENERAL)
   meetupMode SessionJoinMode?
   meetupStartsAt DateTime?
+  meetupMeetingUrl String?
   meetupInviteEveryone Boolean @default(false)
   meetupParticipantIds String[] @default([])
   taggedUserIds String[] @default([])
