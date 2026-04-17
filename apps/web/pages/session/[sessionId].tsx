@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { apiFetch } from "../../lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -400,9 +401,7 @@ export default function SessionPage() {
             )}
             {session.description && <p style={{ margin: "12px 0", lineHeight: 1.5 }}>{session.description}</p>}
             <div className="schedule-links" style={{ marginBottom: 12 }}>
-              {session.zoomLink && (
-                <a href={session.zoomLink} target="_blank" rel="noreferrer">Zoom</a>
-              )}
+              {session.zoomLink && <OnlineMeetingLink href={session.zoomLink} />}
               {session.recordingUrl && (
                 <a href={session.recordingUrl} target="_blank" rel="noreferrer">Recording</a>
               )}

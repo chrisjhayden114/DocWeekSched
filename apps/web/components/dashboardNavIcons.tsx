@@ -15,7 +15,7 @@ function IconFrame(props: SvgProps & { size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden {...stroke} {...rest} />;
 }
 
-export type MainNavTab = "Agenda" | "Attendees" | "Community" | "Messages" | "Profile";
+export type MainNavTab = "Agenda" | "Attendees" | "Community" | "Messages" | "Notifications" | "Profile";
 
 export function MainNavIcon({ tab }: { tab: MainNavTab }) {
   switch (tab) {
@@ -45,6 +45,13 @@ export function MainNavIcon({ tab }: { tab: MainNavTab }) {
       return (
         <IconFrame>
           <path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 3v-3H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+        </IconFrame>
+      );
+    case "Notifications":
+      return (
+        <IconFrame>
+          <path d="M6 8a3 3 0 0 1 6 0c0 2-1 3.5-2 5v2.5L12 18l2-2.5V13c1-1.5 2-3 2-5a3 3 0 0 0-6 0" />
+          <path d="M8.5 18a3.5 3.5 0 0 0 7 0" />
         </IconFrame>
       );
     case "Profile":
@@ -97,7 +104,12 @@ export function CommunityPillIcon({ channel, size = 18 }: { channel: CommunityPi
     case "ICEBREAKER":
       return (
         <IconFrame size={size}>
-          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+          <path d="M2 20h20" />
+          <path d="M4 20l3-5 4 3 3-4 5 4 3-5" />
+          <ellipse cx="12" cy="10" rx="4" ry="5" />
+          <path d="M9.5 8.5h.01M14.5 8.5h.01" strokeWidth="2.2" />
+          <path d="M10.5 12h3" />
+          <path d="M7 6l1.5-2M17 5.5l2-1.5" />
         </IconFrame>
       );
     case "GENERAL":

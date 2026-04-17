@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
+import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { apiFetch } from "../lib/api";
 
 type User = {
@@ -85,15 +86,30 @@ type NetworkThread = {
   channel?: "GENERAL" | "MEETUP" | "MOMENTS" | "LOCAL" | "ICEBREAKER";
   meetupMode?: "VIRTUAL" | "IN_PERSON" | null;
   meetupStartsAt?: string | null;
+  meetupInviteEveryone?: boolean;
+  meetupParticipantIds?: string[];
+  taggedUserIds?: string[];
   imageUrl?: string | null;
+  imageUrls?: string[];
   createdAt: string;
   author: NetworkAuthor;
   replies: NetworkReply[];
 };
 
+type UserNotificationRow = {
+  id: string;
+  kind: "COMMUNITY_THREAD" | "COMMUNITY_REPLY" | "MESSAGE";
+  title: string;
+  body: string | null;
+  threadId: string | null;
+  conversationId: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
 const COMMUNITY_TAB = "Community" as const;
-const adminTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Profile"] as const;
-const participantTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Profile"] as const;
+const adminTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Notifications", "Profile"] as const;
+const participantTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Notifications", "Profile"] as const;
 type Tab = (typeof adminTabs)[number];
 
 type CommunityChannelFilter = "ALL" | "GENERAL" | "MEETUP" | "MOMENTS" | "LOCAL" | "ICEBREAKER";
@@ -149,6 +165,9 @@ export default function Dashboard() {
   const [sessionFormKey, setSessionFormKey] = useState(0);
   const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
   const [eventSettingsOpen, setEventSettingsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<UserNotificationRow[]>([]);
+  const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
+  const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
 
   const withEventHeaders = (extra: RequestInit = {}): RequestInit => {
     if (!activeEventId) return extra;
@@ -209,6 +228,12 @@ export default function Dashboard() {
       if (active === COMMUNITY_TAB) {
         const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
         setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token));
+        if (attendees.length === 0) {
+          setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+        }
+      }
+      if (active === "Notifications") {
+        setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token));
       }
       if (active === "Messages") {
         const convoList = await apiFetch<Conversation[]>("/conversations", withEventHeaders(), token);
@@ -237,6 +262,18 @@ export default function Dashboard() {
   }, [active, activeConversationId, token, activeEventId]);
 
   useEffect(() => {
+    if (!token || !activeEventId) return;
+    const refresh = () => {
+      apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token)
+        .then(setNotifications)
+        .catch(() => null);
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 45_000);
+    return () => window.clearInterval(interval);
+  }, [token, activeEventId]);
+
+  useEffect(() => {
     if (active !== "Messages" || !activeConversationId) return;
     const cur = conversations.find((c) => c.id === activeConversationId);
     if (cur?.type === "SESSION") {
@@ -247,6 +284,10 @@ export default function Dashboard() {
 
   const isAdmin = useMemo(() => user?.role === "ADMIN", [user]);
   const availableTabs = useMemo(() => (isAdmin ? adminTabs : participantTabs), [isAdmin]);
+  const unreadNotifications = useMemo(
+    () => notifications.filter((row) => !row.readAt).length,
+    [notifications],
+  );
 
   useEffect(() => {
     if (!availableTabs.some((tab) => tab === active)) {
@@ -531,10 +572,20 @@ export default function Dashboard() {
 
       <div className="nav" style={{ marginBottom: 20 }}>
         {availableTabs.map((tab) => (
-          <button key={tab} type="button" className={active === tab ? "active" : ""} onClick={() => setActive(tab)}>
+          <button
+            key={tab}
+            type="button"
+            className={`${active === tab ? "active" : ""}${tab === "Notifications" && unreadNotifications > 0 ? " nav-tab-unread" : ""}`}
+            onClick={() => setActive(tab)}
+          >
             <span className="nav-tab-inner">
               <MainNavIcon tab={tab} />
               <span>{tab}</span>
+              {tab === "Notifications" && unreadNotifications > 0 ? (
+                <span className="nav-unread-badge" aria-label={`${unreadNotifications} unread`}>
+                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                </span>
+              ) : null}
             </span>
           </button>
         ))}
@@ -623,14 +674,98 @@ export default function Dashboard() {
           channelFilter={communityChannel}
           onChannelChange={setCommunityChannel}
           isAdmin={isAdmin}
+          currentUserId={user.id}
+          attendees={attendees}
+          focusThreadId={communityFocusThreadId}
+          onFocusThreadConsumed={clearCommunityFocus}
           token={token!}
           withEventHeaders={withEventHeaders}
           onThreadsUpdated={async () => {
             const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
             setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token!));
             await refreshUser();
+            apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!)
+              .then(setNotifications)
+              .catch(() => null);
           }}
         />
+      )}
+
+      {active === "Notifications" && (
+        <div className="card" style={{ padding: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h3 style={{ margin: 0 }}>Notifications</h3>
+            {unreadNotifications > 0 ? (
+              <button
+                type="button"
+                className="button secondary"
+                onClick={async () => {
+                  await apiFetch("/notifications/read-all", withEventHeaders({ method: "POST" }), token!);
+                  setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!));
+                }}
+              >
+                Mark all read
+              </button>
+            ) : null}
+          </div>
+          <p className="help-text" style={{ marginTop: 8 }}>
+            New community posts, replies, and direct or group messages appear here. Open one to jump to the conversation.
+          </p>
+          {notifications.length === 0 ? (
+            <p className="help-text" style={{ marginTop: 16 }}>
+              You&apos;re all caught up.
+            </p>
+          ) : (
+            <ul className="notification-list" style={{ listStyle: "none", padding: 0, margin: "16px 0 0" }}>
+              {notifications.map((n) => (
+                <li key={n.id} style={{ borderBottom: "1px solid var(--border)", padding: "12px 0" }}>
+                  <button
+                    type="button"
+                    className={`notification-row${n.readAt ? "" : " is-unread"}`}
+                    onClick={async () => {
+                      if (!n.readAt) {
+                        await apiFetch(`/notifications/${n.id}/read`, withEventHeaders({ method: "PATCH" }), token!);
+                        setNotifications((prev) =>
+                          prev.map((row) => (row.id === n.id ? { ...row, readAt: new Date().toISOString() } : row)),
+                        );
+                      }
+                      if (n.threadId) {
+                        setCommunityChannel("ALL");
+                        setCommunityFocusThreadId(n.threadId);
+                        setActive(COMMUNITY_TAB);
+                      } else if (n.conversationId) {
+                        setActive("Messages");
+                        setActiveConversationId(n.conversationId);
+                        apiFetch<Conversation[]>("/conversations", withEventHeaders(), token!)
+                          .then(setConversations)
+                          .catch(() => null);
+                      }
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                      font: "inherit",
+                    }}
+                  >
+                    <strong style={{ display: "block" }}>{n.title}</strong>
+                    {n.body ? (
+                      <span className="help-text" style={{ display: "block", marginTop: 4 }}>
+                        {n.body}
+                      </span>
+                    ) : null}
+                    <span className="help-text" style={{ display: "block", marginTop: 6, fontSize: 12 }}>
+                      {new Date(n.createdAt).toLocaleString()}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {active === "Messages" && (
@@ -697,6 +832,9 @@ export default function Dashboard() {
               onSent={async (m) => {
                 setMessages([...messages, m]);
                 await refreshUser();
+                apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!)
+                  .then(setNotifications)
+                  .catch(() => null);
               }}
             />
             {messages.map((m) => (
@@ -805,7 +943,9 @@ function ScheduleBoard({
                       {(s.speakers || s.speaker?.name) && <div className="schedule-speaker">{s.speakers || s.speaker?.name}</div>}
                       {s.location && <div className="schedule-speaker">Location: {s.location}</div>}
                       <div className="schedule-links">
-                        {s.zoomLink && <a href={s.zoomLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Zoom</a>}
+                        {s.zoomLink && (
+                          <OnlineMeetingLink href={s.zoomLink} onClick={(event) => event.stopPropagation()} />
+                        )}
                         {s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Recording</a>}
                         {s.fileLink && <a href={s.fileLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Resources</a>}
                         {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Uploaded File</a>}
@@ -1323,7 +1463,12 @@ function SessionForm({
           <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
         ))}
       </select>
-      <input className="input" name="zoomLink" placeholder="Zoom link" defaultValue={editing?.zoomLink || ""} />
+      <input
+        className="input"
+        name="zoomLink"
+        placeholder="Online meeting link (Zoom, Google Meet, Teams, etc.)"
+        defaultValue={editing?.zoomLink || ""}
+      />
       <label className="help-text" style={{ margin: 0 }}>Recording (URL or upload)</label>
       <input className="input" name="recordingUrl" placeholder="Recording URL" defaultValue={editing?.recordingUrl || ""} />
       <input
@@ -1486,11 +1631,23 @@ function networkThreadChannelKey(ch: string | undefined): CommunityPillKey {
   return "GENERAL";
 }
 
+function threadImageGallery(t: NetworkThread): string[] {
+  const fromList = [...(t.imageUrls ?? [])].filter(Boolean);
+  if (t.imageUrl && !fromList.includes(t.imageUrl)) {
+    return [t.imageUrl, ...fromList];
+  }
+  return fromList.length ? fromList : t.imageUrl ? [t.imageUrl] : [];
+}
+
 function CommunityBoard({
   threads,
   channelFilter,
   onChannelChange,
   isAdmin,
+  currentUserId,
+  attendees,
+  focusThreadId,
+  onFocusThreadConsumed,
   token,
   withEventHeaders,
   onThreadsUpdated,
@@ -1499,12 +1656,22 @@ function CommunityBoard({
   channelFilter: CommunityChannelFilter;
   onChannelChange: (c: CommunityChannelFilter) => void;
   isAdmin: boolean;
+  currentUserId: string;
+  attendees: User[];
+  focusThreadId: string | null;
+  onFocusThreadConsumed: () => void;
   token: string;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onThreadsUpdated: () => Promise<void>;
 }) {
   const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
   const [composeChannel, setComposeChannel] = useState<Exclude<CommunityChannelFilter, "ALL">>("GENERAL");
+  const [meetupInviteEveryone, setMeetupInviteEveryone] = useState(false);
+  const [meetupParticipantIds, setMeetupParticipantIds] = useState<string[]>([]);
+  const [momentImageUrls, setMomentImageUrls] = useState<string[]>([]);
+  const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
+
+  const nameById = useMemo(() => Object.fromEntries(attendees.map((a) => [a.id, a.name])), [attendees]);
 
   useEffect(() => {
     if (channelFilter === "ALL") {
@@ -1513,6 +1680,15 @@ function CommunityBoard({
       setComposeChannel(channelFilter);
     }
   }, [channelFilter]);
+
+  useEffect(() => {
+    if (!focusThreadId) return;
+    setOpenId(focusThreadId);
+    requestAnimationFrame(() => {
+      document.getElementById(`network-thread-${focusThreadId}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    onFocusThreadConsumed();
+  }, [focusThreadId, onFocusThreadConsumed]);
 
   async function createThread(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1531,13 +1707,28 @@ function CommunityBoard({
       if (start) {
         payload.meetupStartsAt = new Date(start).toISOString();
       }
+      payload.meetupInviteEveryone = meetupInviteEveryone;
+      if (!meetupInviteEveryone) {
+        payload.meetupParticipantIds = meetupParticipantIds;
+      }
     }
     if (composeChannel === "MOMENTS") {
       const img = String(form.get("imageUrl") || "").trim();
-      if (img) payload.imageUrl = img;
+      const urls = [...momentImageUrls];
+      if (img) urls.push(img);
+      if (urls.length) payload.imageUrls = urls.slice(0, 12);
+      if (taggedUserIds.length) payload.taggedUserIds = taggedUserIds;
+    }
+    if (composeChannel === "MEETUP" && !meetupInviteEveryone && meetupParticipantIds.length === 0) {
+      window.alert("Add at least one participant, or choose Invite everyone.");
+      return;
     }
     await apiFetch("/network/threads", withEventHeaders({ method: "POST", body: JSON.stringify(payload) }), token);
     event.currentTarget.reset();
+    setMeetupInviteEveryone(false);
+    setMeetupParticipantIds([]);
+    setMomentImageUrls([]);
+    setTaggedUserIds([]);
     await onThreadsUpdated();
   }
 
@@ -1568,9 +1759,9 @@ function CommunityBoard({
 
   const composeHint =
     composeChannel === "MEETUP"
-      ? "Propose an in-person or virtual meet-up others can join."
+      ? "Propose a meet-up and invite specific people, or open it to everyone at this event."
       : composeChannel === "MOMENTS"
-        ? "Share a photo (upload below) and a short caption."
+        ? "Upload one or more photos, tag people from the directory, and add a caption."
         : composeChannel === "LOCAL"
           ? "Recommend restaurants, coffee, or sights near the venue."
           : composeChannel === "ICEBREAKER"
@@ -1639,23 +1830,102 @@ function CommunityBoard({
               </label>
             </div>
             <input className="input" type="datetime-local" name="meetupStartsAt" />
+            <label className="help-text" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={meetupInviteEveryone}
+                onChange={(e) => {
+                  setMeetupInviteEveryone(e.target.checked);
+                  if (e.target.checked) setMeetupParticipantIds([]);
+                }}
+              />
+              Invite everyone at this event
+            </label>
+            {!meetupInviteEveryone && (
+              <fieldset className="community-attendee-picks">
+                <legend className="help-text">Participants (required if not inviting everyone)</legend>
+                <div className="community-attendee-pick-grid">
+                  {attendees
+                    .filter((a) => a.id !== currentUserId)
+                    .map((a) => (
+                      <label key={a.id} className="community-attendee-pick">
+                        <input
+                          type="checkbox"
+                          checked={meetupParticipantIds.includes(a.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setMeetupParticipantIds((prev) => [...prev, a.id]);
+                            } else {
+                              setMeetupParticipantIds((prev) => prev.filter((id) => id !== a.id));
+                            }
+                          }}
+                        />
+                        {a.name}
+                      </label>
+                    ))}
+                </div>
+              </fieldset>
+            )}
           </>
         )}
         {composeChannel === "MOMENTS" && (
           <>
-            <input className="input" name="imageUrl" placeholder="Image URL (optional)" />
+            <fieldset className="community-attendee-picks">
+              <legend className="help-text">Tag people (optional)</legend>
+              <div className="community-attendee-pick-grid">
+                {attendees
+                  .filter((a) => a.id !== currentUserId)
+                  .map((a) => (
+                    <label key={a.id} className="community-attendee-pick">
+                      <input
+                        type="checkbox"
+                        checked={taggedUserIds.includes(a.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setTaggedUserIds((prev) => [...prev, a.id]);
+                          } else {
+                            setTaggedUserIds((prev) => prev.filter((id) => id !== a.id));
+                          }
+                        }}
+                      />
+                      {a.name}
+                    </label>
+                  ))}
+              </div>
+            </fieldset>
+            <input className="input" name="imageUrl" placeholder="Image URL (optional, in addition to uploads)" />
             <input
               className="input"
               type="file"
               accept="image/*"
+              multiple
               onChange={async (ev) => {
-                const file = ev.target.files?.[0];
-                if (!file) return;
-                const data = await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 });
-                const target = ev.currentTarget.form?.elements.namedItem("imageUrl");
-                if (target instanceof HTMLInputElement) target.value = data;
+                const files = [...(ev.target.files || [])].slice(0, 12);
+                const next: string[] = [];
+                for (const file of files) {
+                  next.push(await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 }));
+                }
+                setMomentImageUrls((prev) => [...prev, ...next].slice(0, 12));
+                ev.target.value = "";
               }}
             />
+            {momentImageUrls.length > 0 && (
+              <div className="moment-thumb-strip">
+                {momentImageUrls.map((url, idx) => (
+                  <div key={`${idx}-${url.slice(0, 24)}`} className="moment-thumb">
+                    <img src={url} alt="" />
+                    <button
+                      type="button"
+                      className="moment-thumb-remove"
+                      aria-label="Remove photo"
+                      onClick={() => setMomentImageUrls((prev) => prev.filter((_, i) => i !== idx))}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
         <button className="button" type="submit">
@@ -1671,8 +1941,11 @@ function CommunityBoard({
             const ch = t.channel || "GENERAL";
             const channelIconKey = networkThreadChannelKey(ch);
             const lastReply = t.replies[t.replies.length - 1];
+            const gallery = threadImageGallery(t);
+            const taggedNames = (t.taggedUserIds ?? []).map((id) => nameById[id]).filter(Boolean);
+            const meetupNames = (t.meetupParticipantIds ?? []).map((id) => nameById[id]).filter(Boolean);
             return (
-              <div key={t.id}>
+              <div key={t.id} id={`network-thread-${t.id}`}>
                 <div className="community-thread-row">
                   <div className={`community-thread-icon ${ch}`} aria-hidden>
                     <CommunityPillIcon channel={channelIconKey} size={22} />
@@ -1685,7 +1958,23 @@ function CommunityBoard({
                     </div>
                     <h4 className="community-thread-title">{t.title}</h4>
                     <p className="community-thread-desc">{t.body}</p>
-                    {t.meetupMode && (
+                    {ch === "MEETUP" && (
+                      <div className="community-thread-foot">
+                        {t.meetupInviteEveryone
+                          ? "Everyone at this event is invited"
+                          : meetupNames.length > 0
+                            ? `With ${meetupNames.join(", ")}`
+                            : "Meet-up"}
+                        {t.meetupMode
+                          ? ` · ${t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"}`
+                          : ""}
+                        {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
+                      </div>
+                    )}
+                    {ch === "MOMENTS" && taggedNames.length > 0 && (
+                      <div className="community-thread-foot">Tagged: {taggedNames.join(", ")}</div>
+                    )}
+                    {t.meetupMode && ch !== "MEETUP" && (
                       <div className="community-thread-foot">
                         {t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"} meet-up
                         {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
@@ -1699,8 +1988,12 @@ function CommunityBoard({
                 </div>
                 {open && (
                   <div className="network-thread-body" style={{ padding: "0 0 16px 64px" }}>
-                    {t.imageUrl && (
-                      <img src={t.imageUrl} alt="" style={{ maxWidth: "100%", borderRadius: 10, marginBottom: 12 }} />
+                    {gallery.length > 0 && (
+                      <div className="community-thread-gallery">
+                        {gallery.map((src) => (
+                          <img key={src.slice(0, 48)} src={src} alt="" />
+                        ))}
+                      </div>
                     )}
                     <p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p>
                     {isAdmin && (

@@ -180,6 +180,7 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  position: relative;
 }
 
 .nav-tab-inner svg {
@@ -189,6 +190,132 @@ a:hover {
 
 .nav button.active .nav-tab-inner svg {
   opacity: 1;
+}
+
+.nav-tab-unread:not(.active) {
+  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.55);
+}
+
+.nav-unread-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #e8c547 0%, #c9a227 100%);
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.notification-row.is-unread strong {
+  color: var(--uk-blue);
+}
+
+.session-online-meeting-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 51, 160, 0.12);
+  border: 1px solid var(--border-strong);
+  color: var(--uk-blue);
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.session-online-meeting-link:hover {
+  background: rgba(0, 51, 160, 0.2);
+}
+
+.session-online-meeting-icon {
+  flex-shrink: 0;
+  opacity: 0.95;
+}
+
+.community-attendee-picks {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0;
+  background: #f8fafc;
+}
+
+.community-attendee-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 6px 10px;
+  margin-top: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.community-attendee-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.moment-thumb-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.moment-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.moment-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.moment-thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.65);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.community-thread-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.community-thread-gallery img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
 }
 
 .community-pill-inner {

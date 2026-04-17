@@ -47,6 +47,12 @@ enum NetworkChannel {
   ICEBREAKER
 }
 
+enum NotificationKind {
+  COMMUNITY_THREAD
+  COMMUNITY_REPLY
+  MESSAGE
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -74,6 +80,7 @@ model User {
   sessionDiscussionThreads SessionDiscussionThread[]
   sessionDiscussionReplies SessionDiscussionReply[]
   sessionResources SessionResource[]
+  notifications UserNotification[]
 }
 
 model Event {
@@ -251,13 +258,33 @@ model NetworkThread {
   channel   NetworkChannel @default(GENERAL)
   meetupMode SessionJoinMode?
   meetupStartsAt DateTime?
+  meetupInviteEveryone Boolean @default(false)
+  meetupParticipantIds String[] @default([])
+  taggedUserIds String[] @default([])
   imageUrl  String?
+  imageUrls String[] @default([])
   createdAt DateTime @default(now())
   eventId   String
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   replies   NetworkReply[]
+}
+
+model UserNotification {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId        String?
+  kind           NotificationKind
+  title          String
+  body           String?
+  threadId       String?
+  conversationId String?
+  readAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model NetworkReply {

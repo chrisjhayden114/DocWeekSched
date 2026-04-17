@@ -2,6 +2,7 @@ import { NetworkChannel } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
+import { notifyNewCommunityThread, notifyCommunityReply } from "../lib/notifications";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
@@ -14,7 +15,11 @@ const threadSchema = z.object({
   channel: z.nativeEnum(NetworkChannel).optional(),
   meetupMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
   meetupStartsAt: z.string().datetime().optional(),
+  meetupInviteEveryone: z.boolean().optional(),
+  meetupParticipantIds: z.array(z.string().min(1)).max(500).optional(),
+  taggedUserIds: z.array(z.string().min(1)).max(80).optional(),
   imageUrl: z.string().max(2_000_000).optional(),
+  imageUrls: z.array(z.string().max(2_000_000)).max(12).optional(),
 });
 
 const replySchema = z.object({
@@ -49,16 +54,61 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
 
   const event = await resolveEventFromRequest(req);
   const userId = req.user?.id || "";
+  const channel = parsed.data.channel ?? NetworkChannel.GENERAL;
+
+  let meetupInviteEveryone = false;
+  let meetupParticipantIds: string[] = [];
+  let taggedUserIds: string[] = [];
+
+  if (channel === NetworkChannel.MEETUP) {
+    meetupInviteEveryone = parsed.data.meetupInviteEveryone === true;
+    meetupParticipantIds = Array.from(new Set(parsed.data.meetupParticipantIds ?? []));
+    if (!meetupInviteEveryone && meetupParticipantIds.length === 0) {
+      return res.status(400).json({ error: "Add participants or choose Invite everyone." });
+    }
+    if (meetupInviteEveryone) {
+      meetupParticipantIds = [];
+    }
+    if (meetupParticipantIds.length) {
+      const n = await prisma.user.count({ where: { id: { in: meetupParticipantIds } } });
+      if (n !== meetupParticipantIds.length) {
+        return res.status(400).json({ error: "One or more participants are invalid." });
+      }
+    }
+  }
+
+  if (channel === NetworkChannel.MOMENTS) {
+    taggedUserIds = Array.from(new Set(parsed.data.taggedUserIds ?? []));
+    if (taggedUserIds.length) {
+      const n = await prisma.user.count({ where: { id: { in: taggedUserIds } } });
+      if (n !== taggedUserIds.length) {
+        return res.status(400).json({ error: "One or more tagged people are invalid." });
+      }
+    }
+  }
+
+  let imageUrls = (parsed.data.imageUrls ?? []).filter((u) => u && u.trim());
+  const single = parsed.data.imageUrl?.trim();
+  if (single && imageUrls.length === 0) {
+    imageUrls = [single];
+  }
+  imageUrls = imageUrls.slice(0, 12);
+  const imageUrl = imageUrls[0] ?? null;
+
   const thread = await prisma.networkThread.create({
     data: {
       eventId: event.id,
       authorId: userId,
       title: parsed.data.title,
       body: parsed.data.body,
-      channel: parsed.data.channel ?? NetworkChannel.GENERAL,
+      channel,
       meetupMode: parsed.data.meetupMode ?? null,
       meetupStartsAt: parsed.data.meetupStartsAt ? new Date(parsed.data.meetupStartsAt) : null,
-      imageUrl: parsed.data.imageUrl?.trim() || null,
+      meetupInviteEveryone,
+      meetupParticipantIds,
+      taggedUserIds,
+      imageUrl,
+      imageUrls,
     },
     include: {
       author: { select: { id: true, name: true, role: true, photoUrl: true } },
@@ -69,6 +119,19 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
   });
 
   await awardEngagementPoints(userId, POINTS.NETWORK_THREAD);
+
+  const authorName = thread.author.name;
+  await notifyNewCommunityThread({
+    eventId: event.id,
+    threadId: thread.id,
+    channel,
+    title: thread.title,
+    authorId: userId,
+    authorName,
+    meetupInviteEveryone,
+    meetupParticipantIds,
+  });
+
   return res.json(thread);
 });
 
@@ -81,6 +144,9 @@ networkRouter.post("/threads/:id/replies", requireAuth, async (req: AuthedReques
   const event = await resolveEventFromRequest(req);
   const thread = await prisma.networkThread.findFirst({
     where: { id: req.params.id, eventId: event.id },
+    include: {
+      replies: { select: { authorId: true } },
+    },
   });
   if (!thread) {
     return res.status(404).json({ error: "Thread not found" });
@@ -97,6 +163,25 @@ networkRouter.post("/threads/:id/replies", requireAuth, async (req: AuthedReques
   });
 
   await awardEngagementPoints(userId, POINTS.NETWORK_REPLY);
+
+  const priorReplierIds = Array.from(new Set(thread.replies.map((r) => r.authorId)));
+  const fullThread = await prisma.networkThread.findUnique({
+    where: { id: thread.id },
+    select: { title: true, authorId: true },
+  });
+  if (fullThread) {
+    await notifyCommunityReply({
+      eventId: event.id,
+      threadId: thread.id,
+      threadTitle: fullThread.title,
+      threadAuthorId: fullThread.authorId,
+      replierId: userId,
+      replierName: reply.author.name,
+      replyPreview: parsed.data.body,
+      priorReplierIds,
+    });
+  }
+
   return res.json(reply);
 });
 

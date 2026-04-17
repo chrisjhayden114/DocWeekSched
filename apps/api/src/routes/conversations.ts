@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
 import { getDirectConversation, getOrCreateEventConversation } from "../lib/conversations";
+import { notifyNewMessage } from "../lib/notifications";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { requireAuth, AuthedRequest } from "../lib/middleware";
@@ -152,5 +153,18 @@ conversationsRouter.post("/:id/messages", requireAuth, async (req: AuthedRequest
   });
 
   await awardEngagementPoints(userId, POINTS.MESSAGE);
+
+  if (conversation.type === "DIRECT" || conversation.type === "GROUP") {
+    const memberUserIds = conversation.members.map((m) => m.userId);
+    await notifyNewMessage({
+      eventId: conversation.eventId,
+      conversationId: conversation.id,
+      senderId: userId,
+      senderName: message.user.name,
+      preview: parsed.data.body,
+      memberUserIds,
+    });
+  }
+
   return res.json(message);
 });
