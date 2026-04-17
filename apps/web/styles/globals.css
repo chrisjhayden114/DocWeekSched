@@ -192,8 +192,27 @@ a:hover {
   opacity: 1;
 }
 
+.nav-tab-unread {
+  position: relative;
+  animation: nav-unread-pulse 2.2s ease-in-out infinite;
+}
+
 .nav-tab-unread:not(.active) {
-  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.55);
+  box-shadow: 0 0 0 2px rgba(232, 197, 71, 0.75);
+}
+
+@keyframes nav-unread-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(232, 197, 71, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(232, 197, 71, 0);
+  }
+}
+
+.nav button.active.nav-tab-unread {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5) inset, 0 0 0 2px rgba(232, 197, 71, 0.9);
 }
 
 .nav-unread-badge {
@@ -208,6 +227,7 @@ a:hover {
   line-height: 18px;
   text-align: center;
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
 }
 
 .notification-row.is-unread strong {
@@ -267,6 +287,18 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.moment-thumb-strip--composer {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+}
+
+.moment-thumb-strip--composer .moment-thumb {
+  width: 100%;
+  height: 104px;
+  max-width: 140px;
 }
 
 .moment-thumb {
@@ -1050,6 +1082,27 @@ a:hover {
   gap: 0;
 }
 
+.community-thread-rows--moments {
+  gap: 16px;
+}
+
+.community-thread-rows--moments > div {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.community-thread-rows--moments .community-thread-row {
+  border-bottom: none;
+  padding: 0 0 8px;
+}
+
+.community-thread-rows--moments .community-thread-row:last-child {
+  border-bottom: none;
+}
+
 .community-thread-row {
   display: grid;
   grid-template-columns: 52px 1fr auto;
@@ -1059,8 +1112,39 @@ a:hover {
   border-bottom: 1px solid var(--border);
 }
 
+.community-thread-row--with-photo {
+  grid-template-columns: 96px 1fr auto;
+}
+
 .community-thread-row:last-child {
   border-bottom: none;
+}
+
+.community-thread-lead {
+  flex-shrink: 0;
+}
+
+.community-thread-thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: block;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+.local-maps-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--uk-blue);
+  text-decoration: none;
+}
+
+.local-maps-link:hover {
+  text-decoration: underline;
 }
 
 .community-thread-icon {

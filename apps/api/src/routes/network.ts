@@ -20,6 +20,7 @@ const threadSchema = z.object({
   taggedUserIds: z.array(z.string().min(1)).max(80).optional(),
   imageUrl: z.string().max(2_000_000).optional(),
   imageUrls: z.array(z.string().max(2_000_000)).max(12).optional(),
+  mapsUrl: z.string().max(4000).optional(),
 });
 
 const replySchema = z.object({
@@ -94,6 +95,8 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
   }
   imageUrls = imageUrls.slice(0, 12);
   const imageUrl = imageUrls[0] ?? null;
+  const mapsUrl =
+    channel === NetworkChannel.LOCAL ? (parsed.data.mapsUrl?.trim().slice(0, 4000) || null) : null;
 
   const thread = await prisma.networkThread.create({
     data: {
@@ -109,6 +112,7 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
       taggedUserIds,
       imageUrl,
       imageUrls,
+      mapsUrl,
     },
     include: {
       author: { select: { id: true, name: true, role: true, photoUrl: true } },
@@ -121,16 +125,20 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
   await awardEngagementPoints(userId, POINTS.NETWORK_THREAD);
 
   const authorName = thread.author.name;
-  await notifyNewCommunityThread({
-    eventId: event.id,
-    threadId: thread.id,
-    channel,
-    title: thread.title,
-    authorId: userId,
-    authorName,
-    meetupInviteEveryone,
-    meetupParticipantIds,
-  });
+  try {
+    await notifyNewCommunityThread({
+      eventId: event.id,
+      threadId: thread.id,
+      channel,
+      title: thread.title,
+      authorId: userId,
+      authorName,
+      meetupInviteEveryone,
+      meetupParticipantIds,
+    });
+  } catch (err) {
+    console.error("notifyNewCommunityThread failed:", err);
+  }
 
   return res.json(thread);
 });
@@ -170,16 +178,20 @@ networkRouter.post("/threads/:id/replies", requireAuth, async (req: AuthedReques
     select: { title: true, authorId: true },
   });
   if (fullThread) {
-    await notifyCommunityReply({
-      eventId: event.id,
-      threadId: thread.id,
-      threadTitle: fullThread.title,
-      threadAuthorId: fullThread.authorId,
-      replierId: userId,
-      replierName: reply.author.name,
-      replyPreview: parsed.data.body,
-      priorReplierIds,
-    });
+    try {
+      await notifyCommunityReply({
+        eventId: event.id,
+        threadId: thread.id,
+        threadTitle: fullThread.title,
+        threadAuthorId: fullThread.authorId,
+        replierId: userId,
+        replierName: reply.author.name,
+        replyPreview: parsed.data.body,
+        priorReplierIds,
+      });
+    } catch (err) {
+      console.error("notifyCommunityReply failed:", err);
+    }
   }
 
   return res.json(reply);

@@ -91,6 +91,7 @@ type NetworkThread = {
   taggedUserIds?: string[];
   imageUrl?: string | null;
   imageUrls?: string[];
+  mapsUrl?: string | null;
   createdAt: string;
   author: NetworkAuthor;
   replies: NetworkReply[];
@@ -273,6 +274,27 @@ export default function Dashboard() {
     const interval = window.setInterval(refresh, 45_000);
     return () => window.clearInterval(interval);
   }, [token, activeEventId]);
+
+  useEffect(() => {
+    if (!token || !activeEventId || active !== "Notifications") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await apiFetch("/notifications/read-all", withEventHeaders({ method: "POST" }), token);
+      } catch {
+        /* ignore */
+      }
+      try {
+        const list = await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token);
+        if (!cancelled) setNotifications(list);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, token, activeEventId]);
 
   useEffect(() => {
     if (active !== "Messages" || !activeConversationId) return;
@@ -682,11 +704,21 @@ export default function Dashboard() {
       )}
 
       {active === "Attendees" && (
-        <AttendeeDirectory
-          attendees={attendees}
-          currentUserId={user.id}
-          onMessage={startDirectMessage}
-        />
+        <>
+          {isAdmin && (
+            <AdminParticipantInviteCard
+              token={token!}
+              withEventHeaders={withEventHeaders}
+              activeEventId={activeEventId}
+              eventSlug={event?.slug ?? null}
+            />
+          )}
+          <AttendeeDirectory
+            attendees={attendees}
+            currentUserId={user.id}
+            onMessage={startDirectMessage}
+          />
+        </>
       )}
 
       {active === COMMUNITY_TAB && (
@@ -730,7 +762,7 @@ export default function Dashboard() {
             ) : null}
           </div>
           <p className="help-text" style={{ marginTop: 8 }}>
-            New community posts, replies, and direct or group messages appear here. Open one to jump to the conversation.
+            You get a confirmation when <strong>you</strong> publish to Community; everyone else is notified too (except on meet-ups limited to specific people). Replies, DMs, groups, and admin event-wide messages also appear here. Open an item to jump to it — opening this tab marks items as read.
           </p>
           {notifications.length === 0 ? (
             <p className="help-text" style={{ marginTop: 16 }}>
@@ -1142,6 +1174,94 @@ function ParticipantDailySchedules({
   );
 }
 
+function AdminParticipantInviteCard({
+  token,
+  withEventHeaders,
+  activeEventId,
+  eventSlug,
+}: {
+  token: string;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  activeEventId: string | null;
+  eventSlug: string | null;
+}) {
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  if (!activeEventId) return null;
+
+  return (
+    <div className="card admin-invite-card" style={{ marginBottom: 16 }}>
+      <h4 style={{ marginTop: 0 }}>Invite participants</h4>
+      <p className="help-text" style={{ marginTop: 0 }}>
+        Add name, email, photo, and description. We create their account and email a setup link (configure{" "}
+        <code>RESEND_API_KEY</code> on the API). If email isn&apos;t configured, copy the invite URL from the success message or server logs.
+      </p>
+      {eventSlug ? (
+        <p className="help-text" style={{ margin: "0 0 8px" }}>
+          Public join link for this event:{" "}
+          <strong>{typeof window !== "undefined" ? `${window.location.origin}/e/${eventSlug}` : `/e/${eventSlug}`}</strong>
+        </p>
+      ) : null}
+      <form
+        className="grid"
+        style={{ gap: 8 }}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setInviteBusy(true);
+          setInviteError(null);
+          setInviteMessage(null);
+          const form = new FormData(e.currentTarget);
+          try {
+            const res = await apiFetch<{ inviteUrl: string }>(
+              "/attendees/invite",
+              withEventHeaders({
+                method: "POST",
+                body: JSON.stringify({
+                  email: String(form.get("inviteEmail") || "").trim(),
+                  name: String(form.get("inviteName") || "").trim(),
+                  researchInterests: String(form.get("inviteBio") || "").trim() || undefined,
+                  photoUrl: String(form.get("invitePhotoUrl") || "").trim() || undefined,
+                }),
+              }),
+              token,
+            );
+            setInviteMessage(`Invite sent. Link (also in email): ${res.inviteUrl}`);
+            e.currentTarget.reset();
+          } catch (err) {
+            setInviteError(err instanceof Error ? err.message : "Invite failed.");
+          } finally {
+            setInviteBusy(false);
+          }
+        }}
+      >
+        <input className="input" name="inviteEmail" type="email" placeholder="Email" required />
+        <input className="input" name="inviteName" placeholder="Display name" required />
+        <textarea className="textarea" name="inviteBio" placeholder="Description / research interests (optional)" rows={3} />
+        <input className="input" name="invitePhotoUrl" placeholder="Photo URL or leave blank" />
+        <input
+          className="input"
+          type="file"
+          accept="image/*"
+          onChange={async (ev) => {
+            const file = ev.currentTarget.files?.[0];
+            if (!file) return;
+            const data = await fileToDataUrl(file, { maxWidth: 800, maxHeight: 800, quality: 0.82 });
+            const target = ev.currentTarget.form?.elements.namedItem("invitePhotoUrl");
+            if (target instanceof HTMLInputElement) target.value = data;
+          }}
+        />
+        <button className="button secondary" type="submit" disabled={inviteBusy}>
+          {inviteBusy ? "Sending…" : "Create profile & send invite"}
+        </button>
+        {inviteMessage && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{inviteMessage}</p>}
+        {inviteError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{inviteError}</p>}
+      </form>
+    </div>
+  );
+}
+
 function ProfileEditor({
   token,
   user,
@@ -1172,9 +1292,6 @@ function ProfileEditor({
   const [participantType, setParticipantType] = useState<"GRAD_STUDENT" | "PROFESSOR" | "">(
     user.participantType || "",
   );
-  const [inviteBusy, setInviteBusy] = useState(false);
-  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
 
   useEffect(() => {
     setPhotoPreview(user.photoUrl || null);
@@ -1281,72 +1398,14 @@ function ProfileEditor({
       <button className="button" type="submit" disabled={saving}>
         {saving ? "Saving..." : "Save Profile"}
       </button>
-      {user.role === "ADMIN" && activeEventId && activeEventSlug && (
-        <div className="card" style={{ marginTop: 12 }}>
-          <h4 style={{ marginTop: 0 }}>Participant invites</h4>
-          <p className="help-text" style={{ marginTop: 0 }}>
-            Pre-fill name, email, photo, and description. We create their account and email a link to set a password (configure{" "}
-            <code>RESEND_API_KEY</code> on the API). Without email configured, check server logs for the invite URL.
-          </p>
-          <p className="help-text" style={{ margin: "0 0 8px" }}>
-            Public join link for this event:{" "}
-            <strong>{typeof window !== "undefined" ? `${window.location.origin}/e/${activeEventSlug}` : ""}</strong>
-          </p>
-          <form
-            className="grid"
-            style={{ gap: 8 }}
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!activeEventId) return;
-              setInviteBusy(true);
-              setInviteError(null);
-              setInviteMessage(null);
-              const form = new FormData(e.currentTarget);
-              try {
-                const res = await apiFetch<{ inviteUrl: string }>(
-                  "/attendees/invite",
-                  withEventHeaders({
-                    method: "POST",
-                    body: JSON.stringify({
-                      email: String(form.get("inviteEmail") || "").trim(),
-                      name: String(form.get("inviteName") || "").trim(),
-                      researchInterests: String(form.get("inviteBio") || "").trim() || undefined,
-                      photoUrl: String(form.get("invitePhotoUrl") || "").trim() || undefined,
-                    }),
-                  }),
-                  token,
-                );
-                setInviteMessage(`Invite sent. Link (also in email): ${res.inviteUrl}`);
-                e.currentTarget.reset();
-              } catch (err) {
-                setInviteError(err instanceof Error ? err.message : "Invite failed.");
-              } finally {
-                setInviteBusy(false);
-              }
-            }}
-          >
-            <input className="input" name="inviteEmail" type="email" placeholder="Email" required />
-            <input className="input" name="inviteName" placeholder="Display name" required />
-            <textarea className="textarea" name="inviteBio" placeholder="Description / research interests (optional)" rows={3} />
-            <input className="input" name="invitePhotoUrl" placeholder="Photo URL or leave blank" />
-            <input
-              className="input"
-              type="file"
-              accept="image/*"
-              onChange={async (ev) => {
-                const file = ev.currentTarget.files?.[0];
-                if (!file) return;
-                const data = await fileToDataUrl(file, { maxWidth: 800, maxHeight: 800, quality: 0.82 });
-                const el = ev.currentTarget.form?.elements.namedItem("invitePhotoUrl");
-                if (el instanceof HTMLInputElement) el.value = data;
-              }}
-            />
-            <button className="button secondary" type="submit" disabled={inviteBusy}>
-              {inviteBusy ? "Sending…" : "Create profile & send invite"}
-            </button>
-            {inviteMessage && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{inviteMessage}</p>}
-            {inviteError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{inviteError}</p>}
-          </form>
+      {user.role === "ADMIN" && activeEventId && (
+        <div style={{ marginTop: 12 }}>
+          <AdminParticipantInviteCard
+            token={token}
+            withEventHeaders={withEventHeaders}
+            activeEventId={activeEventId}
+            eventSlug={activeEventSlug}
+          />
         </div>
       )}
       {user.role === "ADMIN" && (
@@ -1705,6 +1764,8 @@ function CommunityBoard({
   const [meetupParticipantIds, setMeetupParticipantIds] = useState<string[]>([]);
   const [momentImageUrls, setMomentImageUrls] = useState<string[]>([]);
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
+  const [postingThread, setPostingThread] = useState(false);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
 
   const nameById = useMemo(() => Object.fromEntries(attendees.map((a) => [a.id, a.name])), [attendees]);
 
@@ -1727,6 +1788,7 @@ function CommunityBoard({
 
   async function createThread(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (postingThread) return;
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title") || "").trim();
     const body = String(form.get("body") || "").trim();
@@ -1754,17 +1816,28 @@ function CommunityBoard({
       if (urls.length) payload.imageUrls = urls.slice(0, 12);
       if (taggedUserIds.length) payload.taggedUserIds = taggedUserIds;
     }
+    if (composeChannel === "LOCAL") {
+      const maps = String(form.get("mapsUrl") || "").trim();
+      if (maps) payload.mapsUrl = maps;
+    }
     if (composeChannel === "MEETUP" && !meetupInviteEveryone && meetupParticipantIds.length === 0) {
       window.alert("Add at least one participant, or choose Invite everyone.");
       return;
     }
-    await apiFetch("/network/threads", withEventHeaders({ method: "POST", body: JSON.stringify(payload) }), token);
-    event.currentTarget.reset();
-    setMeetupInviteEveryone(false);
-    setMeetupParticipantIds([]);
-    setMomentImageUrls([]);
-    setTaggedUserIds([]);
-    await onThreadsUpdated();
+    setPostingThread(true);
+    try {
+      await apiFetch("/network/threads", withEventHeaders({ method: "POST", body: JSON.stringify(payload) }), token);
+      event.currentTarget.reset();
+      setMeetupInviteEveryone(false);
+      setMeetupParticipantIds([]);
+      setMomentImageUrls([]);
+      setTaggedUserIds([]);
+      await onThreadsUpdated();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not create post.");
+    } finally {
+      setPostingThread(false);
+    }
   }
 
   async function sendReply(threadId: string, body: string) {
@@ -1798,7 +1871,7 @@ function CommunityBoard({
       : composeChannel === "MOMENTS"
         ? "Upload one or more photos, tag people from the directory, and add a caption."
         : composeChannel === "LOCAL"
-          ? "Recommend restaurants, coffee, or sights near the venue."
+          ? "Recommend a place and paste a Google Maps link so others can open it in Maps."
           : composeChannel === "ICEBREAKER"
             ? "Welcome others — share a quick intro or icebreaker prompt."
             : "Open discussion for everyone at this event.";
@@ -1852,6 +1925,38 @@ function CommunityBoard({
         )}
         <input className="input" name="title" placeholder="Title" required />
         <textarea className="textarea" name="body" placeholder="Description or message" required rows={4} />
+        {composeChannel === "LOCAL" && (
+          <>
+            <input
+              className="input"
+              name="mapsUrl"
+              placeholder="Google Maps link (Share → Copy link from the Maps app or website)"
+            />
+            <button
+              type="button"
+              className="button secondary"
+              onClick={(e) => {
+                const form = e.currentTarget.closest("form");
+                const titleInput = form?.querySelector<HTMLInputElement>('input[name="title"]');
+                const q = (titleInput?.value || "").trim() || (form?.querySelector<HTMLTextAreaElement>("textarea[name=\"body\"]")?.value || "").trim();
+                if (!q) {
+                  window.alert("Add a title or description first to search Maps.");
+                  return;
+                }
+                window.open(
+                  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`,
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+              }}
+            >
+              Find on Google Maps
+            </button>
+            <p className="help-text" style={{ margin: 0 }}>
+              Open the place in Google Maps, use <strong>Share</strong>, copy the link, and paste it above.
+            </p>
+          </>
+        )}
         {composeChannel === "MEETUP" && (
           <>
             <div className="join-mode-switch" role="group" aria-label="Meet-up format">
@@ -1945,7 +2050,7 @@ function CommunityBoard({
               }}
             />
             {momentImageUrls.length > 0 && (
-              <div className="moment-thumb-strip">
+              <div className="moment-thumb-strip moment-thumb-strip--composer">
                 {momentImageUrls.map((url, idx) => (
                   <div key={`${idx}-${url.slice(0, 24)}`} className="moment-thumb">
                     <img src={url} alt="" />
@@ -1963,14 +2068,20 @@ function CommunityBoard({
             )}
           </>
         )}
-        <button className="button" type="submit">
-          Post
+        <button className="button" type="submit" disabled={postingThread}>
+          {postingThread ? "Posting…" : "Post"}
         </button>
       </form>
 
       <div className="card network-thread-list">
         {threads.length === 0 && <p className="help-text">Nothing here yet — start the first post.</p>}
-        <div className="community-thread-rows">
+        <div
+          className={
+            channelFilter === "MOMENTS"
+              ? "community-thread-rows community-thread-rows--moments"
+              : "community-thread-rows"
+          }
+        >
           {threads.map((t) => {
             const open = openId === t.id;
             const ch = t.channel || "GENERAL";
@@ -1981,9 +2092,15 @@ function CommunityBoard({
             const meetupNames = (t.meetupParticipantIds ?? []).map((id) => nameById[id]).filter(Boolean);
             return (
               <div key={t.id} id={`network-thread-${t.id}`}>
-                <div className="community-thread-row">
-                  <div className={`community-thread-icon ${ch}`} aria-hidden>
-                    <CommunityPillIcon channel={channelIconKey} size={22} />
+                <div className={`community-thread-row${ch === "MOMENTS" && gallery[0] ? " community-thread-row--with-photo" : ""}`}>
+                  <div className="community-thread-lead" aria-hidden>
+                    {ch === "MOMENTS" && gallery[0] ? (
+                      <img src={gallery[0]} alt="" className="community-thread-thumb" />
+                    ) : (
+                      <div className={`community-thread-icon ${ch}`}>
+                        <CommunityPillIcon channel={channelIconKey} size={22} />
+                      </div>
+                    )}
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div className="community-thread-meta">
@@ -2008,6 +2125,13 @@ function CommunityBoard({
                     )}
                     {ch === "MOMENTS" && taggedNames.length > 0 && (
                       <div className="community-thread-foot">Tagged: {taggedNames.join(", ")}</div>
+                    )}
+                    {ch === "LOCAL" && t.mapsUrl && (
+                      <div className="community-thread-foot">
+                        <a className="local-maps-link" href={t.mapsUrl} target="_blank" rel="noreferrer">
+                          Open in Google Maps
+                        </a>
+                      </div>
                     )}
                     {t.meetupMode && ch !== "MEETUP" && (
                       <div className="community-thread-foot">
@@ -2052,15 +2176,21 @@ function CommunityBoard({
                       style={{ gap: 8, marginTop: 8 }}
                       onSubmit={async (e) => {
                         e.preventDefault();
+                        if (replyingToId) return;
                         const form = new FormData(e.currentTarget);
                         const body = String(form.get("body") || "");
-                        await sendReply(t.id, body);
-                        e.currentTarget.reset();
+                        setReplyingToId(t.id);
+                        try {
+                          await sendReply(t.id, body);
+                          e.currentTarget.reset();
+                        } finally {
+                          setReplyingToId(null);
+                        }
                       }}
                     >
                       <textarea className="textarea" name="body" placeholder="Write a reply…" required rows={2} />
-                      <button className="button secondary" type="submit">
-                        Reply
+                      <button className="button secondary" type="submit" disabled={replyingToId === t.id}>
+                        {replyingToId === t.id ? "Sending…" : "Reply"}
                       </button>
                     </form>
                   </div>
@@ -2085,25 +2215,34 @@ function MessageComposer({
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onSent: (m: Message) => void | Promise<void>;
 }) {
+  const [sending, setSending] = useState(false);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!conversationId) return;
+    if (!conversationId || sending) return;
     const form = new FormData(event.currentTarget);
     const payload = Object.fromEntries(form.entries());
-    const message = await apiFetch<Message>(
-      `/conversations/${conversationId}/messages`,
-      withEventHeaders({ method: "POST", body: JSON.stringify(payload) }),
-      token,
-    );
-    await onSent(message);
-    event.currentTarget.reset();
+    setSending(true);
+    try {
+      const message = await apiFetch<Message>(
+        `/conversations/${conversationId}/messages`,
+        withEventHeaders({ method: "POST", body: JSON.stringify(payload) }),
+        token,
+      );
+      await onSent(message);
+      event.currentTarget.reset();
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
     <form className="card grid" onSubmit={handleSubmit}>
       <h3>Chat</h3>
-      <textarea className="textarea" name="body" placeholder="Write a message" required />
-      <button className="button" disabled={!conversationId}>Send</button>
+      <textarea className="textarea" name="body" placeholder="Write a message" required disabled={sending} />
+      <button className="button" disabled={!conversationId || sending}>
+        {sending ? "Sending…" : "Send"}
+      </button>
     </form>
   );
 }

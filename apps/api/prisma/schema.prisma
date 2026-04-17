@@ -263,6 +263,7 @@ model NetworkThread {
   taggedUserIds String[] @default([])
   imageUrl  String?
   imageUrls String[] @default([])
+  mapsUrl   String?
   createdAt DateTime @default(now())
   eventId   String
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)

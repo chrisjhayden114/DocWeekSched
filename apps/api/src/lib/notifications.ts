@@ -57,6 +57,17 @@ export async function notifyNewCommunityThread(params: {
       threadId: params.threadId,
     })),
   );
+
+  await notifyMany([
+    {
+      userId: params.authorId,
+      eventId: params.eventId,
+      kind: NotificationKind.COMMUNITY_THREAD,
+      title: `Your post in ${label}`,
+      body,
+      threadId: params.threadId,
+    },
+  ]);
 }
 
 export async function notifyCommunityReply(params: {
@@ -85,6 +96,17 @@ export async function notifyCommunityReply(params: {
       threadId: params.threadId,
     })),
   );
+
+  await notifyMany([
+    {
+      userId: params.replierId,
+      eventId: params.eventId,
+      kind: NotificationKind.COMMUNITY_REPLY,
+      title: "Your reply was posted",
+      body: params.replyPreview.slice(0, 200),
+      threadId: params.threadId,
+    },
+  ]);
 }
 
 export async function notifyNewMessage(params: {
