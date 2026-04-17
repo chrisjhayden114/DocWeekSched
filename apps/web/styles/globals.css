@@ -1242,19 +1242,46 @@ a:hover {
   white-space: nowrap;
 }
 
-.icebreaker-hero {
+.icebreaker-hero-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px 20px;
   margin-bottom: 16px;
-  padding: 0;
-  overflow: hidden;
+  padding: 14px 18px;
   border-radius: 14px;
+}
+
+.icebreaker-hero-copy {
+  flex: 1 1 220px;
+  min-width: min(100%, 200px);
+  margin-right: auto;
+  color: var(--ink-900);
+}
+
+.icebreaker-hero-copy .help-text {
+  max-width: 42rem;
+}
+
+.icebreaker-hero-art {
+  flex: 0 0 auto;
+  width: min(240px, 28vw);
+  max-width: 100%;
 }
 
 .icebreaker-hero-img {
   display: block;
   width: 100%;
-  max-height: min(280px, 42vw);
-  object-fit: cover;
-  object-position: center 35%;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 640px) {
+  .icebreaker-hero-art {
+    width: min(200px, 55vw);
+    margin-left: auto;
+ }
 }
 
 /* Networking */

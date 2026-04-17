@@ -2309,12 +2309,20 @@ function CommunityBoard({
   return (
     <>
       {channelFilter === "ICEBREAKER" && (
-        <div className="icebreaker-hero card">
-          <img
-            src="/community/icebreaker-hero.png"
-            alt="Friendly polar bears breaking the ice — share a quick intro and welcome others"
-            className="icebreaker-hero-img"
-          />
+        <div className="icebreaker-hero-strip card">
+          <div className="icebreaker-hero-copy">
+            <strong>Break the ice</strong>
+            <p className="help-text" style={{ margin: "6px 0 0" }}>
+              Welcome others with a short intro or icebreaker question.
+            </p>
+          </div>
+          <div className="icebreaker-hero-art">
+            <img
+              src="/community/icebreaker-hero.png"
+              alt="Friendly polar bears breaking the ice — share a quick intro and welcome others"
+              className="icebreaker-hero-img"
+            />
+          </div>
         </div>
       )}
       <div className="grid networking-board">
