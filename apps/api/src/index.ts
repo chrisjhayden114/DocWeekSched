@@ -14,7 +14,31 @@ import { notificationsRouter } from "./routes/notifications";
 
 const app = express();
 
-app.use(cors({ origin: env.webBaseUrl, credentials: true }));
+const configuredOrigin = env.webBaseUrl.trim().replace(/\/$/, "");
+const allowedOrigins = new Set<string>([configuredOrigin]);
+try {
+  const parsed = new URL(configuredOrigin);
+  if (parsed.hostname.startsWith("www.")) {
+    allowedOrigins.add(`${parsed.protocol}//${parsed.hostname.replace(/^www\./, "")}`);
+  } else {
+    allowedOrigins.add(`${parsed.protocol}//www.${parsed.hostname}`);
+  }
+} catch {
+  // Leave only configured origin if URL parsing fails.
+}
+
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS blocked origin: ${origin}`));
+    },
+  }),
+);
 app.use(express.json({ limit: "25mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
