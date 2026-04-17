@@ -34,6 +34,11 @@ enum ParticipantType {
   PROFESSOR
 }
 
+enum SessionResourceKind {
+  LINK
+  FILE
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -58,6 +63,7 @@ model User {
   networkReplies NetworkReply[]
   sessionDiscussionThreads SessionDiscussionThread[]
   sessionDiscussionReplies SessionDiscussionReply[]
+  sessionResources SessionResource[]
 }
 
 model Event {
@@ -99,6 +105,7 @@ model Session {
   likes       SessionLike[]
   conversations Conversation[]
   discussionThreads SessionDiscussionThread[]
+  resources SessionResource[]
 }
 
 model SessionBookmark {
@@ -267,4 +274,16 @@ model SessionDiscussionReply {
   thread    SessionDiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model SessionResource {
+  id        String   @id @default(cuid())
+  title     String
+  kind      SessionResourceKind
+  url       String
+  createdAt DateTime @default(now())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

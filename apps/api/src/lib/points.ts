@@ -7,6 +7,7 @@ export const POINTS = {
   NETWORK_THREAD: 5,
   NETWORK_REPLY: 3,
   SESSION_JOIN: 1,
+  SESSION_RESOURCE: 1,
 } as const;
 
 export async function awardEngagementPoints(userId: string, delta: number) {

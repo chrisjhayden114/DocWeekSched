@@ -73,6 +73,14 @@ const adminTabs = ["Agenda", "Attendees", NETWORKING_TAB, "Messages", "Profile"]
 const participantTabs = ["Agenda", "Attendees", NETWORKING_TAB, "Messages", "Profile"] as const;
 type Tab = (typeof adminTabs)[number];
 
+function engagementFlameClass(points?: number) {
+  if (points == null || points <= 0) return "points-flame-tier-0";
+  if (points < 10) return "points-flame-tier-1";
+  if (points < 25) return "points-flame-tier-2";
+  if (points < 50) return "points-flame-tier-3";
+  return "points-flame-tier-4";
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -331,7 +339,21 @@ export default function Dashboard() {
           <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)" }}>
             {user.name} · {user.role}
             {typeof user.engagementPoints === "number" && (
-              <> · <span className="points-pill">{user.engagementPoints} pts</span></>
+              <>
+                {" · "}
+                <span
+                  className={`points-flame ${engagementFlameClass(user.engagementPoints)}`}
+                  title={`Engagement: ${user.engagementPoints}`}
+                >
+                  <svg className="points-flame-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M13.5 2.5c.3 2.4-.4 4.2-1.7 5.6-1.2 1.3-2.9 2.1-3.8 4C7.2 13 7 13.7 7 14.5A5.5 5.5 0 0 0 12.5 20c3 0 5.5-2.3 5.5-5.5 0-2.9-1.7-5.1-3.4-7.2-.8-1-1.6-2-1.9-2.8-.1-.3-.2-.7-.2-1z"
+                    />
+                  </svg>
+                  <span>{user.engagementPoints}</span>
+                </span>
+              </>
             )}
             {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
           </p>

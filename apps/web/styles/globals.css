@@ -232,6 +232,45 @@ a:hover {
   font-size: 13px;
 }
 
+.points-flame {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-weight: 800;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.points-flame-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.points-flame-tier-0 {
+  color: #0b1f4a;
+}
+
+.points-flame-tier-1 {
+  color: #2563eb;
+}
+
+.points-flame-tier-2 {
+  color: #0d9488;
+}
+
+.points-flame-tier-3 {
+  color: #ea580c;
+}
+
+.points-flame-tier-4 {
+  color: #facc15;
+}
+
 .help-text {
   font-size: 13px;
   color: var(--ink-muted);

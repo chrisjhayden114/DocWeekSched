@@ -37,9 +37,38 @@ const replySchema = z.object({
   body: z.string().min(1).max(8000),
 });
 
+const resourceSchema = z.object({
+  title: z.string().min(1).max(200),
+  kind: z.enum(["LINK", "FILE"]),
+  url: z.string().min(1).max(5_000_000),
+});
+
 async function findSessionOr404(sessionId: string) {
   const session = await prisma.session.findUnique({ where: { id: sessionId }, select: { id: true } });
   return session;
+}
+
+function normalizeLinkUrl(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+async function assertCanContributeSessionResources(userId: string, sessionId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (user?.role === "ADMIN") return;
+
+  const attendance = await prisma.sessionAttendance.findUnique({
+    where: { userId_sessionId: { userId, sessionId } },
+    select: { status: true },
+  });
+  if (attendance?.status !== "JOINING") {
+    throw new Error("FORBIDDEN_RESOURCE");
+  }
 }
 
 sessionsRouter.get("/", requireAuth, async (req, res) => {
@@ -90,6 +119,108 @@ sessionsRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
     select: { sessionId: true },
   });
   return res.json({ attendance: saved, likedSessionIds: likes.map((like) => like.sessionId) });
+});
+
+sessionsRouter.get("/:id/resources", requireAuth, async (req: AuthedRequest, res) => {
+  const session = await findSessionOr404(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  const userId = req.user?.id || "";
+  try {
+    await assertCanContributeSessionResources(userId, session.id);
+  } catch {
+    return res.status(403).json({ error: "Join this session to view resources" });
+  }
+
+  const resources = await prisma.sessionResource.findMany({
+    where: { sessionId: session.id },
+    orderBy: { createdAt: "desc" },
+    include: {
+      user: { select: { id: true, name: true, role: true } },
+    },
+  });
+
+  return res.json(resources);
+});
+
+sessionsRouter.post("/:id/resources", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = resourceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const session = await findSessionOr404(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  const userId = req.user?.id || "";
+  try {
+    await assertCanContributeSessionResources(userId, session.id);
+  } catch {
+    return res.status(403).json({ error: "Join this session to share resources" });
+  }
+
+  let url = parsed.data.url.trim();
+  if (parsed.data.kind === "LINK") {
+    url = normalizeLinkUrl(url);
+    try {
+      const u = new URL(url);
+      if (u.protocol !== "http:" && u.protocol !== "https:") {
+        return res.status(400).json({ error: "Invalid link URL" });
+      }
+    } catch {
+      return res.status(400).json({ error: "Invalid link URL" });
+    }
+  } else if (!url.startsWith("data:")) {
+    return res.status(400).json({ error: "File uploads must use a data URL" });
+  }
+
+  const resource = await prisma.sessionResource.create({
+    data: {
+      title: parsed.data.title.trim(),
+      kind: parsed.data.kind,
+      url,
+      sessionId: session.id,
+      userId,
+    },
+    include: {
+      user: { select: { id: true, name: true, role: true } },
+    },
+  });
+
+  await awardEngagementPoints(userId, POINTS.SESSION_RESOURCE);
+  return res.json(resource);
+});
+
+sessionsRouter.delete("/:id/resources/:resourceId", requireAuth, async (req: AuthedRequest, res) => {
+  const session = await findSessionOr404(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  const resource = await prisma.sessionResource.findFirst({
+    where: { id: req.params.resourceId, sessionId: session.id },
+  });
+  if (!resource) {
+    return res.status(404).json({ error: "Resource not found" });
+  }
+
+  const userId = req.user?.id || "";
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  const isAdmin = user?.role === "ADMIN";
+  const isOwner = resource.userId === userId;
+  if (!isAdmin && !isOwner) {
+    return res.status(403).json({ error: "Not allowed to delete this resource" });
+  }
+
+  await prisma.sessionResource.delete({ where: { id: resource.id } });
+  return res.json({ ok: true });
 });
 
 sessionsRouter.get("/:id", requireAuth, async (req, res) => {

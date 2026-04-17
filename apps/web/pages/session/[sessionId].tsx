@@ -3,6 +3,9 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const RESOURCE_DATA_URL_MAX_CHARS = 4_500_000;
+
 type User = {
   id: string;
   name: string;
@@ -51,6 +54,15 @@ type SessionThread = {
   replies: SessionReply[];
 };
 
+type SessionResource = {
+  id: string;
+  title: string;
+  kind: "LINK" | "FILE";
+  url: string;
+  createdAt: string;
+  user: Pick<User, "id" | "name" | "role">;
+};
+
 type SessionAttendance = {
   sessionId: string;
   status: "JOINING" | "NOT_JOINING";
@@ -77,6 +89,36 @@ function formatEventRange(start: string, end: string) {
   return `${startDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const r = reader.result;
+      if (typeof r === "string") resolve(r);
+      else reject(new Error("Could not read file"));
+    };
+    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fetchSessionResources(token: string, sessionId: string): Promise<SessionResource[]> {
+  const evId = window.localStorage.getItem("activeEventId");
+  const res = await fetch(`${API_URL}/sessions/${sessionId}/resources`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(evId ? { "x-event-id": evId } : {}),
+    },
+  });
+  if (res.status === 403) {
+    return [];
+  }
+  if (!res.ok) {
+    return [];
+  }
+  return (await res.json()) as SessionResource[];
+}
+
 export default function SessionPage() {
   const router = useRouter();
   const sessionId = typeof router.query.sessionId === "string" ? router.query.sessionId : null;
@@ -89,6 +131,9 @@ export default function SessionPage() {
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
+  const [resources, setResources] = useState<SessionResource[]>([]);
+  const [resourceError, setResourceError] = useState<string | null>(null);
+  const [resourceKind, setResourceKind] = useState<"LINK" | "FILE">("LINK");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -102,16 +147,18 @@ export default function SessionPage() {
     if (!token || !sessionId) return;
     const evId = window.localStorage.getItem("activeEventId");
     const ev = withEventHeaders(evId);
-    const [sess, threadList, meta] = await Promise.all([
+    const [sess, threadList, meta, resourceList] = await Promise.all([
       apiFetch<Session>(`/sessions/${sessionId}`, ev, token),
       apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, {}, token),
       apiFetch<MySessionMeta>("/sessions/me", {}, token),
+      fetchSessionResources(token, sessionId),
     ]);
     setSession(sess);
     setThreads(threadList);
     setOpenThreadId((current) => current ?? threadList[0]?.id ?? null);
     setMyAttendance(meta.attendance);
     setLikedSessionIds(meta.likedSessionIds);
+    setResources(resourceList);
   }, [token, sessionId]);
 
   useEffect(() => {
@@ -146,6 +193,7 @@ export default function SessionPage() {
         setOpenThreadId((current) => current ?? threadList[0]?.id ?? null);
         setMyAttendance(meta.attendance);
         setLikedSessionIds(meta.likedSessionIds);
+        setResources(await fetchSessionResources(token, sessionId));
       } catch {
         setLoadError("This session could not be loaded. It may have been removed or you may need to select the right event in your profile.");
         setSession(null);
@@ -215,12 +263,20 @@ export default function SessionPage() {
     setOpenThreadId((current) => (current === threadId ? null : current));
   };
 
+  const deleteResource = async (resourceId: string) => {
+    if (!token || !sessionId) return;
+    await apiFetch(`/sessions/${sessionId}/resources/${resourceId}`, { method: "DELETE" }, token);
+    setResources((prev) => prev.filter((r) => r.id !== resourceId));
+    await refreshUser(token);
+  };
+
   if (!user || !sessionId) {
     return null;
   }
 
   const myRow = myAttendance.find((a) => a.sessionId === sessionId);
   const joining = myRow?.status === "JOINING";
+  const canShareResources = user.role === "ADMIN" || joining;
   const myMode = myRow?.joinMode ?? "IN_PERSON";
   const liked = sessionId ? likedSessionIds.includes(sessionId) : false;
   const attendanceLabel = joining && session
@@ -344,6 +400,148 @@ export default function SessionPage() {
                 Like
               </button>
             </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h3 style={{ marginTop: 0 }}>Session resources</h3>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              Links (for example Google Drive folders) or files you upload are visible to others who have joined this session. Uploads are sent as data URLs and must stay under about 4.5 MB so the server can accept them.
+            </p>
+            {!canShareResources && (
+              <p className="help-text">Join this session to see shared resources and add your own.</p>
+            )}
+            {resourceError && (
+              <p className="help-text" style={{ color: "var(--danger, #b91c1c)" }}>
+                {resourceError}
+              </p>
+            )}
+            {canShareResources && (
+              <form
+                className="grid"
+                style={{ gap: 10, marginTop: 12 }}
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setResourceError(null);
+                  if (!token || !sessionId) return;
+                  const form = e.currentTarget;
+                  const title = String(new FormData(form).get("resTitle") || "").trim();
+                  const kind = resourceKind;
+                  if (!title) {
+                    setResourceError("Add a title for this resource.");
+                    return;
+                  }
+                  try {
+                    let url = "";
+                    if (kind === "LINK") {
+                      url = String(new FormData(form).get("resUrl") || "").trim();
+                      if (!url) {
+                        setResourceError("Paste a link URL.");
+                        return;
+                      }
+                    } else {
+                      const input = form.querySelector<HTMLInputElement>('input[name="resFile"]');
+                      const file = input?.files?.[0];
+                      if (!file) {
+                        setResourceError("Choose a file to upload.");
+                        return;
+                      }
+                      url = await fileToDataUrl(file);
+                      if (url.length > RESOURCE_DATA_URL_MAX_CHARS) {
+                        setResourceError("That file is too large after encoding. Try a smaller file or share a link instead.");
+                        return;
+                      }
+                    }
+                    const evId = window.localStorage.getItem("activeEventId");
+                    await apiFetch<SessionResource>(
+                      `/sessions/${sessionId}/resources`,
+                      {
+                        method: "POST",
+                        body: JSON.stringify({ title, kind, url }),
+                        headers: { ...(evId ? { "x-event-id": evId } : {}) },
+                      },
+                      token,
+                    );
+                    form.reset();
+                    setResourceKind("LINK");
+                    await refreshUser(token);
+                    setResources(await fetchSessionResources(token, sessionId));
+                  } catch (err) {
+                    setResourceError(err instanceof Error ? err.message : "Could not add resource.");
+                  }
+                }}
+              >
+                <input className="input" name="resTitle" placeholder="Title (e.g. Lab data folder)" required />
+                <div className="join-mode-switch" role="group" aria-label="Resource type">
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="resKind"
+                      value="LINK"
+                      checked={resourceKind === "LINK"}
+                      onChange={() => setResourceKind("LINK")}
+                    />
+                    Link
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="resKind"
+                      value="FILE"
+                      checked={resourceKind === "FILE"}
+                      onChange={() => setResourceKind("FILE")}
+                    />
+                    File
+                  </label>
+                </div>
+                {resourceKind === "LINK" ? (
+                  <input className="input" name="resUrl" type="url" placeholder="https://…" />
+                ) : (
+                  <input className="input" name="resFile" type="file" />
+                )}
+                <button type="submit" className="button secondary">
+                  Add resource
+                </button>
+              </form>
+            )}
+            <ul style={{ listStyle: "none", padding: 0, margin: "16px 0 0" }}>
+              {resources.length === 0 && <li className="help-text">No resources yet.</li>}
+              {resources.map((r) => {
+                const canDelete = user.role === "ADMIN" || r.user.id === user.id;
+                return (
+                  <li
+                    key={r.id}
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px 0",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                      <strong style={{ display: "block" }}>{r.title}</strong>
+                      <span className="help-text">
+                        {r.user.name} · {r.kind === "LINK" ? "Link" : "File"} · {new Date(r.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <a
+                      className="button secondary"
+                      href={r.url}
+                      {...(r.kind === "LINK" ? { target: "_blank", rel: "noreferrer" } : { download: r.title })}
+                      style={{ display: "inline-block", textAlign: "center", textDecoration: "none" }}
+                    >
+                      Open
+                    </a>
+                    {canDelete && (
+                      <button type="button" className="button secondary" onClick={() => deleteResource(r.id)}>
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
 
           <div className="card session-conversation-card">
