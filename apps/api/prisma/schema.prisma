@@ -39,6 +39,14 @@ enum SessionResourceKind {
   FILE
 }
 
+enum NetworkChannel {
+  GENERAL
+  MEETUP
+  MOMENTS
+  LOCAL
+  ICEBREAKER
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -49,6 +57,8 @@ model User {
   participantType ParticipantType?
   passwordHash String
   engagementPoints Int @default(0)
+  profileSetupToken String?   @unique
+  profileSetupTokenExpiresAt DateTime?
   createdAt    DateTime @default(now())
   sessionBookmarks SessionBookmark[]
   sessionAttendances SessionAttendance[]
@@ -69,6 +79,7 @@ model User {
 model Event {
   id        String   @id @default(cuid())
   name      String
+  slug      String   @unique
   bannerUrl String?
   timezone  String
   startDate DateTime
@@ -236,6 +247,10 @@ model NetworkThread {
   id        String   @id @default(cuid())
   title     String
   body      String
+  channel   NetworkChannel @default(GENERAL)
+  meetupMode SessionJoinMode?
+  meetupStartsAt DateTime?
+  imageUrl  String?
   createdAt DateTime @default(now())
   eventId   String
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)

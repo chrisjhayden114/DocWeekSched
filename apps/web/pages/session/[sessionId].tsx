@@ -545,9 +545,9 @@ export default function SessionPage() {
           </div>
 
           <div className="card session-conversation-card">
-            <h3 style={{ marginTop: 0 }}>Session conversations</h3>
+            <h3 style={{ marginTop: 0 }}>Session Q&amp;A</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Start a titled conversation for this session, or open an existing one to read and reply. Direct and group chats stay under Messages on the dashboard.
+              Ask questions about this session or join the discussion. Start a titled thread, or open an existing one to read and reply. Direct and group chats stay under Messages on the dashboard.
             </p>
             <form
               className="grid"

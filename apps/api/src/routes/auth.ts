@@ -147,3 +147,53 @@ authRouter.put("/me/profile", requireAuth, async (req: AuthedRequest, res) => {
 
   return res.json(user);
 });
+
+const profileSetupSchema = z.object({
+  token: z.string().min(16),
+  password: z.string().min(8),
+});
+
+authRouter.get("/profile-setup/:token", async (req, res) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      profileSetupToken: req.params.token,
+      profileSetupTokenExpiresAt: { gt: new Date() },
+    },
+    select: { email: true, name: true, photoUrl: true, researchInterests: true },
+  });
+  if (!user) {
+    return res.status(404).json({ error: "Invalid or expired invite link" });
+  }
+  return res.json(user);
+});
+
+authRouter.post("/profile-setup", async (req, res) => {
+  const parsed = profileSetupSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      profileSetupToken: parsed.data.token,
+      profileSetupTokenExpiresAt: { gt: new Date() },
+    },
+  });
+  if (!user) {
+    return res.status(400).json({ error: "Invalid or expired invite link" });
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      profileSetupToken: null,
+      profileSetupTokenExpiresAt: null,
+    },
+    select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, participantType: true, engagementPoints: true },
+  });
+
+  const token = signToken({ userId: updated.id, role: updated.role });
+  return res.json({ user: updated, token });
+});

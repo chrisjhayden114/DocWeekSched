@@ -1,3 +1,4 @@
+import { NetworkChannel } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
@@ -10,6 +11,10 @@ export const networkRouter = Router();
 const threadSchema = z.object({
   title: z.string().min(1).max(500),
   body: z.string().min(1).max(8000),
+  channel: z.nativeEnum(NetworkChannel).optional(),
+  meetupMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
+  meetupStartsAt: z.string().datetime().optional(),
+  imageUrl: z.string().max(2_000_000).optional(),
 });
 
 const replySchema = z.object({
@@ -18,8 +23,12 @@ const replySchema = z.object({
 
 networkRouter.get("/threads", requireAuth, async (req, res) => {
   const event = await resolveEventFromRequest(req);
+  const rawChannel = typeof req.query.channel === "string" ? req.query.channel : undefined;
+  const allowed: NetworkChannel[] = ["GENERAL", "MEETUP", "MOMENTS", "LOCAL", "ICEBREAKER"];
+  const channel =
+    rawChannel && (allowed as string[]).includes(rawChannel) ? (rawChannel as NetworkChannel) : undefined;
   const threads = await prisma.networkThread.findMany({
-    where: { eventId: event.id },
+    where: channel ? { eventId: event.id, channel } : { eventId: event.id },
     orderBy: { createdAt: "desc" },
     include: {
       author: { select: { id: true, name: true, role: true, photoUrl: true } },
@@ -46,6 +55,10 @@ networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
       authorId: userId,
       title: parsed.data.title,
       body: parsed.data.body,
+      channel: parsed.data.channel ?? NetworkChannel.GENERAL,
+      meetupMode: parsed.data.meetupMode ?? null,
+      meetupStartsAt: parsed.data.meetupStartsAt ? new Date(parsed.data.meetupStartsAt) : null,
+      imageUrl: parsed.data.imageUrl?.trim() || null,
     },
     include: {
       author: { select: { id: true, name: true, role: true, photoUrl: true } },

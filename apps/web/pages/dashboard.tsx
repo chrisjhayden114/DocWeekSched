@@ -13,7 +13,15 @@ type User = {
   engagementPoints?: number;
 };
 
-type Event = { id: string; name: string; bannerUrl?: string | null; timezone: string; startDate: string; endDate: string };
+type Event = {
+  id: string;
+  name: string;
+  slug: string;
+  bannerUrl?: string | null;
+  timezone: string;
+  startDate: string;
+  endDate: string;
+};
 
 type Session = {
   id: string;
@@ -55,7 +63,15 @@ type SessionAttendance = {
   joinMode?: "VIRTUAL" | "IN_PERSON" | null;
 };
 type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
-type EventItem = { id: string; name: string; bannerUrl?: string | null; timezone: string; startDate: string; endDate: string };
+type EventItem = {
+  id: string;
+  name: string;
+  slug: string;
+  bannerUrl?: string | null;
+  timezone: string;
+  startDate: string;
+  endDate: string;
+};
 
 type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
 type NetworkReply = { id: string; body: string; createdAt: string; author: NetworkAuthor };
@@ -63,22 +79,28 @@ type NetworkThread = {
   id: string;
   title: string;
   body: string;
+  channel?: "GENERAL" | "MEETUP" | "MOMENTS" | "LOCAL" | "ICEBREAKER";
+  meetupMode?: "VIRTUAL" | "IN_PERSON" | null;
+  meetupStartsAt?: string | null;
+  imageUrl?: string | null;
   createdAt: string;
   author: NetworkAuthor;
   replies: NetworkReply[];
 };
 
-const NETWORKING_TAB = "Networking & Conversations" as const;
-const adminTabs = ["Agenda", "Attendees", NETWORKING_TAB, "Messages", "Profile"] as const;
-const participantTabs = ["Agenda", "Attendees", NETWORKING_TAB, "Messages", "Profile"] as const;
+const COMMUNITY_TAB = "Community" as const;
+const adminTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Profile"] as const;
+const participantTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Profile"] as const;
 type Tab = (typeof adminTabs)[number];
 
-function engagementFlameClass(points?: number) {
-  if (points == null || points <= 0) return "points-flame-tier-0";
-  if (points < 10) return "points-flame-tier-1";
-  if (points < 25) return "points-flame-tier-2";
-  if (points < 50) return "points-flame-tier-3";
-  return "points-flame-tier-4";
+type CommunityChannelFilter = "ALL" | "GENERAL" | "MEETUP" | "MOMENTS" | "LOCAL" | "ICEBREAKER";
+
+function engagementGemTier(points?: number): { tierClass: string; label: string } {
+  if (points == null || points <= 0) return { tierClass: "points-gem-tier-0", label: "Quartz" };
+  if (points < 10) return { tierClass: "points-gem-tier-1", label: "Sapphire" };
+  if (points < 25) return { tierClass: "points-gem-tier-2", label: "Ruby" };
+  if (points < 50) return { tierClass: "points-gem-tier-3", label: "Emerald" };
+  return { tierClass: "points-gem-tier-4", label: "Diamond" };
 }
 
 export default function Dashboard() {
@@ -100,6 +122,7 @@ export default function Dashboard() {
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
+  const [communityChannel, setCommunityChannel] = useState<CommunityChannelFilter>("ALL");
   const [updatingEvent, setUpdatingEvent] = useState(false);
   const [sessionFormKey, setSessionFormKey] = useState(0);
   const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
@@ -161,8 +184,9 @@ export default function Dashboard() {
       if (active === "Attendees") {
         setAttendees(await apiFetch<User[]>("/attendees", {}, token));
       }
-      if (active === NETWORKING_TAB) {
-        setNetworkThreads(await apiFetch<NetworkThread[]>("/network/threads", withEventHeaders(), token));
+      if (active === COMMUNITY_TAB) {
+        const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
+        setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token));
       }
       if (active === "Messages") {
         const convoList = await apiFetch<Conversation[]>("/conversations", withEventHeaders(), token);
@@ -181,7 +205,7 @@ export default function Dashboard() {
       }
     };
     load();
-  }, [active, token, user?.role, activeConversationId, activeEventId]);
+  }, [active, token, user?.role, activeConversationId, activeEventId, communityChannel]);
 
   useEffect(() => {
     if (!token || active !== "Messages" || !activeConversationId) return;
@@ -303,7 +327,14 @@ export default function Dashboard() {
     setActiveConversationId(conversation.id);
   };
 
-  const updateCurrentEvent = async (payload: { name: string; bannerUrl?: string; timezone: string; startDate: string; endDate: string }) => {
+  const updateCurrentEvent = async (payload: {
+    name: string;
+    slug?: string;
+    bannerUrl?: string;
+    timezone: string;
+    startDate: string;
+    endDate: string;
+  }) => {
     if (!token) return;
     setUpdatingEvent(true);
     try {
@@ -342,14 +373,11 @@ export default function Dashboard() {
               <>
                 {" · "}
                 <span
-                  className={`points-flame ${engagementFlameClass(user.engagementPoints)}`}
-                  title={`Engagement: ${user.engagementPoints}`}
+                  className={`points-gem ${engagementGemTier(user.engagementPoints).tierClass}`}
+                  title={`${engagementGemTier(user.engagementPoints).label} · ${user.engagementPoints} engagement pts`}
                 >
-                  <svg className="points-flame-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      fill="currentColor"
-                      d="M13.5 2.5c.3 2.4-.4 4.2-1.7 5.6-1.2 1.3-2.9 2.1-3.8 4C7.2 13 7 13.7 7 14.5A5.5 5.5 0 0 0 12.5 20c3 0 5.5-2.3 5.5-5.5 0-2.9-1.7-5.1-3.4-7.2-.8-1-1.6-2-1.9-2.8-.1-.3-.2-.7-.2-1z"
-                    />
+                  <svg className="points-gem-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                       <path fill="currentColor" d="M12 2.5l6.8 8L12 21.5l-6.8-11L12 2.5z" />
                   </svg>
                   <span>{user.engagementPoints}</span>
                 </span>
@@ -382,6 +410,7 @@ export default function Dashboard() {
                       const form = new FormData(eventForm.currentTarget);
                       await updateCurrentEvent({
                         name: String(form.get("name") || ""),
+                        slug: String(form.get("slug") || "").trim() || undefined,
                         bannerUrl: String(form.get("bannerUrl") || ""),
                         timezone: String(form.get("timezone") || "UTC"),
                         startDate: new Date(String(form.get("startDate") || "")).toISOString(),
@@ -390,6 +419,17 @@ export default function Dashboard() {
                     }}
                   >
                     <input className="input" name="name" defaultValue={event.name} required />
+                    <label className="help-text" style={{ margin: 0 }}>
+                      Short link slug (lowercase, hyphens only). Share:{" "}
+                      <strong>{typeof window !== "undefined" ? `${window.location.origin}/e/${event.slug}` : `/e/${event.slug}`}</strong>
+                    </label>
+                    <input
+                      className="input"
+                      name="slug"
+                      defaultValue={event.slug}
+                      pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                      title="Lowercase letters, numbers, and single hyphens"
+                    />
                     <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL or upload below" />
                     <input
                       className="input"
@@ -496,14 +536,17 @@ export default function Dashboard() {
         />
       )}
 
-      {active === NETWORKING_TAB && (
-        <NetworkingBoard
+      {active === COMMUNITY_TAB && (
+        <CommunityBoard
           threads={networkThreads}
+          channelFilter={communityChannel}
+          onChannelChange={setCommunityChannel}
           isAdmin={isAdmin}
           token={token!}
           withEventHeaders={withEventHeaders}
           onThreadsUpdated={async () => {
-            setNetworkThreads(await apiFetch<NetworkThread[]>("/network/threads", withEventHeaders(), token!));
+            const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
+            setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token!));
             await refreshUser();
           }}
         />
@@ -514,7 +557,7 @@ export default function Dashboard() {
           <div className="card message-sidebar-card">
             <h3>Messages</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Direct and group chats only. Open any session from the Agenda to see its session-specific discussion.
+              Direct and group chats only. Open any session from the Agenda for Session Q&amp;A and resources.
             </p>
             <p className="help-text" style={{ marginTop: 0 }}>
               Search by name or research interests to find people and filter your chats.
@@ -592,6 +635,8 @@ export default function Dashboard() {
           user={user}
           adminEvents={adminEvents}
           activeEventId={activeEventId}
+          withEventHeaders={withEventHeaders}
+          activeEventSlug={event?.slug ?? null}
           onSaved={(updated) => {
             setUser(updated);
             window.localStorage.setItem("user", JSON.stringify(updated));
@@ -637,6 +682,8 @@ function ScheduleBoard({
   onEditSession: (session: Session) => void;
   onGoToSession: (sessionId: string) => void;
 }) {
+  const [agendaModalSessionId, setAgendaModalSessionId] = useState<string | null>(null);
+
   if (grouped.length === 0) {
     return <p style={{ color: "var(--ink-500)" }}>No sessions in this view yet.</p>;
   }
@@ -661,9 +708,6 @@ function ScheduleBoard({
                   const likeCount = (s.likes || []).length;
                   const joining = myStatus === "JOINING";
                   const myMode = myRow?.joinMode ?? "IN_PERSON";
-                  const attendanceLabel = joining
-                    ? (new Date() > new Date(s.endsAt) ? "Joined" : "Joining")
-                    : "Join";
                   return (
                     <article
                       className="schedule-event"
@@ -692,42 +736,51 @@ function ScheduleBoard({
                           {inPersonJoining} in-person · {virtualJoining} virtual · {likeCount} likes
                         </span>
                         <div className="schedule-actions schedule-actions-with-attendance">
-                          <div
-                            className="session-attendance-block"
-                            onClick={(event) => event.stopPropagation()}
-                            role="group"
-                            aria-label="Session attendance"
-                          >
-                            <button
-                              type="button"
-                              className={`attendance-join-dot ${joining ? "is-on" : ""}`}
-                              aria-pressed={joining}
-                              aria-label={joining ? "Leave session" : "Join session"}
-                              onClick={() =>
-                                onPatchAttendance(s.id, joining ? { status: "NOT_JOINING" } : { status: "JOINING", joinMode: "IN_PERSON" })
-                              }
-                            />
-                            <span className="attendance-join-text">{attendanceLabel}</span>
-                            {joining && (
-                              <div className="join-mode-switch" role="group" aria-label="Attendance mode">
+                          <div onClick={(event) => event.stopPropagation()} role="group" aria-label="My agenda">
+                            {!joining ? (
+                              <button
+                                type="button"
+                                className="agenda-add-my-btn"
+                                onClick={() => setAgendaModalSessionId(s.id)}
+                              >
+                                <span aria-hidden style={{ fontSize: 18 }}>
+                                  &#128197;
+                                </span>
+                                <span>Add to my agenda</span>
+                                <span className="sub">In person or virtual</span>
+                              </button>
+                            ) : (
+                              <div className="session-attendance-block">
+                                <span className="attendance-join-text">
+                                  On my agenda · {myMode === "VIRTUAL" ? "Virtual" : "In person"}
+                                </span>
+                                <div className="join-mode-switch" role="group" aria-label="Attendance mode">
+                                  <button
+                                    type="button"
+                                    className={myMode === "VIRTUAL" ? "is-active" : ""}
+                                    onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
+                                  >
+                                    Virtual
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={myMode === "IN_PERSON" ? "is-active" : ""}
+                                    onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "IN_PERSON" })}
+                                  >
+                                    In person
+                                  </button>
+                                </div>
                                 <button
                                   type="button"
-                                  className={myMode === "VIRTUAL" ? "is-active" : ""}
-                                  onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
+                                  className="button secondary"
+                                  onClick={() => onPatchAttendance(s.id, { status: "NOT_JOINING" })}
                                 >
-                                  Virtual
-                                </button>
-                                <button
-                                  type="button"
-                                  className={myMode === "IN_PERSON" ? "is-active" : ""}
-                                  onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "IN_PERSON" })}
-                                >
-                                  In person
+                                  Remove
                                 </button>
                               </div>
                             )}
                           </div>
-                          <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onGoToSession(s.id); }}>Conversation</button>
+                          <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onGoToSession(s.id); }}>Session Q&amp;A</button>
                           <button className={`button ${liked ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onToggleLike(s.id); }}>
                             Like
                           </button>
@@ -744,6 +797,51 @@ function ScheduleBoard({
           ))}
         </section>
       ))}
+      {agendaModalSessionId && (
+        <div
+          className="agenda-add-modal-overlay"
+          role="presentation"
+          onClick={() => setAgendaModalSessionId(null)}
+        >
+          <div
+            className="agenda-add-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agenda-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 id="agenda-modal-title">Add to my agenda</h4>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              Choose how you plan to join this session. You can change this later from the agenda card.
+            </p>
+            <div className="agenda-add-modal-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={async () => {
+                  await onPatchAttendance(agendaModalSessionId, { status: "JOINING", joinMode: "IN_PERSON" });
+                  setAgendaModalSessionId(null);
+                }}
+              >
+                In person
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={async () => {
+                  await onPatchAttendance(agendaModalSessionId, { status: "JOINING", joinMode: "VIRTUAL" });
+                  setAgendaModalSessionId(null);
+                }}
+              >
+                Virtually
+              </button>
+              <button type="button" className="button secondary" onClick={() => setAgendaModalSessionId(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -791,6 +889,8 @@ function ProfileEditor({
   user,
   adminEvents,
   activeEventId,
+  withEventHeaders,
+  activeEventSlug,
   onSaved,
   onEventSelected,
   onEventCreated,
@@ -799,6 +899,8 @@ function ProfileEditor({
   user: User;
   adminEvents: EventItem[];
   activeEventId: string | null;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  activeEventSlug: string | null;
   onSaved: (user: User) => void;
   onEventSelected: (eventId: string) => void;
   onEventCreated: (event: EventItem) => void;
@@ -812,6 +914,9 @@ function ProfileEditor({
   const [participantType, setParticipantType] = useState<"GRAD_STUDENT" | "PROFESSOR" | "">(
     user.participantType || "",
   );
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   useEffect(() => {
     setPhotoPreview(user.photoUrl || null);
@@ -917,6 +1022,74 @@ function ProfileEditor({
       <button className="button" type="submit" disabled={saving}>
         {saving ? "Saving..." : "Save Profile"}
       </button>
+      {user.role === "ADMIN" && activeEventId && activeEventSlug && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <h4 style={{ marginTop: 0 }}>Participant invites</h4>
+          <p className="help-text" style={{ marginTop: 0 }}>
+            Pre-fill name, email, photo, and description. We create their account and email a link to set a password (configure{" "}
+            <code>RESEND_API_KEY</code> on the API). Without email configured, check server logs for the invite URL.
+          </p>
+          <p className="help-text" style={{ margin: "0 0 8px" }}>
+            Public join link for this event:{" "}
+            <strong>{typeof window !== "undefined" ? `${window.location.origin}/e/${activeEventSlug}` : ""}</strong>
+          </p>
+          <form
+            className="grid"
+            style={{ gap: 8 }}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!activeEventId) return;
+              setInviteBusy(true);
+              setInviteError(null);
+              setInviteMessage(null);
+              const form = new FormData(e.currentTarget);
+              try {
+                const res = await apiFetch<{ inviteUrl: string }>(
+                  "/attendees/invite",
+                  withEventHeaders({
+                    method: "POST",
+                    body: JSON.stringify({
+                      email: String(form.get("inviteEmail") || "").trim(),
+                      name: String(form.get("inviteName") || "").trim(),
+                      researchInterests: String(form.get("inviteBio") || "").trim() || undefined,
+                      photoUrl: String(form.get("invitePhotoUrl") || "").trim() || undefined,
+                    }),
+                  }),
+                  token,
+                );
+                setInviteMessage(`Invite sent. Link (also in email): ${res.inviteUrl}`);
+                e.currentTarget.reset();
+              } catch (err) {
+                setInviteError(err instanceof Error ? err.message : "Invite failed.");
+              } finally {
+                setInviteBusy(false);
+              }
+            }}
+          >
+            <input className="input" name="inviteEmail" type="email" placeholder="Email" required />
+            <input className="input" name="inviteName" placeholder="Display name" required />
+            <textarea className="textarea" name="inviteBio" placeholder="Description / research interests (optional)" rows={3} />
+            <input className="input" name="invitePhotoUrl" placeholder="Photo URL or leave blank" />
+            <input
+              className="input"
+              type="file"
+              accept="image/*"
+              onChange={async (ev) => {
+                const file = ev.currentTarget.files?.[0];
+                if (!file) return;
+                const data = await fileToDataUrl(file, { maxWidth: 800, maxHeight: 800, quality: 0.82 });
+                const el = ev.currentTarget.form?.elements.namedItem("invitePhotoUrl");
+                if (el instanceof HTMLInputElement) el.value = data;
+              }}
+            />
+            <button className="button secondary" type="submit" disabled={inviteBusy}>
+              {inviteBusy ? "Sending…" : "Create profile & send invite"}
+            </button>
+            {inviteMessage && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{inviteMessage}</p>}
+            {inviteError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{inviteError}</p>}
+          </form>
+        </div>
+      )}
       {user.role === "ADMIN" && (
         <div className="card" style={{ marginTop: 12 }}>
           <h4 style={{ marginTop: 0 }}>My Events</h4>
@@ -1209,35 +1382,73 @@ function AttendeeDirectory({
   );
 }
 
-function NetworkingBoard({
+function communityChannelEmoji(ch: string | undefined) {
+  switch (ch) {
+    case "MEETUP":
+      return String.fromCodePoint(0x1f465);
+    case "MOMENTS":
+      return String.fromCodePoint(0x1f5bc, 0xfe0f);
+    case "LOCAL":
+      return String.fromCodePoint(0x1f37d);
+    case "ICEBREAKER":
+      return String.fromCodePoint(0x1f9ca);
+    default:
+      return String.fromCodePoint(0x1f4ac);
+  }
+}
+
+
+function CommunityBoard({
   threads,
+  channelFilter,
+  onChannelChange,
   isAdmin,
   token,
   withEventHeaders,
   onThreadsUpdated,
 }: {
   threads: NetworkThread[];
+  channelFilter: CommunityChannelFilter;
+  onChannelChange: (c: CommunityChannelFilter) => void;
   isAdmin: boolean;
   token: string;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onThreadsUpdated: () => Promise<void>;
 }) {
   const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
+  const [composeChannel, setComposeChannel] = useState<Exclude<CommunityChannelFilter, "ALL">>("GENERAL");
+
+  useEffect(() => {
+    if (channelFilter === "ALL") {
+      setComposeChannel("GENERAL");
+    } else {
+      setComposeChannel(channelFilter);
+    }
+  }, [channelFilter]);
 
   async function createThread(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    await apiFetch(
-      "/network/threads",
-      withEventHeaders({
-        method: "POST",
-        body: JSON.stringify({
-          title: String(form.get("title") || ""),
-          body: String(form.get("body") || ""),
-        }),
-      }),
-      token,
-    );
+    const title = String(form.get("title") || "").trim();
+    const body = String(form.get("body") || "").trim();
+    const payload: Record<string, unknown> = {
+      title,
+      body,
+      channel: composeChannel,
+    };
+    if (composeChannel === "MEETUP") {
+      const mode = String(form.get("meetupMode") || "IN_PERSON");
+      payload.meetupMode = mode === "VIRTUAL" ? "VIRTUAL" : "IN_PERSON";
+      const start = String(form.get("meetupStartsAt") || "").trim();
+      if (start) {
+        payload.meetupStartsAt = new Date(start).toISOString();
+      }
+    }
+    if (composeChannel === "MOMENTS") {
+      const img = String(form.get("imageUrl") || "").trim();
+      if (img) payload.imageUrl = img;
+    }
+    await apiFetch("/network/threads", withEventHeaders({ method: "POST", body: JSON.stringify(payload) }), token);
     event.currentTarget.reset();
     await onThreadsUpdated();
   }
@@ -1253,76 +1464,191 @@ function NetworkingBoard({
   }
 
   async function deleteThread(threadId: string) {
-    await apiFetch(
-      `/network/threads/${threadId}`,
-      withEventHeaders({ method: "DELETE" }),
-      token,
-    );
+    await apiFetch(`/network/threads/${threadId}`, withEventHeaders({ method: "DELETE" }), token);
     if (openId === threadId) setOpenId(null);
     await onThreadsUpdated();
   }
 
+  const pills: { key: CommunityChannelFilter; label: string }[] = [
+    { key: "ALL", label: "All" },
+    { key: "MEETUP", label: "Meet-ups" },
+    { key: "MOMENTS", label: "Share your moments" },
+    { key: "LOCAL", label: "Local recommendations" },
+    { key: "ICEBREAKER", label: "Break the ice" },
+    { key: "GENERAL", label: "General" },
+  ];
+
+  const composeHint =
+    composeChannel === "MEETUP"
+      ? "Propose an in-person or virtual meet-up others can join."
+      : composeChannel === "MOMENTS"
+        ? "Share a photo (upload below) and a short caption."
+        : composeChannel === "LOCAL"
+          ? "Recommend restaurants, coffee, or sights near the venue."
+          : composeChannel === "ICEBREAKER"
+            ? "Welcome others — share a quick intro or icebreaker prompt."
+            : "Open discussion for everyone at this event.";
+
   return (
     <div className="grid networking-board">
-      <form className="card grid" onSubmit={createThread}>
-        <h3 style={{ marginTop: 0 }}>Start a discussion</h3>
-        <p className="help-text" style={{ margin: 0 }}>
-          Introduce yourself or start a thread everyone registered can see and reply to.
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Community</h3>
+        <p className="help-text" style={{ marginTop: 0 }}>
+          Meet-ups, moments, local tips, and introductions — Whova-style spaces for your event. Session-specific Q&amp;A stays on each session page.
         </p>
+        <div className="community-subnav" role="tablist" aria-label="Community areas">
+          {pills.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              role="tab"
+              aria-selected={channelFilter === p.key}
+              className={channelFilter === p.key ? "is-active" : ""}
+              onClick={() => onChannelChange(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <form className="card grid" onSubmit={createThread}>
+        <h4 style={{ margin: 0 }}>New post</h4>
+        <p className="help-text" style={{ margin: 0 }}>
+          {composeHint}
+        </p>
+        {channelFilter === "ALL" && (
+          <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+            Post in
+            <select
+              className="select"
+              value={composeChannel}
+              onChange={(e) => setComposeChannel(e.target.value as typeof composeChannel)}
+            >
+              <option value="GENERAL">General discussion</option>
+              <option value="MEETUP">Meet-up</option>
+              <option value="MOMENTS">Share your moments</option>
+              <option value="LOCAL">Local recommendations</option>
+              <option value="ICEBREAKER">Break the ice</option>
+            </select>
+          </label>
+        )}
         <input className="input" name="title" placeholder="Title" required />
-        <textarea className="textarea" name="body" placeholder="Your message…" required rows={4} />
-        <button className="button" type="submit">Post</button>
-      </form>
-      <div className="network-thread-list">
-        {threads.length === 0 && <p className="help-text">No discussions yet — be the first to post.</p>}
-        {threads.map((t) => {
-          const open = openId === t.id;
-          return (
-            <div className="card network-thread" key={t.id}>
-              <button type="button" className="network-thread-toggle" onClick={() => setOpenId(open ? null : t.id)}>
-                <strong>{t.title}</strong>
-                <span className="help-text">
-                  {t.author.name} · {new Date(t.createdAt).toLocaleString()}
-                </span>
-              </button>
-              {open && (
-                <div className="network-thread-body">
-                  <p>{t.body}</p>
-                  {isAdmin && (
-                    <div style={{ marginBottom: 10 }}>
-                      <button className="button secondary" type="button" onClick={() => deleteThread(t.id)}>
-                        Delete conversation
-                      </button>
-                    </div>
-                  )}
-                  <div className="network-replies">
-                    {t.replies.map((r) => (
-                      <div key={r.id} className="network-reply">
-                        <strong>{r.author.name}</strong>
-                        <span className="help-text"> · {new Date(r.createdAt).toLocaleString()}</span>
-                        <p>{r.body}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <form
-                    className="grid"
-                    style={{ gap: 8, marginTop: 8 }}
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      const form = new FormData(e.currentTarget);
-                      const body = String(form.get("body") || "");
-                      await sendReply(t.id, body);
-                      e.currentTarget.reset();
-                    }}
-                  >
-                    <textarea className="textarea" name="body" placeholder="Write a public reply…" required rows={2} />
-                    <button className="button secondary" type="submit">Reply</button>
-                  </form>
-                </div>
-              )}
+        <textarea className="textarea" name="body" placeholder="Description or message" required rows={4} />
+        {composeChannel === "MEETUP" && (
+          <>
+            <div className="join-mode-switch" role="group" aria-label="Meet-up format">
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input type="radio" name="meetupMode" value="IN_PERSON" defaultChecked />
+                In person
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input type="radio" name="meetupMode" value="VIRTUAL" />
+                Virtual
+              </label>
             </div>
-          );
-        })}
+            <input className="input" type="datetime-local" name="meetupStartsAt" />
+          </>
+        )}
+        {composeChannel === "MOMENTS" && (
+          <>
+            <input className="input" name="imageUrl" placeholder="Image URL (optional)" />
+            <input
+              className="input"
+              type="file"
+              accept="image/*"
+              onChange={async (ev) => {
+                const file = ev.target.files?.[0];
+                if (!file) return;
+                const data = await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 });
+                const target = ev.currentTarget.form?.elements.namedItem("imageUrl");
+                if (target instanceof HTMLInputElement) target.value = data;
+              }}
+            />
+          </>
+        )}
+        <button className="button" type="submit">
+          Post
+        </button>
+      </form>
+
+      <div className="card network-thread-list">
+        {threads.length === 0 && <p className="help-text">Nothing here yet — start the first post.</p>}
+        <div className="community-thread-rows">
+          {threads.map((t) => {
+            const open = openId === t.id;
+            const ch = t.channel || "GENERAL";
+            const lastReply = t.replies[t.replies.length - 1];
+            return (
+              <div key={t.id}>
+                <div className="community-thread-row">
+                  <div className={`community-thread-icon ${ch}`} aria-hidden>
+                    {communityChannelEmoji(ch)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="community-thread-meta">
+                      {lastReply
+                        ? `Last reply ${new Date(lastReply.createdAt).toLocaleString()}`
+                        : `Started ${new Date(t.createdAt).toLocaleString()}`}
+                    </div>
+                    <h4 className="community-thread-title">{t.title}</h4>
+                    <p className="community-thread-desc">{t.body}</p>
+                    {t.meetupMode && (
+                      <div className="community-thread-foot">
+                        {t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"} meet-up
+                        {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
+                      </div>
+                    )}
+                    <div className="community-thread-foot">{t.replies.length} replies</div>
+                  </div>
+                  <button type="button" className="button secondary community-open-btn" onClick={() => setOpenId(open ? null : t.id)}>
+                    {open ? "Close" : "Open"}
+                  </button>
+                </div>
+                {open && (
+                  <div className="network-thread-body" style={{ padding: "0 0 16px 64px" }}>
+                    {t.imageUrl && (
+                      <img src={t.imageUrl} alt="" style={{ maxWidth: "100%", borderRadius: 10, marginBottom: 12 }} />
+                    )}
+                    <p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p>
+                    {isAdmin && (
+                      <div style={{ marginBottom: 10 }}>
+                        <button className="button secondary" type="button" onClick={() => deleteThread(t.id)}>
+                          Delete thread
+                        </button>
+                      </div>
+                    )}
+                    <div className="network-replies">
+                      {t.replies.map((r) => (
+                        <div key={r.id} className="network-reply">
+                          <strong>{r.author.name}</strong>
+                          <span className="help-text"> · {new Date(r.createdAt).toLocaleString()}</span>
+                          <p>{r.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <form
+                      className="grid"
+                      style={{ gap: 8, marginTop: 8 }}
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const form = new FormData(e.currentTarget);
+                        const body = String(form.get("body") || "");
+                        await sendReply(t.id, body);
+                        e.currentTarget.reset();
+                      }}
+                    >
+                      <textarea className="textarea" name="body" placeholder="Write a reply…" required rows={2} />
+                      <button className="button secondary" type="submit">
+                        Reply
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
