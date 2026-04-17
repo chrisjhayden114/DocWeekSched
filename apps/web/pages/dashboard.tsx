@@ -238,9 +238,10 @@ export default function Dashboard() {
       if (active === "Messages") {
         const convoList = await apiFetch<Conversation[]>("/conversations", withEventHeaders(), token);
         setConversations(convoList);
-        const firstDm = convoList.find((c) => c.type !== "SESSION");
-        if (!activeConversationId && firstDm) {
-          setActiveConversationId(firstDm.id);
+        const preferred =
+          convoList.find((c) => c.type === "EVENT") ?? convoList.find((c) => c.type !== "SESSION");
+        if (!activeConversationId && preferred) {
+          setActiveConversationId(preferred.id);
         }
         if (attendees.length === 0) {
           setAttendees(await apiFetch<User[]>("/attendees", {}, token));
@@ -316,6 +317,26 @@ export default function Dashboard() {
     [conversations],
   );
 
+  const messagingConversationsOrdered = useMemo(() => {
+    const list = [...messagingConversations];
+    list.sort((a, b) => {
+      if (a.type === "EVENT" && b.type !== "EVENT") return -1;
+      if (b.type === "EVENT" && a.type !== "EVENT") return 1;
+      return 0;
+    });
+    return list;
+  }, [messagingConversations]);
+
+  const eventWideConversation = useMemo(
+    () => messagingConversationsOrdered.find((c) => c.type === "EVENT") ?? null,
+    [messagingConversationsOrdered],
+  );
+
+  const directAndGroupConversations = useMemo(
+    () => messagingConversationsOrdered.filter((c) => c.type !== "EVENT"),
+    [messagingConversationsOrdered],
+  );
+
   const filteredMessageAttendees = useMemo(() => {
     const uid = user?.id;
     if (!uid) return [];
@@ -327,15 +348,15 @@ export default function Dashboard() {
     });
   }, [attendees, messageSearchLower, user?.id]);
 
-  const filteredConversations = useMemo(() => {
+  const filteredDirectAndGroup = useMemo(() => {
     if (!user) return [];
-    if (!messageSearchLower) return messagingConversations;
-    return messagingConversations.filter((c) => {
+    if (!messageSearchLower) return directAndGroupConversations;
+    return directAndGroupConversations.filter((c) => {
       const label = formatConversationName(c, user).toLowerCase();
       if (label.includes(messageSearchLower)) return true;
       return c.members.some((m) => m.user.name.toLowerCase().includes(messageSearchLower));
     });
-  }, [messagingConversations, messageSearchLower, user]);
+  }, [directAndGroupConversations, messageSearchLower, user]);
 
   const handleLogout = () => {
     window.localStorage.removeItem("token");
@@ -773,10 +794,10 @@ export default function Dashboard() {
           <div className="card message-sidebar-card">
             <h3>Messages</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Direct and group chats only. Open any session from the Agenda for Session Q&amp;A and resources.
+              <strong>Everyone — event chat</strong> is the place for organizers to reach all participants. When an admin posts there, everyone gets a notification. Session Q&amp;A stays on each session page.
             </p>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Search by name or research interests to find people and filter your chats.
+              Search below to filter direct and group chats by name or research interests.
             </p>
             <input
               className="input"
@@ -786,9 +807,23 @@ export default function Dashboard() {
               onChange={(e) => setMessageDirectoryQuery(e.target.value)}
               aria-label="Search people and conversations"
             />
-            <h4 style={{ marginBottom: 8 }}>Conversations</h4>
+            {eventWideConversation && (
+              <>
+                <h4 style={{ marginBottom: 8 }}>Event-wide</h4>
+                <div className="grid" style={{ gap: 8, marginBottom: 16 }}>
+                  <button
+                    type="button"
+                    className={activeConversationId === eventWideConversation.id ? "button" : "button secondary"}
+                    onClick={() => setActiveConversationId(eventWideConversation.id)}
+                  >
+                    {formatConversationName(eventWideConversation, user)}
+                  </button>
+                </div>
+              </>
+            )}
+            <h4 style={{ marginBottom: 8 }}>Direct &amp; group</h4>
             <div className="grid" style={{ gap: 8 }}>
-              {filteredConversations.map((c) => (
+              {filteredDirectAndGroup.map((c) => (
                 <button
                   key={c.id}
                   className={activeConversationId === c.id ? "button" : "button secondary"}
@@ -2156,7 +2191,7 @@ function GroupChatForm({
 }
 
 function formatConversationName(conversation: Conversation, currentUser: User) {
-  if (conversation.type === "EVENT") return conversation.name || "Event Chat";
+  if (conversation.type === "EVENT") return conversation.name || "Everyone — event chat";
   if (conversation.type === "GROUP") return conversation.name || "Group Chat";
   if (conversation.type === "SESSION") return conversation.name || "Session chat";
   const other = conversation.members.find((m) => m.user.id !== currentUser.id);

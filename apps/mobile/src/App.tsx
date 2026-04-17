@@ -91,9 +91,15 @@ export default function App() {
       }
       if (active === "Messages") {
         const convoList = await apiFetch<Conversation[]>("/conversations", {}, token);
-        setConversations(convoList);
-        if (!activeConversationId && convoList.length > 0) {
-          setActiveConversationId(convoList[0].id);
+        const sorted = [...convoList].sort((a, b) => {
+          if (a.type === "EVENT" && b.type !== "EVENT") return -1;
+          if (b.type === "EVENT" && a.type !== "EVENT") return 1;
+          return 0;
+        });
+        setConversations(sorted);
+        if (!activeConversationId && sorted.length > 0) {
+          const preferred = sorted.find((c) => c.type === "EVENT") ?? sorted[0];
+          setActiveConversationId(preferred.id);
         }
         if (attendees.length === 0) {
           setAttendees(await apiFetch<User[]>("/attendees", {}, token));
@@ -404,7 +410,7 @@ function CheckInSelf({ token, isAdmin }: { token: string; isAdmin: boolean }) {
 }
 
 function formatConversationName(conversation: Conversation, currentUser: User | null) {
-  if (conversation.type === "EVENT") return conversation.name || "Event Chat";
+  if (conversation.type === "EVENT") return conversation.name || "Everyone — event chat";
   if (conversation.type === "GROUP") return conversation.name || "Group Chat";
   const other = conversation.members.find((m) => m.user.id !== currentUser?.id);
   return other ? other.user.name : "Direct Chat";

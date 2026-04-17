@@ -10,7 +10,7 @@ export async function getOrCreateEventConversation(eventId: string) {
     data: {
       eventId,
       type: "EVENT",
-      name: "Event Chat",
+      name: "Everyone — event chat",
     },
   });
 }

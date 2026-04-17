@@ -94,9 +94,11 @@ export async function notifyNewMessage(params: {
   senderName: string;
   preview: string;
   memberUserIds: string[];
+  /** When set (e.g. event-wide organizer broadcast), used instead of "Message from …". */
+  title?: string;
 }): Promise<void> {
   const recipients = params.memberUserIds.filter((id) => id !== params.senderId);
-  const title = `Message from ${params.senderName}`;
+  const title = params.title ?? `Message from ${params.senderName}`;
   const body = params.preview.slice(0, 200);
 
   await notifyMany(
