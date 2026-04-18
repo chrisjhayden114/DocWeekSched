@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/db";
 import { getOrCreateEvent } from "../lib/event";
@@ -18,6 +19,7 @@ const sessionSchema = z.object({
   recordingUrl: optionalLink,
   fileUrl: optionalLink,
   fileLink: optionalLink,
+  allowVirtualJoin: z.boolean().optional(),
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
   speakerId: z.string().optional(),
@@ -25,7 +27,7 @@ const sessionSchema = z.object({
 
 const attendanceSchema = z.object({
   status: z.enum(["JOINING", "NOT_JOINING"]),
-  joinMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
+  joinMode: z.enum(["VIRTUAL", "IN_PERSON", "ASYNC"]).optional(),
 });
 
 const threadSchema = z.object({
@@ -290,6 +292,7 @@ sessionsRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) =
       fileUrl: parsed.data.fileUrl || null,
       fileLink: parsed.data.fileLink || null,
       speakerId: parsed.data.speakerId || null,
+      allowVirtualJoin: parsed.data.allowVirtualJoin ?? true,
       startsAt: new Date(parsed.data.startsAt),
       endsAt: new Date(parsed.data.endsAt),
       eventId: event.id,
@@ -304,21 +307,37 @@ sessionsRouter.put("/:id", requireAuth, requireRole(["ADMIN"]), async (req, res)
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const session = await prisma.session.update({
-    where: { id: req.params.id },
-    data: {
-      title: parsed.data.title,
-      description: parsed.data.description,
-      speakers: parsed.data.speakers,
-      imageUrl: parsed.data.imageUrl || null,
-      zoomLink: parsed.data.zoomLink || null,
-      recordingUrl: parsed.data.recordingUrl || null,
-      fileUrl: parsed.data.fileUrl || null,
-      fileLink: parsed.data.fileLink || null,
-      speakerId: parsed.data.speakerId || null,
-      startsAt: new Date(parsed.data.startsAt),
-      endsAt: new Date(parsed.data.endsAt),
-    },
+  const sessionUpdate: Prisma.SessionUncheckedUpdateInput = {
+    title: parsed.data.title,
+    description: parsed.data.description,
+    speakers: parsed.data.speakers,
+    imageUrl: parsed.data.imageUrl || null,
+    zoomLink: parsed.data.zoomLink || null,
+    recordingUrl: parsed.data.recordingUrl || null,
+    fileUrl: parsed.data.fileUrl || null,
+    fileLink: parsed.data.fileLink || null,
+    speakerId: parsed.data.speakerId || null,
+    startsAt: new Date(parsed.data.startsAt),
+    endsAt: new Date(parsed.data.endsAt),
+  };
+  if (parsed.data.allowVirtualJoin !== undefined) {
+    sessionUpdate.allowVirtualJoin = parsed.data.allowVirtualJoin;
+  }
+
+  const session = await prisma.$transaction(async (tx) => {
+    const updated = await tx.session.update({
+      where: { id: req.params.id },
+      data: sessionUpdate,
+    });
+
+    if (parsed.data.allowVirtualJoin === false) {
+      await tx.sessionAttendance.updateMany({
+        where: { sessionId: req.params.id, joinMode: "VIRTUAL" },
+        data: { joinMode: "IN_PERSON" },
+      });
+    }
+
+    return updated;
   });
 
   return res.json(session);
@@ -355,7 +374,10 @@ sessionsRouter.put("/:id/attendance", requireAuth, async (req: AuthedRequest, re
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const sessionRow = await findSessionOr404(req.params.id);
+  const sessionRow = await prisma.session.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, allowVirtualJoin: true },
+  });
   if (!sessionRow) {
     return res.status(404).json({ error: "Session not found" });
   }
@@ -369,6 +391,10 @@ sessionsRouter.put("/:id/attendance", requireAuth, async (req: AuthedRequest, re
     parsed.data.status === "NOT_JOINING"
       ? null
       : parsed.data.joinMode ?? prior?.joinMode ?? "IN_PERSON";
+
+  if (nextJoinMode === "VIRTUAL" && sessionRow.allowVirtualJoin === false) {
+    return res.status(400).json({ error: "Virtual joining is not available for this session" });
+  }
 
   await prisma.sessionAttendance.upsert({
     where: {

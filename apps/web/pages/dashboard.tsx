@@ -28,6 +28,8 @@ type Event = {
   endDate: string;
 };
 
+type AgendaJoinMode = "VIRTUAL" | "IN_PERSON" | "ASYNC";
+
 type Session = {
   id: string;
   title: string;
@@ -41,13 +43,14 @@ type Session = {
   imageUrl?: string | null;
   startsAt: string;
   endsAt: string;
+  allowVirtualJoin?: boolean | null;
   speaker?: { name: string };
   speakerId?: string | null;
   bookmarks?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
   attendances?: {
     userId: string;
     status: "JOINING" | "NOT_JOINING";
-    joinMode?: "VIRTUAL" | "IN_PERSON" | null;
+    joinMode?: AgendaJoinMode | null;
     user: Pick<User, "id" | "name" | "email" | "photoUrl">;
   }[];
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
@@ -65,7 +68,7 @@ type Message = { id: string; body: string; createdAt: string; user: { id: string
 type SessionAttendance = {
   sessionId: string;
   status: "JOINING" | "NOT_JOINING";
-  joinMode?: "VIRTUAL" | "IN_PERSON" | null;
+  joinMode?: AgendaJoinMode | null;
 };
 type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
 type EventItem = {
@@ -96,6 +99,19 @@ function mergeAdminEvents(list: EventItem[], current: Event | null): EventItem[]
   if (!current) return list;
   if (list.some((row) => row.id === current.id)) return list;
   return [asEventItem(current), ...list];
+}
+
+function agendaJoinModeLabel(mode: AgendaJoinMode | null | undefined): string {
+  if (mode === "VIRTUAL") return "Virtual";
+  if (mode === "ASYNC") return "Asynchronous (time zone)";
+  return "In person";
+}
+
+function sessionAgendaCardMinHeightPx(startsAt: string, endsAt: string): number {
+  const ms = Math.max(0, new Date(endsAt).getTime() - new Date(startsAt).getTime());
+  const minutes = Math.max(5, ms / 60000);
+  const pxPer30Min = 120;
+  return Math.round(Math.min(520, Math.max(110, (minutes / 30) * pxPer30Min)));
 }
 
 type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
@@ -446,7 +462,7 @@ export default function Dashboard() {
 
   const patchSessionAttendance = async (
     sessionId: string,
-    body: { status: "JOINING" | "NOT_JOINING"; joinMode?: "VIRTUAL" | "IN_PERSON" },
+    body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode },
   ) => {
     if (!token) return;
     const prevAttendance = myAttendance;
@@ -1180,7 +1196,7 @@ function ScheduleBoard({
   likedSessionIds: string[];
   onPatchAttendance: (
     sessionId: string,
-    body: { status: "JOINING" | "NOT_JOINING"; joinMode?: "VIRTUAL" | "IN_PERSON" },
+    body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode },
   ) => void | Promise<void>;
   onToggleLike: (sessionId: string) => void;
   onEditSession: (session: Session) => void;
@@ -1188,9 +1204,23 @@ function ScheduleBoard({
 }) {
   const [agendaModalSessionId, setAgendaModalSessionId] = useState<string | null>(null);
 
+  const agendaModalSession = useMemo(() => {
+    if (!agendaModalSessionId) return null;
+    for (const dayGroup of grouped) {
+      for (const slot of dayGroup.timeSlots) {
+        for (const s of slot.sessions) {
+          if (s.id === agendaModalSessionId) return s;
+        }
+      }
+    }
+    return null;
+  }, [grouped, agendaModalSessionId]);
+
   if (grouped.length === 0) {
     return <p style={{ color: "var(--ink-500)" }}>No sessions in this view yet.</p>;
   }
+
+  const agendaModalAllowsVirtual = agendaModalSession?.allowVirtualJoin !== false;
 
   return (
     <>
@@ -1207,17 +1237,20 @@ function ScheduleBoard({
                   const joiningList = (s.attendances || []).filter((attendance) => attendance.status === "JOINING");
                   const joinedCount = joiningList.length;
                   const virtualJoining = joiningList.filter((a) => a.joinMode === "VIRTUAL").length;
-                  const inPersonJoining = joinedCount - virtualJoining;
+                  const asyncJoining = joiningList.filter((a) => a.joinMode === "ASYNC").length;
+                  const inPersonJoining = joinedCount - virtualJoining - asyncJoining;
                   const liked = likedSessionIds.includes(s.id);
                   const likeCount = (s.likes || []).length;
                   const joining = myStatus === "JOINING";
                   const myMode = myRow?.joinMode ?? "IN_PERSON";
+                  const sessionAllowsVirtual = s.allowVirtualJoin !== false;
                   return (
                     <article
                       className="schedule-event"
                       key={s.id}
                       title={s.description || "No session description yet."}
                       onClick={() => onGoToSession(s.id)}
+                      style={{ minHeight: sessionAgendaCardMinHeightPx(s.startsAt, s.endsAt) }}
                     >
                       <div className="schedule-event-head">
                         {s.imageUrl && (
@@ -1239,7 +1272,7 @@ function ScheduleBoard({
                         <span>
                           {formatTimeRange(s.startsAt, s.endsAt)}
                           {" · "}
-                          {inPersonJoining} in-person · {virtualJoining} virtual · {likeCount} likes
+                          {inPersonJoining} in-person · {virtualJoining} virtual · {asyncJoining} async · {likeCount} likes
                         </span>
                         <div className="schedule-actions schedule-actions-with-attendance">
                           <div onClick={(event) => event.stopPropagation()} role="group" aria-label="My agenda">
@@ -1253,27 +1286,39 @@ function ScheduleBoard({
                                   &#128197;
                                 </span>
                                 <span>Add to my agenda</span>
-                                <span className="sub">In person or virtual</span>
+                                <span className="sub">
+                                  {sessionAllowsVirtual ? "In person, virtual, or async" : "In person or async"}
+                                </span>
                               </button>
                             ) : (
                               <div className="session-attendance-block">
                                 <span className="attendance-join-text">
-                                  On my agenda · {myMode === "VIRTUAL" ? "Virtual" : "In person"}
+                                  On my agenda · {agendaJoinModeLabel(myMode)}
                                 </span>
                                 <div className="join-mode-switch" role="group" aria-label="Attendance mode">
-                                  <button
-                                    type="button"
-                                    className={myMode === "VIRTUAL" ? "is-active" : ""}
-                                    onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
-                                  >
-                                    Virtual
-                                  </button>
+                                  {sessionAllowsVirtual && (
+                                    <button
+                                      type="button"
+                                      className={myMode === "VIRTUAL" ? "is-active" : ""}
+                                      onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
+                                    >
+                                      Virtual
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     className={myMode === "IN_PERSON" ? "is-active" : ""}
                                     onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "IN_PERSON" })}
                                   >
                                     In person
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={myMode === "ASYNC" ? "is-active" : ""}
+                                    onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "ASYNC" })}
+                                    title="Asynchronous – Time Zone Issues!"
+                                  >
+                                    Async
                                   </button>
                                 </div>
                                 <button
@@ -1332,16 +1377,29 @@ function ScheduleBoard({
               >
                 In person
               </button>
+              {agendaModalAllowsVirtual && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    const id = agendaModalSessionId;
+                    setAgendaModalSessionId(null);
+                    if (id) void onPatchAttendance(id, { status: "JOINING", joinMode: "VIRTUAL" });
+                  }}
+                >
+                  Virtually
+                </button>
+              )}
               <button
                 type="button"
                 className="button secondary"
                 onClick={() => {
                   const id = agendaModalSessionId;
                   setAgendaModalSessionId(null);
-                  if (id) void onPatchAttendance(id, { status: "JOINING", joinMode: "VIRTUAL" });
+                  if (id) void onPatchAttendance(id, { status: "JOINING", joinMode: "ASYNC" });
                 }}
               >
-                Virtually
+                Asynchronous- Time Zone Issues!
               </button>
               <button type="button" className="button secondary" onClick={() => setAgendaModalSessionId(null)}>
                 Cancel
@@ -1376,7 +1434,12 @@ function ParticipantDailySchedules({
                       ? `Participants: ${(session.attendances || [])
                           .filter((attendance) => attendance.status === "JOINING")
                           .map((attendance) => {
-                            const tag = attendance.joinMode === "VIRTUAL" ? " (virtual)" : "";
+                            const tag =
+                              attendance.joinMode === "VIRTUAL"
+                                ? " (virtual)"
+                                : attendance.joinMode === "ASYNC"
+                                  ? " (async)"
+                                  : "";
                             return `${attendance.user.name}${tag}`;
                           })
                           .join(", ")}`
@@ -1950,6 +2013,7 @@ function SessionForm({
         recordingUrl: String(form.get("recordingUrl") || ""),
         fileLink: String(form.get("fileLink") || ""),
         fileUrl: String(form.get("fileUrl") || ""),
+        allowVirtualJoin: form.get("allowVirtualJoin") === "on",
         startsAt: new Date(String(form.get("startsAt") || "")).toISOString(),
         endsAt: new Date(String(form.get("endsAt") || "")).toISOString(),
         speakerId: String(form.get("speakerId") || "") || undefined,
@@ -2054,6 +2118,18 @@ function SessionForm({
       />
       <input className="input" type="datetime-local" name="startsAt" required defaultValue={defaultStart} />
       <input className="input" type="datetime-local" name="endsAt" required defaultValue={defaultEnd} />
+      <label className="help-text" style={{ margin: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <input
+          type="checkbox"
+          name="allowVirtualJoin"
+          value="on"
+          defaultChecked={editing?.allowVirtualJoin !== false}
+          style={{ marginTop: 3 }}
+        />
+        <span>
+          Allow participants to join virtually (turn off for in-person-only sessions such as dinners at someone’s home).
+        </span>
+      </label>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button className="button" type="submit" disabled={submitting}>
           {submitting ? "Saving…" : editing ? "Save changes" : "Create session"}

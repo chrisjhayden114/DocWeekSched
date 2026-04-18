@@ -28,6 +28,14 @@ type Event = {
   endDate: string;
 };
 
+type AgendaJoinMode = "VIRTUAL" | "IN_PERSON" | "ASYNC";
+
+function agendaJoinModeLabel(mode: AgendaJoinMode | null | undefined): string {
+  if (mode === "VIRTUAL") return "Virtual";
+  if (mode === "ASYNC") return "Asynchronous (time zone)";
+  return "In person";
+}
+
 type Session = {
   id: string;
   title: string;
@@ -41,12 +49,13 @@ type Session = {
   imageUrl?: string | null;
   startsAt: string;
   endsAt: string;
+  allowVirtualJoin?: boolean | null;
   speaker?: { name: string };
   speakerId?: string | null;
   attendances?: {
     userId: string;
     status: "JOINING" | "NOT_JOINING";
-    joinMode?: "VIRTUAL" | "IN_PERSON" | null;
+    joinMode?: AgendaJoinMode | null;
     user: Pick<User, "id" | "name" | "email" | "photoUrl">;
   }[];
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
@@ -75,7 +84,7 @@ type SessionResource = {
 type SessionAttendance = {
   sessionId: string;
   status: "JOINING" | "NOT_JOINING";
-  joinMode?: "VIRTUAL" | "IN_PERSON" | null;
+  joinMode?: AgendaJoinMode | null;
 };
 
 type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
@@ -214,7 +223,7 @@ export default function SessionPage() {
     load();
   }, [token, sessionId, router.isReady]);
 
-  const patchAttendance = async (body: { status: "JOINING" | "NOT_JOINING"; joinMode?: "VIRTUAL" | "IN_PERSON" }) => {
+  const patchAttendance = async (body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode }) => {
     if (!token || !sessionId) return;
     const prevAttendance = myAttendance;
     setMyAttendance((rows) => {
@@ -438,22 +447,34 @@ export default function SessionPage() {
                     patchAttendance(joining ? { status: "NOT_JOINING" } : { status: "JOINING", joinMode: "IN_PERSON" })
                   }
                 />
-                <span className="attendance-join-text">{attendanceLabel}</span>
-                {joining && (
+                <span className="attendance-join-text">
+                  {joining ? `${attendanceLabel} · ${agendaJoinModeLabel(myMode)}` : attendanceLabel}
+                </span>
+                {joining && session && (
                   <div className="join-mode-switch" role="group" aria-label="Attendance mode">
-                    <button
-                      type="button"
-                      className={myMode === "VIRTUAL" ? "is-active" : ""}
-                      onClick={() => patchAttendance({ status: "JOINING", joinMode: "VIRTUAL" })}
-                    >
-                      Virtual
-                    </button>
+                    {session.allowVirtualJoin !== false && (
+                      <button
+                        type="button"
+                        className={myMode === "VIRTUAL" ? "is-active" : ""}
+                        onClick={() => patchAttendance({ status: "JOINING", joinMode: "VIRTUAL" })}
+                      >
+                        Virtual
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={myMode === "IN_PERSON" ? "is-active" : ""}
                       onClick={() => patchAttendance({ status: "JOINING", joinMode: "IN_PERSON" })}
                     >
                       In person
+                    </button>
+                    <button
+                      type="button"
+                      className={myMode === "ASYNC" ? "is-active" : ""}
+                      onClick={() => patchAttendance({ status: "JOINING", joinMode: "ASYNC" })}
+                      title="Asynchronous – Time Zone Issues!"
+                    >
+                      Async
                     </button>
                   </div>
                 )}

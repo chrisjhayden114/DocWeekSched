@@ -27,6 +27,7 @@ enum SessionAttendanceStatus {
 enum SessionJoinMode {
   VIRTUAL
   IN_PERSON
+  ASYNC
 }
 
 enum ParticipantType {
@@ -116,6 +117,7 @@ model Session {
   recordingUrl String?
   fileUrl     String?
   fileLink    String?
+  allowVirtualJoin Boolean @default(true)
   startsAt    DateTime
   endsAt      DateTime
   event       Event    @relation(fields: [eventId], references: [id])
