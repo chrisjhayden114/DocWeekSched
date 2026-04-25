@@ -650,15 +650,17 @@ a:hover {
 
 .schedule-events {
   display: grid;
-  gap: 10px;
-  align-items: start;
+  gap: 8px;
+  align-items: stretch;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
 .schedule-event {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 14px 14px 12px;
+  padding: 10px 12px 10px;
   background: #ffffff;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
   cursor: pointer;
@@ -686,16 +688,18 @@ a:hover {
 }
 
 .schedule-event h4 {
-  margin: 0 0 5px;
-  font-size: 16px;
+  margin: 0 0 4px;
+  font-size: 15px;
   flex: 1;
+  line-height: 1.25;
 }
 
 .schedule-speaker {
   color: var(--gold);
   font-weight: 600;
-  font-size: 13px;
-  margin-bottom: 6px;
+  font-size: 12px;
+  margin-bottom: 4px;
+  line-height: 1.25;
 }
 
 .schedule-event p {
@@ -708,9 +712,10 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   color: var(--ink-muted);
-  font-size: 13px;
+  font-size: 12px;
+  margin-top: auto;
 }
 
 .schedule-actions {
@@ -804,9 +809,9 @@ a:hover {
 
 .schedule-links {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .schedule-links a {

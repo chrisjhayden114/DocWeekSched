@@ -107,13 +107,6 @@ function agendaJoinModeLabel(mode: AgendaJoinMode | null | undefined): string {
   return "In person";
 }
 
-function sessionAgendaCardMinHeightPx(startsAt: string, endsAt: string): number {
-  const ms = Math.max(0, new Date(endsAt).getTime() - new Date(startsAt).getTime());
-  const minutes = Math.max(5, ms / 60000);
-  const pxPer30Min = 120;
-  return Math.round(Math.min(520, Math.max(110, (minutes / 30) * pxPer30Min)));
-}
-
 type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
 type NetworkReply = { id: string; body: string; createdAt: string; author: NetworkAuthor };
 type NetworkThread = {
@@ -1250,7 +1243,6 @@ function ScheduleBoard({
                       key={s.id}
                       title={s.description || "No session description yet."}
                       onClick={() => onGoToSession(s.id)}
-                      style={{ minHeight: sessionAgendaCardMinHeightPx(s.startsAt, s.endsAt) }}
                     >
                       <div className="schedule-event-head">
                         {s.imageUrl && (
