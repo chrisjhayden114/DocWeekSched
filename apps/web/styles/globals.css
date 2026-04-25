@@ -20,6 +20,25 @@
   --glow: 0 0 0 transparent;
 }
 
+html[data-theme="slate"] {
+  --uk-blue: #475569;
+  --uk-blue-dark: #334155;
+  --navy-950: #0f172a;
+  --navy-900: #1e293b;
+  --navy-800: #273548;
+  --gold: #eab308;
+  --gold-dim: #ca8a04;
+  --ink-900: #0f172a;
+  --ink-700: #334155;
+  --ink-muted: #64748b;
+  --ink-500: #94a3b8;
+  --border: #cbd5e1;
+  --border-strong: rgba(51, 65, 85, 0.35);
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --card-solid: #ffffff;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -31,6 +50,11 @@ body {
   background:
     linear-gradient(180deg, rgba(0, 51, 160, 0.18) 0%, rgba(0, 51, 160, 0.1) 220px, #eef3ff 520px, #e8eefb 100%);
   min-height: 100vh;
+}
+
+html[data-theme="slate"] body {
+  background:
+    linear-gradient(180deg, rgba(51, 65, 85, 0.22) 0%, rgba(51, 65, 85, 0.12) 220px, #f1f5f9 520px, #e2e8f0 100%);
 }
 
 a {
@@ -381,6 +405,29 @@ a:hover {
   margin-bottom: 20px;
 }
 
+.header--login {
+  justify-content: flex-start;
+}
+
+.login-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 100%;
+}
+
+.login-brand-logo {
+  flex-shrink: 0;
+}
+
+.login-brand-text {
+  min-width: 0;
+}
+
+.login-brand-text h1 {
+  margin: 0 0 6px;
+}
+
 .app-shell-title {
   min-width: 0;
   flex: 1;
@@ -458,8 +505,14 @@ a:hover {
   margin-bottom: 6px;
 }
 
+.invite-status-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .invite-status-table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -475,6 +528,26 @@ a:hover {
 .invite-status-table th {
   background: rgba(0, 30, 92, 0.06);
   font-weight: 700;
+}
+
+html[data-theme="slate"] .invite-status-table th {
+  background: rgba(51, 65, 85, 0.08);
+}
+
+.invite-roster-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.invite-roster-btn {
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+  padding: 8px 10px;
+  font-size: 13px;
 }
 
 .message-composer-form {
@@ -1631,6 +1704,83 @@ a:hover {
 
   .nav.agenda-view-toggle button {
     flex: 1 1 0;
+  }
+
+  .invite-status-table-wrap {
+    overflow-x: visible;
+  }
+
+  .invite-status-table {
+    min-width: 0;
+  }
+
+  .invite-status-table thead {
+    display: none;
+  }
+
+  .invite-status-table tbody {
+    display: block;
+  }
+
+  .invite-status-table tr {
+    display: block;
+    margin-bottom: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--card);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  }
+
+  .invite-status-table td {
+    display: block;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px 10px 44%;
+    position: relative;
+    font-size: 13px;
+    text-align: right;
+    word-break: break-word;
+  }
+
+  .invite-status-table td:last-child {
+    border-bottom: none;
+  }
+
+  .invite-status-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 12px;
+    top: 10px;
+    width: 40%;
+    font-weight: 800;
+    font-size: 10px;
+    color: var(--ink-700);
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    line-height: 1.3;
+  }
+
+  .invite-status-table td.invite-actions-cell {
+    padding: 12px;
+    text-align: left;
+  }
+
+  .invite-status-table td.invite-actions-cell::before {
+    position: static;
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    text-align: left;
+  }
+
+  .invite-roster-actions {
+    flex-direction: column;
+  }
+
+  .invite-roster-btn {
+    width: 100%;
   }
 
   .schedule-slot {

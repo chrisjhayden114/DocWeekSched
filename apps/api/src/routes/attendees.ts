@@ -44,7 +44,6 @@ async function createAndEmailInvite(
   }
 
   const setupToken = randomBytes(32).toString("hex");
-  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const passwordHash = await hashPassword(randomBytes(24).toString("hex"));
 
   await prisma.user.create({
@@ -56,7 +55,7 @@ async function createAndEmailInvite(
       role: "ATTENDEE",
       passwordHash,
       profileSetupToken: setupToken,
-      profileSetupTokenExpiresAt: expires,
+      profileSetupTokenExpiresAt: null,
     },
   });
 
@@ -176,6 +175,27 @@ attendeesRouter.post("/invite-bulk", requireAuth, requireRole(["ADMIN"]), async 
   }
 
   return res.json({ ok: true, sentCount: sent.length, failedCount: failed.length, sent, failed });
+});
+
+attendeesRouter.post("/:id/make-admin", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
+  const targetId = req.params.id;
+  if (!targetId) return res.status(400).json({ error: "User id is required" });
+
+  const target = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { id: true, role: true },
+  });
+  if (!target) return res.status(404).json({ error: "Participant not found" });
+  if (target.role === "ADMIN") {
+    return res.status(400).json({ error: "This user is already an administrator" });
+  }
+
+  await prisma.user.update({
+    where: { id: targetId },
+    data: { role: "ADMIN" },
+  });
+
+  return res.json({ ok: true });
 });
 
 attendeesRouter.delete("/:id", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {

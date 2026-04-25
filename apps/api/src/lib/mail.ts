@@ -33,6 +33,7 @@ export async function sendParticipantInviteEmail(opts: {
       html: `<p>Hi ${escapeHtml(opts.name)},</p>
 <p>You've been added to <strong>${escapeHtml(opts.eventName)}</strong> with a starter profile.</p>
 <p><a href="${opts.inviteUrl.replace(/"/g, "&quot;")}">Set your password and confirm your profile</a></p>
+<p>This setup link does not expire — you can complete it whenever you are ready.</p>
 <p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.inviteUrl)}</p>`,
     }),
   });

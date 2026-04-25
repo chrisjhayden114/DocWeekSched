@@ -854,9 +854,9 @@ export default function Dashboard() {
             <p className="help-text" style={{ marginTop: 0 }}>
               <strong>Joined</strong> means the account is active (invite completed, or they registered another way).{" "}
               <strong>Pending</strong> means they were emailed a setup link and have not finished creating their password.{" "}
-              <strong>Expired</strong> means that link is past its date — invite them again with the same email only after resolving the existing record if the app reports a conflict.
+              New invites <strong>do not expire</strong>. Older rows may still show <strong>Expired</strong> if they used a dated link from before that change — invite them again if needed.
             </p>
-            <div style={{ overflowX: "auto" }}>
+            <div className="invite-status-table-wrap">
               <table className="invite-status-table">
                 <thead>
                   <tr>
@@ -871,35 +871,59 @@ export default function Dashboard() {
                 <tbody>
                   {attendees.map((a) => (
                     <tr key={a.id}>
-                      <td>{a.name}</td>
-                      <td>{a.email}</td>
-                      <td>{a.role}</td>
-                      <td>{inviteStatusLabel(a)}</td>
-                      <td>
-                        {a.inviteStatus === "PENDING_SETUP" && a.inviteExpiresAt
-                          ? new Date(a.inviteExpiresAt).toLocaleString()
-                          : "—"}
+                      <td data-label="Name">{a.name}</td>
+                      <td data-label="Email">{a.email}</td>
+                      <td data-label="Role">{a.role}</td>
+                      <td data-label="Status">{inviteStatusLabel(a)}</td>
+                      <td data-label="Link expires">
+                        {a.inviteStatus === "PENDING_SETUP" && !a.inviteExpiresAt
+                          ? "Does not expire"
+                          : a.inviteStatus === "PENDING_SETUP" && a.inviteExpiresAt
+                            ? new Date(a.inviteExpiresAt).toLocaleString()
+                            : "—"}
                       </td>
-                      <td>
+                      <td data-label="Actions" className={a.role !== "ADMIN" ? "invite-actions-cell" : ""}>
                         {a.role !== "ADMIN" ? (
-                          <button
-                            type="button"
-                            className="button secondary"
-                            onClick={async () => {
-                              const ok = window.confirm(
-                                `Delete ${a.name} (${a.email}) and remove their posts, replies, likes, and participation data?`,
-                              );
-                              if (!ok) return;
-                              try {
-                                await apiFetch(`/attendees/${a.id}`, { method: "DELETE" }, token!);
-                                setAttendees((prev) => prev.filter((row) => row.id !== a.id));
-                              } catch (err) {
-                                window.alert(err instanceof Error ? err.message : "Could not delete participant.");
-                              }
-                            }}
-                          >
-                            Delete participant
-                          </button>
+                          <div className="invite-roster-actions">
+                            <button
+                              type="button"
+                              className="button secondary invite-roster-btn"
+                              onClick={async () => {
+                                const ok = window.confirm(
+                                  `Make ${a.name} (${a.email}) an administrator? They will be able to manage events, invites, and sessions.`,
+                                );
+                                if (!ok) return;
+                                try {
+                                  await apiFetch(`/attendees/${a.id}/make-admin`, { method: "POST" }, token!);
+                                  setAttendees(
+                                    await apiFetch<User[]>("/attendees", withEventHeaders(), token!),
+                                  );
+                                } catch (err) {
+                                  window.alert(err instanceof Error ? err.message : "Could not promote participant.");
+                                }
+                              }}
+                            >
+                              Make admin
+                            </button>
+                            <button
+                              type="button"
+                              className="button secondary invite-roster-btn"
+                              onClick={async () => {
+                                const ok = window.confirm(
+                                  `Delete ${a.name} (${a.email}) and remove their posts, replies, likes, and participation data?`,
+                                );
+                                if (!ok) return;
+                                try {
+                                  await apiFetch(`/attendees/${a.id}`, { method: "DELETE" }, token!);
+                                  setAttendees((prev) => prev.filter((row) => row.id !== a.id));
+                                } catch (err) {
+                                  window.alert(err instanceof Error ? err.message : "Could not delete participant.");
+                                }
+                              }}
+                            >
+                              Delete participant
+                            </button>
+                          </div>
                         ) : (
                           <span className="help-text">—</span>
                         )}
@@ -1827,6 +1851,7 @@ function ProfileEditor({
     user.participantType || "",
   );
   const [resettingEngagement, setResettingEngagement] = useState(false);
+  const [appearanceTheme, setAppearanceTheme] = useState<"blue" | "slate">("blue");
 
   useEffect(() => {
     setPhotoPreview(user.photoUrl || null);
@@ -1834,6 +1859,15 @@ function ProfileEditor({
     setResearchInterests(user.researchInterests || "");
     setParticipantType(user.participantType || "");
   }, [user]);
+
+  useEffect(() => {
+    try {
+      const t = window.localStorage.getItem("eventPilotTheme");
+      if (t === "slate" || t === "blue") setAppearanceTheme(t);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1956,6 +1990,46 @@ function ProfileEditor({
           >
             {resettingEngagement ? "Resetting…" : "Reset my points to zero"}
           </button>
+        </div>
+      )}
+      {user.role === "ADMIN" && (
+        <div className="card" style={{ marginTop: 12, padding: 16 }}>
+          <h4 style={{ marginTop: 0 }}>Appearance</h4>
+          <p className="help-text" style={{ marginTop: 0 }}>
+            Color theme for this browser (stored only on your device). Everyone chooses their own look.
+          </p>
+          <div className="profile-choice-group" style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className={appearanceTheme === "blue" ? "button" : "button secondary"}
+              onClick={() => {
+                setAppearanceTheme("blue");
+                try {
+                  window.localStorage.setItem("eventPilotTheme", "blue");
+                  document.documentElement.setAttribute("data-theme", "blue");
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              Blue (default)
+            </button>
+            <button
+              type="button"
+              className={appearanceTheme === "slate" ? "button" : "button secondary"}
+              onClick={() => {
+                setAppearanceTheme("slate");
+                try {
+                  window.localStorage.setItem("eventPilotTheme", "slate");
+                  document.documentElement.setAttribute("data-theme", "slate");
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              Slate
+            </button>
+          </div>
         </div>
       )}
       {user.role === "ADMIN" && (

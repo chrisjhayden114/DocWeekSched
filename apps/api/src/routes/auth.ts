@@ -180,7 +180,7 @@ authRouter.get("/profile-setup/:token", async (req, res) => {
   const user = await prisma.user.findFirst({
     where: {
       profileSetupToken: req.params.token,
-      profileSetupTokenExpiresAt: { gt: new Date() },
+      OR: [{ profileSetupTokenExpiresAt: null }, { profileSetupTokenExpiresAt: { gt: new Date() } }],
     },
     select: { email: true, name: true, photoUrl: true, researchInterests: true },
   });
@@ -199,7 +199,7 @@ authRouter.post("/profile-setup", async (req, res) => {
   const user = await prisma.user.findFirst({
     where: {
       profileSetupToken: parsed.data.token,
-      profileSetupTokenExpiresAt: { gt: new Date() },
+      OR: [{ profileSetupTokenExpiresAt: null }, { profileSetupTokenExpiresAt: { gt: new Date() } }],
     },
   });
   if (!user) {
