@@ -659,8 +659,8 @@ a:hover {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 10px 12px 10px;
+  border-radius: 12px;
+  padding: 8px 10px 8px;
   background: #ffffff;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
   cursor: pointer;
@@ -674,32 +674,32 @@ a:hover {
 
 .schedule-event-head {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-start;
 }
 
 .schedule-thumb {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid var(--border-strong);
 }
 
 .schedule-event h4 {
-  margin: 0 0 4px;
-  font-size: 15px;
+  margin: 0 0 2px;
+  font-size: 14px;
   flex: 1;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .schedule-speaker {
   color: var(--gold);
   font-weight: 600;
-  font-size: 12px;
-  margin-bottom: 4px;
-  line-height: 1.25;
+  font-size: 11px;
+  margin-bottom: 2px;
+  line-height: 1.2;
 }
 
 .schedule-event p {
@@ -708,20 +708,60 @@ a:hover {
   line-height: 1.45;
 }
 
-.schedule-meta {
+.schedule-event-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--ink-muted);
-  font-size: 12px;
+  flex-direction: column;
+  gap: 4px;
   margin-top: auto;
+  width: 100%;
+}
+
+.schedule-meta-line {
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.2;
 }
 
 .schedule-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.schedule-actions-toolbar {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 1px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.schedule-actions-toolbar > * {
+  flex-shrink: 0;
+}
+
+.schedule-actions-toolbar .schedule-toolbar-btn,
+.schedule-actions-toolbar .agenda-add-my-btn {
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
+  line-height: 1.2;
+  transform: none;
+  box-shadow: none;
+}
+
+.schedule-actions-toolbar .schedule-toolbar-btn:hover:not(:disabled),
+.schedule-actions-toolbar .agenda-add-my-btn:hover {
+  transform: none;
+  filter: brightness(0.98);
+}
+
+.schedule-actions-toolbar .schedule-toolbar-btn:active:not(:disabled),
+.schedule-actions-toolbar .agenda-add-my-btn:active {
+  transform: scale(0.97);
 }
 
 .schedule-actions-with-attendance {
@@ -737,6 +777,35 @@ a:hover {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.72);
+}
+
+.session-attendance-inline {
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  max-width: 100%;
+}
+
+.session-attendance-inline .attendance-join-text {
+  font-size: 10px;
+  margin-right: 0;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-attendance-inline .join-mode-switch {
+  border-radius: 6px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.session-attendance-inline .join-mode-switch button {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 6px;
 }
 
 .attendance-join-dot {
@@ -809,13 +878,13 @@ a:hover {
 
 .schedule-links {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .schedule-links a {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .avatar {
@@ -1053,22 +1122,27 @@ a:hover {
 
 .agenda-add-my-btn {
   display: inline-flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-width: 118px;
-  padding: 10px 12px;
-  border-radius: 10px;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: 8px;
   border: 1px solid var(--border-strong);
   background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
   font-weight: 800;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   color: var(--ink-900);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: transform 70ms ease, border-color 70ms ease, box-shadow 70ms ease;
+}
+
+.agenda-add-my-btn-icon {
+  font-size: 13px;
+  line-height: 1;
 }
 
 .agenda-add-my-btn:hover {
@@ -1078,12 +1152,6 @@ a:hover {
 .agenda-add-my-btn:active {
   transform: scale(0.97);
   transition: none;
-}
-
-.agenda-add-my-btn .sub {
-  font-weight: 600;
-  font-size: 11px;
-  color: var(--ink-muted);
 }
 
 /* Community (Whova-style list) */
@@ -1578,25 +1646,39 @@ a:hover {
     padding-top: 0;
   }
 
-  .schedule-meta {
-    flex-direction: column;
-    align-items: flex-start;
+  .schedule-event-footer {
+    align-items: stretch;
   }
 
   .schedule-actions {
     width: 100%;
   }
 
-  .schedule-actions .button {
-    flex: 1 1 140px;
+  .schedule-actions-toolbar {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .schedule-actions-toolbar > * {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .session-attendance-block {
     width: 100%;
   }
 
+  .session-attendance-inline {
+    flex-wrap: wrap;
+  }
+
+  .session-attendance-inline .attendance-join-text {
+    max-width: none;
+  }
+
   .join-mode-switch {
-    width: 100%;
+    width: auto;
+    flex: 1 1 100%;
   }
 
   .join-mode-switch button {

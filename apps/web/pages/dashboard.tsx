@@ -1237,6 +1237,8 @@ function ScheduleBoard({
                   const joining = myStatus === "JOINING";
                   const myMode = myRow?.joinMode ?? "IN_PERSON";
                   const sessionAllowsVirtual = s.allowVirtualJoin !== false;
+                  const joinModeShort =
+                    myMode === "VIRTUAL" ? "Virtual" : myMode === "ASYNC" ? "Async" : "In person";
                   return (
                     <article
                       className="schedule-event"
@@ -1260,32 +1262,42 @@ function ScheduleBoard({
                         {s.fileLink && <a href={s.fileLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Resources</a>}
                         {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Uploaded File</a>}
                       </div>
-                      <div className="schedule-meta">
-                        <span>
+                      <div className="schedule-event-footer">
+                        <div className="schedule-meta-line">
                           {formatTimeRange(s.startsAt, s.endsAt)}
                           {" · "}
                           {inPersonJoining} in-person · {virtualJoining} virtual · {asyncJoining} async · {likeCount} likes
-                        </span>
-                        <div className="schedule-actions schedule-actions-with-attendance">
+                        </div>
+                        <div className="schedule-actions schedule-actions-toolbar schedule-actions-with-attendance">
                           <div onClick={(event) => event.stopPropagation()} role="group" aria-label="My agenda">
                             {!joining ? (
                               <button
                                 type="button"
                                 className="agenda-add-my-btn"
+                                aria-label={
+                                  sessionAllowsVirtual
+                                    ? "Add to my agenda. You can choose in person, virtual, or async."
+                                    : "Add to my agenda. You can choose in person or async."
+                                }
+                                title={
+                                  sessionAllowsVirtual
+                                    ? "Add to my agenda — in person, virtual, or async"
+                                    : "Add to my agenda — in person or async"
+                                }
                                 onClick={() => setAgendaModalSessionId(s.id)}
                               >
-                                <span aria-hidden style={{ fontSize: 18 }}>
+                                <span aria-hidden className="agenda-add-my-btn-icon">
                                   &#128197;
                                 </span>
-                                <span>Add to my agenda</span>
-                                <span className="sub">
-                                  {sessionAllowsVirtual ? "In person, virtual, or async" : "In person or async"}
-                                </span>
+                                <span>Add</span>
                               </button>
                             ) : (
-                              <div className="session-attendance-block">
-                                <span className="attendance-join-text">
-                                  On my agenda · {agendaJoinModeLabel(myMode)}
+                              <div
+                                className="session-attendance-block session-attendance-inline"
+                                title="On my agenda — switch mode or remove"
+                              >
+                                <span className="attendance-join-text" title={agendaJoinModeLabel(myMode)}>
+                                  {joinModeShort}
                                 </span>
                                 <div className="join-mode-switch" role="group" aria-label="Attendance mode">
                                   {sessionAllowsVirtual && (
@@ -1315,7 +1327,8 @@ function ScheduleBoard({
                                 </div>
                                 <button
                                   type="button"
-                                  className="button secondary"
+                                  className="button secondary schedule-toolbar-btn"
+                                  aria-label="Remove from my agenda"
                                   onClick={() => onPatchAttendance(s.id, { status: "NOT_JOINING" })}
                                 >
                                   Remove
@@ -1323,12 +1336,39 @@ function ScheduleBoard({
                               </div>
                             )}
                           </div>
-                          <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onGoToSession(s.id); }}>Session Q&amp;A</button>
-                          <button className={`button ${liked ? "" : "secondary"}`} type="button" onClick={(event) => { event.stopPropagation(); onToggleLike(s.id); }}>
+                          <button
+                            className="button secondary schedule-toolbar-btn"
+                            type="button"
+                            title="Session Q&A"
+                            aria-label="Session Q&A"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onGoToSession(s.id);
+                            }}
+                          >
+                            Q&amp;A
+                          </button>
+                          <button
+                            className={`button schedule-toolbar-btn ${liked ? "" : "secondary"}`}
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onToggleLike(s.id);
+                            }}
+                          >
                             Like
                           </button>
                           {isAdmin && (
-                            <button className="button secondary" type="button" onClick={(event) => { event.stopPropagation(); onEditSession(s); }}>Edit</button>
+                            <button
+                              className="button secondary schedule-toolbar-btn"
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onEditSession(s);
+                              }}
+                            >
+                              Edit
+                            </button>
                           )}
                         </div>
                       </div>
