@@ -55,6 +55,7 @@ enum NotificationKind {
   COMMUNITY_THREAD
   COMMUNITY_REPLY
   MESSAGE
+  ADMIN_REQUEST
 }
 
 model User {

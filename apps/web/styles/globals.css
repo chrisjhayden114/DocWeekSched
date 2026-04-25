@@ -550,6 +550,38 @@ html[data-theme="slate"] .invite-status-table th {
   font-size: 13px;
 }
 
+.invite-roster-actions--admin {
+  gap: 10px;
+}
+
+.roster-admin-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-700);
+}
+
+.roster-role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.roster-role-badge--admin {
+  background: rgba(0, 51, 160, 0.12);
+  color: var(--uk-blue-dark);
+  border: 1px solid rgba(0, 51, 160, 0.22);
+}
+
+html[data-theme="slate"] .roster-role-badge--admin {
+  background: rgba(51, 65, 85, 0.14);
+  color: var(--ink-900);
+  border-color: rgba(51, 65, 85, 0.28);
+}
+
 .message-composer-form {
   margin: 0;
 }
@@ -1850,8 +1882,55 @@ html[data-theme="slate"] .invite-status-table th {
     justify-content: flex-start;
   }
 
+  .app-shell-subtitle {
+    word-break: break-word;
+  }
+
+  .app-shell-heading-row {
+    align-items: flex-start;
+  }
+
+  .dashboard-tabs {
+    gap: 8px;
+  }
+
+  .dashboard-tabs > button {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .dashboard-tabs .nav-tab-inner {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .roster-admin-note {
+    font-size: 13px;
+  }
+
+  .invite-roster-actions--admin {
+    align-items: stretch;
+  }
+
+  .community-subnav {
+    gap: 6px;
+  }
+
+  .community-subnav button {
+    min-height: 42px;
+  }
+
+  .community-thread-row {
+    padding: 12px 10px;
+  }
+
   .messages-layout {
     grid-template-columns: 1fr;
+  }
+
+  .messages-layout .card {
+    padding: 14px;
   }
 
   .hero-banner {
@@ -1886,6 +1965,12 @@ html[data-theme="slate"] .invite-status-table th {
     flex-basis: 100%;
   }
 
+  .dashboard-tabs > button {
+    flex-basis: calc(50% - 6px);
+    flex-grow: 1;
+    min-height: 44px;
+  }
+
   .nav.agenda-view-toggle button {
     flex-basis: 0;
     flex-grow: 1;
@@ -1913,6 +1998,16 @@ html[data-theme="slate"] .invite-status-table th {
   .profile-choice {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .login-brand {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .login-brand-text h1 {
+    font-size: 28px;
   }
 
   .button,

@@ -5,7 +5,10 @@ import { hashPassword } from "../lib/auth";
 import { prisma } from "../lib/db";
 import { env } from "../lib/env";
 import { sendParticipantInviteEmail } from "../lib/mail";
+import { notifyMany } from "../lib/notifications";
+import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
+import { NotificationKind } from "@prisma/client";
 
 export const attendeesRouter = Router();
 
@@ -177,6 +180,46 @@ attendeesRouter.post("/invite-bulk", requireAuth, requireRole(["ADMIN"]), async 
   return res.json({ ok: true, sentCount: sent.length, failedCount: failed.length, sent, failed });
 });
 
+attendeesRouter.post("/admin-access-request", requireAuth, async (req: AuthedRequest, res) => {
+  const userId = req.user?.id || "";
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, email: true, role: true },
+  });
+  if (!me) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  if (me.role === "ADMIN") {
+    return res.status(400).json({ error: "You are already an administrator." });
+  }
+
+  const event = await resolveEventFromRequest(req);
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN" },
+    select: { id: true },
+  });
+  if (admins.length === 0) {
+    return res.status(503).json({ error: "No administrators are available to review this request." });
+  }
+
+  const title = "Administrator access requested";
+  const body = `${me.name} (${me.email}) requested administrator access for ${event.name}. Open Participants and Invites to promote them if appropriate.`;
+
+  await notifyMany(
+    admins
+      .filter((row) => row.id !== me.id)
+      .map((row) => ({
+        userId: row.id,
+        eventId: event.id,
+        kind: NotificationKind.ADMIN_REQUEST,
+        title,
+        body,
+      })),
+  );
+
+  return res.json({ ok: true });
+});
+
 attendeesRouter.post("/:id/make-admin", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
   const targetId = req.params.id;
   if (!targetId) return res.status(400).json({ error: "User id is required" });
@@ -193,6 +236,36 @@ attendeesRouter.post("/:id/make-admin", requireAuth, requireRole(["ADMIN"]), asy
   await prisma.user.update({
     where: { id: targetId },
     data: { role: "ADMIN" },
+  });
+
+  return res.json({ ok: true });
+});
+
+attendeesRouter.post("/:id/remove-admin", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
+  const targetId = req.params.id;
+  const actorId = req.user?.id || "";
+  if (!targetId) return res.status(400).json({ error: "User id is required" });
+  if (targetId === actorId) {
+    return res.status(400).json({ error: "You cannot remove your own administrator access here. Ask another admin to change your role." });
+  }
+
+  const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+  if (adminCount <= 1) {
+    return res.status(400).json({ error: "There must be at least one administrator." });
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { id: true, role: true },
+  });
+  if (!target) return res.status(404).json({ error: "Participant not found" });
+  if (target.role !== "ADMIN") {
+    return res.status(400).json({ error: "This user is not an administrator." });
+  }
+
+  await prisma.user.update({
+    where: { id: targetId },
+    data: { role: "ATTENDEE" },
   });
 
   return res.json({ ok: true });

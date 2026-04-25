@@ -130,7 +130,7 @@ type NetworkThread = {
 
 type UserNotificationRow = {
   id: string;
-  kind: "COMMUNITY_THREAD" | "COMMUNITY_REPLY" | "MESSAGE";
+  kind: "COMMUNITY_THREAD" | "COMMUNITY_REPLY" | "MESSAGE" | "ADMIN_REQUEST";
   title: string;
   body: string | null;
   threadId: string | null;
@@ -373,6 +373,7 @@ export default function Dashboard() {
     () => notifications.filter((row) => !row.readAt).length,
     [notifications],
   );
+  const rosterAdminCount = useMemo(() => attendees.filter((a) => a.role === "ADMIN").length, [attendees]);
 
   useEffect(() => {
     if (!availableTabs.some((tab) => tab === active)) {
@@ -693,7 +694,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="nav" style={{ marginBottom: 20 }}>
+      <div className="nav dashboard-tabs" style={{ marginBottom: 20 }}>
         {availableTabs.map((tab) => (
           <button
             key={tab}
@@ -873,7 +874,13 @@ export default function Dashboard() {
                     <tr key={a.id}>
                       <td data-label="Name">{a.name}</td>
                       <td data-label="Email">{a.email}</td>
-                      <td data-label="Role">{a.role}</td>
+                      <td data-label="Role">
+                        {a.role === "ADMIN" ? (
+                          <span className="roster-role-badge roster-role-badge--admin">Administrator</span>
+                        ) : (
+                          rosterRoleLabel(a.role)
+                        )}
+                      </td>
                       <td data-label="Status">{inviteStatusLabel(a)}</td>
                       <td data-label="Link expires">
                         {a.inviteStatus === "PENDING_SETUP" && !a.inviteExpiresAt
@@ -882,8 +889,49 @@ export default function Dashboard() {
                             ? new Date(a.inviteExpiresAt).toLocaleString()
                             : "—"}
                       </td>
-                      <td data-label="Actions" className={a.role !== "ADMIN" ? "invite-actions-cell" : ""}>
-                        {a.role !== "ADMIN" ? (
+                      <td data-label="Actions" className="invite-actions-cell">
+                        {a.role === "ADMIN" ? (
+                          <div className="invite-roster-actions invite-roster-actions--admin">
+                            {a.id === user.id ? (
+                              <p className="roster-admin-note">
+                                <strong>You</strong> — signed in as an administrator for this workspace.
+                              </p>
+                            ) : (
+                              <>
+                                <p className="roster-admin-note">
+                                  <strong>{a.name}</strong> has <strong>administrator</strong> access (events, invites,
+                                  sessions).
+                                </p>
+                                <button
+                                  type="button"
+                                  className="button secondary invite-roster-btn"
+                                  disabled={rosterAdminCount <= 1}
+                                  title={
+                                    rosterAdminCount <= 1
+                                      ? "There must be at least one administrator"
+                                      : "Demote to attendee"
+                                  }
+                                  onClick={async () => {
+                                    const ok = window.confirm(
+                                      `Remove administrator access for ${a.name}? They will become a regular attendee.`,
+                                    );
+                                    if (!ok) return;
+                                    try {
+                                      await apiFetch(`/attendees/${a.id}/remove-admin`, { method: "POST" }, token!);
+                                      setAttendees(
+                                        await apiFetch<User[]>("/attendees", withEventHeaders(), token!),
+                                      );
+                                    } catch (err) {
+                                      window.alert(err instanceof Error ? err.message : "Could not update role.");
+                                    }
+                                  }}
+                                >
+                                  Remove admin access
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ) : (
                           <div className="invite-roster-actions">
                             <button
                               type="button"
@@ -924,8 +972,6 @@ export default function Dashboard() {
                               Delete participant
                             </button>
                           </div>
-                        ) : (
-                          <span className="help-text">—</span>
                         )}
                       </td>
                     </tr>
@@ -978,7 +1024,8 @@ export default function Dashboard() {
             ) : null}
           </div>
           <p className="help-text" style={{ marginTop: 8 }}>
-            You get a confirmation when <strong>you</strong> publish to Community; everyone else is notified too (except on meet-ups limited to specific people). Replies, DMs, groups, and admin event-wide messages also appear here. Open an item to jump to it — opening this tab marks items as read.
+            You get a confirmation when <strong>you</strong> publish to Community; everyone else is notified too (except on meet-ups limited to specific people). Replies, DMs, groups, and admin event-wide messages also appear here.{" "}
+            <strong>Administrator access requested</strong> alerts go to organizers when someone uses Profile → Request administrator access. Open an item to jump to it — opening this tab marks items as read.
           </p>
           {notifications.length === 0 ? (
             <p className="help-text" style={{ marginTop: 16 }}>
@@ -998,7 +1045,9 @@ export default function Dashboard() {
                           prev.map((row) => (row.id === n.id ? { ...row, readAt: new Date().toISOString() } : row)),
                         );
                       }
-                      if (n.threadId) {
+                      if (n.kind === "ADMIN_REQUEST") {
+                        setActive(PARTICIPANTS_INVITES_TAB);
+                      } else if (n.threadId) {
                         setCommunityChannel("ALL");
                         setCommunityFocusThreadId(n.threadId);
                         setActive(COMMUNITY_TAB);
@@ -1174,6 +1223,13 @@ export default function Dashboard() {
           adminEvents={adminEvents}
           activeEventId={activeEventId}
           withEventHeaders={withEventHeaders}
+          onAdminRequestSent={async () => {
+            try {
+              setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!));
+            } catch {
+              /* ignore */
+            }
+          }}
           onSaved={(updated) => {
             setUser(updated);
             window.localStorage.setItem("user", JSON.stringify(updated));
@@ -1829,6 +1885,7 @@ function ProfileEditor({
   onSaved,
   onEventSelected,
   onEventCreated,
+  onAdminRequestSent,
 }: {
   token: string;
   user: User;
@@ -1838,10 +1895,12 @@ function ProfileEditor({
   onSaved: (user: User) => void;
   onEventSelected: (eventId: string) => void;
   onEventCreated: (event: EventItem) => void;
+  onAdminRequestSent?: () => void | Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [adminRequestBusy, setAdminRequestBusy] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(user.photoUrl || null);
   const [name, setName] = useState(user.name);
   const [researchInterests, setResearchInterests] = useState(user.researchInterests || "");
@@ -1961,6 +2020,45 @@ function ProfileEditor({
       <button className="button" type="submit" disabled={saving}>
         {saving ? "Saving..." : "Save Profile"}
       </button>
+      {user.role !== "ADMIN" && (
+        <div className="card profile-admin-request-card" style={{ marginTop: 12, padding: 16 }}>
+          <h4 style={{ marginTop: 0 }}>Administrator access</h4>
+          <p className="help-text" style={{ marginTop: 0 }}>
+            If you need to help manage this event (invites, agenda, settings), you can notify all current administrators.
+            They will see a message under <strong>Notifications</strong> and can promote you from{" "}
+            <strong>Participants and Invites</strong> if they agree.
+          </p>
+          {!activeEventId ? (
+            <p className="help-text" style={{ marginTop: 8, color: "#b42318" }}>
+              The app needs to know which event you&apos;re part of. Open your event join link once (from your invite
+              email), or ask an organizer — then return here and try again.
+            </p>
+          ) : (
+            <button
+              type="button"
+              className="button secondary"
+              style={{ marginTop: 10 }}
+              disabled={adminRequestBusy}
+              onClick={async () => {
+                setAdminRequestBusy(true);
+                setSaveError(null);
+                setSaveSuccess(null);
+                try {
+                  await apiFetch("/attendees/admin-access-request", withEventHeaders({ method: "POST" }), token);
+                  setSaveSuccess("Request sent. Organizers have been notified.");
+                  await onAdminRequestSent?.();
+                } catch (e) {
+                  setSaveError(e instanceof Error ? e.message : "Could not send request.");
+                } finally {
+                  setAdminRequestBusy(false);
+                }
+              }}
+            >
+              {adminRequestBusy ? "Sending…" : "Request administrator access"}
+            </button>
+          )}
+        </div>
+      )}
       {user.role === "ADMIN" && (
         <div className="card" style={{ marginTop: 12, padding: 16 }}>
           <h4 style={{ marginTop: 0 }}>Engagement points</h4>
@@ -3088,6 +3186,11 @@ function inviteStatusLabel(attendee: User) {
   if (attendee.inviteStatus === "INVITE_EXPIRED") return "Invite expired";
   if (attendee.inviteStatus === "ACTIVE") return "Joined";
   return "—";
+}
+
+function rosterRoleLabel(role: User["role"]) {
+  if (role === "SPEAKER") return "Speaker";
+  return "Attendee";
 }
 
 function participantTypeLabel(type?: User["participantType"] | "") {
