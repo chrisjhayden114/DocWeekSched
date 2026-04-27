@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { apiFetch } from "../../lib/api";
 
@@ -95,10 +95,15 @@ function withEventHeaders(activeEventId: string | null, extra: RequestInit = {})
   return { ...extra, headers: { ...h, "x-event-id": activeEventId } };
 }
 
-function formatTimeRange(start: string, end: string) {
+function timeZoneAbbrev(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat(undefined, { timeZone, timeZoneName: "short" }).formatToParts(date);
+  return parts.find((part) => part.type === "timeZoneName")?.value || timeZone;
+}
+
+function formatTimeRangeInZone(start: string, end: string, timeZone: string) {
   const startDate = new Date(start);
   const endDate = new Date(end);
-  return `${startDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} – ${endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  return `${startDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone })} – ${endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone })} ${timeZoneAbbrev(startDate, timeZone)}`;
 }
 
 function formatEventRange(start: string, end: string) {
@@ -169,6 +174,14 @@ export default function SessionPage() {
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
   const [resources, setResources] = useState<SessionResource[]>([]);
   const [resourceError, setResourceError] = useState<string | null>(null);
+  const [timeMode, setTimeMode] = useState<"MY" | "EVENT">("MY");
+  const myTimezone = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      return "UTC";
+    }
+  }, []);
   const [resourceKind, setResourceKind] = useState<"LINK" | "FILE">("LINK");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -357,6 +370,7 @@ export default function SessionPage() {
     ? (new Date() > new Date(session.endsAt) ? "Joined" : "Joining")
     : "Join";
   const openThread = threads.find((thread) => thread.id === openThreadId) ?? null;
+  const displayTimezone = timeMode === "EVENT" ? event?.timezone || myTimezone : myTimezone;
 
   return (
     <div className="container">
@@ -425,7 +439,25 @@ export default function SessionPage() {
               <img src={session.imageUrl} alt="" className="session-page-image" />
             )}
             <h2 style={{ margin: "0 0 8px", fontFamily: "Merriweather, Georgia, serif" }}>{session.title}</h2>
-            <p style={{ color: "var(--ink-muted)", margin: "0 0 12px" }}>{formatTimeRange(session.startsAt, session.endsAt)}</p>
+            <p style={{ color: "var(--ink-muted)", margin: "0 0 8px" }}>
+              {formatTimeRangeInZone(session.startsAt, session.endsAt, displayTimezone)}
+            </p>
+            <div className="nav agenda-timezone-toggle" style={{ marginBottom: 12 }}>
+              <button
+                type="button"
+                className={timeMode === "MY" ? "active" : ""}
+                onClick={() => setTimeMode("MY")}
+              >
+                My timezone
+              </button>
+              <button
+                type="button"
+                className={timeMode === "EVENT" ? "active" : ""}
+                onClick={() => setTimeMode("EVENT")}
+              >
+                Event timezone
+              </button>
+            </div>
             {(session.speakers || session.speaker?.name) && (
               <p style={{ margin: "0 0 8px" }}>
                 <strong>Speakers:</strong> {session.speakers || session.speaker?.name}

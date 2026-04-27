@@ -228,6 +228,7 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
+  const [agendaTimeMode, setAgendaTimeMode] = useState<"MY" | "EVENT">("MY");
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
@@ -241,6 +242,13 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState<UserNotificationRow[]>([]);
   const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
   const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
+  const myTimezone = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      return "UTC";
+    }
+  }, []);
 
   const withEventHeaders = (extra: RequestInit = {}): RequestInit => {
     if (!activeEventId) return extra;
@@ -415,7 +423,14 @@ export default function Dashboard() {
     () => [...sessions].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
     [sessions]
   );
-  const groupedAgenda = useMemo(() => groupSessionsByDayAndTime(sortedSessions), [sortedSessions]);
+  const agendaDisplayTimezone = useMemo(
+    () => (agendaTimeMode === "EVENT" ? event?.timezone || myTimezone : myTimezone),
+    [agendaTimeMode, event?.timezone, myTimezone],
+  );
+  const groupedAgenda = useMemo(
+    () => groupSessionsByDayAndTime(sortedSessions, agendaDisplayTimezone),
+    [sortedSessions, agendaDisplayTimezone],
+  );
   const joiningSessionIds = useMemo(
     () => myAttendance.filter((item) => item.status === "JOINING").map((item) => item.sessionId),
     [myAttendance]
@@ -424,7 +439,10 @@ export default function Dashboard() {
     () => sortedSessions.filter((session) => joiningSessionIds.includes(session.id)),
     [sortedSessions, joiningSessionIds]
   );
-  const groupedMySchedule = useMemo(() => groupSessionsByDayAndTime(myScheduledSessions), [myScheduledSessions]);
+  const groupedMySchedule = useMemo(
+    () => groupSessionsByDayAndTime(myScheduledSessions, agendaDisplayTimezone),
+    [myScheduledSessions, agendaDisplayTimezone],
+  );
 
   const messageSearchLower = messageDirectoryQuery.trim().toLowerCase();
 
@@ -780,11 +798,37 @@ export default function Dashboard() {
                 My Schedule
               </button>
             </div>
+            <div className="nav agenda-timezone-toggle" role="tablist" aria-label="Time display mode">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={agendaTimeMode === "MY"}
+                className={agendaTimeMode === "MY" ? "active" : ""}
+                onClick={() => setAgendaTimeMode("MY")}
+              >
+                My timezone
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={agendaTimeMode === "EVENT"}
+                className={agendaTimeMode === "EVENT" ? "active" : ""}
+                onClick={() => setAgendaTimeMode("EVENT")}
+              >
+                Event timezone
+              </button>
+            </div>
+            <p className="help-text" style={{ margin: "8px 0 12px" }}>
+              Times shown in{" "}
+              <strong>{agendaDisplayTimezone}</strong>{" "}
+              ({agendaTimeMode === "MY" ? "your device setting" : "event setting"}).
+            </p>
             {agendaView === "Event Schedule" && (
               <ScheduleBoard
                 grouped={groupedAgenda}
                 eventName={event?.name || "Event"}
                 eventTimezone={event?.timezone || "UTC"}
+                displayTimezone={agendaDisplayTimezone}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={likedSessionIds}
@@ -799,6 +843,7 @@ export default function Dashboard() {
                 grouped={groupedMySchedule}
                 eventName={event?.name || "Event"}
                 eventTimezone={event?.timezone || "UTC"}
+                displayTimezone={agendaDisplayTimezone}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={likedSessionIds}
@@ -1302,6 +1347,7 @@ function ScheduleBoard({
   grouped,
   eventName,
   eventTimezone,
+  displayTimezone,
   isAdmin,
   myAttendance,
   likedSessionIds,
@@ -1313,6 +1359,7 @@ function ScheduleBoard({
   grouped: Array<{ dayLabel: string; timeSlots: Array<{ timeLabel: string; sessions: Session[] }> }>;
   eventName: string;
   eventTimezone: string;
+  displayTimezone: string;
   isAdmin: boolean;
   myAttendance: SessionAttendance[];
   likedSessionIds: string[];
@@ -1412,7 +1459,7 @@ function ScheduleBoard({
                       </div>
                       <div className="schedule-event-footer">
                         <div className="schedule-meta-line">
-                          {formatTimeRange(s.startsAt, s.endsAt)}
+                          {formatTimeRange(s.startsAt, s.endsAt, displayTimezone)}
                           {" · "}
                           {inPersonJoining} in-person · {virtualJoining} virtual · {asyncJoining} async · {likeCount} likes
                         </div>
@@ -3350,10 +3397,28 @@ function formatEventRange(start: string, end: string) {
   return `${startDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
-function formatTimeRange(start: string, end: string) {
+function timeZoneAbbrev(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat(undefined, { timeZone, timeZoneName: "short" }).formatToParts(date);
+  return parts.find((part) => part.type === "timeZoneName")?.value || timeZone;
+}
+
+function zonedDayKey(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === "year")?.value || "0000";
+  const month = parts.find((p) => p.type === "month")?.value || "01";
+  const day = parts.find((p) => p.type === "day")?.value || "01";
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimeRange(start: string, end: string, timeZone = "UTC") {
   const startDate = new Date(start);
   const endDate = new Date(end);
-  return `${startDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  return `${startDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone })} - ${endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone })} ${timeZoneAbbrev(startDate, timeZone)}`;
 }
 
 function toGoogleCalendarUtc(dateString: string) {
@@ -3422,10 +3487,10 @@ function downloadSessionIcs(session: Session, eventName: string, eventTimezone: 
   URL.revokeObjectURL(link.href);
 }
 
-function groupSessionsByDayAndTime(sessions: Session[]) {
+function groupSessionsByDayAndTime(sessions: Session[], timeZone = "UTC") {
   const groupedByDay = new Map<string, Session[]>();
   for (const session of sessions) {
-    const dayKey = new Date(session.startsAt).toDateString();
+    const dayKey = zonedDayKey(new Date(session.startsAt), timeZone);
     const existing = groupedByDay.get(dayKey) || [];
     existing.push(session);
     groupedByDay.set(dayKey, existing);
@@ -3437,11 +3502,12 @@ function groupSessionsByDayAndTime(sessions: Session[]) {
       weekday: "long",
       month: "long",
       day: "numeric",
+      timeZone,
     });
 
     const timeMap = new Map<string, Session[]>();
     for (const session of daySessions) {
-      const timeKey = new Date(session.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const timeKey = new Date(session.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone });
       const list = timeMap.get(timeKey) || [];
       list.push(session);
       timeMap.set(timeKey, list);
