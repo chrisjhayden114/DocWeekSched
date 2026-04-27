@@ -107,6 +107,37 @@ function agendaJoinModeLabel(mode: AgendaJoinMode | null | undefined): string {
   return "In person";
 }
 
+const EVENT_TIMEZONE_OPTIONS = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "Europe/London",
+  "Europe/Paris",
+  "Asia/Singapore",
+  "Asia/Hong_Kong",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+  "UTC",
+];
+
+function timezoneOptionLabel(timezone: string) {
+  const map: Record<string, string> = {
+    "America/New_York": "Eastern (ET: EST/EDT) — America/New_York",
+    "America/Chicago": "Central (CT: CST/CDT) — America/Chicago",
+    "America/Denver": "Mountain (MT: MST/MDT) — America/Denver",
+    "America/Los_Angeles": "Pacific (PT: PST/PDT) — America/Los_Angeles",
+    "Europe/London": "United Kingdom (GMT/BST) — Europe/London",
+    "Europe/Paris": "Central Europe (CET/CEST) — Europe/Paris",
+    "Asia/Singapore": "Singapore (SGT) — Asia/Singapore",
+    "Asia/Hong_Kong": "Hong Kong (HKT) — Asia/Hong_Kong",
+    "Asia/Tokyo": "Japan (JST) — Asia/Tokyo",
+    "Australia/Sydney": "Australia East (AEST/AEDT) — Australia/Sydney",
+    UTC: "UTC",
+  };
+  return map[timezone] || timezone;
+}
+
 type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
 type NetworkReply = { id: string; body: string; createdAt: string; author: NetworkAuthor };
 type NetworkThread = {
@@ -679,7 +710,17 @@ export default function Dashboard() {
                         {eventSettingsError}
                       </p>
                     ) : null}
-                    <input className="input" name="timezone" defaultValue={event.timezone} required />
+                    <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                      Event timezone
+                      <select className="select" name="timezone" defaultValue={event.timezone} required>
+                        {!EVENT_TIMEZONE_OPTIONS.includes(event.timezone) && (
+                          <option value={event.timezone}>{timezoneOptionLabel(event.timezone)}</option>
+                        )}
+                        {EVENT_TIMEZONE_OPTIONS.map((tz) => (
+                          <option key={tz} value={tz}>{timezoneOptionLabel(tz)}</option>
+                        ))}
+                      </select>
+                    </label>
                     <input className="input" type="datetime-local" name="startDate" defaultValue={toLocalInputValue(event.startDate)} required />
                     <input className="input" type="datetime-local" name="endDate" defaultValue={toLocalInputValue(event.endDate)} required />
                     <button className="button" type="submit" disabled={updatingEvent}>
@@ -742,6 +783,8 @@ export default function Dashboard() {
             {agendaView === "Event Schedule" && (
               <ScheduleBoard
                 grouped={groupedAgenda}
+                eventName={event?.name || "Event"}
+                eventTimezone={event?.timezone || "UTC"}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={likedSessionIds}
@@ -754,6 +797,8 @@ export default function Dashboard() {
             {agendaView === "My Schedule" && (
               <ScheduleBoard
                 grouped={groupedMySchedule}
+                eventName={event?.name || "Event"}
+                eventTimezone={event?.timezone || "UTC"}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={likedSessionIds}
@@ -1255,6 +1300,8 @@ export default function Dashboard() {
 
 function ScheduleBoard({
   grouped,
+  eventName,
+  eventTimezone,
   isAdmin,
   myAttendance,
   likedSessionIds,
@@ -1264,6 +1311,8 @@ function ScheduleBoard({
   onGoToSession,
 }: {
   grouped: Array<{ dayLabel: string; timeSlots: Array<{ timeLabel: string; sessions: Session[] }> }>;
+  eventName: string;
+  eventTimezone: string;
   isAdmin: boolean;
   myAttendance: SessionAttendance[];
   likedSessionIds: string[];
@@ -1276,6 +1325,7 @@ function ScheduleBoard({
   onGoToSession: (sessionId: string) => void;
 }) {
   const [agendaModalSessionId, setAgendaModalSessionId] = useState<string | null>(null);
+  const [calendarModalSessionId, setCalendarModalSessionId] = useState<string | null>(null);
 
   const agendaModalSession = useMemo(() => {
     if (!agendaModalSessionId) return null;
@@ -1289,11 +1339,29 @@ function ScheduleBoard({
     return null;
   }, [grouped, agendaModalSessionId]);
 
+  const calendarModalSession = useMemo(() => {
+    if (!calendarModalSessionId) return null;
+    for (const dayGroup of grouped) {
+      for (const slot of dayGroup.timeSlots) {
+        for (const s of slot.sessions) {
+          if (s.id === calendarModalSessionId) return s;
+        }
+      }
+    }
+    return null;
+  }, [grouped, calendarModalSessionId]);
+
   if (grouped.length === 0) {
     return <p style={{ color: "var(--ink-500)" }}>No sessions in this view yet.</p>;
   }
 
   const agendaModalAllowsVirtual = agendaModalSession?.allowVirtualJoin !== false;
+
+  async function joinSessionAndOpenCalendar(sessionId: string, joinMode: AgendaJoinMode) {
+    setAgendaModalSessionId(null);
+    await onPatchAttendance(sessionId, { status: "JOINING", joinMode });
+    setCalendarModalSessionId(sessionId);
+  }
 
   return (
     <>
@@ -1481,10 +1549,9 @@ function ScheduleBoard({
               <button
                 type="button"
                 className="button"
-                onClick={() => {
+                onClick={async () => {
                   const id = agendaModalSessionId;
-                  setAgendaModalSessionId(null);
-                  if (id) void onPatchAttendance(id, { status: "JOINING", joinMode: "IN_PERSON" });
+                  if (id) await joinSessionAndOpenCalendar(id, "IN_PERSON");
                 }}
               >
                 In person
@@ -1493,10 +1560,9 @@ function ScheduleBoard({
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() => {
+                  onClick={async () => {
                     const id = agendaModalSessionId;
-                    setAgendaModalSessionId(null);
-                    if (id) void onPatchAttendance(id, { status: "JOINING", joinMode: "VIRTUAL" });
+                    if (id) await joinSessionAndOpenCalendar(id, "VIRTUAL");
                   }}
                 >
                   Virtually
@@ -1505,16 +1571,70 @@ function ScheduleBoard({
               <button
                 type="button"
                 className="button secondary"
-                onClick={() => {
+                onClick={async () => {
                   const id = agendaModalSessionId;
-                  setAgendaModalSessionId(null);
-                  if (id) void onPatchAttendance(id, { status: "JOINING", joinMode: "ASYNC" });
+                  if (id) await joinSessionAndOpenCalendar(id, "ASYNC");
                 }}
               >
                 Asynchronous- Time Zone Issues!
               </button>
               <button type="button" className="button secondary" onClick={() => setAgendaModalSessionId(null)}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {calendarModalSession && (
+        <div
+          className="agenda-add-modal-overlay"
+          role="presentation"
+          onClick={() => setCalendarModalSessionId(null)}
+        >
+          <div
+            className="agenda-add-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 id="calendar-modal-title">Add to your personal calendar</h4>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              Your session is on your EventPilot agenda. Choose your personal calendar:
+            </p>
+            <div className="agenda-add-modal-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  openGoogleCalendar(calendarModalSession, eventName);
+                  setCalendarModalSessionId(null);
+                }}
+              >
+                Google Calendar
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  openOutlookCalendar(calendarModalSession, eventName);
+                  setCalendarModalSessionId(null);
+                }}
+              >
+                Outlook / Teams
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  downloadSessionIcs(calendarModalSession, eventName, eventTimezone);
+                  setCalendarModalSessionId(null);
+                }}
+              >
+                Apple / Other (.ics)
+              </button>
+              <button type="button" className="button secondary" onClick={() => setCalendarModalSessionId(null)}>
+                Done
               </button>
             </div>
           </div>
@@ -2173,7 +2293,14 @@ function ProfileEditor({
                 if (el instanceof HTMLInputElement) el.value = data;
               }}
             />
-            <input className="input" name="timezone" placeholder="Timezone (e.g. America/New_York)" required />
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Event timezone
+              <select className="select" name="timezone" defaultValue="America/New_York" required>
+                {EVENT_TIMEZONE_OPTIONS.map((tz) => (
+                  <option key={tz} value={tz}>{timezoneOptionLabel(tz)}</option>
+                ))}
+              </select>
+            </label>
             <input className="input" type="datetime-local" name="startDate" required />
             <input className="input" type="datetime-local" name="endDate" required />
             <button className="button" type="submit">Create Event</button>
@@ -3227,6 +3354,72 @@ function formatTimeRange(start: string, end: string) {
   const startDate = new Date(start);
   const endDate = new Date(end);
   return `${startDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function toGoogleCalendarUtc(dateString: string) {
+  return new Date(dateString).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function openGoogleCalendar(session: Session, eventName: string) {
+  const title = `${session.title} (${eventName})`;
+  const details = [session.description, session.zoomLink ? `Meeting: ${session.zoomLink}` : ""]
+    .filter(Boolean)
+    .join("\n\n");
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", title);
+  url.searchParams.set("dates", `${toGoogleCalendarUtc(session.startsAt)}/${toGoogleCalendarUtc(session.endsAt)}`);
+  if (session.location) url.searchParams.set("location", session.location);
+  if (details) url.searchParams.set("details", details);
+  window.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
+function openOutlookCalendar(session: Session, eventName: string) {
+  const title = `${session.title} (${eventName})`;
+  const details = [session.description, session.zoomLink ? `Meeting: ${session.zoomLink}` : ""]
+    .filter(Boolean)
+    .join("\n\n");
+  const url = new URL("https://outlook.office.com/calendar/0/deeplink/compose");
+  url.searchParams.set("path", "/calendar/action/compose");
+  url.searchParams.set("rru", "addevent");
+  url.searchParams.set("subject", title);
+  url.searchParams.set("startdt", new Date(session.startsAt).toISOString());
+  url.searchParams.set("enddt", new Date(session.endsAt).toISOString());
+  if (session.location) url.searchParams.set("location", session.location);
+  if (details) url.searchParams.set("body", details);
+  window.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
+function escapeIcsText(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\n/g, "\\n");
+}
+
+function downloadSessionIcs(session: Session, eventName: string, eventTimezone: string) {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//EventPilot//Conference Session//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${session.id}@eventpilot`,
+    `DTSTAMP:${toGoogleCalendarUtc(new Date().toISOString())}`,
+    `DTSTART:${toGoogleCalendarUtc(session.startsAt)}`,
+    `DTEND:${toGoogleCalendarUtc(session.endsAt)}`,
+    `SUMMARY:${escapeIcsText(`${session.title} (${eventName})`)}`,
+    `DESCRIPTION:${escapeIcsText([session.description, session.zoomLink ? `Meeting: ${session.zoomLink}` : "", `Event timezone: ${eventTimezone}`].filter(Boolean).join("\n\n"))}`,
+    session.location ? `LOCATION:${escapeIcsText(session.location)}` : "",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].filter(Boolean);
+  const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${session.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "session"}.ics`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
 }
 
 function groupSessionsByDayAndTime(sessions: Session[]) {

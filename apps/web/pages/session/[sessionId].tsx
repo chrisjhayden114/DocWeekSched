@@ -107,6 +107,24 @@ function formatEventRange(start: string, end: string) {
   return `${startDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
+function toGoogleCalendarUtc(dateString: string) {
+  return new Date(dateString).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function openGoogleCalendar(session: Session, eventName: string) {
+  const title = `${session.title} (${eventName})`;
+  const details = [session.description, session.zoomLink ? `Meeting: ${session.zoomLink}` : ""]
+    .filter(Boolean)
+    .join("\n\n");
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", title);
+  url.searchParams.set("dates", `${toGoogleCalendarUtc(session.startsAt)}/${toGoogleCalendarUtc(session.endsAt)}`);
+  if (session.location) url.searchParams.set("location", session.location);
+  if (details) url.searchParams.set("details", details);
+  window.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -479,6 +497,15 @@ export default function SessionPage() {
                   </div>
                 )}
               </div>
+              {session && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => openGoogleCalendar(session, event?.name || "Event")}
+                >
+                  Add to Google Calendar
+                </button>
+              )}
               <button type="button" className={liked ? "button" : "button secondary"} onClick={() => toggleLike()}>
                 Like
               </button>

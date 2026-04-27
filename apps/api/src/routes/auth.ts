@@ -32,7 +32,27 @@ authRouter.post("/register", async (req, res) => {
   const { email, name, password, role, researchInterests, participantType } = parsed.data;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return res.status(409).json({ error: "Email already in use" });
+    if (!existing.profileSetupToken) {
+      return res.status(409).json({ error: "Email already in use" });
+    }
+
+    const passwordHash = await hashPassword(password);
+    const invited = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        name,
+        role: existing.role === "ATTENDEE" || existing.role === "SPEAKER" ? role : existing.role,
+        researchInterests: researchInterests ?? existing.researchInterests,
+        participantType: participantType ?? existing.participantType,
+        passwordHash,
+        profileSetupToken: null,
+        profileSetupTokenExpiresAt: null,
+      },
+      select: { id: true, email: true, name: true, role: true, photoUrl: true, researchInterests: true, participantType: true, engagementPoints: true },
+    });
+
+    const token = signToken({ userId: invited.id, role: invited.role });
+    return res.json({ user: invited, token });
   }
 
   const passwordHash = await hashPassword(password);
