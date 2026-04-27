@@ -1,8 +1,10 @@
+import { randomBytes } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
 import { hashPassword, signToken, verifyPassword } from "../lib/auth";
 import { env } from "../lib/env";
+import { sendPasswordResetEmail } from "../lib/mail";
 import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
 
 export const authRouter = Router();
@@ -95,6 +97,15 @@ const loginSchema = z.object({
   password: z.string().min(8),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(16),
+  password: z.string().min(8),
+});
+
 authRouter.post("/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -126,6 +137,63 @@ authRouter.post("/login", async (req, res) => {
     },
     token,
   });
+});
+
+authRouter.post("/forgot-password", async (req, res) => {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const email = parsed.data.email.trim();
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+  });
+  if (user) {
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: token,
+        passwordResetTokenExpiresAt: expiresAt,
+      },
+    });
+    const base = env.webBaseUrl.replace(/\/$/, "");
+    const resetUrl = `${base}/reset-password/${token}`;
+    await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl });
+  }
+
+  return res.json({ ok: true });
+});
+
+authRouter.post("/reset-password", async (req, res) => {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      passwordResetToken: parsed.data.token,
+      passwordResetTokenExpiresAt: { gt: new Date() },
+    },
+  });
+  if (!user) {
+    return res.status(400).json({ error: "Invalid or expired reset link" });
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      passwordResetToken: null,
+      passwordResetTokenExpiresAt: null,
+    },
+  });
+
+  return res.json({ ok: true });
 });
 
 const profileSchema = z.object({

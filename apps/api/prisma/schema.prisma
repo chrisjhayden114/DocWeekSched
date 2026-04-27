@@ -70,6 +70,8 @@ model User {
   engagementPoints Int @default(0)
   profileSetupToken String?   @unique
   profileSetupTokenExpiresAt DateTime?
+  passwordResetToken String? @unique
+  passwordResetTokenExpiresAt DateTime?
   createdAt    DateTime @default(now())
   sessionBookmarks SessionBookmark[]
   sessionAttendances SessionAttendance[]

@@ -8,6 +8,11 @@ export default function Home() {
   const [registerType, setRegisterType] = useState<"participant" | "admin">("participant");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState<string | null>(null);
+  const [forgotError, setForgotError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = window.localStorage.getItem("token");
@@ -37,6 +42,24 @@ export default function Home() {
       setError((err as Error).message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function sendForgotPassword() {
+    if (!forgotEmail || forgotSending) return;
+    setForgotSending(true);
+    setForgotError(null);
+    setForgotMessage(null);
+    try {
+      await apiFetch<{ ok: true }>("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      setForgotMessage("If that email is in our system, a reset link has been sent.");
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : "Could not send reset email.");
+    } finally {
+      setForgotSending(false);
     }
   }
 
@@ -107,6 +130,38 @@ export default function Home() {
             )}
             <input className="input" name="email" type="email" placeholder="Email" required />
             <input className="input" name="password" type="password" placeholder="Password (min 8)" required />
+            {mode === "login" && (
+              <div style={{ display: "grid", gap: 8 }}>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    setForgotOpen((v) => !v);
+                    setForgotError(null);
+                    setForgotMessage(null);
+                  }}
+                >
+                  {forgotOpen ? "Hide forgot password" : "Forgot password?"}
+                </button>
+                {forgotOpen && (
+                  <div className="grid" style={{ gap: 8 }}>
+                    <input
+                      className="input"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="Enter your email for password reset"
+                      required
+                    />
+                    {forgotError && <div style={{ color: "crimson" }}>{forgotError}</div>}
+                    {forgotMessage && <div style={{ color: "var(--ink-700)" }}>{forgotMessage}</div>}
+                    <button className="button secondary" type="button" disabled={forgotSending} onClick={sendForgotPassword}>
+                      {forgotSending ? "Sending…" : "Send reset link"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {error && <div style={{ color: "crimson" }}>{error}</div>}
             <button className="button" disabled={loading}>
               {loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}
