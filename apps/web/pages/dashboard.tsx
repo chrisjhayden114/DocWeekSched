@@ -677,8 +677,14 @@ export default function Dashboard() {
                         bannerUrl: String(form.get("bannerUrl") || ""),
                         logoUrl: String(form.get("logoUrl") || "").trim() || undefined,
                         timezone: String(form.get("timezone") || "UTC"),
-                        startDate: new Date(String(form.get("startDate") || "")).toISOString(),
-                        endDate: new Date(String(form.get("endDate") || "")).toISOString(),
+                        startDate: zonedDateTimeLocalToIso(
+                          String(form.get("startDate") || ""),
+                          String(form.get("timezone") || event.timezone || "UTC"),
+                        ),
+                        endDate: zonedDateTimeLocalToIso(
+                          String(form.get("endDate") || ""),
+                          String(form.get("timezone") || event.timezone || "UTC"),
+                        ),
                       });
                     }}
                   >
@@ -739,8 +745,20 @@ export default function Dashboard() {
                         ))}
                       </select>
                     </label>
-                    <input className="input" type="datetime-local" name="startDate" defaultValue={toLocalInputValue(event.startDate)} required />
-                    <input className="input" type="datetime-local" name="endDate" defaultValue={toLocalInputValue(event.endDate)} required />
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      name="startDate"
+                      defaultValue={toLocalInputValueInTimeZone(event.startDate, event.timezone)}
+                      required
+                    />
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      name="endDate"
+                      defaultValue={toLocalInputValueInTimeZone(event.endDate, event.timezone)}
+                      required
+                    />
                     <button className="button" type="submit" disabled={updatingEvent}>
                       {updatingEvent ? "Saving..." : "Save Event"}
                     </button>
@@ -858,6 +876,7 @@ export default function Dashboard() {
             <SessionForm
               key={sessionFormKey}
               token={token!}
+              eventTimezone={event?.timezone || "UTC"}
               eventHeaders={withEventHeaders}
               attendees={attendees}
               editing={editingSession}
@@ -2141,8 +2160,14 @@ function ProfileEditor({
       bannerUrl: String(form.get("eventBannerUrl") || ""),
       logoUrl: String(form.get("eventLogoUrl") || "").trim() || undefined,
       timezone: String(form.get("timezone") || "UTC"),
-      startDate: new Date(String(form.get("startDate") || "")).toISOString(),
-      endDate: new Date(String(form.get("endDate") || "")).toISOString(),
+      startDate: zonedDateTimeLocalToIso(
+        String(form.get("startDate") || ""),
+        String(form.get("timezone") || "UTC"),
+      ),
+      endDate: zonedDateTimeLocalToIso(
+        String(form.get("endDate") || ""),
+        String(form.get("timezone") || "UTC"),
+      ),
     };
     const created = await apiFetch<EventItem>("/event", {
       method: "POST",
@@ -2360,6 +2385,7 @@ function ProfileEditor({
 
 function SessionForm({
   token,
+  eventTimezone,
   eventHeaders,
   attendees,
   editing,
@@ -2367,6 +2393,7 @@ function SessionForm({
   onCancel,
 }: {
   token: string;
+  eventTimezone: string;
   eventHeaders: (extra?: RequestInit) => RequestInit;
   attendees: User[];
   editing: Session | null;
@@ -2392,8 +2419,8 @@ function SessionForm({
         fileLink: String(form.get("fileLink") || ""),
         fileUrl: String(form.get("fileUrl") || ""),
         allowVirtualJoin: form.get("allowVirtualJoin") === "on",
-        startsAt: new Date(String(form.get("startsAt") || "")).toISOString(),
-        endsAt: new Date(String(form.get("endsAt") || "")).toISOString(),
+        startsAt: zonedDateTimeLocalToIso(String(form.get("startsAt") || ""), eventTimezone),
+        endsAt: zonedDateTimeLocalToIso(String(form.get("endsAt") || ""), eventTimezone),
         speakerId: String(form.get("speakerId") || "") || undefined,
       };
 
@@ -2410,8 +2437,8 @@ function SessionForm({
     }
   }
 
-  const defaultStart = editing?.startsAt ? toLocalInputValue(editing.startsAt) : "";
-  const defaultEnd = editing?.endsAt ? toLocalInputValue(editing.endsAt) : "";
+  const defaultStart = editing?.startsAt ? toLocalInputValueInTimeZone(editing.startsAt, eventTimezone) : "";
+  const defaultEnd = editing?.endsAt ? toLocalInputValueInTimeZone(editing.endsAt, eventTimezone) : "";
   const removeSession = async () => {
     if (!editing) return;
     if (!window.confirm("Delete this session? This cannot be undone.")) return;
@@ -3384,11 +3411,52 @@ function formatConversationName(conversation: Conversation, currentUser: User) {
   return other ? other.user.name : "Direct Chat";
 }
 
-function toLocalInputValue(dateString: string) {
-  const date = new Date(dateString);
-  const offset = date.getTimezoneOffset() * 60000;
-  const local = new Date(date.getTime() - offset);
-  return local.toISOString().slice(0, 16);
+function zonedDateParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value || "00";
+  return {
+    year: Number(read("year")),
+    month: Number(read("month")),
+    day: Number(read("day")),
+    hour: Number(read("hour")),
+    minute: Number(read("minute")),
+  };
+}
+
+function wallMinutes(parts: { year: number; month: number; day: number; hour: number; minute: number }) {
+  return Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute) / 60000);
+}
+
+function zonedDateTimeLocalToIso(localValue: string, timeZone: string) {
+  const [datePart, timePart] = localValue.split("T");
+  if (!datePart || !timePart) return new Date(localValue).toISOString();
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute] = timePart.split(":").map(Number);
+  const desired = { year, month, day, hour, minute };
+
+  // Start with the wall time as-if it were UTC, then correct to match the requested timezone wall clock.
+  let guessUtcMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  for (let i = 0; i < 3; i += 1) {
+    const actual = zonedDateParts(new Date(guessUtcMs), timeZone);
+    const deltaMinutes = wallMinutes(desired) - wallMinutes(actual);
+    if (deltaMinutes === 0) break;
+    guessUtcMs += deltaMinutes * 60_000;
+  }
+  return new Date(guessUtcMs).toISOString();
+}
+
+function toLocalInputValueInTimeZone(dateString: string, timeZone: string) {
+  const parts = zonedDateParts(new Date(dateString), timeZone);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
 }
 
 function formatEventRange(start: string, end: string) {
