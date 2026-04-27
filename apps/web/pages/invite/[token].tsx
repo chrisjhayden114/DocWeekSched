@@ -10,6 +10,7 @@ export default function InviteSetupPage() {
   const eventSlug = typeof router.query.event === "string" ? router.query.event : null;
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [redirectingToLogin, setRedirectingToLogin] = useState(false);
   const [password, setPassword] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,7 +27,16 @@ export default function InviteSetupPage() {
         }
         if (!cancelled) setPreview(data as Preview);
       } catch (e) {
-        if (!cancelled) setLoadError(e instanceof Error ? e.message : "Invalid or expired invite.");
+        if (!cancelled) {
+          const message = e instanceof Error ? e.message : "Invalid or expired invite.";
+          setLoadError(message);
+          if (/invalid|expired/i.test(message)) {
+            setRedirectingToLogin(true);
+            window.setTimeout(() => {
+              window.location.href = "/";
+            }, 1800);
+          }
+        }
       }
     })();
     return () => {
@@ -80,7 +90,27 @@ export default function InviteSetupPage() {
     <div className="container">
       <div className="card" style={{ maxWidth: 520 }}>
         <h1 style={{ marginTop: 0 }}>Welcome — confirm your profile</h1>
-        {loadError && <p style={{ color: "#b42318" }}>{loadError}</p>}
+        {loadError && (
+          <>
+            <p style={{ color: "#b42318" }}>{loadError}</p>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              {redirectingToLogin
+                ? "This invite link has already been used. Sending you to the login page…"
+                : "If you've already set your password, please log in from the home page."}
+            </p>
+            {!redirectingToLogin && (
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+              >
+                Go to login
+              </button>
+            )}
+          </>
+        )}
         {preview && !loadError && (
           <>
             <p className="help-text" style={{ marginTop: 0 }}>
