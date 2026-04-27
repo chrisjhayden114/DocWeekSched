@@ -3398,7 +3398,7 @@ function formatEventRange(start: string, end: string) {
 }
 
 function timeZoneAbbrev(date: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat(undefined, { timeZone, timeZoneName: "short" }).formatToParts(date);
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "short" }).formatToParts(date);
   return parts.find((part) => part.type === "timeZoneName")?.value || timeZone;
 }
 
@@ -3418,7 +3418,7 @@ function zonedDayKey(date: Date, timeZone: string) {
 function formatTimeRange(start: string, end: string, timeZone = "UTC") {
   const startDate = new Date(start);
   const endDate = new Date(end);
-  return `${startDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone })} - ${endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone })} ${timeZoneAbbrev(startDate, timeZone)}`;
+  return `${startDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone })} - ${endDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone })} ${timeZoneAbbrev(startDate, timeZone)}`;
 }
 
 function toGoogleCalendarUtc(dateString: string) {
