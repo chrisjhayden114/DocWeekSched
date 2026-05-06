@@ -1437,8 +1437,14 @@ function ScheduleBoard({
           {dayGroup.timeSlots.map((slot) => (
             <div key={`${dayGroup.dayLabel}-${slot.timeLabel}`} className="schedule-slot">
               <div className="schedule-time">{slot.timeLabel}</div>
-              <div className="schedule-events">
-                {slot.sessions.map((s) => {
+              <div className="schedule-events-wrap">
+                {slot.sessions.length > 1 && (
+                  <div className="schedule-concurrent-note">
+                    {slot.sessions.length} options at this time - choose the session that best fits your plan.
+                  </div>
+                )}
+                <div className="schedule-events">
+                {slot.sessions.map((s, optionIndex) => {
                   const myRow = myAttendance.find((item) => item.sessionId === s.id);
                   const myStatus = myRow?.status;
                   const joiningList = (s.attendances || []).filter((attendance) => attendance.status === "JOINING");
@@ -1464,7 +1470,12 @@ function ScheduleBoard({
                         {s.imageUrl && (
                           <img src={s.imageUrl} alt="" className="schedule-thumb" />
                         )}
-                        <h4>{s.title}</h4>
+                        <h4>
+                          {s.title}
+                          {slot.sessions.length > 1 && (
+                            <span className="schedule-option-chip">Option {optionIndex + 1}</span>
+                          )}
+                        </h4>
                       </div>
                       {(s.speakers || s.speaker?.name || s.location) && (
                         <div className="schedule-speaker schedule-speaker-with-location">
@@ -1601,6 +1612,7 @@ function ScheduleBoard({
                     </article>
                   );
                 })}
+                </div>
               </div>
             </div>
           ))}
