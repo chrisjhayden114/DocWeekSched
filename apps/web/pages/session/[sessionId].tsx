@@ -458,14 +458,28 @@ export default function SessionPage() {
                 Event timezone
               </button>
             </div>
-            {(session.speakers || session.speaker?.name) && (
-              <p style={{ margin: "0 0 8px" }}>
-                <strong>Speakers:</strong> {session.speakers || session.speaker?.name}
-              </p>
-            )}
-            {session.location && (
-              <p style={{ margin: "0 0 8px" }}>
-                <strong>Location:</strong> {session.location}
+            {(session.speakers || session.speaker?.name || session.location) && (
+              <p className="schedule-speaker schedule-speaker-with-location" style={{ margin: "0 0 8px" }}>
+                {(session.speakers || session.speaker?.name) && (
+                  <>
+                    <strong style={{ color: "var(--ink-900)" }}>Speakers:</strong>{" "}
+                    <span className="schedule-speaker-names">{session.speakers || session.speaker?.name}</span>
+                  </>
+                )}
+                {session.location && (session.speakers || session.speaker?.name) && (
+                  <span className="schedule-speaker-sep" aria-hidden>
+                    {" "}
+                    —{" "}
+                  </span>
+                )}
+                {session.location && (
+                  <>
+                    {!(session.speakers || session.speaker?.name) && (
+                      <strong style={{ color: "var(--ink-900)" }}>Location:</strong>
+                    )}{" "}
+                    <span className="schedule-session-location">{session.location}</span>
+                  </>
+                )}
               </p>
             )}
             {session.description && <p style={{ margin: "12px 0", lineHeight: 1.5 }}>{session.description}</p>}

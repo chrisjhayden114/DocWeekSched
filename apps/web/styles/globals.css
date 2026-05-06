@@ -818,6 +818,24 @@ html[data-theme="slate"] .roster-role-badge--admin {
   line-height: 1.2;
 }
 
+.schedule-speaker-with-location .schedule-speaker-names {
+  color: var(--gold);
+}
+
+.schedule-speaker-sep {
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.schedule-session-location {
+  color: var(--uk-blue);
+  font-weight: 600;
+}
+
+html[data-theme="slate"] .schedule-session-location {
+  color: var(--ink-700);
+}
+
 .schedule-event p {
   margin: 0 0 8px;
   color: var(--ink-700);

@@ -1466,8 +1466,20 @@ function ScheduleBoard({
                         )}
                         <h4>{s.title}</h4>
                       </div>
-                      {(s.speakers || s.speaker?.name) && <div className="schedule-speaker">{s.speakers || s.speaker?.name}</div>}
-                      {s.location && <div className="schedule-speaker">Location: {s.location}</div>}
+                      {(s.speakers || s.speaker?.name || s.location) && (
+                        <div className="schedule-speaker schedule-speaker-with-location">
+                          {(s.speakers || s.speaker?.name) && (
+                            <span className="schedule-speaker-names">{s.speakers || s.speaker?.name}</span>
+                          )}
+                          {s.location && (s.speakers || s.speaker?.name) && (
+                            <span className="schedule-speaker-sep" aria-hidden>
+                              {" "}
+                              —{" "}
+                            </span>
+                          )}
+                          {s.location && <span className="schedule-session-location">{s.location}</span>}
+                        </div>
+                      )}
                       <div className="schedule-links">
                         {s.zoomLink && (
                           <OnlineMeetingLink href={s.zoomLink} onClick={(event) => event.stopPropagation()} />

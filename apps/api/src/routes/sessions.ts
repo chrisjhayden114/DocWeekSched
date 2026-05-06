@@ -13,6 +13,7 @@ const optionalLink = z.string().max(5_000_000).optional();
 const sessionSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
+  location: z.string().max(500).optional(),
   speakers: z.string().optional(),
   imageUrl: optionalLink,
   zoomLink: optionalLink,
@@ -281,10 +282,12 @@ sessionsRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) =
   if (!event) {
     return res.status(404).json({ error: "Event not found" });
   }
+  const locationTrimmed = (parsed.data.location ?? "").trim();
   const session = await prisma.session.create({
     data: {
       title: parsed.data.title,
       description: parsed.data.description,
+      location: locationTrimmed || null,
       speakers: parsed.data.speakers,
       imageUrl: parsed.data.imageUrl || null,
       zoomLink: parsed.data.zoomLink || null,
@@ -307,9 +310,11 @@ sessionsRouter.put("/:id", requireAuth, requireRole(["ADMIN"]), async (req, res)
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
+  const locationTrimmed = (parsed.data.location ?? "").trim();
   const sessionUpdate: Prisma.SessionUncheckedUpdateInput = {
     title: parsed.data.title,
     description: parsed.data.description,
+    location: locationTrimmed || null,
     speakers: parsed.data.speakers,
     imageUrl: parsed.data.imageUrl || null,
     zoomLink: parsed.data.zoomLink || null,
