@@ -2205,7 +2205,21 @@ function ProfileEditor({
     <form className="card grid" onSubmit={handleSubmit}>
       <h3 style={{ marginTop: 0 }}>My Profile</h3>
       {photoPreview && <img src={photoPreview} alt={user.name} className="avatar avatar-large" />}
-      <input className="input" name="photo" type="file" accept="image/*" onChange={handleFileChange} />
+      <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+        Profile photo
+        <span style={{ color: "var(--ink-muted)", fontWeight: 400 }}>
+          Choose an image file: JPG, PNG, WebP, or GIF (your browser&apos;s file picker may show &quot;Choose file&quot;
+          or &quot;Browse&quot;).
+        </span>
+        <input
+          className="input"
+          name="photo"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+          aria-label="Profile photo: JPG, PNG, WebP, or GIF"
+          onChange={handleFileChange}
+        />
+      </label>
       <input className="input" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
       <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
         Participant type

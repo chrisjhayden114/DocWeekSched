@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../lib/db";
 import { hashPassword, signToken, verifyPassword } from "../lib/auth";
 import { env } from "../lib/env";
+import { getDefaultEventWhenUnspecified } from "../lib/event";
 import { sendPasswordResetEmail } from "../lib/mail";
 import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
 
@@ -99,6 +100,7 @@ const loginSchema = z.object({
 
 const forgotPasswordSchema = z.object({
   email: z.string().email(),
+  eventSlug: z.string().min(2).max(96).optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -161,7 +163,19 @@ authRouter.post("/forgot-password", async (req, res) => {
     });
     const base = env.webBaseUrl.replace(/\/$/, "");
     const resetUrl = `${base}/reset-password/${token}`;
-    await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl });
+
+    let eventName: string | undefined;
+    const slug = parsed.data.eventSlug?.trim().toLowerCase();
+    if (slug) {
+      const ev = await prisma.event.findUnique({ where: { slug }, select: { name: true } });
+      if (ev) eventName = ev.name;
+    }
+    if (!eventName) {
+      const def = await getDefaultEventWhenUnspecified();
+      eventName = def.name;
+    }
+
+    await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl, eventName });
   }
 
   return res.json({ ok: true });

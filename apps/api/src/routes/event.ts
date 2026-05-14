@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
-import { getOrCreateEvent } from "../lib/event";
+import { getDefaultEventWhenUnspecified } from "../lib/event";
 import { ensureUniqueEventSlug, slugifyEventBase } from "../lib/slug";
 import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
 
@@ -51,7 +51,7 @@ eventRouter.get("/", requireAuth, async (req, res) => {
   const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
   const event = requestedEventId
     ? await prisma.event.findUnique({ where: { id: requestedEventId } })
-    : await getOrCreateEvent();
+    : await getDefaultEventWhenUnspecified();
   if (!event) {
     return res.status(404).json({ error: "Event not found" });
   }
@@ -99,7 +99,7 @@ eventRouter.put("/", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
   const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
   const event = requestedEventId
     ? await prisma.event.findUnique({ where: { id: requestedEventId } })
-    : await getOrCreateEvent();
+    : await getDefaultEventWhenUnspecified();
   if (!event) {
     return res.status(404).json({ error: "Event not found" });
   }

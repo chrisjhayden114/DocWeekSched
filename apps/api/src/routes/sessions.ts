@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/db";
-import { getOrCreateEvent } from "../lib/event";
+import { getDefaultEventWhenUnspecified } from "../lib/event";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
 
@@ -78,7 +78,7 @@ sessionsRouter.get("/", requireAuth, async (req, res) => {
   const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
   const event = requestedEventId
     ? await prisma.event.findUnique({ where: { id: requestedEventId } })
-    : await getOrCreateEvent();
+    : await getDefaultEventWhenUnspecified();
   if (!event) {
     return res.status(404).json({ error: "Event not found" });
   }
@@ -230,7 +230,7 @@ sessionsRouter.get("/:id", requireAuth, async (req, res) => {
   const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
   const event = requestedEventId
     ? await prisma.event.findUnique({ where: { id: requestedEventId } })
-    : await getOrCreateEvent();
+    : await getDefaultEventWhenUnspecified();
   if (!event) {
     return res.status(404).json({ error: "Event not found" });
   }
@@ -278,7 +278,7 @@ sessionsRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) =
   const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
   const event = requestedEventId
     ? await prisma.event.findUnique({ where: { id: requestedEventId } })
-    : await getOrCreateEvent();
+    : await getDefaultEventWhenUnspecified();
   if (!event) {
     return res.status(404).json({ error: "Event not found" });
   }

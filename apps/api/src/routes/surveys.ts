@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/db";
-import { getOrCreateEvent } from "../lib/event";
+import { getDefaultEventWhenUnspecified } from "../lib/event";
 import { requireAuth, requireRole, AuthedRequest } from "../lib/middleware";
 
 export const surveysRouter = Router();
@@ -18,7 +18,7 @@ const surveySchema = z.object({
 });
 
 surveysRouter.get("/", requireAuth, async (_req, res) => {
-  const event = await getOrCreateEvent();
+  const event = await getDefaultEventWhenUnspecified();
   const surveys = await prisma.survey.findMany({
     where: { eventId: event.id },
     include: { questions: true },
@@ -32,7 +32,7 @@ surveysRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) =>
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const event = await getOrCreateEvent();
+  const event = await getDefaultEventWhenUnspecified();
   const survey = await prisma.survey.create({
     data: {
       title: parsed.data.title,

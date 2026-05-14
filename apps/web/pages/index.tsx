@@ -1,9 +1,13 @@
 import Head from "next/head";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { EventPilotLogo } from "../components/EventPilotLogo";
 import { apiFetch, AuthResponse } from "../lib/api";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 export default function Home() {
+  const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [registerType, setRegisterType] = useState<"participant" | "admin">("participant");
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +24,26 @@ export default function Home() {
       window.location.href = "/dashboard";
     }
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const slug = typeof router.query.event === "string" ? router.query.event.trim().toLowerCase() : "";
+    if (!slug) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/event/slug/${encodeURIComponent(slug)}`);
+        const data = (await res.json().catch(() => ({}))) as { id?: string };
+        if (!res.ok || cancelled || !data.id) return;
+        window.localStorage.setItem("activeEventId", data.id);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router.isReady, router.query.event]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,9 +75,10 @@ export default function Home() {
     setForgotError(null);
     setForgotMessage(null);
     try {
+      const eventSlug = typeof router.query.event === "string" ? router.query.event.trim().toLowerCase() : undefined;
       await apiFetch<{ ok: true }>("/auth/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ email: forgotEmail }),
+        body: JSON.stringify({ email: forgotEmail, ...(eventSlug ? { eventSlug } : {}) }),
       });
       setForgotMessage("If that email is in our system, a reset link has been sent.");
     } catch (err) {
@@ -76,6 +101,12 @@ export default function Home() {
               <h1>EventPilot</h1>
               <p style={{ color: "var(--ink-700)", margin: 0 }}>
                 A professional event workspace for schedules, networking, and collaboration.
+              </p>
+              <p className="help-text" style={{ margin: "10px 0 0", lineHeight: 1.45 }}>
+                Joining a specific conference? Use your organizer&apos;s event link (it looks like{" "}
+                <strong>/e/your-event-slug</strong>
+                ), or add <strong>?event=your-event-slug</strong> to this page&apos;s URL before you sign in so the
+                correct schedule loads.
               </p>
             </div>
           </div>

@@ -23,7 +23,7 @@ export default function EventJoinLinkPage() {
         const ev = data as PublicEvent;
         if (cancelled) return;
         window.localStorage.setItem("activeEventId", ev.id);
-        window.location.replace("/");
+        window.location.replace(`/?event=${encodeURIComponent(slug)}`);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Could not open this event link.");
