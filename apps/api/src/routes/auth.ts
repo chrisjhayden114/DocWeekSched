@@ -165,9 +165,13 @@ authRouter.post("/forgot-password", async (req, res) => {
     const resetUrl = `${base}/reset-password/${token}`;
 
     let eventName: string | undefined;
-    const slug = parsed.data.eventSlug?.trim().toLowerCase();
-    if (slug) {
-      const ev = await prisma.event.findUnique({ where: { slug }, select: { name: true } });
+    const eventRef = parsed.data.eventSlug?.trim();
+    if (eventRef) {
+      const lower = eventRef.toLowerCase();
+      const ev = await prisma.event.findFirst({
+        where: { OR: [{ id: eventRef }, { slug: lower }] },
+        select: { name: true },
+      });
       if (ev) eventName = ev.name;
     }
     if (!eventName) {

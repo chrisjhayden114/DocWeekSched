@@ -6,6 +6,10 @@ import { apiFetch, AuthResponse } from "../lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+const LINKED_EVENT_STORAGE_KEY = "eventPilotLinkedContext";
+
+type LinkedEventPayload = { id: string; name: string };
+
 export default function Home() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -17,6 +21,7 @@ export default function Home() {
   const [forgotSending, setForgotSending] = useState(false);
   const [forgotMessage, setForgotMessage] = useState<string | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
+  const [linkedEventName, setLinkedEventName] = useState<string | null>(null);
 
   useEffect(() => {
     const token = window.localStorage.getItem("token");
@@ -27,17 +32,50 @@ export default function Home() {
 
   useEffect(() => {
     if (!router.isReady) return;
-    const slug = typeof router.query.event === "string" ? router.query.event.trim().toLowerCase() : "";
-    if (!slug) return;
+    const token = typeof router.query.event === "string" ? router.query.event.trim() : "";
+    if (!token) {
+      try {
+        const raw = window.sessionStorage.getItem(LINKED_EVENT_STORAGE_KEY);
+        const activeId = window.localStorage.getItem("activeEventId");
+        if (raw && activeId) {
+          const parsed = JSON.parse(raw) as LinkedEventPayload;
+          if (parsed.id === activeId && typeof parsed.name === "string" && parsed.name.trim()) {
+            setLinkedEventName(parsed.name.trim());
+            return;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      setLinkedEventName(null);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/event/slug/${encodeURIComponent(slug)}`);
-        const data = (await res.json().catch(() => ({}))) as { id?: string };
-        if (!res.ok || cancelled || !data.id) return;
+        const res = await fetch(`${API_URL}/event/slug/${encodeURIComponent(token)}`);
+        const data = (await res.json().catch(() => ({}))) as { id?: string; name?: string };
+        if (!res.ok || cancelled || !data.id) {
+          if (!cancelled) setLinkedEventName(null);
+          return;
+        }
         window.localStorage.setItem("activeEventId", data.id);
+        const name = typeof data.name === "string" && data.name.trim() ? data.name.trim() : null;
+        if (name) {
+          try {
+            window.sessionStorage.setItem(
+              LINKED_EVENT_STORAGE_KEY,
+              JSON.stringify({ id: data.id, name } satisfies LinkedEventPayload),
+            );
+          } catch {
+            /* ignore */
+          }
+          if (!cancelled) setLinkedEventName(name);
+        } else if (!cancelled) {
+          setLinkedEventName(null);
+        }
       } catch {
-        /* ignore */
+        if (!cancelled) setLinkedEventName(null);
       }
     })();
     return () => {
@@ -61,6 +99,11 @@ export default function Home() {
       });
       window.localStorage.setItem("token", data.token);
       window.localStorage.setItem("user", JSON.stringify(data.user));
+      try {
+        window.sessionStorage.removeItem(LINKED_EVENT_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
       window.location.href = "/dashboard";
     } catch (err) {
       setError((err as Error).message);
@@ -75,10 +118,13 @@ export default function Home() {
     setForgotError(null);
     setForgotMessage(null);
     try {
-      const eventSlug = typeof router.query.event === "string" ? router.query.event.trim().toLowerCase() : undefined;
+      let eventRef = typeof router.query.event === "string" ? router.query.event.trim() : undefined;
+      if (!eventRef && typeof window !== "undefined") {
+        eventRef = window.localStorage.getItem("activeEventId")?.trim() || undefined;
+      }
       await apiFetch<{ ok: true }>("/auth/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ email: forgotEmail, ...(eventSlug ? { eventSlug } : {}) }),
+        body: JSON.stringify({ email: forgotEmail, ...(eventRef ? { eventSlug: eventRef } : {}) }),
       });
       setForgotMessage("If that email is in our system, a reset link has been sent.");
     } catch (err) {
@@ -91,7 +137,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>EventPilot — Sign in</title>
+        <title>{linkedEventName ? `${linkedEventName} — EventPilot` : "EventPilot — Sign in"}</title>
       </Head>
       <div className="container">
         <div className="header header--login">
@@ -99,15 +145,24 @@ export default function Home() {
             <EventPilotLogo size={56} className="login-brand-logo" />
             <div className="login-brand-text">
               <h1>EventPilot</h1>
-              <p style={{ color: "var(--ink-700)", margin: 0 }}>
-                A professional event workspace for schedules, networking, and collaboration.
+              {linkedEventName ? (
+                <p className="login-guest-event-name" style={{ margin: "6px 0 0" }}>
+                  {linkedEventName}
+                </p>
+              ) : null}
+              <p style={{ color: "var(--ink-700)", margin: linkedEventName ? "8px 0 0" : 0 }}>
+                {linkedEventName
+                  ? "Sign in or register below to open this conference."
+                  : "A professional event workspace for schedules, networking, and collaboration."}
               </p>
-              <p className="help-text" style={{ margin: "10px 0 0", lineHeight: 1.45 }}>
-                Joining a specific conference? Use your organizer&apos;s event link (it looks like{" "}
-                <strong>/e/…</strong> with a stable ID, or a short slug), or add{" "}
-                <strong>?event=</strong> followed by that same token to this page&apos;s URL before you sign in so the
-                correct schedule loads.
-              </p>
+              {!linkedEventName ? (
+                <p className="help-text" style={{ margin: "10px 0 0", lineHeight: 1.45 }}>
+                  Joining a specific conference? Use your organizer&apos;s event link (it looks like{" "}
+                  <strong>/e/…</strong> with a stable ID, or a short slug), or add{" "}
+                  <strong>?event=</strong> followed by that same token to this page&apos;s URL before you sign in so the
+                  correct schedule loads.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
