@@ -104,8 +104,8 @@ export default function Home() {
               </p>
               <p className="help-text" style={{ margin: "10px 0 0", lineHeight: 1.45 }}>
                 Joining a specific conference? Use your organizer&apos;s event link (it looks like{" "}
-                <strong>/e/your-event-slug</strong>
-                ), or add <strong>?event=your-event-slug</strong> to this page&apos;s URL before you sign in so the
+                <strong>/e/…</strong> with a stable ID, or a short slug), or add{" "}
+                <strong>?event=</strong> followed by that same token to this page&apos;s URL before you sign in so the
                 correct schedule loads.
               </p>
             </div>

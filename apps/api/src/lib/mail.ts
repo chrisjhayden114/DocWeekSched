@@ -23,6 +23,7 @@ export async function sendParticipantInviteEmail(opts: {
   name: string;
   eventName: string;
   inviteUrl: string;
+  permanentEventUrl: string;
 }): Promise<void> {
   const key = process.env.RESEND_API_KEY;
   const from = buildResendFromLine(opts.eventName);
@@ -48,6 +49,7 @@ export async function sendParticipantInviteEmail(opts: {
 <p><a href="${opts.inviteUrl.replace(/"/g, "&quot;")}">Set your password and confirm your profile</a></p>
 <p>This setup link does not expire — you can complete it whenever you are ready.</p>
 <p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.inviteUrl)}</p>
+<p style="color:#555;font-size:13px;margin-top:16px">After you finish setup, you can always return to <strong>${escapeHtml(opts.eventName)}</strong> with this permanent link (save it; it does not expire):<br/><a href="${opts.permanentEventUrl.replace(/"/g, "&quot;")}">${escapeHtml(opts.permanentEventUrl)}</a></p>
 <p style="color:#555;font-size:13px;margin-top:16px">You will see &quot;EventPilot&quot; in the app header — that is the platform name for <strong>${escapeHtml(opts.eventName)}</strong>.</p>`,
     }),
   });

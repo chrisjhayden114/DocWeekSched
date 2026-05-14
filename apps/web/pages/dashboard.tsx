@@ -689,9 +689,24 @@ export default function Dashboard() {
                     }}
                   >
                     <input className="input" name="name" defaultValue={event.name} required />
-                    <label className="help-text" style={{ margin: 0 }}>
-                      Short link slug (lowercase, hyphens only). Share:{" "}
-                      <strong>{typeof window !== "undefined" ? `${window.location.origin}/e/${event.slug}` : `/e/${event.slug}`}</strong>
+                    <label className="help-text" style={{ margin: 0, display: "grid", gap: 8 }}>
+                      <span>
+                        <strong>Permanent join link</strong> (does not change — use this for email, programs, and
+                        long-term access):{" "}
+                        <strong>
+                          {typeof window !== "undefined"
+                            ? `${window.location.origin}/e/${event.id}`
+                            : `/e/${event.id}`}
+                        </strong>
+                      </span>
+                      <span>
+                        Optional readable link (changes if you edit the slug below):{" "}
+                        <strong>
+                          {typeof window !== "undefined"
+                            ? `${window.location.origin}/e/${event.slug}`
+                            : `/e/${event.slug}`}
+                        </strong>
+                      </span>
                     </label>
                     <input
                       className="input"
@@ -1807,11 +1822,23 @@ function AdminParticipantInviteCard({
         Add name, email, photo, and description. We create their account and email a setup link (configure{" "}
         <code>RESEND_API_KEY</code> on the API). If email isn&apos;t configured, copy the invite URL from the success message or server logs.
       </p>
-      {eventSlug ? (
-        <p className="help-text" style={{ margin: "0 0 8px" }}>
-          Public join link for this event:{" "}
-          <strong>{typeof window !== "undefined" ? `${window.location.origin}/e/${eventSlug}` : `/e/${eventSlug}`}</strong>
-        </p>
+      {activeEventId ? (
+        <div className="help-text" style={{ margin: "0 0 8px", display: "grid", gap: 6 }}>
+          <span>
+            <strong>Permanent join link</strong> (share in programs; does not change):{" "}
+            <strong>
+              {typeof window !== "undefined" ? `${window.location.origin}/e/${activeEventId}` : `/e/${activeEventId}`}
+            </strong>
+          </span>
+          {eventSlug ? (
+            <span>
+              Optional readable link (may change if you edit the event slug):{" "}
+              <strong>
+                {typeof window !== "undefined" ? `${window.location.origin}/e/${eventSlug}` : `/e/${eventSlug}`}
+              </strong>
+            </span>
+          ) : null}
+        </div>
       ) : null}
       <form
         className="grid"

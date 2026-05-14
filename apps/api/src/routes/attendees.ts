@@ -36,7 +36,7 @@ const attendeePublicSelect = {
 type InviteInput = z.infer<typeof inviteSchema>;
 
 async function createAndEmailInvite(
-  event: { slug: string; name: string },
+  event: { id: string; slug: string; name: string },
   data: InviteInput,
 ): Promise<{ ok: true; inviteUrl: string } | { ok: false; error: string }> {
   const email = data.email.trim().toLowerCase();
@@ -63,13 +63,15 @@ async function createAndEmailInvite(
   });
 
   const base = env.webBaseUrl.replace(/\/$/, "");
-  const inviteUrl = `${base}/invite/${setupToken}?event=${encodeURIComponent(event.slug)}`;
+  const inviteUrl = `${base}/invite/${setupToken}?event=${encodeURIComponent(event.id)}`;
+  const permanentEventUrl = `${base}/e/${event.id}`;
 
   await sendParticipantInviteEmail({
     to: email,
     name,
     eventName: event.name,
     inviteUrl,
+    permanentEventUrl,
   });
 
   return { ok: true, inviteUrl };

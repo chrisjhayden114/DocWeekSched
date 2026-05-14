@@ -25,12 +25,15 @@ const eventSchema = z.object({
 });
 
 eventRouter.get("/slug/:slug", async (req, res) => {
-  const raw = String(req.params.slug || "").trim().toLowerCase();
+  const raw = String(req.params.slug || "").trim();
   if (!raw) {
-    return res.status(400).json({ error: "Invalid slug" });
+    return res.status(400).json({ error: "Invalid link" });
   }
-  const event = await prisma.event.findUnique({
-    where: { slug: raw },
+  const slugLower = raw.toLowerCase();
+  const event = await prisma.event.findFirst({
+    where: {
+      OR: [{ id: raw }, { slug: slugLower }],
+    },
     select: {
       id: true,
       name: true,
