@@ -13,9 +13,13 @@ export function communityChannelLabel(channel: string): string {
   return CHANNEL_LABEL[channel] ?? "Community";
 }
 
-export async function allAttendeeUserIds(): Promise<string[]> {
-  const rows = await prisma.user.findMany({ select: { id: true } });
-  return rows.map((r) => r.id);
+/** Event participants only — never all users in the database. */
+export async function allAttendeeUserIds(eventId: string): Promise<string[]> {
+  const rows = await prisma.eventMembership.findMany({
+    where: { eventId },
+    select: { userId: true },
+  });
+  return rows.map((r) => r.userId);
 }
 
 export async function notifyMany(
@@ -43,7 +47,7 @@ export async function notifyNewCommunityThread(params: {
   if (params.channel === "MEETUP" && !params.meetupInviteEveryone) {
     recipientIds = Array.from(new Set(params.meetupParticipantIds)).filter((id) => id !== params.authorId);
   } else {
-    const all = await allAttendeeUserIds();
+    const all = await allAttendeeUserIds(params.eventId);
     recipientIds = all.filter((id) => id !== params.authorId);
   }
 
@@ -116,7 +120,6 @@ export async function notifyNewMessage(params: {
   senderName: string;
   preview: string;
   memberUserIds: string[];
-  /** When set (e.g. event-wide organizer broadcast), used instead of "Message from …". */
   title?: string;
 }): Promise<void> {
   const recipients = params.memberUserIds.filter((id) => id !== params.senderId);

@@ -2,7 +2,8 @@
   "name": "event-app",
   "private": true,
   "workspaces": [
-    "apps/*",
+    "apps/api",
+    "apps/web",
     "packages/*"
   ],
   "devDependencies": {
@@ -11,6 +12,8 @@
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
     "dev:api": "npm --workspace apps/api run dev",
-    "dev:mobile": "npm --workspace apps/mobile run start"
+    "test": "npm --workspace @event-app/api run test",
+    "build:api": "npm --workspace @event-app/api run build",
+    "build:web": "npm --workspace @event-app/web run build"
   }
 }

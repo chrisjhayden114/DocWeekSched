@@ -1,14 +1,16 @@
-import { randomBytes } from "crypto";
+import { EventMemberRole, NotificationKind, OrgRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { hashPassword } from "../lib/auth";
+import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { env } from "../lib/env";
+import { newInviteToken, ensureEventJoinToken, isSlugLinkActive } from "../lib/inviteTokens";
 import { sendParticipantInviteEmail } from "../lib/mail";
 import { notifyMany } from "../lib/notifications";
 import { resolveEventFromRequest } from "../lib/requestEvent";
-import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
-import { NotificationKind } from "@prisma/client";
+import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { randomBytes } from "crypto";
 
 export const attendeesRouter = Router();
 
@@ -42,264 +44,453 @@ async function createAndEmailInvite(
   const email = data.email.trim().toLowerCase();
   const name = data.name.trim();
   const existing = await prisma.user.findUnique({ where: { email } });
+
+  const { raw, hash, expiresAt } = newInviteToken();
+  const base = env.webBaseUrl.replace(/\/$/, "");
+
+  let userId: string;
   if (existing) {
-    return { ok: false, error: "A user with this email already exists" };
+    const already = await prisma.eventMembership.findUnique({
+      where: { eventId_userId: { eventId: event.id, userId: existing.id } },
+    });
+    if (already && !existing.profileSetupTokenHash) {
+      return { ok: false, error: "This person is already on the event roster" };
+    }
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        profileSetupTokenHash: hash,
+        profileSetupTokenExpiresAt: expiresAt,
+        ...(data.photoUrl?.trim() ? { photoUrl: data.photoUrl.trim() } : {}),
+        ...(data.researchInterests?.trim() ? { researchInterests: data.researchInterests.trim() } : {}),
+      },
+    });
+    userId = existing.id;
+  } else {
+    const passwordHash = await hashPassword(randomBytes(24).toString("hex"));
+    const created = await prisma.user.create({
+      data: {
+        email,
+        name,
+        photoUrl: data.photoUrl?.trim() || null,
+        researchInterests: data.researchInterests?.trim() || null,
+        role: "ATTENDEE",
+        passwordHash,
+        profileSetupTokenHash: hash,
+        profileSetupTokenExpiresAt: expiresAt,
+        emailVerifiedAt: null,
+      },
+    });
+    userId = created.id;
   }
 
-  const setupToken = randomBytes(32).toString("hex");
-  const passwordHash = await hashPassword(randomBytes(24).toString("hex"));
-
-  await prisma.user.create({
-    data: {
-      email,
-      name,
-      photoUrl: data.photoUrl?.trim() || null,
-      researchInterests: data.researchInterests?.trim() || null,
-      role: "ATTENDEE",
-      passwordHash,
-      profileSetupToken: setupToken,
-      profileSetupTokenExpiresAt: null,
-    },
+  await prisma.eventMembership.upsert({
+    where: { eventId_userId: { eventId: event.id, userId } },
+    create: { eventId: event.id, userId, role: EventMemberRole.ATTENDEE },
+    update: {},
   });
 
-  const base = env.webBaseUrl.replace(/\/$/, "");
-  const inviteUrl = `${base}/invite/${setupToken}?event=${encodeURIComponent(event.id)}`;
-  const permanentEventUrl = `${base}/e/${event.id}`;
+  const minted = await ensureEventJoinToken(event.id);
+  const joinPath = minted.raw
+    ? `${base}/e/join/${minted.raw}`
+    : isSlugLinkActive(await prisma.event.findUniqueOrThrow({ where: { id: event.id } }))
+      ? `${base}/e/${event.slug}`
+      : `${base}/e/${event.slug}`;
+
+  const inviteUrl = `${base}/invite/${raw}?event=${encodeURIComponent(event.id)}`;
 
   await sendParticipantInviteEmail({
     to: email,
     name,
     eventName: event.name,
     inviteUrl,
-    permanentEventUrl,
+    permanentEventUrl: joinPath,
+    expiresInDays: env.inviteTokenDays,
   });
 
   return { ok: true, inviteUrl };
 }
 
-attendeesRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
-  const isAdmin = req.user?.role === "ADMIN";
+attendeesRouter.get(
+  "/",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    const access = await requireEventAccess(req.user!.id, event.id);
 
-  if (!isAdmin) {
-    const users = await prisma.user.findMany({
-      select: attendeePublicSelect,
-      orderBy: { name: "asc" },
+    const members = await prisma.eventMembership.findMany({
+      where: { eventId: event.id },
+      include: {
+        user: {
+          select: {
+            ...attendeePublicSelect,
+            profileSetupTokenHash: true,
+            profileSetupTokenExpiresAt: true,
+          },
+        },
+      },
+      orderBy: { user: { name: "asc" } },
     });
-    return res.json(users);
-  }
 
-  const users = await prisma.user.findMany({
-    select: {
-      ...attendeePublicSelect,
-      profileSetupToken: true,
-      profileSetupTokenExpiresAt: true,
-    },
-    orderBy: { name: "asc" },
-  });
-
-  return res.json(
-    users.map((u) => {
-      const pending = u.profileSetupToken != null;
-      const expiresAt = u.profileSetupTokenExpiresAt;
-      const expired = pending && expiresAt != null && expiresAt.getTime() < Date.now();
-      const inviteStatus = !pending ? "ACTIVE" : expired ? "INVITE_EXPIRED" : "PENDING_SETUP";
-      return {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        photoUrl: u.photoUrl,
-        researchInterests: u.researchInterests,
-        participantType: u.participantType,
-        inviteStatus,
-        inviteExpiresAt: pending && expiresAt ? expiresAt.toISOString() : null,
-      };
-    }),
-  );
-});
-
-attendeesRouter.post("/invite", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
-  const parsed = inviteSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
-  }
-
-  const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
-  if (!requestedEventId) {
-    return res.status(400).json({ error: "Select an active event before sending invites" });
-  }
-
-  const event = await prisma.event.findUnique({ where: { id: requestedEventId } });
-  if (!event) {
-    return res.status(404).json({ error: "Event not found" });
-  }
-
-  const result = await createAndEmailInvite(event, parsed.data);
-  if (!result.ok) {
-    return res.status(409).json({ error: result.error });
-  }
-
-  return res.json({ ok: true, inviteUrl: result.inviteUrl });
-});
-
-attendeesRouter.post("/invite-bulk", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
-  const parsed = inviteBulkSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
-  }
-
-  const requestedEventId = typeof req.headers["x-event-id"] === "string" ? req.headers["x-event-id"] : undefined;
-  if (!requestedEventId) {
-    return res.status(400).json({ error: "Select an active event before sending invites" });
-  }
-
-  const event = await prisma.event.findUnique({ where: { id: requestedEventId } });
-  if (!event) {
-    return res.status(404).json({ error: "Event not found" });
-  }
-
-  const seen = new Set<string>();
-  const unique: InviteInput[] = [];
-  for (const row of parsed.data.invites) {
-    const key = row.email.trim().toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(row);
-  }
-
-  const sent: { email: string; inviteUrl: string }[] = [];
-  const failed: { email: string; error: string }[] = [];
-
-  for (const inv of unique) {
-    const result = await createAndEmailInvite(event, inv);
-    if (result.ok) {
-      sent.push({ email: inv.email.trim().toLowerCase(), inviteUrl: result.inviteUrl });
-    } else {
-      failed.push({ email: inv.email.trim().toLowerCase(), error: result.error });
+    if (!access.canManageEvent) {
+      return res.json(
+        members.map((m) => ({
+          id: m.user.id,
+          name: m.user.name,
+          email: m.user.email,
+          role: m.user.role,
+          photoUrl: m.user.photoUrl,
+          researchInterests: m.user.researchInterests,
+          participantType: m.user.participantType,
+          eventRole: m.role,
+        })),
+      );
     }
-  }
 
-  return res.json({ ok: true, sentCount: sent.length, failedCount: failed.length, sent, failed });
-});
+    return res.json(
+      members.map((m) => {
+        const u = m.user;
+        const pending = u.profileSetupTokenHash != null;
+        const expiresAt = u.profileSetupTokenExpiresAt;
+        const expired = pending && expiresAt != null && expiresAt.getTime() < Date.now();
+        const inviteStatus = !pending ? "ACTIVE" : expired ? "INVITE_EXPIRED" : "PENDING_SETUP";
+        return {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          photoUrl: u.photoUrl,
+          researchInterests: u.researchInterests,
+          participantType: u.participantType,
+          eventRole: m.role,
+          inviteStatus,
+          inviteExpiresAt: pending && expiresAt ? expiresAt.toISOString() : null,
+        };
+      }),
+    );
+  }),
+);
 
-attendeesRouter.post("/admin-access-request", requireAuth, async (req: AuthedRequest, res) => {
-  const userId = req.user?.id || "";
-  const me = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, name: true, email: true, role: true },
-  });
-  if (!me) {
-    return res.status(404).json({ error: "User not found" });
-  }
-  if (me.role === "ADMIN") {
-    return res.status(400).json({ error: "You are already an administrator." });
-  }
+attendeesRouter.post(
+  "/invite",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = inviteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
 
-  const event = await resolveEventFromRequest(req);
-  const admins = await prisma.user.findMany({
-    where: { role: "ADMIN" },
-    select: { id: true },
-  });
-  if (admins.length === 0) {
-    return res.status(503).json({ error: "No administrators are available to review this request." });
-  }
+    const result = await createAndEmailInvite(event, parsed.data);
+    if (!result.ok) {
+      return res.status(409).json({ error: result.error });
+    }
+    return res.json({ ok: true, inviteUrl: result.inviteUrl });
+  }),
+);
 
-  const title = "Administrator access requested";
-  const body = `${me.name} (${me.email}) requested administrator access for ${event.name}. Open Participants and Invites to promote them if appropriate.`;
+attendeesRouter.post(
+  "/invite-bulk",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = inviteBulkSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
 
-  await notifyMany(
-    admins
-      .filter((row) => row.id !== me.id)
-      .map((row) => ({
-        userId: row.id,
+    const seen = new Set<string>();
+    const unique: InviteInput[] = [];
+    for (const row of parsed.data.invites) {
+      const key = row.email.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(row);
+    }
+
+    const sent: { email: string; inviteUrl: string }[] = [];
+    const failed: { email: string; error: string }[] = [];
+
+    for (const inv of unique) {
+      const result = await createAndEmailInvite(event, inv);
+      if (result.ok) {
+        sent.push({ email: inv.email.trim().toLowerCase(), inviteUrl: result.inviteUrl });
+      } else {
+        failed.push({ email: inv.email.trim().toLowerCase(), error: result.error });
+      }
+    }
+
+    return res.json({ ok: true, sentCount: sent.length, failedCount: failed.length, sent, failed });
+  }),
+);
+
+attendeesRouter.post(
+  "/admin-access-request",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    const access = await requireEventAccess(req.user!.id, event.id);
+    if (access.canManageEvent) {
+      return res.status(400).json({ error: "You already have organizer access for this event." });
+    }
+
+    const me = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { id: true, name: true, email: true },
+    });
+    if (!me) throw new HttpError(404, { error: "User not found" });
+
+    const existingPending = await prisma.adminAccessRequest.findFirst({
+      where: { eventId: event.id, userId: me.id, status: "PENDING" },
+    });
+    if (existingPending) {
+      return res.json({ ok: true, alreadyRequested: true });
+    }
+
+    await prisma.adminAccessRequest.create({
+      data: {
+        organizationId: event.organizationId,
         eventId: event.id,
-        kind: NotificationKind.ADMIN_REQUEST,
-        title,
-        body,
-      })),
-  );
+        userId: me.id,
+        status: "PENDING",
+      },
+    });
 
-  return res.json({ ok: true });
-});
+    const owners = await prisma.orgMembership.findMany({
+      where: { organizationId: event.organizationId, role: OrgRole.OWNER },
+      select: { userId: true },
+    });
+    if (owners.length === 0) {
+      return res.status(503).json({ error: "No organization owners are available to review this request." });
+    }
 
-attendeesRouter.post("/:id/make-admin", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
-  const targetId = req.params.id;
-  if (!targetId) return res.status(400).json({ error: "User id is required" });
+    const title = "Administrator access requested";
+    const body = `${me.name} (${me.email}) requested administrator access for ${event.name}. Only an organization OWNER can grant this.`;
 
-  const target = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { id: true, role: true },
-  });
-  if (!target) return res.status(404).json({ error: "Participant not found" });
-  if (target.role === "ADMIN") {
-    return res.status(400).json({ error: "This user is already an administrator" });
-  }
+    await notifyMany(
+      owners
+        .filter((row) => row.userId !== me.id)
+        .map((row) => ({
+          userId: row.userId,
+          eventId: event.id,
+          kind: NotificationKind.ADMIN_REQUEST,
+          title,
+          body,
+        })),
+    );
 
-  await prisma.user.update({
-    where: { id: targetId },
-    data: { role: "ADMIN" },
-  });
+    return res.json({ ok: true });
+  }),
+);
 
-  return res.json({ ok: true });
-});
+attendeesRouter.get(
+  "/admin-access-requests",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    const access = await requireEventAccess(req.user!.id, event.id, { manage: true });
 
-attendeesRouter.post("/:id/remove-admin", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
-  const targetId = req.params.id;
-  const actorId = req.user?.id || "";
-  if (!targetId) return res.status(400).json({ error: "User id is required" });
-  if (targetId === actorId) {
-    return res.status(400).json({ error: "You cannot remove your own administrator access here. Ask another admin to change your role." });
-  }
+    const requests = await prisma.adminAccessRequest.findMany({
+      where: { eventId: event.id, status: "PENDING" },
+      include: {
+        user: { select: { id: true, name: true, email: true, photoUrl: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
 
-  const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
-  if (adminCount <= 1) {
-    return res.status(400).json({ error: "There must be at least one administrator." });
-  }
+    return res.json({
+      requests,
+      canGrant: access.orgRole === OrgRole.OWNER,
+    });
+  }),
+);
 
-  const target = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { id: true, role: true },
-  });
-  if (!target) return res.status(404).json({ error: "Participant not found" });
-  if (target.role !== "ADMIN") {
-    return res.status(400).json({ error: "This user is not an administrator." });
-  }
+attendeesRouter.post(
+  "/admin-access-requests/:requestId/grant",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { ownerOnly: true });
 
-  await prisma.user.update({
-    where: { id: targetId },
-    data: { role: "ATTENDEE" },
-  });
+    const request = await prisma.adminAccessRequest.findFirst({
+      where: { id: req.params.requestId, eventId: event.id, status: "PENDING" },
+    });
+    if (!request) throw new HttpError(404, { error: "Request not found" });
 
-  return res.json({ ok: true });
-});
+    await prisma.$transaction(async (tx) => {
+      await tx.adminAccessRequest.update({
+        where: { id: request.id },
+        data: {
+          status: "GRANTED",
+          resolvedAt: new Date(),
+          resolvedById: req.user!.id,
+        },
+      });
+      await tx.orgMembership.upsert({
+        where: {
+          organizationId_userId: { organizationId: event.organizationId, userId: request.userId },
+        },
+        create: {
+          organizationId: event.organizationId,
+          userId: request.userId,
+          role: OrgRole.ADMIN,
+        },
+        update: { role: OrgRole.ADMIN },
+      });
+      await tx.eventMembership.upsert({
+        where: { eventId_userId: { eventId: event.id, userId: request.userId } },
+        create: { eventId: event.id, userId: request.userId, role: EventMemberRole.ADMIN },
+        update: { role: EventMemberRole.ADMIN },
+      });
+      // Keep legacy global role for UI that still checks user.role during transition.
+      await tx.user.update({
+        where: { id: request.userId },
+        data: { role: "ADMIN" },
+      });
+    });
 
-attendeesRouter.delete("/:id", requireAuth, requireRole(["ADMIN"]), async (req: AuthedRequest, res) => {
-  const targetId = req.params.id;
-  const actorId = req.user?.id || "";
-  if (!targetId) return res.status(400).json({ error: "User id is required" });
-  if (targetId === actorId) return res.status(400).json({ error: "You cannot delete your own admin account" });
+    return res.json({ ok: true });
+  }),
+);
 
-  const user = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { id: true, role: true, eventsCreated: { select: { id: true } } },
-  });
-  if (!user) return res.status(404).json({ error: "Participant not found" });
-  if (user.role === "ADMIN") return res.status(403).json({ error: "Admin accounts cannot be deleted here" });
-  if (user.eventsCreated.length > 0) {
-    return res.status(400).json({ error: "This user owns events and cannot be deleted from participants." });
-  }
+attendeesRouter.post(
+  "/admin-access-requests/:requestId/deny",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { ownerOnly: true });
 
-  await prisma.$transaction(async (tx) => {
-    await tx.sessionBookmark.deleteMany({ where: { userId: targetId } });
-    await tx.sessionAttendance.deleteMany({ where: { userId: targetId } });
-    await tx.sessionLike.deleteMany({ where: { userId: targetId } });
-    await tx.sessionResource.deleteMany({ where: { userId: targetId } });
-    await tx.surveyAnswer.deleteMany({ where: { userId: targetId } });
-    await tx.checkIn.deleteMany({ where: { userId: targetId } });
-    await tx.conversationMessage.deleteMany({ where: { userId: targetId } });
-    await tx.conversationMember.deleteMany({ where: { userId: targetId } });
-    await tx.user.delete({ where: { id: targetId } });
-  });
+    const request = await prisma.adminAccessRequest.findFirst({
+      where: { id: req.params.requestId, eventId: event.id, status: "PENDING" },
+    });
+    if (!request) throw new HttpError(404, { error: "Request not found" });
 
-  return res.json({ ok: true });
-});
+    await prisma.adminAccessRequest.update({
+      where: { id: request.id },
+      data: {
+        status: "DENIED",
+        resolvedAt: new Date(),
+        resolvedById: req.user!.id,
+      },
+    });
+
+    return res.json({ ok: true });
+  }),
+);
+
+/** Promote event participant to event ADMIN + org ADMIN. OWNER-only. */
+attendeesRouter.post(
+  "/:id/make-admin",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { ownerOnly: true });
+
+    const targetId = req.params.id;
+    const membership = await prisma.eventMembership.findUnique({
+      where: { eventId_userId: { eventId: event.id, userId: targetId } },
+    });
+    if (!membership) throw new HttpError(404, { error: "Participant not found" });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.orgMembership.upsert({
+        where: {
+          organizationId_userId: { organizationId: event.organizationId, userId: targetId },
+        },
+        create: { organizationId: event.organizationId, userId: targetId, role: OrgRole.ADMIN },
+        update: { role: OrgRole.ADMIN },
+      });
+      await tx.eventMembership.update({
+        where: { eventId_userId: { eventId: event.id, userId: targetId } },
+        data: { role: EventMemberRole.ADMIN },
+      });
+      await tx.user.update({ where: { id: targetId }, data: { role: "ADMIN" } });
+    });
+
+    return res.json({ ok: true });
+  }),
+);
+
+attendeesRouter.post(
+  "/:id/remove-admin",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { ownerOnly: true });
+
+    const targetId = req.params.id;
+    if (targetId === req.user!.id) {
+      return res.status(400).json({ error: "You cannot remove your own administrator access here." });
+    }
+
+    const orgMem = await prisma.orgMembership.findUnique({
+      where: {
+        organizationId_userId: { organizationId: event.organizationId, userId: targetId },
+      },
+    });
+    if (orgMem?.role === OrgRole.OWNER) {
+      return res.status(400).json({ error: "Cannot demote the organization owner." });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (orgMem) {
+        await tx.orgMembership.update({
+          where: { id: orgMem.id },
+          data: { role: OrgRole.STAFF },
+        });
+      }
+      await tx.eventMembership.updateMany({
+        where: { eventId: event.id, userId: targetId },
+        data: { role: EventMemberRole.ATTENDEE },
+      });
+      await tx.user.update({ where: { id: targetId }, data: { role: "ATTENDEE" } });
+    });
+
+    return res.json({ ok: true });
+  }),
+);
+
+attendeesRouter.delete(
+  "/:id",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+
+    const targetId = req.params.id;
+    if (targetId === req.user!.id) {
+      return res.status(400).json({ error: "You cannot remove yourself" });
+    }
+
+    const membership = await prisma.eventMembership.findUnique({
+      where: { eventId_userId: { eventId: event.id, userId: targetId } },
+      include: { user: { select: { id: true, role: true } } },
+    });
+    if (!membership) throw new HttpError(404, { error: "Participant not found" });
+
+    const orgMem = await prisma.orgMembership.findUnique({
+      where: {
+        organizationId_userId: { organizationId: event.organizationId, userId: targetId },
+      },
+    });
+    if (orgMem && (orgMem.role === OrgRole.OWNER || orgMem.role === OrgRole.ADMIN)) {
+      return res.status(403).json({ error: "Org admins cannot be removed from the roster here" });
+    }
+
+    await prisma.eventMembership.delete({
+      where: { eventId_userId: { eventId: event.id, userId: targetId } },
+    });
+
+    return res.json({ ok: true });
+  }),
+);

@@ -1,10 +1,9 @@
+import { brand } from "@event-app/config";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { EventPilotLogo } from "../components/EventPilotLogo";
-import { apiFetch, AuthResponse } from "../lib/api";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { apiFetch, AuthResponse, API_URL, setCsrfToken, clearAuthClientState } from "../lib/api";
 
 const LINKED_EVENT_STORAGE_KEY = "eventPilotLinkedContext";
 
@@ -22,12 +21,24 @@ export default function Home() {
   const [forgotMessage, setForgotMessage] = useState<string | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [linkedEventName, setLinkedEventName] = useState<string | null>(null);
+  const [registerMessage, setRegisterMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = window.localStorage.getItem("token");
-    if (token) {
-      window.location.href = "/dashboard";
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await apiFetch<AuthResponse["user"]>("/auth/me");
+        if (!cancelled && me?.id) {
+          window.localStorage.setItem("user", JSON.stringify(me));
+          window.location.href = "/dashboard";
+        }
+      } catch {
+        clearAuthClientState();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -53,7 +64,11 @@ export default function Home() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/event/slug/${encodeURIComponent(token)}`);
+        // Prefer slug; fall back to opaque join token (never treat as raw CUID oracle on slug endpoint).
+        let res = await fetch(`${API_URL}/event/slug/${encodeURIComponent(token)}`, { credentials: "include" });
+        if (!res.ok) {
+          res = await fetch(`${API_URL}/event/join/${encodeURIComponent(token)}`, { credentials: "include" });
+        }
         const data = (await res.json().catch(() => ({}))) as { id?: string; name?: string };
         if (!res.ok || cancelled || !data.id) {
           if (!cancelled) setLinkedEventName(null);
@@ -86,6 +101,7 @@ export default function Home() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setRegisterMessage(null);
     setLoading(true);
 
     const form = new FormData(event.currentTarget);
@@ -93,12 +109,30 @@ export default function Home() {
 
     try {
       const endpoint = mode === "login" ? "/auth/login" : registerType === "admin" ? "/auth/register-admin" : "/auth/register";
+      const headers: Record<string, string> = {};
+      const activeEventId = window.localStorage.getItem("activeEventId");
+      if (activeEventId && mode === "register") {
+        headers["x-event-id"] = activeEventId;
+      }
+
+      if (mode === "register" && registerType === "participant") {
+        const data = await apiFetch<{ ok: true; requiresEmailVerification?: boolean; message?: string }>(
+          endpoint,
+          { method: "POST", body: JSON.stringify(payload), headers },
+        );
+        setRegisterMessage(data.message || `Check your email to verify your ${brand.productName} account.`);
+        setMode("login");
+        return;
+      }
+
       const data = await apiFetch<AuthResponse>(endpoint, {
         method: "POST",
         body: JSON.stringify(payload),
+        headers,
       });
-      window.localStorage.setItem("token", data.token);
+      setCsrfToken(data.csrfToken);
       window.localStorage.setItem("user", JSON.stringify(data.user));
+      window.localStorage.removeItem("token");
       try {
         window.sessionStorage.removeItem(LINKED_EVENT_STORAGE_KEY);
       } catch {
@@ -122,7 +156,7 @@ export default function Home() {
       if (!eventRef && typeof window !== "undefined") {
         eventRef = window.localStorage.getItem("activeEventId")?.trim() || undefined;
       }
-      await apiFetch<{ ok: true }>("/auth/forgot-password", {
+      await apiFetch<{ ok: true; message?: string }>("/auth/forgot-password", {
         method: "POST",
         body: JSON.stringify({ email: forgotEmail, ...(eventRef ? { eventSlug: eventRef } : {}) }),
       });
@@ -137,122 +171,105 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>{linkedEventName ? `${linkedEventName} — EventPilot` : "EventPilot — Sign in"}</title>
+        <title>{linkedEventName ? `${linkedEventName} — ${brand.productName}` : `${brand.productName} — Sign in`}</title>
       </Head>
       <div className="container">
         <div className="header header--login">
           <div className="login-brand">
             <EventPilotLogo size={56} className="login-brand-logo" />
             <div className="login-brand-text">
-              <h1>EventPilot</h1>
+              <h1>{brand.productName}</h1>
               {linkedEventName ? (
                 <p className="login-guest-event-name" style={{ margin: "6px 0 0" }}>
                   {linkedEventName}
                 </p>
-              ) : null}
-              <p style={{ color: "var(--ink-700)", margin: linkedEventName ? "8px 0 0" : 0 }}>
-                {linkedEventName
-                  ? "Sign in or register below to open this conference."
-                  : "A professional event workspace for schedules, networking, and collaboration."}
-              </p>
-              {!linkedEventName ? (
-                <p className="help-text" style={{ margin: "10px 0 0", lineHeight: 1.45 }}>
-                  Joining a specific conference? Use your organizer&apos;s event link (it looks like{" "}
-                  <strong>/e/…</strong> with a stable ID, or a short slug), or add{" "}
-                  <strong>?event=</strong> followed by that same token to this page&apos;s URL before you sign in so the
-                  correct schedule loads.
+              ) : (
+                <p className="muted" style={{ margin: "6px 0 0" }}>
+                  Sign in to your event workspace
                 </p>
-              ) : null}
+              )}
             </div>
           </div>
         </div>
 
-        <div className="card" style={{ maxWidth: 520 }}>
-          <div className="nav" style={{ marginBottom: 16 }}>
-            <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>
+        <div className="card" style={{ maxWidth: 440, margin: "24px auto" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <button type="button" className={`button ${mode === "login" ? "" : "secondary"}`} onClick={() => setMode("login")}>
               Login
             </button>
-            <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>
+            <button
+              type="button"
+              className={`button ${mode === "register" ? "" : "secondary"}`}
+              onClick={() => setMode("register")}
+            >
               Register
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="grid" style={{ gap: 12 }}>
-            {mode === "register" && (
+          {mode === "register" && (
+            <div style={{ marginBottom: 12 }}>
+              <label className="muted">Account type</label>
+              <select
+                className="select"
+                value={registerType}
+                onChange={(e) => setRegisterType(e.target.value as "participant" | "admin")}
+              >
+                <option value="participant">Participant</option>
+                <option value="admin">Organizer (invite code)</option>
+              </select>
+            </div>
+          )}
+
+          {linkedEventName && (
+            <p className="muted" style={{ fontSize: 14 }}>
+              Have an event link from your organizer? Open it and we&apos;ll bring you to the right place.
+            </p>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <label>Email</label>
+            <input className="input" name="email" type="email" required autoComplete="email" />
+            <label>Name {mode === "login" ? "(register only)" : ""}</label>
+            <input className="input" name="name" type="text" required={mode === "register"} disabled={mode === "login"} />
+            <label>Password</label>
+            <input className="input" name="password" type="password" required minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+            {mode === "register" && registerType === "admin" && (
               <>
-                <div className="nav">
-                  <button
-                    type="button"
-                    className={registerType === "participant" ? "active" : ""}
-                    onClick={() => setRegisterType("participant")}
-                  >
-                    Participant Join Link
-                  </button>
-                  <button
-                    type="button"
-                    className={registerType === "admin" ? "active" : ""}
-                    onClick={() => setRegisterType("admin")}
-                  >
-                    Admin Join Link
-                  </button>
-                </div>
-                <input className="input" name="name" placeholder="Full name" required />
-                {registerType === "participant" && (
-                  <select className="select" name="role" defaultValue="ATTENDEE">
-                    <option value="ATTENDEE">Attendee</option>
-                    <option value="SPEAKER">Speaker</option>
-                  </select>
-                )}
-                <textarea
-                  className="textarea"
-                  name="researchInterests"
-                  placeholder="Research interests (optional)"
-                  rows={3}
-                />
-                {registerType === "admin" && (
-                  <input className="input" name="inviteCode" placeholder="Admin invite code" required />
-                )}
+                <label>Admin invite code</label>
+                <input className="input" name="inviteCode" type="password" required />
               </>
             )}
-            <input className="input" name="email" type="email" placeholder="Email" required />
-            <input className="input" name="password" type="password" placeholder="Password (min 8)" required />
-            {mode === "login" && (
-              <div style={{ display: "grid", gap: 8 }}>
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={() => {
-                    setForgotOpen((v) => !v);
-                    setForgotError(null);
-                    setForgotMessage(null);
-                  }}
-                >
-                  {forgotOpen ? "Hide forgot password" : "Forgot password?"}
-                </button>
-                {forgotOpen && (
-                  <div className="grid" style={{ gap: 8 }}>
-                    <input
-                      className="input"
-                      type="email"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="Enter your email for password reset"
-                      required
-                    />
-                    {forgotError && <div style={{ color: "crimson" }}>{forgotError}</div>}
-                    {forgotMessage && <div style={{ color: "var(--ink-700)" }}>{forgotMessage}</div>}
-                    <button className="button secondary" type="button" disabled={forgotSending} onClick={sendForgotPassword}>
-                      {forgotSending ? "Sending…" : "Send reset link"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            {error && <div style={{ color: "crimson" }}>{error}</div>}
-            <button className="button" disabled={loading}>
-              {loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}
+            {error && <p style={{ color: "var(--danger, #c22f2f)" }}>{error}</p>}
+            {registerMessage && <p style={{ color: "var(--success-700, #1e7a34)" }}>{registerMessage}</p>}
+            <button className="button" type="submit" disabled={loading} style={{ marginTop: 12, width: "100%" }}>
+              {loading ? "Please wait…" : mode === "login" ? "Continue" : "Create account"}
             </button>
           </form>
+
+          {mode === "login" && (
+            <p style={{ marginTop: 16 }}>
+              <button type="button" className="button secondary" onClick={() => setForgotOpen((v) => !v)}>
+                Forgot password?
+              </button>
+            </p>
+          )}
+
+          {forgotOpen && (
+            <div style={{ marginTop: 12 }}>
+              <input
+                className="input"
+                type="email"
+                placeholder="Email"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+              />
+              <button type="button" className="button" disabled={forgotSending} onClick={sendForgotPassword}>
+                {forgotSending ? "Sending…" : "Send reset link"}
+              </button>
+              {forgotMessage && <p className="muted">{forgotMessage}</p>}
+              {forgotError && <p style={{ color: "var(--danger, #c22f2f)" }}>{forgotError}</p>}
+            </div>
+          )}
         </div>
       </div>
     </>

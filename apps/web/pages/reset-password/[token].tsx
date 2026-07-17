@@ -1,3 +1,4 @@
+import { brand } from "@event-app/config";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
@@ -39,7 +40,7 @@ export default function ResetPasswordPage() {
       <div className="card" style={{ maxWidth: 520 }}>
         <h1 style={{ marginTop: 0 }}>Reset password</h1>
         <p className="help-text" style={{ marginTop: 0 }}>
-          Enter a new password for your EventPilot account.
+          Enter a new password for your {brand.productName} account.
         </p>
         <form className="grid" style={{ gap: 10 }} onSubmit={handleSubmit}>
           <input

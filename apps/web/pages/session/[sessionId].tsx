@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
-import { apiFetch } from "../../lib/api";
+import { apiFetch, clearAuthClientState } from "../../lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const RESOURCE_DATA_URL_MAX_CHARS = 4_500_000;
@@ -198,8 +198,8 @@ export default function SessionPage() {
     const ev = withEventHeaders(evId);
     const [sess, threadList, meta, resourceList] = await Promise.all([
       apiFetch<Session>(`/sessions/${sessionId}`, ev, token),
-      apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, {}, token),
-      apiFetch<MySessionMeta>("/sessions/me", {}, token),
+      apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, ev, token),
+      apiFetch<MySessionMeta>("/sessions/me", ev, token),
       fetchSessionResources(token, sessionId),
     ]);
     setSession(sess);
@@ -211,14 +211,25 @@ export default function SessionPage() {
   }, [token, sessionId]);
 
   useEffect(() => {
-    const storedToken = window.localStorage.getItem("token");
-    const storedUser = window.localStorage.getItem("user");
-    if (!storedToken || !storedUser) {
-      window.location.href = "/";
-      return;
-    }
-    setToken(storedToken);
-    setUser(JSON.parse(storedUser));
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await apiFetch<User>("/auth/me");
+        if (cancelled) return;
+        setUser(fresh);
+        window.localStorage.setItem("user", JSON.stringify(fresh));
+        window.localStorage.removeItem("token");
+        setToken("session");
+      } catch {
+        if (!cancelled) {
+          clearAuthClientState();
+          window.location.href = "/";
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -233,8 +244,8 @@ export default function SessionPage() {
         const [evData, sess, threadList, meta] = await Promise.all([
           apiFetch<Event>("/event", ev, token),
           apiFetch<Session>(`/sessions/${sessionId}`, ev, token),
-          apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, {}, token),
-          apiFetch<MySessionMeta>("/sessions/me", {}, token),
+          apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, ev, token),
+          apiFetch<MySessionMeta>("/sessions/me", ev, token),
         ]);
         setEvent(evData);
         setSession(sess);
@@ -274,7 +285,7 @@ export default function SessionPage() {
         method: "PUT",
         body: JSON.stringify(body),
       }, token);
-      const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token);
+      const meta = await apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(window.localStorage.getItem("activeEventId")), token);
       setMyAttendance(meta.attendance);
       if (body.status === "JOINING") void refreshUser(token);
       void reloadSessionAndMessages();
@@ -413,8 +424,7 @@ export default function SessionPage() {
           type="button"
           className="button secondary"
           onClick={() => {
-            window.localStorage.removeItem("token");
-            window.localStorage.removeItem("user");
+            clearAuthClientState();
             window.location.href = "/";
           }}
         >

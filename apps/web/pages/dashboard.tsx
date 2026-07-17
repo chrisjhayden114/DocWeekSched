@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
-import { apiFetch } from "../lib/api";
+import { apiFetch, clearAuthClientState } from "../lib/api";
 
 type User = {
   id: string;
@@ -15,6 +15,9 @@ type User = {
   engagementPoints?: number;
   inviteStatus?: "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED";
   inviteExpiresAt?: string | null;
+  isEventAdmin?: boolean;
+  orgRole?: "OWNER" | "ADMIN" | "STAFF" | null;
+  eventRole?: string | null;
 };
 
 type Event = {
@@ -264,27 +267,40 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const storedToken = window.localStorage.getItem("token");
-    const storedUser = window.localStorage.getItem("user");
-    if (!storedToken || !storedUser) {
-      window.location.href = "/";
-      return;
-    }
-    setToken(storedToken);
-    setUser(JSON.parse(storedUser));
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await apiFetch<User>("/auth/me", withEventHeaders());
+        if (cancelled) return;
+        setUser(fresh);
+        window.localStorage.setItem("user", JSON.stringify(fresh));
+        window.localStorage.removeItem("token");
+        setToken("session");
+      } catch {
+        if (!cancelled) {
+          clearAuthClientState();
+          window.location.href = "/";
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!token) return;
     apiFetch<Event>("/event", withEventHeaders(), token).then(setEvent).catch(() => null);
-    apiFetch<User>("/auth/me", {}, token).then((freshUser) => {
+    apiFetch<User>("/auth/me", withEventHeaders(), token).then((freshUser) => {
       setUser(freshUser);
       window.localStorage.setItem("user", JSON.stringify(freshUser));
     }).catch(() => null);
-    apiFetch<MySessionMeta>("/sessions/me", {}, token).then((meta) => {
-      setMyAttendance(meta.attendance);
-      setLikedSessionIds(meta.likedSessionIds);
-    }).catch(() => null);
+    if (activeEventId) {
+      apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(), token).then((meta) => {
+        setMyAttendance(meta.attendance);
+        setLikedSessionIds(meta.likedSessionIds);
+      }).catch(() => null);
+    }
   }, [token, activeEventId]);
 
   useEffect(() => {
@@ -308,18 +324,18 @@ export default function Dashboard() {
     const load = async () => {
       if (active === "Agenda") {
         setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
-        if (user?.role === "ADMIN" && attendees.length === 0) {
-          setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+        if (isAdmin && attendees.length === 0) {
+          setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
         }
       }
       if (active === "Attendees" || active === PARTICIPANTS_INVITES_TAB) {
-        setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+        setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
       }
       if (active === COMMUNITY_TAB) {
         const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
         setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token));
         if (attendees.length === 0) {
-          setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+          setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
         }
       }
       if (active === "Notifications") {
@@ -337,7 +353,7 @@ export default function Dashboard() {
           setAttendees(await apiFetch<User[]>("/attendees", {}, token));
         }
       }
-      if (user?.role === "ADMIN") {
+      if (isAdmin) {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
         setAdminEvents(mergeAdminEvents(myEvents, event));
       }
@@ -406,7 +422,7 @@ export default function Dashboard() {
     }
   }, [active, conversations, activeConversationId]);
 
-  const isAdmin = useMemo(() => user?.role === "ADMIN", [user]);
+  const isAdmin = useMemo(() => Boolean(user?.isEventAdmin || user?.role === "ADMIN"), [user]);
   const availableTabs = useMemo(() => (isAdmin ? adminTabs : participantTabs), [isAdmin]);
   const unreadNotifications = useMemo(
     () => notifications.filter((row) => !row.readAt).length,
@@ -497,11 +513,17 @@ export default function Dashboard() {
     return conversations.find((c) => c.id === activeConversationId) ?? null;
   }, [conversations, activeConversationId]);
 
-  const handleLogout = () => {
-    window.localStorage.removeItem("token");
-    window.localStorage.removeItem("user");
+  const handleLogout = async () => {
+    try {
+      await apiFetch("/auth/logout", { method: "POST" }, token || undefined);
+    } catch {
+      /* ignore */
+    }
+    clearAuthClientState();
     window.location.href = "/";
   };
+
+  const isOrganizer = Boolean(user?.isEventAdmin || user?.role === "ADMIN");
 
   const patchSessionAttendance = async (
     sessionId: string,
@@ -960,7 +982,7 @@ export default function Dashboard() {
               activeEventId={activeEventId}
               eventSlug={event?.slug ?? null}
               onInvited={async () => {
-                const list = await apiFetch<User[]>("/attendees", {}, token!);
+                const list = await apiFetch<User[]>("/attendees", withEventHeaders(), token!);
                 setAttendees(list);
               }}
             />
@@ -969,7 +991,7 @@ export default function Dashboard() {
               withEventHeaders={withEventHeaders}
               activeEventId={activeEventId}
               onDone={async () => {
-                const list = await apiFetch<User[]>("/attendees", {}, token!);
+                const list = await apiFetch<User[]>("/attendees", withEventHeaders(), token!);
                 setAttendees(list);
               }}
             />
@@ -2134,6 +2156,7 @@ function ProfileEditor({
   onEventCreated: (event: EventItem) => void;
   onAdminRequestSent?: () => void | Promise<void>;
 }) {
+  const isOrganizer = Boolean(user.isEventAdmin || user.role === "ADMIN");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -2316,7 +2339,7 @@ function ProfileEditor({
           )}
         </div>
       )}
-      {user.role === "ADMIN" && (
+      {isOrganizer && (
         <div className="card" style={{ marginTop: 12, padding: 16 }}>
           <h4 style={{ marginTop: 0 }}>Engagement points</h4>
           <p className="help-text" style={{ marginTop: 0 }}>
@@ -2347,7 +2370,7 @@ function ProfileEditor({
           </button>
         </div>
       )}
-      {user.role === "ADMIN" && (
+      {isOrganizer && (
         <div className="card" style={{ marginTop: 12, padding: 16 }}>
           <h4 style={{ marginTop: 0 }}>Appearance</h4>
           <p className="help-text" style={{ marginTop: 0 }}>
@@ -2387,7 +2410,7 @@ function ProfileEditor({
           </div>
         </div>
       )}
-      {user.role === "ADMIN" && (
+      {isOrganizer && (
         <div className="card" style={{ marginTop: 12 }}>
           <h4 style={{ marginTop: 0 }}>My Events</h4>
           <div className="grid" style={{ gap: 8, marginBottom: 12 }}>

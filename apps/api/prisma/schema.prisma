@@ -13,6 +13,45 @@ enum Role {
   SPEAKER
 }
 
+enum OrgRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum EventMemberRole {
+  ADMIN
+  ATTENDEE
+  SPEAKER
+}
+
+enum EventStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum PlanTier {
+  STARTER
+  PRO
+  ORG_ANNUAL
+}
+
+enum PurchaseStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  NONE
+}
+
 enum QuestionType {
   SINGLE
   MULTI
@@ -28,14 +67,6 @@ enum SessionJoinMode {
   VIRTUAL
   IN_PERSON
   ASYNC
-}
-
-enum ParticipantType {
-  GRAD_STUDENT
-  EDD_STUDENT
-  PHD_STUDENT
-  EDL_ALUMNI
-  PROFESSOR
 }
 
 enum SessionResourceKind {
@@ -58,81 +89,200 @@ enum NotificationKind {
   ADMIN_REQUEST
 }
 
+enum AdminAccessRequestStatus {
+  PENDING
+  GRANTED
+  DENIED
+}
+
+model Organization {
+  id                   String               @id @default(cuid())
+  name                 String
+  slug                 String               @unique
+  stripeCustomerId     String?              @unique
+  plan                 PlanTier?
+  subscriptionStatus   SubscriptionStatus   @default(NONE)
+  stripeSubscriptionId String?              @unique
+  eventAllowance       Int                  @default(0)
+  eventsIncludedUsed   Int                  @default(0)
+  subscriptionEndsAt   DateTime?
+  createdAt            DateTime             @default(now())
+  memberships          OrgMembership[]
+  events               Event[]
+  purchases            EventPurchase[]
+  adminAccessRequests  AdminAccessRequest[]
+}
+
+model OrgMembership {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrgRole      @default(STAFF)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model EventMembership {
+  id        String          @id @default(cuid())
+  eventId   String
+  event     Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      EventMemberRole @default(ATTENDEE)
+  createdAt DateTime        @default(now())
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+model EventPurchase {
+  id                      String         @id @default(cuid())
+  organizationId          String
+  organization            Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId                 String?
+  event                   Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  plan                    PlanTier
+  amountCents             Int
+  currency                String         @default("usd")
+  status                  PurchaseStatus @default(PENDING)
+  stripeCheckoutSessionId String?        @unique
+  stripePaymentIntentId   String?
+  attendeeCap             Int
+  createdAt               DateTime       @default(now())
+  paidAt                  DateTime?
+
+  @@index([organizationId])
+  @@index([eventId])
+}
+
+model AdminAccessRequest {
+  id             String                    @id @default(cuid())
+  organizationId String
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event                     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                      @relation("AdminAccessRequester", fields: [userId], references: [id], onDelete: Cascade)
+  status         AdminAccessRequestStatus  @default(PENDING)
+  createdAt      DateTime                  @default(now())
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolvedBy     User?                     @relation("AdminAccessResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([eventId, status])
+  @@index([userId])
+}
+
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  role         Role
-  photoUrl     String?
-  researchInterests String?
-  participantType ParticipantType?
-  passwordHash String
-  engagementPoints Int @default(0)
-  profileSetupToken String?   @unique
-  profileSetupTokenExpiresAt DateTime?
-  passwordResetToken String? @unique
+  id                          String                @id @default(cuid())
+  email                       String                @unique
+  name                        String
+  role                        Role
+  photoUrl                    String?
+  researchInterests           String?
+  /// Free-text participant category (e.g. Student, Faculty, Industry). Legacy academic codes may still appear.
+  participantType             String?
+  passwordHash                String
+  engagementPoints            Int                   @default(0)
+  emailVerifiedAt             DateTime?
+  emailVerifyTokenHash        String?               @unique
+  emailVerifyTokenExpiresAt   DateTime?
+  profileSetupTokenHash       String?               @unique
+  profileSetupTokenExpiresAt  DateTime?
+  passwordResetTokenHash      String?               @unique
   passwordResetTokenExpiresAt DateTime?
-  createdAt    DateTime @default(now())
-  sessionBookmarks SessionBookmark[]
-  sessionAttendances SessionAttendance[]
-  sessionLikes SessionLike[]
-  eventsCreated Event[] @relation("EventCreator")
-  sessionsAsSpeaker Session[] @relation("SessionSpeaker")
-  conversationMembers ConversationMember[]
-  conversationMessages ConversationMessage[]
-  checkIns     CheckIn[]
-  surveyAnswers SurveyAnswer[]
-  networkThreads NetworkThread[]
-  networkReplies NetworkReply[]
-  sessionDiscussionThreads SessionDiscussionThread[]
-  sessionDiscussionReplies SessionDiscussionReply[]
-  sessionResources SessionResource[]
-  notifications UserNotification[]
+  createdAt                   DateTime              @default(now())
+  sessionBookmarks            SessionBookmark[]
+  sessionAttendances          SessionAttendance[]
+  sessionLikes                SessionLike[]
+  eventsCreated               Event[]               @relation("EventCreator")
+  sessionsAsSpeaker           Session[]             @relation("SessionSpeaker")
+  conversationMembers         ConversationMember[]
+  conversationMessages        ConversationMessage[]
+  checkIns                    CheckIn[]
+  surveyAnswers               SurveyAnswer[]
+  networkThreads              NetworkThread[]
+  networkReplies              NetworkReply[]
+  sessionDiscussionThreads    SessionDiscussionThread[]
+  sessionDiscussionReplies    SessionDiscussionReply[]
+  sessionResources            SessionResource[]
+  notifications               UserNotification[]
+  orgMemberships              OrgMembership[]
+  eventMemberships            EventMembership[]
+  adminAccessRequests         AdminAccessRequest[]  @relation("AdminAccessRequester")
+  adminAccessResolutions      AdminAccessRequest[]  @relation("AdminAccessResolver")
 }
 
 model Event {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  bannerUrl String?
-  logoUrl   String?
-  timezone  String
-  startDate DateTime
-  endDate   DateTime
-  sessions  Session[]
-  announcements Announcement[]
-  surveys   Survey[]
-  conversations Conversation[]
-  checkIns  CheckIn[]
-  networkThreads NetworkThread[]
-  createdBy   User?   @relation("EventCreator", fields: [createdById], references: [id])
-  createdById String?
+  id                   String               @id @default(cuid())
+  name                 String
+  slug                 String               @unique
+  bannerUrl            String?
+  logoUrl              String?
+  timezone             String
+  startDate            DateTime
+  endDate              DateTime
+  status               EventStatus          @default(DRAFT)
+  plan                 PlanTier?
+  attendeeCap          Int                  @default(150)
+  trialEndsAt          DateTime?
+  activatedAt          DateTime?
+  organizationId       String
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  /// Opaque permanent join token (hashed at rest). Public link uses the raw token, never the event id.
+  joinTokenHash        String?              @unique
+  joinTokenExpiresAt   DateTime?
+  joinTokenCapacity    Int?
+  joinTokenUseCount    Int                  @default(0)
+  joinTokenRevokedAt   DateTime?
+  slugInviteEnabled    Boolean              @default(true)
+  slugInviteExpiresAt  DateTime?
+  slugInviteCapacity   Int?
+  slugInviteUseCount   Int                  @default(0)
+  sessions             Session[]
+  announcements        Announcement[]
+  surveys              Survey[]
+  conversations        Conversation[]
+  checkIns             CheckIn[]
+  networkThreads       NetworkThread[]
+  memberships          EventMembership[]
+  purchases            EventPurchase[]
+  adminAccessRequests  AdminAccessRequest[]
+  createdBy            User?                @relation("EventCreator", fields: [createdById], references: [id])
+  createdById          String?
+
+  @@index([organizationId])
 }
 
 model Session {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  location    String?
-  speakers    String?
-  imageUrl    String?
-  zoomLink    String?
-  recordingUrl String?
-  fileUrl     String?
-  fileLink    String?
-  allowVirtualJoin Boolean @default(true)
-  startsAt    DateTime
-  endsAt      DateTime
-  event       Event    @relation(fields: [eventId], references: [id])
-  eventId     String
-  speaker     User?    @relation("SessionSpeaker", fields: [speakerId], references: [id])
-  speakerId   String?
-  bookmarks   SessionBookmark[]
-  attendances SessionAttendance[]
-  likes       SessionLike[]
-  conversations Conversation[]
+  id                String                     @id @default(cuid())
+  title             String
+  description       String?
+  location          String?
+  speakers          String?
+  imageUrl          String?
+  zoomLink          String?
+  recordingUrl      String?
+  fileUrl           String?
+  fileLink          String?
+  allowVirtualJoin  Boolean                    @default(true)
+  startsAt          DateTime
+  endsAt            DateTime
+  event             Event                      @relation(fields: [eventId], references: [id])
+  eventId           String
+  speaker           User?                      @relation("SessionSpeaker", fields: [speakerId], references: [id])
+  speakerId         String?
+  bookmarks         SessionBookmark[]
+  attendances       SessionAttendance[]
+  likes             SessionLike[]
+  conversations     Conversation[]
   discussionThreads SessionDiscussionThread[]
-  resources SessionResource[]
+  resources         SessionResource[]
 }
 
 model SessionBookmark {
@@ -147,15 +297,15 @@ model SessionBookmark {
 }
 
 model SessionAttendance {
-  id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
+  id        String                  @id @default(cuid())
+  user      User                    @relation(fields: [userId], references: [id])
   userId    String
-  session   Session  @relation(fields: [sessionId], references: [id])
+  session   Session                 @relation(fields: [sessionId], references: [id])
   sessionId String
   status    SessionAttendanceStatus
   joinMode  SessionJoinMode?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
 
   @@unique([userId, sessionId])
 }
@@ -181,31 +331,31 @@ model Announcement {
 }
 
 model Survey {
-  id        String   @id @default(cuid())
+  id        String           @id @default(cuid())
   title     String
-  event     Event    @relation(fields: [eventId], references: [id])
+  event     Event            @relation(fields: [eventId], references: [id])
   eventId   String
   questions SurveyQuestion[]
 }
 
 model SurveyQuestion {
-  id        String   @id @default(cuid())
-  prompt    String
-  type      QuestionType
-  options   String[]
-  survey    Survey   @relation(fields: [surveyId], references: [id])
-  surveyId  String
-  answers   SurveyAnswer[]
+  id      String         @id @default(cuid())
+  prompt  String
+  type    QuestionType
+  options String[]
+  survey  Survey         @relation(fields: [surveyId], references: [id])
+  surveyId String
+  answers SurveyAnswer[]
 }
 
 model SurveyAnswer {
-  id         String   @id @default(cuid())
+  id         String         @id @default(cuid())
   question   SurveyQuestion @relation(fields: [questionId], references: [id])
   questionId String
-  user       User     @relation(fields: [userId], references: [id])
+  user       User           @relation(fields: [userId], references: [id])
   userId     String
   answer     String
-  createdAt  DateTime @default(now())
+  createdAt  DateTime       @default(now())
 }
 
 enum ConversationType {
@@ -216,35 +366,35 @@ enum ConversationType {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
+  id        String               @id @default(cuid())
   name      String?
   type      ConversationType
-  createdAt DateTime @default(now())
-  event     Event    @relation(fields: [eventId], references: [id])
+  createdAt DateTime             @default(now())
+  event     Event                @relation(fields: [eventId], references: [id])
   eventId   String
-  session   Session? @relation(fields: [sessionId], references: [id])
-  sessionId String?  @unique
+  session   Session?             @relation(fields: [sessionId], references: [id])
+  sessionId String?              @unique
   members   ConversationMember[]
   messages  ConversationMessage[]
 }
 
 model ConversationMember {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   conversationId String
-  user           User @relation(fields: [userId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
   userId         String
 
   @@unique([conversationId, userId])
 }
 
 model ConversationMessage {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   body           String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   conversationId String
-  user           User     @relation(fields: [userId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
   userId         String
 }
 
@@ -260,31 +410,31 @@ model CheckIn {
 }
 
 model NetworkThread {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  channel   NetworkChannel @default(GENERAL)
-  meetupMode SessionJoinMode?
-  meetupStartsAt DateTime?
-  meetupMeetingUrl String?
-  meetupInviteEveryone Boolean @default(false)
-  meetupParticipantIds String[] @default([])
-  taggedUserIds String[] @default([])
-  imageUrl  String?
-  imageUrls String[] @default([])
-  mapsUrl   String?
-  createdAt DateTime @default(now())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  replies   NetworkReply[]
+  id                     String            @id @default(cuid())
+  title                  String
+  body                   String
+  channel                NetworkChannel    @default(GENERAL)
+  meetupMode             SessionJoinMode?
+  meetupStartsAt         DateTime?
+  meetupMeetingUrl       String?
+  meetupInviteEveryone   Boolean           @default(false)
+  meetupParticipantIds   String[]          @default([])
+  taggedUserIds          String[]          @default([])
+  imageUrl               String?
+  imageUrls              String[]          @default([])
+  mapsUrl                String?
+  createdAt              DateTime          @default(now())
+  eventId                String
+  event                  Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  authorId               String
+  author                 User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replies                NetworkReply[]
 }
 
 model UserNotification {
-  id             String   @id @default(cuid())
+  id             String           @id @default(cuid())
   userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   eventId        String?
   kind           NotificationKind
   title          String
@@ -292,51 +442,51 @@ model UserNotification {
   threadId       String?
   conversationId String?
   readAt         DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime         @default(now())
 
   @@index([userId, createdAt])
 }
 
 model NetworkReply {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   body      String
-  createdAt DateTime @default(now())
+  createdAt DateTime      @default(now())
   threadId  String
   thread    NetworkThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 model SessionDiscussionThread {
-  id        String   @id @default(cuid())
+  id        String                    @id @default(cuid())
   title     String
   body      String
-  createdAt DateTime @default(now())
+  createdAt DateTime                  @default(now())
   sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session   Session                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User                      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   replies   SessionDiscussionReply[]
 }
 
 model SessionDiscussionReply {
-  id        String   @id @default(cuid())
+  id        String                  @id @default(cuid())
   body      String
-  createdAt DateTime @default(now())
+  createdAt DateTime                @default(now())
   threadId  String
   thread    SessionDiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User                    @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 model SessionResource {
-  id        String   @id @default(cuid())
+  id        String              @id @default(cuid())
   title     String
   kind      SessionResourceKind
   url       String
-  createdAt DateTime @default(now())
+  createdAt DateTime            @default(now())
   sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session   Session             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

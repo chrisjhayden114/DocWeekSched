@@ -1,6 +1,9 @@
-import express from "express";
+import cookieParser from "cookie-parser";
 import cors from "cors";
+import express from "express";
 import { env } from "./lib/env";
+import { securityHeaders } from "./lib/securityHeaders";
+import { requireCsrf } from "./lib/middleware";
 import { authRouter } from "./routes/auth";
 import { eventRouter } from "./routes/event";
 import { sessionsRouter } from "./routes/sessions";
@@ -27,6 +30,8 @@ try {
   // Leave only configured origin if URL parsing fails.
 }
 
+app.set("trust proxy", 1);
+app.use(securityHeaders);
 app.use(
   cors({
     credentials: true,
@@ -40,6 +45,8 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "25mb" }));
+app.use(cookieParser());
+app.use(requireCsrf);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
@@ -54,6 +61,21 @@ app.use("/checkins", checkinRouter);
 app.use("/network", networkRouter);
 app.use("/notifications", notificationsRouter);
 
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof Error && err.message.startsWith("CORS blocked")) {
+    return res.status(403).json({ error: "Origin not allowed" });
+  }
+  console.error(err);
+  return res.status(500).json({ error: "Internal server error" });
+});
+
 app.listen(env.apiPort, () => {
   console.log(`API listening on ${env.apiPort}`);
+  if (env.cookieSameSite === "none") {
+    console.warn(
+      "[auth] COOKIE_SAMESITE=none (cross-site interim). Prefer api.ukedl.com + COOKIE_DOMAIN=.ukedl.com + SameSite=Lax.",
+    );
+  } else if (env.cookieDomain) {
+    console.log(`[auth] Session cookies Domain=${env.cookieDomain} SameSite=${env.cookieSameSite}`);
+  }
 });

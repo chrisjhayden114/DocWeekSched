@@ -1,13 +1,14 @@
+import { brand } from "@event-app/config";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { apiFetch, AuthResponse } from "../../lib/api";
+import { apiFetch, AuthResponse, setCsrfToken } from "../../lib/api";
 
 type Preview = { email: string; name: string; photoUrl?: string | null; researchInterests?: string | null };
 
 export default function InviteSetupPage() {
   const router = useRouter();
   const token = typeof router.query.token === "string" ? router.query.token : null;
-  const eventSlug = typeof router.query.event === "string" ? router.query.event : null;
+  const eventRef = typeof router.query.event === "string" ? router.query.event : null;
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [redirectingToLogin, setRedirectingToLogin] = useState(false);
@@ -20,7 +21,10 @@ export default function InviteSetupPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}/auth/profile-setup/${encodeURIComponent(token)}`);
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}/auth/profile-setup/${encodeURIComponent(token)}`,
+          { credentials: "include" },
+        );
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(typeof data.error === "string" ? data.error : "Invalid invite");
@@ -45,21 +49,9 @@ export default function InviteSetupPage() {
   }, [token, router.isReady]);
 
   useEffect(() => {
-    if (!eventSlug || router.isReady === false) return;
-    (async () => {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}/event/slug/${encodeURIComponent(eventSlug)}`,
-        );
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.id) {
-          window.localStorage.setItem("activeEventId", data.id as string);
-        }
-      } catch {
-        /* optional */
-      }
-    })();
-  }, [eventSlug, router.isReady]);
+    if (!eventRef || router.isReady === false) return;
+    window.localStorage.setItem("activeEventId", eventRef);
+  }, [eventRef, router.isReady]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,7 +66,8 @@ export default function InviteSetupPage() {
         method: "POST",
         body: JSON.stringify({ token, password }),
       });
-      window.localStorage.setItem("token", data.token);
+      setCsrfToken(data.csrfToken);
+      window.localStorage.removeItem("token");
       window.localStorage.setItem("user", JSON.stringify(data.user));
       window.location.href = "/dashboard";
     } catch (err) {
@@ -90,6 +83,7 @@ export default function InviteSetupPage() {
     <div className="container">
       <div className="card" style={{ maxWidth: 520 }}>
         <h1 style={{ marginTop: 0 }}>Welcome — confirm your profile</h1>
+        <p className="help-text">{brand.productName}</p>
         {loadError && (
           <>
             <p style={{ color: "#b42318" }}>{loadError}</p>
@@ -99,13 +93,7 @@ export default function InviteSetupPage() {
                 : "If you've already set your password, please log in from the home page."}
             </p>
             {!redirectingToLogin && (
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => {
-                  window.location.href = "/";
-                }}
-              >
+              <button type="button" className="button secondary" onClick={() => { window.location.href = "/"; }}>
                 Go to login
               </button>
             )}
@@ -120,9 +108,7 @@ export default function InviteSetupPage() {
             {preview.photoUrl && (
               <img src={preview.photoUrl} alt="" style={{ width: 96, height: 96, borderRadius: 12, objectFit: "cover" }} />
             )}
-            {preview.researchInterests && (
-              <p style={{ lineHeight: 1.45 }}>{preview.researchInterests}</p>
-            )}
+            {preview.researchInterests && <p style={{ lineHeight: 1.45 }}>{preview.researchInterests}</p>}
             <form className="grid" style={{ gap: 12, marginTop: 16 }} onSubmit={handleSubmit}>
               <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
                 Choose password (min 8 characters)
