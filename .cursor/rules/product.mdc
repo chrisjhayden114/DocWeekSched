@@ -1,0 +1,15 @@
+You are working on a multi-tenant event-management SaaS run by a solo founder. Follow these rules in every session:
+
+- Read PRODUCT_SPEC.md and GAP_REPORT.md before making changes.
+- Never break existing routes or data. Every schema change ships as a reversible migration; never edit a migration that has already run.
+- Multi-tenancy is a security boundary: every query touching event or attendee data MUST be scoped to the current organization/event via a shared helper — never by trusting an ID from the client. New endpoint = corresponding authorization test in the same session.
+- All AI functionality goes through the internal AI gateway (lib/ai/gateway): per-event grounding, metering, aiGenerated labeling, audit logging. Direct provider-SDK imports outside the gateway fail lint. Agents draft; humans publish — no agent output is ever published or sent without explicit user confirmation. Agent-generated attendee touches deliver via the daily digest, never push.
+- Respect the anti-goals in PRODUCT_SPEC.md Part II: no public leaderboards by default, no platform-initiated push notifications, no engagement-manufacturing mechanics, no dark patterns, no ads. Do not add these even as "nice to haves".
+- All new features are gated by the plan/entitlement system once Phase 3 lands (feature-flag helper; default off for free tier where the spec says so). Hitting a limit shows an upgrade prompt, never a silent failure.
+- Separately from plan entitlements, every attendee-facing feature registers in the EVENT FEATURE REGISTRY (Phase 2.6) and is checked via featureEnabled(eventId, key) — organizers choose which features their event uses. Effective visibility = plan allows it AND organizer enabled it. A disabled feature disappears cleanly (no tab, no dead link, no teaser). When you add any new attendee-facing capability in any phase, register it and gate it in the same session.
+- Write tests for business logic (auth, tenancy, billing/entitlements, limits, notification budget) as you go. Keep the suite green.
+- All user-visible strings, branding (product name, logo, colors, support email, legal entity) come from a single config module — no hardcoded product names anywhere. Design values (type, color, spacing, radius, shadow) come from the design-token module (Phase 2.5) — no hardcoded hex values or px sizes in components.
+- Any phase that changes user-facing behavior must update the relevant /help article (Phase S1) and, if operational, RUNBOOK.md — in the same session.
+- Validate all input server-side. Rate-limit auth and public endpoints. Never log secrets or PII.
+- Prefer boring, well-supported libraries already in the repo. Do not introduce a new framework without flagging it and explaining why.
+- When a requirement conflicts with the existing architecture, STOP and present options rather than silently deviating.
