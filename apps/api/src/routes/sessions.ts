@@ -5,6 +5,7 @@ import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorizatio
 import { prisma } from "../lib/db";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
+import { getStorageProvider } from "../lib/storage";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 
 export const sessionsRouter = Router();
@@ -25,6 +26,10 @@ const sessionSchema = z.object({
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
   speakerId: z.string().optional(),
+  trackId: z.string().nullable().optional(),
+  roomId: z.string().nullable().optional(),
+  /** Event-scoped Speaker roster IDs (ordered). */
+  speakerIds: z.array(z.string()).optional(),
 });
 
 const attendanceSchema = z.object({
@@ -83,6 +88,23 @@ async function assertCanContributeSessionResources(
 
 const sessionInclude = {
   speaker: { select: { id: true, name: true } },
+  track: { select: { id: true, name: true, color: true } },
+  room: { select: { id: true, name: true } },
+  sessionSpeakers: {
+    orderBy: { sortOrder: "asc" as const },
+    include: {
+      speaker: {
+        select: { id: true, name: true, title: true, affiliation: true, photoUrl: true },
+      },
+    },
+  },
+  items: {
+    orderBy: { sortOrder: "asc" as const },
+    include: {
+      authors: { orderBy: { sortOrder: "asc" as const } },
+      discussantSpeaker: { select: { id: true, name: true } },
+    },
+  },
   bookmarks: {
     select: {
       userId: true,
@@ -104,6 +126,27 @@ const sessionInclude = {
     },
   },
 } as const;
+
+async function syncSessionSpeakers(sessionId: string, eventId: string, speakerIds: string[]) {
+  const unique = [...new Set(speakerIds)];
+  if (unique.length) {
+    const valid = await prisma.speaker.findMany({
+      where: { eventId, id: { in: unique } },
+      select: { id: true },
+    });
+    if (valid.length !== unique.length) {
+      throw new HttpError(400, { error: "One or more speakers are not on this event roster" });
+    }
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.sessionSpeaker.deleteMany({ where: { sessionId } });
+    for (let i = 0; i < unique.length; i += 1) {
+      await tx.sessionSpeaker.create({
+        data: { sessionId, speakerId: unique[i], sortOrder: i },
+      });
+    }
+  });
+}
 
 sessionsRouter.get(
   "/",
@@ -192,6 +235,7 @@ sessionsRouter.post(
     await assertCanContributeSessionResources(req.user!.id, session);
 
     let url = parsed.data.url.trim();
+    let storageKey: string | null = null;
     if (parsed.data.kind === "LINK") {
       url = normalizeLinkUrl(url);
       try {
@@ -202,8 +246,19 @@ sessionsRouter.post(
       } catch {
         return res.status(400).json({ error: "Invalid link URL" });
       }
-    } else if (!url.startsWith("data:")) {
-      return res.status(400).json({ error: "File uploads must use a data URL" });
+    } else {
+      try {
+        const stored = await getStorageProvider().acceptUpload({
+          url,
+          keyPrefix: `events/${session.eventId}/sessions/${session.id}`,
+          maxBytes: Number(process.env.STORAGE_MAX_UPLOAD_BYTES || 4_500_000),
+        });
+        url = stored.url;
+        storageKey = stored.storageKey;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload failed";
+        return res.status(400).json({ error: message });
+      }
     }
 
     const userId = req.user!.id;
@@ -212,6 +267,7 @@ sessionsRouter.post(
         title: parsed.data.title.trim(),
         kind: parsed.data.kind,
         url,
+        storageKey,
         sessionId: session.id,
         userId,
       },
@@ -312,13 +368,23 @@ sessionsRouter.post(
         fileUrl: parsed.data.fileUrl || null,
         fileLink: parsed.data.fileLink || null,
         speakerId: parsed.data.speakerId || null,
+        trackId: parsed.data.trackId ?? null,
+        roomId: parsed.data.roomId ?? null,
         allowVirtualJoin: parsed.data.allowVirtualJoin ?? true,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: new Date(parsed.data.endsAt),
         eventId: event.id,
       },
+      include: sessionInclude,
     });
-    return res.json(session);
+    if (parsed.data.speakerIds) {
+      await syncSessionSpeakers(session.id, event.id, parsed.data.speakerIds);
+    }
+    const full = await prisma.session.findUnique({
+      where: { id: session.id },
+      include: sessionInclude,
+    });
+    return res.json(full);
   }),
 );
 
@@ -356,6 +422,12 @@ sessionsRouter.put(
     if (parsed.data.allowVirtualJoin !== undefined) {
       sessionUpdate.allowVirtualJoin = parsed.data.allowVirtualJoin;
     }
+    if (parsed.data.trackId !== undefined) {
+      sessionUpdate.trackId = parsed.data.trackId;
+    }
+    if (parsed.data.roomId !== undefined) {
+      sessionUpdate.roomId = parsed.data.roomId;
+    }
 
     const session = await prisma.$transaction(async (tx) => {
       const updated = await tx.session.update({
@@ -373,7 +445,15 @@ sessionsRouter.put(
       return updated;
     });
 
-    return res.json(session);
+    if (parsed.data.speakerIds) {
+      await syncSessionSpeakers(session.id, existing.eventId, parsed.data.speakerIds);
+    }
+
+    const full = await prisma.session.findUnique({
+      where: { id: session.id },
+      include: sessionInclude,
+    });
+    return res.json(full);
   }),
 );
 
@@ -665,3 +745,194 @@ sessionsRouter.delete(
     return res.json({ ok: true });
   }),
 );
+
+const itemAuthorSchema = z.object({
+  name: z.string().min(1).max(200),
+  speakerId: z.string().nullable().optional(),
+  isPresenter: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+const sessionItemSchema = z.object({
+  title: z.string().min(1).max(500),
+  abstract: z.string().max(20_000).optional().nullable(),
+  sortOrder: z.number().int().optional(),
+  discussantName: z.string().max(200).optional().nullable(),
+  discussantSpeakerId: z.string().nullable().optional(),
+  authors: z.array(itemAuthorSchema).optional(),
+});
+
+const itemInclude = {
+  authors: { orderBy: { sortOrder: "asc" as const } },
+  discussantSpeaker: { select: { id: true, name: true } },
+} as const;
+
+sessionsRouter.get(
+  "/:id/items",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId);
+    const items = await prisma.sessionItem.findMany({
+      where: { sessionId: session.id },
+      orderBy: { sortOrder: "asc" },
+      include: itemInclude,
+    });
+    return res.json(items);
+  }),
+);
+
+sessionsRouter.post(
+  "/:id/items",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = sessionItemSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId, { manage: true });
+
+    let sortOrder = parsed.data.sortOrder;
+    if (sortOrder === undefined) {
+      const agg = await prisma.sessionItem.aggregate({
+        where: { sessionId: session.id },
+        _max: { sortOrder: true },
+      });
+      sortOrder = (agg._max.sortOrder ?? -1) + 1;
+    }
+
+    const item = await prisma.sessionItem.create({
+      data: {
+        sessionId: session.id,
+        title: parsed.data.title.trim(),
+        abstract: parsed.data.abstract?.trim() || null,
+        sortOrder,
+        discussantName: parsed.data.discussantName?.trim() || null,
+        discussantSpeakerId: parsed.data.discussantSpeakerId || null,
+        authors: parsed.data.authors?.length
+          ? {
+              create: parsed.data.authors.map((a, i) => ({
+                name: a.name.trim(),
+                speakerId: a.speakerId || null,
+                isPresenter: a.isPresenter ?? false,
+                sortOrder: a.sortOrder ?? i,
+              })),
+            }
+          : undefined,
+      },
+      include: itemInclude,
+    });
+    return res.status(201).json(item);
+  }),
+);
+
+sessionsRouter.put(
+  "/:id/items/:itemId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = sessionItemSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId, { manage: true });
+
+    const existing = await prisma.sessionItem.findFirst({
+      where: { id: req.params.itemId, sessionId: session.id },
+    });
+    if (!existing) throw new HttpError(404, { error: "Session item not found" });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.sessionItem.update({
+        where: { id: existing.id },
+        data: {
+          ...(parsed.data.title !== undefined ? { title: parsed.data.title.trim() } : {}),
+          ...(parsed.data.abstract !== undefined ? { abstract: parsed.data.abstract?.trim() || null } : {}),
+          ...(parsed.data.sortOrder !== undefined ? { sortOrder: parsed.data.sortOrder } : {}),
+          ...(parsed.data.discussantName !== undefined
+            ? { discussantName: parsed.data.discussantName?.trim() || null }
+            : {}),
+          ...(parsed.data.discussantSpeakerId !== undefined
+            ? { discussantSpeakerId: parsed.data.discussantSpeakerId }
+            : {}),
+        },
+      });
+      if (parsed.data.authors) {
+        await tx.sessionItemAuthor.deleteMany({ where: { sessionItemId: existing.id } });
+        for (let i = 0; i < parsed.data.authors.length; i += 1) {
+          const a = parsed.data.authors[i];
+          await tx.sessionItemAuthor.create({
+            data: {
+              sessionItemId: existing.id,
+              name: a.name.trim(),
+              speakerId: a.speakerId || null,
+              isPresenter: a.isPresenter ?? false,
+              sortOrder: a.sortOrder ?? i,
+            },
+          });
+        }
+      }
+    });
+
+    const item = await prisma.sessionItem.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: itemInclude,
+    });
+    return res.json(item);
+  }),
+);
+
+sessionsRouter.post(
+  "/:id/items/reorder",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = z.object({ itemIds: z.array(z.string()).min(1) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId, { manage: true });
+
+    const existing = await prisma.sessionItem.findMany({
+      where: { sessionId: session.id },
+      select: { id: true },
+    });
+    const existingIds = new Set(existing.map((i) => i.id));
+    if (parsed.data.itemIds.some((id) => !existingIds.has(id))) {
+      return res.status(400).json({ error: "itemIds must belong to this session" });
+    }
+
+    await prisma.$transaction(
+      parsed.data.itemIds.map((id, sortOrder) =>
+        prisma.sessionItem.update({ where: { id }, data: { sortOrder } }),
+      ),
+    );
+
+    const items = await prisma.sessionItem.findMany({
+      where: { sessionId: session.id },
+      orderBy: { sortOrder: "asc" },
+      include: itemInclude,
+    });
+    return res.json(items);
+  }),
+);
+
+sessionsRouter.delete(
+  "/:id/items/:itemId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId, { manage: true });
+    const existing = await prisma.sessionItem.findFirst({
+      where: { id: req.params.itemId, sessionId: session.id },
+    });
+    if (!existing) throw new HttpError(404, { error: "Session item not found" });
+    await prisma.sessionItem.delete({ where: { id: existing.id } });
+    return res.json({ ok: true });
+  }),
+);
+

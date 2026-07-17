@@ -40,7 +40,10 @@ type InviteInput = z.infer<typeof inviteSchema>;
 async function createAndEmailInvite(
   event: { id: string; slug: string; name: string },
   data: InviteInput,
-): Promise<{ ok: true; inviteUrl: string } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; inviteUrl: string; emailDelivered: boolean; emailFallbackMessage?: string }
+  | { ok: false; error: string }
+> {
   const email = data.email.trim().toLowerCase();
   const name = data.name.trim();
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -99,7 +102,7 @@ async function createAndEmailInvite(
 
   const inviteUrl = `${base}/invite/${raw}?event=${encodeURIComponent(event.id)}`;
 
-  await sendParticipantInviteEmail({
+  const mailResult = await sendParticipantInviteEmail({
     to: email,
     name,
     eventName: event.name,
@@ -108,7 +111,12 @@ async function createAndEmailInvite(
     expiresInDays: env.inviteTokenDays,
   });
 
-  return { ok: true, inviteUrl };
+  return {
+    ok: true,
+    inviteUrl,
+    emailDelivered: mailResult.delivered,
+    emailFallbackMessage: mailResult.fallbackMessage,
+  };
 }
 
 attendeesRouter.get(
@@ -187,7 +195,47 @@ attendeesRouter.post(
     if (!result.ok) {
       return res.status(409).json({ error: result.error });
     }
-    return res.json({ ok: true, inviteUrl: result.inviteUrl });
+    return res.json({
+      ok: true,
+      inviteUrl: result.inviteUrl,
+      emailDelivered: result.emailDelivered,
+      emailFallbackMessage: result.emailFallbackMessage,
+    });
+  }),
+);
+
+const dryRunSchema = z.object({
+  headers: z.array(z.string()).min(1),
+  rows: z.array(z.record(z.string())).max(500),
+  mapping: z.record(z.enum(["email", "name", "description", "bio", "photoUrl", "skip"])).optional(),
+});
+
+attendeesRouter.post(
+  "/invite-dry-run",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = dryRunSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+
+    const members = await prisma.eventMembership.findMany({
+      where: { eventId: event.id },
+      include: { user: { select: { email: true } } },
+    });
+    const existingEmails = members.map((m) => m.user.email);
+
+    const { dryRunCsvInvites } = await import("../lib/csvInviteDryRun");
+    const result = dryRunCsvInvites({
+      headers: parsed.data.headers,
+      rows: parsed.data.rows,
+      mapping: parsed.data.mapping,
+      existingEmails,
+    });
+    return res.json(result);
   }),
 );
 
@@ -212,19 +260,39 @@ attendeesRouter.post(
       unique.push(row);
     }
 
-    const sent: { email: string; inviteUrl: string }[] = [];
+    const sent: {
+      email: string;
+      inviteUrl: string;
+      emailDelivered: boolean;
+      emailFallbackMessage?: string;
+    }[] = [];
     const failed: { email: string; error: string }[] = [];
 
     for (const inv of unique) {
       const result = await createAndEmailInvite(event, inv);
       if (result.ok) {
-        sent.push({ email: inv.email.trim().toLowerCase(), inviteUrl: result.inviteUrl });
+        sent.push({
+          email: inv.email.trim().toLowerCase(),
+          inviteUrl: result.inviteUrl,
+          emailDelivered: result.emailDelivered,
+          emailFallbackMessage: result.emailFallbackMessage,
+        });
       } else {
         failed.push({ email: inv.email.trim().toLowerCase(), error: result.error });
       }
     }
 
-    return res.json({ ok: true, sentCount: sent.length, failedCount: failed.length, sent, failed });
+    const anyUndelivered = sent.some((s) => !s.emailDelivered);
+    return res.json({
+      ok: true,
+      sentCount: sent.length,
+      failedCount: failed.length,
+      sent,
+      failed,
+      emailFallbackMessage: anyUndelivered
+        ? "Email delivery isn't set up — copy this invite link instead"
+        : undefined,
+    });
   }),
 );
 

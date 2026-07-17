@@ -1,4 +1,4 @@
-import { EventMemberRole, OrgRole } from "@prisma/client";
+import { EventMemberRole, EventStatus, OrgRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, requireEventAccess, requireOrgRole } from "../lib/authorization";
@@ -11,6 +11,7 @@ import {
   regenerateJoinToken,
   regenerateSlug,
 } from "../lib/inviteTokens";
+import { isPubliclyJoinable, uiEventStatus } from "../lib/eventStatus";
 import { ensureUniqueEventSlug, slugifyEventBase } from "../lib/slug";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
@@ -28,11 +29,17 @@ const slugField = z
 const eventSchema = z.object({
   name: z.string().min(1),
   slug: slugField,
-  bannerUrl: z.string().max(12_000_000).optional(),
-  logoUrl: z.string().max(12_000_000).optional(),
+  description: z.string().max(20_000).optional().nullable(),
+  venueName: z.string().max(200).optional().nullable(),
+  venueAddress: z.string().max(500).optional().nullable(),
+  onlineUrl: z.string().max(2000).optional().nullable(),
+  brandColor: z.string().max(32).optional().nullable(),
+  bannerUrl: z.string().max(12_000_000).optional().nullable(),
+  logoUrl: z.string().max(12_000_000).optional().nullable(),
   timezone: z.string().min(1),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
+  organizationId: z.string().optional(),
 });
 
 const publicEventSelect = {
@@ -40,12 +47,16 @@ const publicEventSelect = {
   name: true,
   slug: true,
   bannerUrl: true,
+  logoUrl: true,
+  brandColor: true,
+  description: true,
   timezone: true,
   startDate: true,
   endDate: true,
+  status: true,
 } as const;
 
-/** Public: slug only (never raw event CUID). Enforces slug invite controls. */
+/** Public: slug only (never raw event CUID). Enforces ACTIVE + slug invite controls. */
 eventRouter.get(
   "/slug/:slug",
   asyncHandler(async (req, res) => {
@@ -63,7 +74,7 @@ eventRouter.get(
         slugInviteUseCount: true,
       },
     });
-    if (!event || !isSlugLinkActive(event)) {
+    if (!event || !isPubliclyJoinable(event.status) || !isSlugLinkActive(event)) {
       return res.status(404).json({ error: "Event not found" });
     }
     await prisma.event.update({
@@ -75,6 +86,9 @@ eventRouter.get(
       name: event.name,
       slug: event.slug,
       bannerUrl: event.bannerUrl,
+      logoUrl: event.logoUrl,
+      brandColor: event.brandColor,
+      description: event.description,
       timezone: event.timezone,
       startDate: event.startDate,
       endDate: event.endDate,
@@ -101,7 +115,7 @@ eventRouter.get(
         joinTokenUseCount: true,
       },
     });
-    if (!event || !isJoinLinkActive(event)) {
+    if (!event || !isPubliclyJoinable(event.status) || !isJoinLinkActive(event)) {
       return res.status(404).json({ error: "Event not found" });
     }
     await prisma.event.update({
@@ -113,6 +127,9 @@ eventRouter.get(
       name: event.name,
       slug: event.slug,
       bannerUrl: event.bannerUrl,
+      logoUrl: event.logoUrl,
+      brandColor: event.brandColor,
+      description: event.description,
       timezone: event.timezone,
       startDate: event.startDate,
       endDate: event.endDate,
@@ -126,7 +143,7 @@ eventRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
-    return res.json(event);
+    return res.json({ ...event, uiStatus: uiEventStatus(event) });
   }),
 );
 
@@ -148,7 +165,7 @@ eventRouter.get(
       },
       orderBy: { startDate: "desc" },
     });
-    return res.json(events);
+    return res.json(events.map((e) => ({ ...e, uiStatus: uiEventStatus(e) })));
   }),
 );
 
@@ -162,49 +179,58 @@ eventRouter.post(
       return res.status(400).json({ error: parsed.error.flatten() });
     }
 
-    let org = await prisma.orgMembership.findFirst({
-      where: { userId: req.user!.id },
-      orderBy: { createdAt: "asc" },
-      include: { organization: true },
-    });
-    if (!org) {
-      // Bootstrap: create personal org for first-time organizer
-      const slugBase = `org-${req.user!.id.slice(-8)}`;
-      const createdOrg = await prisma.organization.create({
-        data: {
-          name: `${parsed.data.name} Org`,
-          slug: await ensureUniqueOrgSlug(slugBase),
-          memberships: {
-            create: { userId: req.user!.id, role: OrgRole.OWNER },
-          },
-        },
-      });
-      org = await prisma.orgMembership.findUniqueOrThrow({
-        where: { organizationId_userId: { organizationId: createdOrg.id, userId: req.user!.id } },
+    let organizationId = parsed.data.organizationId;
+    if (organizationId) {
+      await requireOrgRole(req.user!.id, organizationId, OrgRole.STAFF);
+    } else {
+      let org = await prisma.orgMembership.findFirst({
+        where: { userId: req.user!.id },
+        orderBy: { createdAt: "asc" },
         include: { organization: true },
       });
-    } else {
-      await requireOrgRole(req.user!.id, org.organizationId, OrgRole.STAFF);
+      if (!org) {
+        const slugBase = `org-${req.user!.id.slice(-8)}`;
+        const createdOrg = await prisma.organization.create({
+          data: {
+            name: `${parsed.data.name} Org`,
+            slug: await ensureUniqueOrgSlug(slugBase),
+            memberships: {
+              create: { userId: req.user!.id, role: OrgRole.OWNER },
+            },
+          },
+        });
+        org = await prisma.orgMembership.findUniqueOrThrow({
+          where: { organizationId_userId: { organizationId: createdOrg.id, userId: req.user!.id } },
+          include: { organization: true },
+        });
+      } else {
+        await requireOrgRole(req.user!.id, org.organizationId, OrgRole.STAFF);
+      }
+      organizationId = org.organizationId;
     }
 
     const slugBase = parsed.data.slug?.trim().toLowerCase() || slugifyEventBase(parsed.data.name);
     const slug = await ensureUniqueEventSlug(slugBase);
-    const { raw: joinRaw, hash: joinHash } = await (async () => {
-      const { newJoinToken } = await import("../lib/inviteTokens");
-      return newJoinToken();
-    })();
+    const { newJoinToken } = await import("../lib/inviteTokens");
+    const { raw: joinRaw, hash: joinHash } = newJoinToken();
 
     const created = await prisma.event.create({
       data: {
         name: parsed.data.name,
         slug,
+        description: parsed.data.description?.trim() || null,
+        venueName: parsed.data.venueName?.trim() || null,
+        venueAddress: parsed.data.venueAddress?.trim() || null,
+        onlineUrl: parsed.data.onlineUrl?.trim() || null,
+        brandColor: parsed.data.brandColor?.trim() || null,
         bannerUrl: parsed.data.bannerUrl?.trim() || null,
         logoUrl: parsed.data.logoUrl?.trim() || null,
         timezone: parsed.data.timezone,
         startDate: new Date(parsed.data.startDate),
         endDate: new Date(parsed.data.endDate),
+        status: EventStatus.DRAFT,
         createdById: req.user!.id,
-        organizationId: org.organizationId,
+        organizationId,
         joinTokenHash: joinHash,
         memberships: {
           create: { userId: req.user!.id, role: EventMemberRole.ADMIN },
@@ -212,7 +238,14 @@ eventRouter.post(
       },
     });
 
-    return res.json({ ...created, joinToken: joinRaw });
+    const base = env.webBaseUrl.replace(/\/$/, "");
+    return res.json({
+      ...created,
+      uiStatus: uiEventStatus(created),
+      joinToken: joinRaw,
+      slugUrl: `${base}/e/${created.slug}`,
+      joinUrl: `${base}/e/join/${joinRaw}`,
+    });
   }),
 );
 
@@ -240,6 +273,11 @@ eventRouter.put(
       data: {
         name: parsed.data.name,
         slug,
+        description: parsed.data.description?.trim() || null,
+        venueName: parsed.data.venueName?.trim() || null,
+        venueAddress: parsed.data.venueAddress?.trim() || null,
+        onlineUrl: parsed.data.onlineUrl?.trim() || null,
+        brandColor: parsed.data.brandColor?.trim() || null,
         bannerUrl: parsed.data.bannerUrl?.trim() || null,
         logoUrl: parsed.data.logoUrl?.trim() || null,
         timezone: parsed.data.timezone,
@@ -248,7 +286,99 @@ eventRouter.put(
       },
     });
 
-    return res.json(updated);
+    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+  }),
+);
+
+const statusSchema = z.object({
+  status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]),
+});
+
+eventRouter.post(
+  "/publish",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    if (event.status === EventStatus.ARCHIVED) {
+      return res.status(400).json({ error: "Unarchive before publishing" });
+    }
+    const updated = await prisma.event.update({
+      where: { id: event.id },
+      data: { status: EventStatus.ACTIVE, activatedAt: event.activatedAt ?? new Date() },
+    });
+    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+  }),
+);
+
+eventRouter.post(
+  "/unpublish",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    if (event.status === EventStatus.ARCHIVED) {
+      return res.status(400).json({
+        error: "Archived events cannot be unpublished to Draft this way — unarchive first",
+      });
+    }
+    const updated = await prisma.event.update({
+      where: { id: event.id },
+      data: { status: EventStatus.DRAFT },
+    });
+    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+  }),
+);
+
+eventRouter.post(
+  "/archive",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    const updated = await prisma.event.update({
+      where: { id: event.id },
+      data: { status: EventStatus.ARCHIVED },
+    });
+    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+  }),
+);
+
+eventRouter.post(
+  "/unarchive",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    const updated = await prisma.event.update({
+      where: { id: event.id },
+      data: { status: EventStatus.DRAFT },
+    });
+    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+  }),
+);
+
+eventRouter.patch(
+  "/status",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = statusSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    const updated = await prisma.event.update({
+      where: { id: event.id },
+      data: {
+        status: parsed.data.status as EventStatus,
+        ...(parsed.data.status === "ACTIVE" && !event.activatedAt ? { activatedAt: new Date() } : {}),
+      },
+    });
+    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
   }),
 );
 
@@ -284,6 +414,8 @@ eventRouter.get(
       joinTokenCapacity: fresh.joinTokenCapacity,
       joinTokenUseCount: fresh.joinTokenUseCount,
       joinTokenRevokedAt: fresh.joinTokenRevokedAt,
+      status: fresh.status,
+      publiclyReachable: isPubliclyJoinable(fresh.status),
       note: minted.created
         ? "A new permanent join token was minted. Copy it now — it is shown only once."
         : "Permanent join token raw value is only shown when regenerated.",

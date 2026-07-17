@@ -14,8 +14,14 @@ import { attendeesRouter } from "./routes/attendees";
 import { checkinRouter } from "./routes/checkin";
 import { networkRouter } from "./routes/network";
 import { notificationsRouter } from "./routes/notifications";
+import { organizationsRouter } from "./routes/organizations";
+import { tracksRouter } from "./routes/tracks";
+import { roomsRouter } from "./routes/rooms";
+import { speakersRouter } from "./routes/speakers";
+import { seriesRouter } from "./routes/series";
 
 const app = express();
+
 
 const configuredOrigin = env.webBaseUrl.trim().replace(/\/$/, "");
 const allowedOrigins = new Set<string>([configuredOrigin]);
@@ -52,6 +58,11 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/auth", authRouter);
 app.use("/event", eventRouter);
+app.use("/organizations", organizationsRouter);
+app.use("/tracks", tracksRouter);
+app.use("/rooms", roomsRouter);
+app.use("/speakers", speakersRouter);
+app.use("/series", seriesRouter);
 app.use("/sessions", sessionsRouter);
 app.use("/announcements", announcementsRouter);
 app.use("/surveys", surveysRouter);
