@@ -1841,8 +1841,8 @@ function AdminParticipantInviteCard({
         </p>
       ) : null}
       <p className="help-text" style={{ marginTop: 0 }}>
-        Add name, email, photo, and description. We create their account and email a setup link (configure{" "}
-        <code>RESEND_API_KEY</code> on the API). If email isn&apos;t configured, copy the invite URL from the success message or server logs.
+        Add name, email, photo, and description. We create their account and email a setup link. If email delivery
+        isn&apos;t set up, copy the invite link from the success message instead.
       </p>
       {activeEventId ? (
         <div className="help-text" style={{ margin: "0 0 8px", display: "grid", gap: 6 }}>
@@ -2413,6 +2413,13 @@ function ProfileEditor({
       {isOrganizer && (
         <div className="card" style={{ marginTop: 12 }}>
           <h4 style={{ marginTop: 0 }}>My Events</h4>
+          <p className="help-text" style={{ marginTop: 0 }}>
+            Prefer the new{" "}
+            <a href="/organizer">
+              organizer workspace
+            </a>{" "}
+            for drafts, publishing, tracks/rooms/speakers, papers, and CSV dry-run invites.
+          </p>
           <div className="grid" style={{ gap: 8, marginBottom: 12 }}>
             {adminEvents.map((eventItem) => (
               <button
