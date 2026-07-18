@@ -1,17 +1,26 @@
-import type { AiChatMessage, AiProvider, AiProviderResult } from "../types";
+import type { AiChatMessage, AiEmbedResult, AiProvider, AiProviderResult } from "../types";
+import { MockAiProvider } from "./mock";
 
 /**
  * Real Anthropic provider. Only imported from lib/ai/** (ESLint enforced).
  * Requires ANTHROPIC_API_KEY when AI_PROVIDER=anthropic.
+ * Embeddings: Anthropic has no public embeddings API yet — fall back to deterministic mock vectors
+ * so matchmaker still works when chat uses Anthropic.
  */
 export class AnthropicAiProvider implements AiProvider {
   readonly name = "anthropic" as const;
   private readonly apiKey: string;
   private readonly model: string;
+  private readonly embedFallback = new MockAiProvider();
 
   constructor(opts?: { apiKey?: string; model?: string }) {
     this.apiKey = (opts?.apiKey || process.env.ANTHROPIC_API_KEY || "").trim();
     this.model = (opts?.model || process.env.AI_MODEL || "claude-sonnet-4-20250514").trim();
+  }
+
+  async embed(text: string): Promise<AiEmbedResult> {
+    const result = await this.embedFallback.embed(text);
+    return { ...result, provider: "anthropic", model: `anthropic-fallback:${result.model}` };
   }
 
   async chat(messages: AiChatMessage[]): Promise<AiProviderResult> {
@@ -38,7 +47,7 @@ export class AnthropicAiProvider implements AiProvider {
           | { type: "text"; text: string }
           | {
               type: "document";
-              source: { type: "base64"; media_type: string; data: string };
+              source: { type: "base64"; media_type: "application/pdf"; data: string };
             }
           | {
               type: "image";
@@ -49,7 +58,11 @@ export class AnthropicAiProvider implements AiProvider {
           if (att.type === "document") {
             parts.push({
               type: "document",
-              source: { type: "base64", media_type: att.mediaType, data: att.base64 },
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: att.base64,
+              },
             });
           } else if (att.type === "image") {
             const mt = att.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp";

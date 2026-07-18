@@ -8,10 +8,12 @@ import { getAiProvider } from "./providers";
 import type {
   AiChatMessage,
   ChatSuccess,
+  EmbedSuccess,
   ExtractSuccess,
   GatewayCallContext,
   GatewayFailure,
 } from "./types";
+import type { Prisma } from "@prisma/client";
 
 export { AI_GENERATED_CHIP_LABEL };
 
@@ -32,10 +34,10 @@ async function runProviderChat(messages: AiChatMessage[]) {
 async function meterAndAudit(
   ctx: GatewayCallContext,
   opts: {
-    action: "AI_CHAT" | "AI_EXTRACT";
-    result: { provider: string; model: string; tokensIn: number; tokensOut: number; text: string };
+    action: "AI_CHAT" | "AI_EXTRACT" | "AI_DRAFT";
+    result: { provider: string; model: string; tokensIn: number; tokensOut: number; text?: string };
     latencyMs: number;
-    payload: Record<string, unknown>;
+    payload: Prisma.InputJsonValue;
   },
 ): Promise<string> {
   if (ctx.skipMetering) return "usage_skipped";
@@ -65,6 +67,69 @@ async function meterAndAudit(
     });
   }
   return usage.id;
+}
+
+/**
+ * Provider-agnostic embedding through the AI gateway (Matchmaker / future agents).
+ */
+export async function gatewayEmbed(
+  text: string,
+  ctx: GatewayCallContext,
+): Promise<EmbedSuccess | GatewayFailure> {
+  try {
+    if (!ctx.skipCap && ctx.eventId) {
+      await assertAiCap(ctx.organizationId, ctx.eventId, ctx.feature);
+    }
+  } catch (err) {
+    if (err instanceof HttpError) {
+      return {
+        ok: false,
+        code: "CAP_EXCEEDED",
+        message: String((err.body as { error?: string })?.error || err.message),
+        upgrade: (err.body as { upgrade?: unknown })?.upgrade,
+      };
+    }
+    throw err;
+  }
+
+  try {
+    const provider = getAiProvider();
+    const started = Date.now();
+    const result = await provider.embed(text);
+    const latencyMs = Date.now() - started;
+    const usageId = await meterAndAudit(ctx, {
+      action: "AI_DRAFT",
+      result: {
+        provider: result.provider,
+        model: result.model,
+        tokensIn: result.tokensIn,
+        tokensOut: 0,
+      },
+      latencyMs,
+      payload: {
+        feature: ctx.feature,
+        model: result.model,
+        kind: "embed",
+        dimensions: result.dimensions,
+        chip: AI_GENERATED_CHIP_LABEL,
+      },
+    });
+    return {
+      ok: true,
+      vector: result.vector,
+      dimensions: result.dimensions,
+      aiGenerated: true,
+      usageId,
+      model: result.model,
+      provider: result.provider,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      code: "PROVIDER_ERROR",
+      message: err instanceof Error ? err.message : "Provider error",
+    };
+  }
 }
 
 /**
@@ -197,7 +262,12 @@ export async function gatewayExtract<T>(
         action: "AI_EXTRACT",
         result,
         latencyMs,
-        payload: { ok: false, code: "SCHEMA_INVALID", issues: validated.error.issues, retried },
+        payload: {
+          ok: false,
+          code: "SCHEMA_INVALID",
+          issues: JSON.parse(JSON.stringify(validated.error.issues)),
+          retried,
+        },
       });
       if (!retried) {
         return attempt(

@@ -25,9 +25,28 @@ export type AiProviderResult = {
   provider: AiProviderName;
 };
 
+export type AiEmbedResult = {
+  vector: number[];
+  dimensions: number;
+  tokensIn: number;
+  model: string;
+  provider: AiProviderName;
+};
+
 export type AiProvider = {
   readonly name: AiProviderName;
   chat(messages: AiChatMessage[]): Promise<AiProviderResult>;
+  embed(text: string): Promise<AiEmbedResult>;
+};
+
+export type EmbedSuccess = {
+  ok: true;
+  vector: number[];
+  dimensions: number;
+  aiGenerated: true;
+  usageId: string;
+  model: string;
+  provider: AiProviderName;
 };
 
 export type GatewayCallContext = {

@@ -1,4 +1,5 @@
-export { gatewayChat, gatewayExtract, AI_GENERATED_CHIP_LABEL } from "./gateway";
+export { gatewayChat, gatewayExtract, gatewayEmbed, AI_GENERATED_CHIP_LABEL } from "./gateway";
+export * from "./matchmaker";
 export { assertAiCap } from "./caps";
 export { recordAiUsage, countAiUsage, summarizeAiUsage, estimateCostCents } from "./metering";
 export {
@@ -22,6 +23,7 @@ export type {
   GatewayCallContext,
   GroundingContext,
   ChatSuccess,
+  EmbedSuccess,
   ExtractSuccess,
   GatewayFailure,
   AiChatMessage,
