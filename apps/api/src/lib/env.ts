@@ -1,6 +1,21 @@
 import dotenv from "dotenv";
+import { existsSync } from "fs";
+import { resolve } from "path";
 
-dotenv.config();
+/** Load nearest .env — apps/api/.env or monorepo root. */
+function loadEnvFiles() {
+  const candidates = [
+    resolve(process.cwd(), ".env"),
+    resolve(process.cwd(), "../.env"),
+    resolve(process.cwd(), "../../.env"),
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) dotenv.config({ path: p });
+  }
+  dotenv.config();
+}
+
+loadEnvFiles();
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
