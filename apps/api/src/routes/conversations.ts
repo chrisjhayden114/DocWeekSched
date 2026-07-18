@@ -26,7 +26,7 @@ const messageSchema = z.object({
 async function assertEventMembers(eventId: string, userIds: string[]) {
   if (userIds.length === 0) return;
   const count = await prisma.eventMembership.count({
-    where: { eventId, userId: { in: userIds } },
+    where: { eventId, userId: { in: userIds }, deletedAt: null },
   });
   if (count !== userIds.length) {
     throw new HttpError(400, { error: "One or more members are not part of this event" });
@@ -232,3 +232,73 @@ conversationsRouter.post(
     return res.json(message);
   }),
 );
+
+conversationsRouter.patch(
+  "/:id/messages/:messageId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = messageSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+
+    const userId = req.user!.id;
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: req.params.id },
+      include: { members: true },
+    });
+    if (!conversation) throw new HttpError(404, { error: "Conversation not found" });
+
+    const access = await requireEventAccess(userId, conversation.eventId);
+    if (conversation.type !== "EVENT" && !conversation.members.some((m) => m.userId === userId)) {
+      throw new HttpError(403, { error: "Forbidden" });
+    }
+
+    const message = await prisma.conversationMessage.findFirst({
+      where: { id: req.params.messageId, conversationId: conversation.id },
+    });
+    if (!message) throw new HttpError(404, { error: "Message not found" });
+
+    const canEdit = access.canManageEvent || message.userId === userId;
+    if (!canEdit) throw new HttpError(403, { error: "Forbidden" });
+
+    const updated = await prisma.conversationMessage.update({
+      where: { id: message.id },
+      data: { body: parsed.data.body },
+      include: { user: { select: { id: true, name: true, role: true } } },
+    });
+    return res.json(updated);
+  }),
+);
+
+conversationsRouter.delete(
+  "/:id/messages/:messageId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const userId = req.user!.id;
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: req.params.id },
+      include: { members: true },
+    });
+    if (!conversation) throw new HttpError(404, { error: "Conversation not found" });
+
+    const access = await requireEventAccess(userId, conversation.eventId);
+    if (conversation.type !== "EVENT" && !conversation.members.some((m) => m.userId === userId)) {
+      throw new HttpError(403, { error: "Forbidden" });
+    }
+
+    const message = await prisma.conversationMessage.findFirst({
+      where: { id: req.params.messageId, conversationId: conversation.id },
+    });
+    if (!message) throw new HttpError(404, { error: "Message not found" });
+
+    const canDelete = access.canManageEvent || message.userId === userId;
+    if (!canDelete) throw new HttpError(403, { error: "Forbidden" });
+
+    await prisma.conversationMessage.delete({ where: { id: message.id } });
+    return res.json({ ok: true });
+  }),
+);
+

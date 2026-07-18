@@ -160,7 +160,7 @@ eventRouter.get(
       where: {
         OR: [
           { organizationId: { in: orgIds } },
-          { memberships: { some: { userId: req.user!.id, role: EventMemberRole.ADMIN } } },
+          { memberships: { some: { userId: req.user!.id, role: EventMemberRole.ADMIN, deletedAt: null } } },
         ],
       },
       orderBy: { startDate: "desc" },

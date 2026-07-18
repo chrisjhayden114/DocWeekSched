@@ -284,3 +284,42 @@ networkRouter.delete(
     return res.json({ ok: true });
   }),
 );
+
+const threadEditSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  body: z.string().min(1).max(20_000).optional(),
+});
+
+networkRouter.patch(
+  "/threads/:id",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = threadEditSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+
+    const thread = await prisma.networkThread.findFirst({
+      where: { id: req.params.id, eventId: event.id },
+    });
+    if (!thread) throw new HttpError(404, { error: "Thread not found" });
+
+    const updated = await prisma.networkThread.update({
+      where: { id: thread.id },
+      data: {
+        ...(parsed.data.title !== undefined ? { title: parsed.data.title.trim() } : {}),
+        ...(parsed.data.body !== undefined ? { body: parsed.data.body.trim() } : {}),
+      },
+      include: {
+        author: { select: { id: true, name: true, role: true, photoUrl: true } },
+        replies: {
+          orderBy: { createdAt: "asc" },
+          include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
+        },
+      },
+    });
+    return res.json(updated);
+  }),
+);
+

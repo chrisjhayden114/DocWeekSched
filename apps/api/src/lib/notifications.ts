@@ -16,7 +16,7 @@ export function communityChannelLabel(channel: string): string {
 /** Event participants only — never all users in the database. */
 export async function allAttendeeUserIds(eventId: string): Promise<string[]> {
   const rows = await prisma.eventMembership.findMany({
-    where: { eventId },
+    where: { eventId, deletedAt: null },
     select: { userId: true },
   });
   return rows.map((r) => r.userId);

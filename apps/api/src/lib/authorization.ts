@@ -77,7 +77,7 @@ export async function requireEventAccess(
     throw new HttpError(404, { error: "Event not found" });
   }
 
-  const [orgMembership, eventMembership] = await Promise.all([
+  const [orgMembership, eventMembershipRaw] = await Promise.all([
     prisma.orgMembership.findUnique({
       where: { organizationId_userId: { organizationId: event.organizationId, userId } },
     }),
@@ -85,6 +85,8 @@ export async function requireEventAccess(
       where: { eventId_userId: { eventId, userId } },
     }),
   ]);
+
+  const eventMembership = eventMembershipRaw?.deletedAt ? null : eventMembershipRaw;
 
   const orgRole = orgMembership?.role ?? null;
   const eventRole = eventMembership?.role ?? null;

@@ -90,7 +90,7 @@ async function createAndEmailInvite(
   await prisma.eventMembership.upsert({
     where: { eventId_userId: { eventId: event.id, userId } },
     create: { eventId: event.id, userId, role: EventMemberRole.ATTENDEE },
-    update: {},
+    update: { deletedAt: null, role: EventMemberRole.ATTENDEE },
   });
 
   const minted = await ensureEventJoinToken(event.id);
@@ -127,7 +127,7 @@ attendeesRouter.get(
     const access = await requireEventAccess(req.user!.id, event.id);
 
     const members = await prisma.eventMembership.findMany({
-      where: { eventId: event.id },
+      where: { eventId: event.id, deletedAt: null },
       include: {
         user: {
           select: {
@@ -223,7 +223,7 @@ attendeesRouter.post(
     await requireEventAccess(req.user!.id, event.id, { manage: true });
 
     const members = await prisma.eventMembership.findMany({
-      where: { eventId: event.id },
+      where: { eventId: event.id, deletedAt: null },
       include: { user: { select: { email: true } } },
     });
     const existingEmails = members.map((m) => m.user.email);
@@ -544,7 +544,7 @@ attendeesRouter.delete(
       where: { eventId_userId: { eventId: event.id, userId: targetId } },
       include: { user: { select: { id: true, role: true } } },
     });
-    if (!membership) throw new HttpError(404, { error: "Participant not found" });
+    if (!membership || membership.deletedAt) throw new HttpError(404, { error: "Participant not found" });
 
     const orgMem = await prisma.orgMembership.findUnique({
       where: {
@@ -555,10 +555,15 @@ attendeesRouter.delete(
       return res.status(403).json({ error: "Org admins cannot be removed from the roster here" });
     }
 
-    await prisma.eventMembership.delete({
+    await prisma.eventMembership.update({
       where: { eventId_userId: { eventId: event.id, userId: targetId } },
+      data: { deletedAt: new Date() },
     });
 
-    return res.json({ ok: true });
+    return res.json({
+      ok: true,
+      softDeleted: true,
+      message: "Participant removed from the roster. Their data is retained for 30 days.",
+    });
   }),
 );

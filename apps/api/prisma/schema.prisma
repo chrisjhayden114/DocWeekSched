@@ -162,9 +162,12 @@ model EventMembership {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   role      EventMemberRole @default(ATTENDEE)
   createdAt DateTime        @default(now())
+  /// Soft-remove from roster; purged after ~30 days. Null = active.
+  deletedAt DateTime?
 
   @@unique([eventId, userId])
   @@index([userId])
+  @@index([eventId, deletedAt])
 }
 
 model EventPurchase {
