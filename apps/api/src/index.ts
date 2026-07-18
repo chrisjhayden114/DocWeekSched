@@ -20,6 +20,7 @@ import { roomsRouter } from "./routes/rooms";
 import { speakersRouter } from "./routes/speakers";
 import { seriesRouter } from "./routes/series";
 import { billingRouter, handleBillingWebhook } from "./routes/billing";
+import { mapsRouter } from "./routes/maps";
 import { asyncHandler } from "./lib/authorization";
 
 const app = express();
@@ -81,6 +82,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/auth", authRouter);
 app.use("/event", eventRouter);
+app.use("/event/maps", mapsRouter);
 app.use("/organizations", organizationsRouter);
 app.use("/billing", billingRouter);
 app.use("/tracks", tracksRouter);

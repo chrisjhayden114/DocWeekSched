@@ -180,9 +180,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     key: "venue_maps",
     name: "Venue maps",
     plainDescription: "Interactive floor plans with room pins.",
-    category: "planned",
-    defaultOn: false,
-    plannedPhase: "P2",
+    category: "schedule",
+    defaultOn: true,
   },
   {
     key: "waitlist_visibility",
@@ -237,6 +236,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       timezone_toggle: true,
       attendee_directory: true,
       waitlist_visibility: true,
+      venue_maps: true,
     },
   },
   {
@@ -261,6 +261,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       attendee_directory: false,
       matchmaker: false,
       waitlist_visibility: true,
+      venue_maps: false,
     },
   },
   {
@@ -284,6 +285,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       timezone_toggle: true,
       attendee_directory: true,
       waitlist_visibility: true,
+      venue_maps: true,
     },
   },
 ];
