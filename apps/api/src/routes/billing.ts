@@ -73,6 +73,7 @@ billingRouter.get(
     const def = PLAN_BY_SKU[snap.planSku];
     const attendeeLimit = await limit(orgId, "attendees");
     const aiLimit = await limit(orgId, "aiIngestPerEvent");
+    const aiConciergeLimit = await limit(orgId, "aiConciergePerEvent");
     const hideBadge = await can(orgId, "hide_powered_by_badge");
 
     const provider = getBillingProvider();
@@ -90,6 +91,7 @@ billingRouter.get(
         activeEvents: snap.eventAllowance,
         attendees: attendeeLimit,
         aiIngestPerEvent: aiLimit,
+        aiConciergePerEvent: aiConciergeLimit,
       },
       usage: {
         activeEvents: snap.eventsUsed,
