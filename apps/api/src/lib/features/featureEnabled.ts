@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { HttpError } from "../authorization";
+import { can } from "../billing/entitlements";
 import {
   FEATURE_BY_KEY,
   FEATURE_REGISTRY,
@@ -14,8 +15,10 @@ import {
 
 export type FeatureOverrides = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
-export function planAllowsFeature(_orgId: string | null | undefined, _key: FeatureKey): boolean {
-  return true;
+/** Plan entitlement AND — wired to can(org, feature). */
+export async function planAllowsFeature(orgId: string | null | undefined, key: FeatureKey): Promise<boolean> {
+  if (!orgId) return true;
+  return can(orgId, key);
 }
 
 function asOverrides(raw: unknown): FeatureOverrides {
@@ -49,9 +52,8 @@ export async function featureEnabled(eventId: string, key: FeatureKey): Promise<
   });
   if (!event) return false;
   const overrides = await loadFeatureOverrides(eventId);
-  return resolveFeatureEnabled(key, overrides, {
-    planAllows: planAllowsFeature(event.organizationId, key),
-  });
+  const planAllows = await planAllowsFeature(event.organizationId, key);
+  return resolveFeatureEnabled(key, overrides, { planAllows });
 }
 
 export async function requireFeature(eventId: string, key: FeatureKey): Promise<void> {
@@ -79,15 +81,20 @@ export type FeatureStateRow = {
   organizerVisible: boolean;
 };
 
-export function buildFeatureState(overrides: FeatureOverrides, orgId?: string | null): FeatureStateRow[] {
-  return FEATURE_REGISTRY.map((def) => {
-    const enabled = resolveFeatureEnabled(def.key, overrides, {
-      planAllows: planAllowsFeature(orgId, def.key),
-    });
-    const offParents = (def.dependsOn || []).filter(
-      (p) => !resolveFeatureEnabled(p, overrides, { planAllows: planAllowsFeature(orgId, p) }),
-    );
-    return {
+export async function buildFeatureState(
+  overrides: FeatureOverrides,
+  orgId?: string | null,
+): Promise<FeatureStateRow[]> {
+  const rows: FeatureStateRow[] = [];
+  for (const def of FEATURE_REGISTRY) {
+    const planAllows = await planAllowsFeature(orgId, def.key);
+    const enabled = resolveFeatureEnabled(def.key, overrides, { planAllows });
+    const offParents: FeatureKey[] = [];
+    for (const p of def.dependsOn || []) {
+      const parentPlan = await planAllowsFeature(orgId, p);
+      if (!resolveFeatureEnabled(p, overrides, { planAllows: parentPlan })) offParents.push(p);
+    }
+    rows.push({
       key: def.key,
       name: def.name,
       plainDescription: def.plainDescription,
@@ -99,8 +106,9 @@ export function buildFeatureState(overrides: FeatureOverrides, orgId?: string | 
       plannedPhase: def.plannedPhase,
       blockedReason: dependencyBlockReason(def.key, offParents),
       organizerVisible: !def.plannedPhase,
-    };
-  });
+    });
+  }
+  return rows;
 }
 
 export async function upsertFeatureOverrides(
