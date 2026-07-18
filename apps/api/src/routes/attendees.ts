@@ -222,7 +222,11 @@ attendeesRouter.get(
       where: { eventId: event.id, userId: req.user!.id, deletedAt: null },
     });
     if (!m) throw new HttpError(404, { error: "Not a member of this event" });
-    return res.json({ directoryOptIn: m.directoryOptIn, role: m.role });
+    return res.json({
+      directoryOptIn: m.directoryOptIn,
+      matchMeEnabled: m.matchMeEnabled,
+      role: m.role,
+    });
   }),
 );
 
@@ -240,7 +244,36 @@ attendeesRouter.put(
       data: { directoryOptIn: parsed.data.directoryOptIn },
     });
     if (updated.count === 0) throw new HttpError(404, { error: "Not a member of this event" });
+
+    // On opt-in, enqueue join-batch match suggestions (DIGEST) when matchmaker is live.
+    if (parsed.data.directoryOptIn) {
+      const { maybeEnqueueJoinMatch } = await import("../lib/ai/matchmaker");
+      await maybeEnqueueJoinMatch({
+        eventId: event.id,
+        organizationId: event.organizationId,
+        userId: req.user!.id,
+      }).catch(() => undefined);
+    }
+
     return res.json({ directoryOptIn: parsed.data.directoryOptIn });
+  }),
+);
+
+attendeesRouter.put(
+  "/me/match-me",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = z.object({ matchMeEnabled: z.boolean() }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+    const updated = await prisma.eventMembership.updateMany({
+      where: { eventId: event.id, userId: req.user!.id, deletedAt: null },
+      data: { matchMeEnabled: parsed.data.matchMeEnabled },
+    });
+    if (updated.count === 0) throw new HttpError(404, { error: "Not a member of this event" });
+    return res.json({ matchMeEnabled: parsed.data.matchMeEnabled });
   }),
 );
 

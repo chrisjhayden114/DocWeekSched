@@ -80,15 +80,15 @@ export async function runConciergeDialogue(params: {
     };
   }
 
-  // A4 stub (explicit chip / phrasing)
+  // A4 handoff — Matchmaker is live; point attendees to the Meet tab
   if (/who should i meet|people (to|i should) meet|match me/i.test(userText)) {
     return {
       ...empty,
       assistantMessage:
-        "Matchmaker isn’t live for this event yet. When it is, I’ll suggest opted-in people with shared interests — and you’ll always send the intro yourself.",
+        "Open the Meet tab for interest-based suggestions. Draft intros open your DM composer pre-filled — nothing sends until you press Send.",
       handoff: {
         agent: "A4",
-        message: "Matchmaker (A4) handoff — not available yet.",
+        message: "Matchmaker (A4) — Meet tab",
       },
     };
   }

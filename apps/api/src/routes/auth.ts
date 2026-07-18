@@ -454,6 +454,33 @@ authRouter.put(
       select: meSelect,
     });
 
+    // Recompute matchmaker embedding when profile text fields change (cache keyed by sourceHash).
+    const profileTextTouched =
+      parsed.data.name !== undefined ||
+      parsed.data.researchInterests !== undefined ||
+      parsed.data.title !== undefined ||
+      parsed.data.affiliation !== undefined ||
+      parsed.data.bio !== undefined;
+    if (profileTextTouched && user.id) {
+      try {
+        const membership = await prisma.eventMembership.findFirst({
+          where: { userId: user.id, deletedAt: null },
+          select: { eventId: true, event: { select: { organizationId: true } } },
+          orderBy: { createdAt: "desc" },
+        });
+        if (membership) {
+          const { ensureProfileEmbedding } = await import("../lib/ai/matchmaker");
+          await ensureProfileEmbedding(user.id, {
+            organizationId: membership.event.organizationId,
+            eventId: membership.eventId,
+            userId: user.id,
+          });
+        }
+      } catch {
+        // Embedding refresh is best-effort — profile save must succeed regardless.
+      }
+    }
+
     return res.json(user);
   }),
 );

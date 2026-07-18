@@ -167,7 +167,6 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     category: "directory",
     defaultOn: false,
     dependsOn: ["attendee_directory"],
-    plannedPhase: "4",
   },
   {
     key: "concierge",
@@ -295,6 +294,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       public_leaderboard: false,
       timezone_toggle: true,
       attendee_directory: true,
+      matchmaker: true,
       waitlist_visibility: true,
       venue_maps: true,
       daily_digest: true,

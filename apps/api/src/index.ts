@@ -35,6 +35,8 @@ import { asyncHandler } from "./lib/authorization";
 import { flushQueuedPushes, notifySessionStartingSoon } from "./lib/notifications";
 import { startJobPoller } from "./lib/jobs";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
+import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
+import { matchmakerRouter } from "./routes/matchmaker";
 
 const app = express();
 
@@ -113,6 +115,7 @@ app.use("/ai/usage", aiUsageRouter);
 app.use("/ai/ingest", agendaIngestRouter);
 app.use("/ai/setup-copilot", setupCopilotRouter);
 app.use("/ai/concierge", conciergeRouter);
+app.use("/ai/matchmaker", matchmakerRouter);
 app.use("/event/faq", eventFaqRouter);
 app.use("/cfp", cfpRouter);
 app.use("/surveys", surveysRouter);
@@ -152,5 +155,6 @@ app.listen(env.apiPort, () => {
     void notifySessionStartingSoon().catch((err) => console.error("[notifications] sessionStartingSoon", err));
   }, tickMs);
   registerAgendaIngestJob();
+  registerMatchmakerJobs();
   startJobPoller();
 });

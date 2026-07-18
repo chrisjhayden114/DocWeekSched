@@ -88,6 +88,7 @@ const BASELINE_ALL: Partial<Record<EntitlementKey, boolean>> = {
   session_likes: true,
   hide_powered_by_badge: true,
   ai_ingest: true,
+  matchmaker: true,
 };
 
 const PRO_ENTITLEMENTS: Partial<Record<EntitlementKey, boolean>> = {
@@ -97,6 +98,7 @@ const PRO_ENTITLEMENTS: Partial<Record<EntitlementKey, boolean>> = {
   priority_support: true,
   daily_digest: true,
   engagement_points: true,
+  matchmaker: true,
 };
 
 const INTERNAL_ENTITLEMENTS: Partial<Record<EntitlementKey, boolean>> = {
