@@ -97,6 +97,7 @@ enum NotificationKind {
   COMMUNITY_REPLY
   MESSAGE
   ADMIN_REQUEST
+  WAITLIST_PROMOTED
 }
 
 enum AdminAccessRequestStatus {
@@ -268,6 +269,7 @@ model User {
   createdAt                   DateTime              @default(now())
   sessionBookmarks            SessionBookmark[]
   sessionAttendances          SessionAttendance[]
+  waitlistEntries             WaitlistEntry[]
   sessionLikes                SessionLike[]
   eventsCreated               Event[]               @relation("EventCreator")
   sessionsAsSpeaker           Session[]             @relation("SessionLinkedUser")
@@ -409,6 +411,10 @@ model Session {
   fileUrl           String?
   fileLink          String?
   allowVirtualJoin  Boolean                    @default(true)
+  /// NULL = unlimited in-person JOINING seats.
+  inPersonCapacity  Int?
+  /// NULL = unlimited virtual JOINING seats.
+  virtualCapacity   Int?
   startsAt          DateTime
   endsAt            DateTime
   event             Event                      @relation(fields: [eventId], references: [id])
@@ -424,6 +430,7 @@ model Session {
   items             SessionItem[]
   bookmarks         SessionBookmark[]
   attendances       SessionAttendance[]
+  waitlistEntries   WaitlistEntry[]
   likes             SessionLike[]
   conversations     Conversation[]
   discussionThreads SessionDiscussionThread[]
@@ -498,6 +505,25 @@ model SessionAttendance {
   updatedAt DateTime                @updatedAt
 
   @@unique([userId, sessionId])
+}
+
+/// Ordered waitlist for a full in-person or virtual capacity bucket.
+model WaitlistEntry {
+  id             String          @id @default(cuid())
+  sessionId      String
+  session        Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode           SessionJoinMode
+  position       Int
+  createdAt      DateTime        @default(now())
+  promotedAt     DateTime?
+  /// After promote: confirm seat before this instant or pass to next.
+  holdExpiresAt  DateTime?
+
+  @@unique([sessionId, userId])
+  @@index([sessionId, mode, position])
+  @@index([holdExpiresAt])
 }
 
 model SessionLike {
