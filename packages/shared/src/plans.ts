@@ -74,6 +74,10 @@ const CORE_ATTENDEE_FEATURES: Partial<Record<EntitlementKey, boolean>> = {
   waitlist_visibility: false,
   daily_digest: false,
   analytics: false,
+  session_polls: false,
+  session_feedback: false,
+  sponsors: false,
+  checkin: false,
   ai_ingest: true,
   ai_full_suite: false,
   priority_support: false,
@@ -89,6 +93,11 @@ const BASELINE_ALL: Partial<Record<EntitlementKey, boolean>> = {
   hide_powered_by_badge: true,
   ai_ingest: true,
   matchmaker: true,
+  analytics: true,
+  session_polls: true,
+  session_feedback: true,
+  sponsors: true,
+  checkin: true,
 };
 
 const PRO_ENTITLEMENTS: Partial<Record<EntitlementKey, boolean>> = {

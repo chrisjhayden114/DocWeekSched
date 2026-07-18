@@ -31,12 +31,16 @@ import { agendaIngestRouter } from "./routes/agendaIngest";
 import { setupCopilotRouter } from "./routes/setupCopilot";
 import { conciergeRouter, eventFaqRouter } from "./routes/concierge";
 import { cfpRouter } from "./routes/cfp";
+import { matchmakerRouter } from "./routes/matchmaker";
+import { pollsRouter } from "./routes/polls";
+import { feedbackRouter } from "./routes/feedback";
+import { analyticsRouter } from "./routes/analytics";
+import { sponsorsRouter } from "./routes/sponsors";
 import { asyncHandler } from "./lib/authorization";
 import { flushQueuedPushes, notifySessionStartingSoon } from "./lib/notifications";
 import { startJobPoller } from "./lib/jobs";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
 import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
-import { matchmakerRouter } from "./routes/matchmaker";
 
 const app = express();
 
@@ -116,6 +120,10 @@ app.use("/ai/ingest", agendaIngestRouter);
 app.use("/ai/setup-copilot", setupCopilotRouter);
 app.use("/ai/concierge", conciergeRouter);
 app.use("/ai/matchmaker", matchmakerRouter);
+app.use("/polls", pollsRouter);
+app.use("/feedback", feedbackRouter);
+app.use("/analytics", analyticsRouter);
+app.use("/sponsors", sponsorsRouter);
 app.use("/event/faq", eventFaqRouter);
 app.use("/cfp", cfpRouter);
 app.use("/surveys", surveysRouter);

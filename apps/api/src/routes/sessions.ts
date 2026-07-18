@@ -784,11 +784,15 @@ sessionsRouter.get(
     if (!session) {
       throw new HttpError(404, { error: "Session not found" });
     }
-    await requireEventAccess(req.user!.id, session.eventId);
+    const access = await requireEventAccess(req.user!.id, session.eventId);
     await requireFeature(session.eventId, "session_qa");
 
+    const sort = String(req.query.sort || "recent");
     const threads = await prisma.sessionDiscussionThread.findMany({
-      where: { sessionId: session.id },
+      where: {
+        sessionId: session.id,
+        ...(access.canManageEvent ? {} : { hiddenAt: null }),
+      },
       orderBy: { createdAt: "desc" },
       include: {
         author: { select: { id: true, name: true, role: true, photoUrl: true } },
@@ -796,10 +800,26 @@ sessionsRouter.get(
           orderBy: { createdAt: "asc" },
           include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
         },
+        upvotes: { select: { userId: true } },
+        _count: { select: { upvotes: true } },
       },
     });
 
-    return res.json(threads);
+    const mapped = threads.map((t) => ({
+      ...t,
+      upvoteCount: t._count.upvotes,
+      upvotedByMe: t.upvotes.some((u) => u.userId === req.user!.id),
+      upvotes: undefined,
+      _count: undefined,
+      isAnswered: Boolean(t.answeredAt),
+      isHidden: Boolean(t.hiddenAt),
+    }));
+
+    if (sort === "votes") {
+      mapped.sort((a, b) => b.upvoteCount - a.upvoteCount || b.createdAt.getTime() - a.createdAt.getTime());
+    }
+
+    return res.json(mapped);
   }),
 );
 
@@ -931,6 +951,95 @@ sessionsRouter.delete(
 
     await prisma.sessionDiscussionThread.delete({ where: { id: thread.id } });
     return res.json({ ok: true });
+  }),
+);
+
+sessionsRouter.post(
+  "/:id/conversations/:threadId/upvote",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId);
+    await requireFeature(session.eventId, "session_qa");
+
+    const thread = await prisma.sessionDiscussionThread.findFirst({
+      where: { id: req.params.threadId, sessionId: session.id, hiddenAt: null },
+    });
+    if (!thread) throw new HttpError(404, { error: "Conversation not found" });
+
+    await prisma.sessionDiscussionUpvote.upsert({
+      where: { threadId_userId: { threadId: thread.id, userId: req.user!.id } },
+      create: { threadId: thread.id, userId: req.user!.id },
+      update: {},
+    });
+    const upvoteCount = await prisma.sessionDiscussionUpvote.count({ where: { threadId: thread.id } });
+    return res.json({ ok: true, upvoteCount, upvotedByMe: true });
+  }),
+);
+
+sessionsRouter.delete(
+  "/:id/conversations/:threadId/upvote",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId);
+    await requireFeature(session.eventId, "session_qa");
+
+    await prisma.sessionDiscussionUpvote.deleteMany({
+      where: { threadId: req.params.threadId, userId: req.user!.id },
+    });
+    const upvoteCount = await prisma.sessionDiscussionUpvote.count({
+      where: { threadId: req.params.threadId },
+    });
+    return res.json({ ok: true, upvoteCount, upvotedByMe: false });
+  }),
+);
+
+sessionsRouter.post(
+  "/:id/conversations/:threadId/answered",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId, { manage: true });
+    await requireFeature(session.eventId, "session_qa");
+
+    const answered = req.body?.answered !== false;
+    const thread = await prisma.sessionDiscussionThread.updateMany({
+      where: { id: req.params.threadId, sessionId: session.id },
+      data: answered
+        ? { answeredAt: new Date(), answeredById: req.user!.id }
+        : { answeredAt: null, answeredById: null },
+    });
+    if (thread.count === 0) throw new HttpError(404, { error: "Conversation not found" });
+    return res.json({ ok: true, answered });
+  }),
+);
+
+sessionsRouter.post(
+  "/:id/conversations/:threadId/hide",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const session = await findSessionWithEvent(req.params.id);
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, session.eventId, { manage: true });
+    await requireFeature(session.eventId, "session_qa");
+
+    const hidden = req.body?.hidden !== false;
+    const thread = await prisma.sessionDiscussionThread.updateMany({
+      where: { id: req.params.threadId, sessionId: session.id },
+      data: hidden
+        ? { hiddenAt: new Date(), hiddenById: req.user!.id }
+        : { hiddenAt: null, hiddenById: null },
+    });
+    if (thread.count === 0) throw new HttpError(404, { error: "Conversation not found" });
+    return res.json({ ok: true, hidden });
   }),
 );
 

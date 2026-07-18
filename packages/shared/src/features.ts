@@ -32,7 +32,11 @@ export type FeatureKey =
   | "venue_maps"
   | "waitlist_visibility"
   | "daily_digest"
-  | "cfp";
+  | "cfp"
+  | "session_polls"
+  | "session_feedback"
+  | "sponsors"
+  | "checkin";
 
 export type FeatureOverrideValue = boolean | "daily" | "weekly" | "interrupts_only";
 
@@ -143,7 +147,6 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     plainDescription: "Show a ranked list of attendees by engagement points.",
     category: "engagement",
     defaultOn: false,
-    plannedPhase: "5",
     dependsOn: ["engagement_points"],
   },
   {
@@ -204,6 +207,34 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     category: "sessions",
     defaultOn: false,
   },
+  {
+    key: "session_polls",
+    name: "Live polls",
+    plainDescription: "Multiple-choice polls attached to sessions that organizers can open and close live.",
+    category: "sessions",
+    defaultOn: true,
+  },
+  {
+    key: "session_feedback",
+    name: "Session feedback",
+    plainDescription: "After a session ends, attendees can leave a 1–5 rating and optional comment.",
+    category: "sessions",
+    defaultOn: true,
+  },
+  {
+    key: "sponsors",
+    name: "Sponsors",
+    plainDescription: "Sponsor logos by tier on attendee pages, with optional exhibitor lead capture.",
+    category: "engagement",
+    defaultOn: true,
+  },
+  {
+    key: "checkin",
+    name: "QR check-in",
+    plainDescription: "Per-attendee QR codes and a staff scanner (works offline with auto-sync).",
+    category: "engagement",
+    defaultOn: true,
+  },
 ];
 
 export const FEATURE_BY_KEY: Record<FeatureKey, FeatureDefinition> = Object.fromEntries(
@@ -244,6 +275,10 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       venue_maps: true,
       daily_digest: true,
       concierge: true,
+      session_polls: true,
+      session_feedback: true,
+      sponsors: true,
+      checkin: true,
     },
   },
   {
@@ -272,6 +307,10 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       daily_digest: "interrupts_only",
       cfp: false,
       concierge: false,
+      session_polls: false,
+      session_feedback: true,
+      sponsors: false,
+      checkin: true,
     },
   },
   {
@@ -299,6 +338,10 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       venue_maps: true,
       daily_digest: true,
       cfp: true,
+      session_polls: true,
+      session_feedback: true,
+      sponsors: true,
+      checkin: true,
     },
   },
 ];
