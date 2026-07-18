@@ -9,6 +9,7 @@ import { SetupCopilotChat } from "../../../../components/SetupCopilotChat";
 import { VenueMapEditor } from "../../../../components/VenueMapEditor";
 import { AnnouncementComposer } from "../../../../components/AnnouncementComposer";
 import { EventFaqEditor } from "../../../../components/EventFaqEditor";
+import { OpsInboxPanel } from "../../../../components/OpsInboxPanel";
 import { apiFetch } from "../../../../lib/api";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
@@ -61,7 +62,7 @@ export default function OrganizerEventPage() {
   const router = useRouter();
   const eventId = typeof router.query.eventId === "string" ? router.query.eventId : "";
   const [tab, setTab] = useState<
-    "overview" | "program" | "people" | "invites" | "maps" | "announcements" | "features"
+    "overview" | "program" | "people" | "invites" | "maps" | "announcements" | "features" | "ops"
   >("overview");
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
@@ -334,6 +335,7 @@ export default function OrganizerEventPage() {
               ["invites", "Invites"],
               ["maps", "Maps"],
               ["announcements", "Announcements"],
+              ["ops", "Ops Inbox"],
               ["features", "Features"],
             ] as const
           ).map(([id, label]) => (
@@ -633,6 +635,8 @@ export default function OrganizerEventPage() {
         {tab === "announcements" && eventId ? (
           <AnnouncementComposer eventId={eventId} sessions={sessions.map((s) => ({ id: s.id, title: s.title }))} />
         ) : null}
+
+        {tab === "ops" && eventId ? <OpsInboxPanel eventId={eventId} /> : null}
 
         {tab === "features" ? (
           <section>
