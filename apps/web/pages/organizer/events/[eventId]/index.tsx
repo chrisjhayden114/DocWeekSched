@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ReviewChangeset, parseCsvToTable } from "../../../../components/ReviewChangeset";
+import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
 import { apiFetch } from "../../../../lib/api";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
@@ -55,8 +56,11 @@ const MAPPING_OPTIONS = [
 export default function OrganizerEventPage() {
   const router = useRouter();
   const eventId = typeof router.query.eventId === "string" ? router.query.eventId : "";
-  const [tab, setTab] = useState<"overview" | "program" | "people" | "invites">("overview");
+  const [tab, setTab] = useState<"overview" | "program" | "people" | "invites" | "features">("overview");
   const [event, setEvent] = useState<EventDetail | null>(null);
+  const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
+  const [featuresDirty, setFeaturesDirty] = useState(false);
+  const [featuresSaving, setFeaturesSaving] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -93,18 +97,21 @@ export default function OrganizerEventPage() {
     if (!eventId) return;
     const ev = await organizerFetch<EventDetail>("/event/", eventId);
     setEvent(ev);
-    const [t, r, s, sess, links] = await Promise.all([
+    const [t, r, s, sess, links, feats] = await Promise.all([
       organizerFetch<Track[]>("/tracks/", eventId),
       organizerFetch<Room[]>("/rooms/", eventId),
       organizerFetch<Speaker[]>("/speakers/", eventId),
       organizerFetch<SessionRow[]>("/sessions/", eventId),
       organizerFetch<{ slugUrl?: string; joinUrl?: string }>("/event/invite-links", eventId).catch(() => null),
+      organizerFetch<{ overrides: FeatureOverridesMap }>("/event/features", eventId).catch(() => ({ overrides: {} })),
     ]);
     setTracks(t);
     setRooms(r);
     setSpeakers(s);
     setSessions(sess);
     setInviteLinks(links);
+    setFeatureOverrides(feats.overrides || {});
+    setFeaturesDirty(false);
   }, [eventId]);
 
   useEffect(() => {
@@ -318,6 +325,7 @@ export default function OrganizerEventPage() {
               ["program", "Program"],
               ["people", "Speakers"],
               ["invites", "Invites"],
+              ["features", "Features"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -593,6 +601,51 @@ export default function OrganizerEventPage() {
                 }
               />
             ) : null}
+          </section>
+        ) : null}
+
+        {tab === "features" ? (
+          <section>
+            <h2 style={{ marginTop: 0 }}>Features</h2>
+            <p className="help-text">
+              Turn capabilities on or off for attendees. Existing data is preserved when a feature is disabled.
+            </p>
+            <FeatureConfigPanel
+              overrides={featureOverrides}
+              onChange={(next) => {
+                setFeatureOverrides(next);
+                setFeaturesDirty(true);
+              }}
+              confirmOff
+              showPresets
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
+              <button
+                type="button"
+                className="button"
+                disabled={!featuresDirty || featuresSaving}
+                onClick={() => {
+                  void (async () => {
+                    setFeaturesSaving(true);
+                    setError(null);
+                    try {
+                      await organizerFetch("/event/features", eventId, {
+                        method: "PUT",
+                        body: JSON.stringify({ overrides: featureOverrides }),
+                      });
+                      setFeaturesDirty(false);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Could not save features");
+                    } finally {
+                      setFeaturesSaving(false);
+                    }
+                  })();
+                }}
+              >
+                {featuresSaving ? "Saving…" : "Save features"}
+              </button>
+              {featuresDirty ? <span className="help-text">Unsaved changes</span> : null}
+            </div>
           </section>
         ) : null}
       </main>

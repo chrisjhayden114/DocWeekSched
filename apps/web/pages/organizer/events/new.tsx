@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../components/FeatureConfigPanel";
 import { apiFetch } from "../../../lib/api";
 import { OrgSummary } from "../../../lib/organizerApi";
 
@@ -34,6 +35,7 @@ export default function NewEventWizard() {
   const [venueAddress, setVenueAddress] = useState("");
   const [onlineUrl, setOnlineUrl] = useState("");
   const [brandColor, setBrandColor] = useState("#0033A0");
+  const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{
@@ -95,8 +97,15 @@ export default function NewEventWizard() {
         }),
       });
       window.localStorage.setItem("activeEventId", ev.id);
+      if (Object.keys(featureOverrides).length > 0) {
+        await apiFetch("/event/features", {
+          method: "PUT",
+          headers: { "x-event-id": ev.id },
+          body: JSON.stringify({ overrides: featureOverrides }),
+        });
+      }
       setCreated(ev);
-      setStep(3);
+      setStep(4);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create event");
     } finally {
@@ -224,9 +233,34 @@ export default function NewEventWizard() {
                   Brand color
                   <input className="input" type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} />
                 </label>
-                {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button type="button" className="button secondary" onClick={() => setStep(1)}>
+                    Back
+                  </button>
+                  <button type="button" className="button" onClick={() => setStep(3)}>
+                    Next: features
+                  </button>
+                </div>
+              </>
+            ) : null}
+
+            {step === 3 ? (
+              <>
+                <h2 className="text-display-sm" style={{ margin: 0 }}>
+                  Features
+                </h2>
+                <p className="help-text" style={{ marginTop: 0 }}>
+                  Choose what attendees will see. You can change this anytime after creating the event.
+                </p>
+                <FeatureConfigPanel
+                  overrides={featureOverrides}
+                  onChange={setFeatureOverrides}
+                  confirmOff={false}
+                  showPresets
+                />
+                {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" className="button secondary" onClick={() => setStep(2)}>
                     Back
                   </button>
                   <button className="button" type="submit" disabled={busy}>
@@ -236,7 +270,7 @@ export default function NewEventWizard() {
               </>
             ) : null}
 
-            {step === 3 && created ? (
+            {step === 4 && created ? (
               <section>
                 <h2>Draft created</h2>
                 <p className="help-text">
