@@ -20,6 +20,7 @@ type User = {
   researchInterests?: string | null;
   participantType?: "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | null;
   engagementPoints?: number;
+  isEventAdmin?: boolean;
 };
 
 type Event = {
@@ -89,6 +90,25 @@ type SessionThread = {
   createdAt: string;
   author: ThreadAuthor;
   replies: SessionReply[];
+  upvoteCount?: number;
+  upvotedByMe?: boolean;
+  isAnswered?: boolean;
+  isHidden?: boolean;
+};
+
+type SessionPoll = {
+  id: string;
+  question: string;
+  status: "DRAFT" | "OPEN" | "CLOSED";
+  showResultsToAttendees: boolean;
+  myOptionId: string | null;
+  options: { id: string; label: string; sortOrder: number; voteCount?: number }[];
+};
+
+type FeedbackState = {
+  sessionEnded: boolean;
+  mine: { rating: number; comment?: string | null } | null;
+  summary: { count: number; average: number | null } | null;
 };
 
 type SessionResource = {
@@ -201,6 +221,12 @@ export default function SessionPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [threads, setThreads] = useState<SessionThread[]>([]);
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+  const [qaSort, setQaSort] = useState<"recent" | "votes">("votes");
+  const [polls, setPolls] = useState<SessionPoll[]>([]);
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [pollsOn, setPollsOn] = useState(false);
+  const [feedbackOn, setFeedbackOn] = useState(false);
+  const [canManage, setCanManage] = useState(false);
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
   const [resources, setResources] = useState<SessionResource[]>([]);
@@ -233,7 +259,7 @@ export default function SessionPage() {
     const ev = withEventHeaders(evId);
     const [sess, threadList, meta, resourceList] = await Promise.all([
       apiFetch<Session>(`/sessions/${sessionId}`, ev, token),
-      apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, ev, token),
+      apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations?sort=${qaSort}`, ev, token),
       apiFetch<MySessionMeta>("/sessions/me", ev, token),
       fetchSessionResources(token, sessionId),
     ]);
@@ -243,7 +269,29 @@ export default function SessionPage() {
     setMyAttendance(meta.attendance);
     setLikedSessionIds(meta.likedSessionIds);
     setResources(resourceList);
-  }, [token, sessionId]);
+  }, [token, sessionId, qaSort]);
+
+  const reloadPollsAndFeedback = useCallback(async () => {
+    if (!token || !sessionId) return;
+    const evId = window.localStorage.getItem("activeEventId");
+    const ev = withEventHeaders(evId);
+    if (pollsOn) {
+      try {
+        const list = await apiFetch<SessionPoll[]>(`/polls/session/${sessionId}`, ev, token);
+        setPolls(list);
+      } catch {
+        setPolls([]);
+      }
+    }
+    if (feedbackOn) {
+      try {
+        const fb = await apiFetch<FeedbackState>(`/feedback/session/${sessionId}`, ev, token);
+        setFeedback(fb);
+      } catch {
+        setFeedback(null);
+      }
+    }
+  }, [token, sessionId, pollsOn, feedbackOn]);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,7 +327,7 @@ export default function SessionPage() {
         const [evData, sess, threadList, meta] = await Promise.all([
           apiFetch<Event>("/event", ev, token),
           apiFetch<Session>(`/sessions/${sessionId}`, ev, token),
-          apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations`, ev, token),
+          apiFetch<SessionThread[]>(`/sessions/${sessionId}/conversations?sort=${qaSort}`, ev, token),
           apiFetch<MySessionMeta>("/sessions/me", ev, token),
         ]);
         setEvent(evData);
@@ -298,30 +346,34 @@ export default function SessionPage() {
     };
 
     load();
-  }, [token, sessionId, router.isReady]);
+  }, [token, sessionId, router.isReady, qaSort]);
 
   useEffect(() => {
-    if (!token || !session?.roomId) {
-      setRoomMapPin(null);
-      return;
-    }
     const evId = window.localStorage.getItem("activeEventId");
+    if (!token || !evId) return;
     const ev = withEventHeaders(evId);
     let cancelled = false;
     (async () => {
       try {
-        const feats = await apiFetch<{ overrides: Partial<Record<FeatureKey, FeatureOverrideValue>> }>(
-          "/event/features",
-          ev,
-          token,
-        );
-        const on = resolveFeatureEnabled("venue_maps", feats.overrides || {});
-        const concierge = resolveFeatureEnabled("concierge", feats.overrides || {});
+        const feats = await apiFetch<{
+          overrides: Partial<Record<FeatureKey, FeatureOverrideValue>>;
+          features: { key: FeatureKey; enabled: boolean }[];
+        }>("/event/features", ev, token);
+        const enabled = (key: FeatureKey) =>
+          feats.features?.find((f) => f.key === key)?.enabled ??
+          resolveFeatureEnabled(key, feats.overrides || {});
+        const on = enabled("venue_maps");
+        const concierge = enabled("concierge");
+        const pollsEnabled = enabled("session_polls");
+        const feedbackEnabled = enabled("session_feedback");
         if (cancelled) return;
         setVenueMapsOn(on);
         setConciergeOn(concierge);
-        if (evId) setActiveEventId(evId);
-        if (!on) {
+        setPollsOn(pollsEnabled);
+        setFeedbackOn(feedbackEnabled);
+        setActiveEventId(evId);
+        setCanManage(Boolean(user?.isEventAdmin) || user?.role === "ADMIN");
+        if (!session?.roomId || !on) {
           setRoomMapPin(null);
           return;
         }
@@ -342,7 +394,21 @@ export default function SessionPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, session?.roomId]);
+  }, [token, session?.roomId, session?.id, user?.role, user?.isEventAdmin]);
+
+  useEffect(() => {
+    void reloadPollsAndFeedback();
+  }, [reloadPollsAndFeedback]);
+
+  // Live polling for Q&A + polls (no websockets)
+  useEffect(() => {
+    if (!token || !sessionId) return;
+    const id = window.setInterval(() => {
+      void reloadSessionAndMessages();
+      void reloadPollsAndFeedback();
+    }, 8000);
+    return () => window.clearInterval(id);
+  }, [token, sessionId, reloadSessionAndMessages, reloadPollsAndFeedback]);
 
   const patchAttendance = async (body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode }) => {
     if (!token || !sessionId) return;
@@ -441,6 +507,58 @@ export default function SessionPage() {
         thread.id === threadId ? { ...thread, replies: thread.replies.filter((row) => row.id !== replyId) } : thread,
       ),
     );
+  };
+
+  const toggleUpvote = async (threadId: string, currentlyUpvoted: boolean) => {
+    if (!token || !sessionId) return;
+    const path = `/sessions/${sessionId}/conversations/${threadId}/upvote`;
+    const res = await apiFetch<{ upvoteCount: number; upvotedByMe: boolean }>(
+      path,
+      { method: currentlyUpvoted ? "DELETE" : "POST" },
+      token,
+    );
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === threadId ? { ...t, upvoteCount: res.upvoteCount, upvotedByMe: res.upvotedByMe } : t,
+      ),
+    );
+  };
+
+  const setAnswered = async (threadId: string, answered: boolean) => {
+    if (!token || !sessionId) return;
+    await apiFetch(`/sessions/${sessionId}/conversations/${threadId}/answered`, {
+      method: "POST",
+      body: JSON.stringify({ answered }),
+    }, token);
+    setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, isAnswered: answered } : t)));
+  };
+
+  const hideThread = async (threadId: string) => {
+    if (!token || !sessionId) return;
+    await apiFetch(`/sessions/${sessionId}/conversations/${threadId}/hide`, {
+      method: "POST",
+      body: JSON.stringify({ hidden: true }),
+    }, token);
+    setThreads((prev) => prev.filter((t) => t.id !== threadId));
+    setOpenThreadId((current) => (current === threadId ? null : current));
+  };
+
+  const votePoll = async (pollId: string, optionId: string) => {
+    if (!token) return;
+    await apiFetch(`/polls/${pollId}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ optionId }),
+    }, token);
+    await reloadPollsAndFeedback();
+  };
+
+  const submitFeedback = async (rating: number, comment: string) => {
+    if (!token || !sessionId) return;
+    await apiFetch(`/feedback/session/${sessionId}`, {
+      method: "PUT",
+      body: JSON.stringify({ rating, comment: comment || null }),
+    }, token);
+    await reloadPollsAndFeedback();
   };
 
   const deleteResource = async (resourceId: string) => {
@@ -869,8 +987,24 @@ export default function SessionPage() {
           <div className="card session-conversation-card">
             <h3 style={{ marginTop: 0 }}>Session Q&amp;A</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Ask questions about this session or join the discussion. Start a titled thread, or open an existing one to read and reply. Direct and group chats stay under Messages on the dashboard.
+              Ask questions, upvote what matters, and (for organizers) mark answered or hide. Updates every few seconds.
             </p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <button
+                type="button"
+                className={qaSort === "votes" ? "button" : "button secondary"}
+                onClick={() => setQaSort("votes")}
+              >
+                Top votes
+              </button>
+              <button
+                type="button"
+                className={qaSort === "recent" ? "button" : "button secondary"}
+                onClick={() => setQaSort("recent")}
+              >
+                Recent
+              </button>
+            </div>
             <form
               className="grid"
               style={{ gap: 10 }}
@@ -898,9 +1032,12 @@ export default function SessionPage() {
                     className={`session-thread-link ${thread.id === openThreadId ? "is-active" : ""}`}
                     onClick={() => setOpenThreadId(thread.id)}
                   >
-                    <strong>{thread.title}</strong>
+                    <strong>
+                      {thread.isAnswered ? "✓ " : ""}
+                      {thread.title}
+                    </strong>
                     <span className="help-text">
-                      {thread.author.name} · {thread.replies.length} replies
+                      {thread.upvoteCount ?? 0} votes · {thread.author.name} · {thread.replies.length} replies
                     </span>
                   </button>
                 ))}
@@ -920,17 +1057,37 @@ export default function SessionPage() {
                           <strong>{openThread.title}</strong>
                           <div className="help-text">
                             {openThread.author.name} · {openThread.author.role} · {new Date(openThread.createdAt).toLocaleString()}
+                            {openThread.isAnswered ? " · Answered" : ""}
                           </div>
                         </div>
                       </div>
                       <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{openThread.body}</p>
-                      {user.role === "ADMIN" && (
-                        <div style={{ marginTop: 10 }}>
-                          <button type="button" className="button secondary" onClick={() => deleteThread(openThread.id)}>
-                            Delete conversation
-                          </button>
-                        </div>
-                      )}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                        <button
+                          type="button"
+                          className={openThread.upvotedByMe ? "button" : "button secondary"}
+                          onClick={() => void toggleUpvote(openThread.id, Boolean(openThread.upvotedByMe))}
+                        >
+                          ▲ {openThread.upvoteCount ?? 0}
+                        </button>
+                        {canManage ? (
+                          <>
+                            <button
+                              type="button"
+                              className="button secondary"
+                              onClick={() => void setAnswered(openThread.id, !openThread.isAnswered)}
+                            >
+                              {openThread.isAnswered ? "Unmark answered" : "Mark answered"}
+                            </button>
+                            <button type="button" className="button secondary" onClick={() => void hideThread(openThread.id)}>
+                              Hide
+                            </button>
+                            <button type="button" className="button secondary" onClick={() => deleteThread(openThread.id)}>
+                              Delete
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
                     {openThread.replies.map((reply) => (
                       <div key={reply.id} className="session-message-row">
@@ -946,7 +1103,7 @@ export default function SessionPage() {
                           </div>
                         </div>
                         <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{reply.body}</p>
-                        {user.role === "ADMIN" && (
+                        {canManage && (
                           <button
                             type="button"
                             className="button secondary"
@@ -978,6 +1135,176 @@ export default function SessionPage() {
               </div>
             </div>
           </div>
+
+          {pollsOn ? (
+            <div className="card" style={{ marginTop: 16 }}>
+              <h3 style={{ marginTop: 0 }}>Live polls</h3>
+              {polls.length === 0 ? <p className="help-text">No polls for this session yet.</p> : null}
+              {polls.map((poll) => {
+                const totalVotes = poll.options.reduce((s, o) => s + (o.voteCount ?? 0), 0);
+                return (
+                  <div key={poll.id} style={{ marginBottom: 16 }}>
+                    <strong>{poll.question}</strong>
+                    <span className="help-text"> · {poll.status}</span>
+                    <ul style={{ listStyle: "none", padding: 0, marginTop: 8 }}>
+                      {poll.options.map((o) => {
+                        const count = o.voteCount;
+                        const pct = count != null && totalVotes > 0 ? Math.round((count / totalVotes) * 100) : null;
+                        return (
+                          <li key={o.id} style={{ marginBottom: 6 }}>
+                            {poll.status === "OPEN" ? (
+                              <button
+                                type="button"
+                                className={poll.myOptionId === o.id ? "button" : "button secondary"}
+                                style={{ width: "100%", textAlign: "left" }}
+                                onClick={() => void votePoll(poll.id, o.id)}
+                              >
+                                {o.label}
+                                {pct != null ? ` — ${pct}% (${count})` : ""}
+                              </button>
+                            ) : (
+                              <div>
+                                {o.label}
+                                {pct != null ? (
+                                  <span className="help-text">
+                                    {" "}
+                                    — {pct}% ({count})
+                                  </span>
+                                ) : null}
+                                {pct != null ? (
+                                  <div
+                                    style={{
+                                      height: 6,
+                                      marginTop: 4,
+                                      background: "var(--border, #D9E1EE)",
+                                      borderRadius: 3,
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        height: 6,
+                                        width: `${pct}%`,
+                                        background: "var(--accent, #2F6FED)",
+                                        borderRadius: 3,
+                                      }}
+                                    />
+                                  </div>
+                                ) : null}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {canManage && poll.status === "DRAFT" ? (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() =>
+                          void apiFetch(`/polls/${poll.id}/open`, { method: "POST" }, token!).then(() =>
+                            reloadPollsAndFeedback(),
+                          )
+                        }
+                      >
+                        Open poll
+                      </button>
+                    ) : null}
+                    {canManage && poll.status === "OPEN" ? (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() =>
+                          void apiFetch(`/polls/${poll.id}/close`, { method: "POST" }, token!).then(() =>
+                            reloadPollsAndFeedback(),
+                          )
+                        }
+                      >
+                        Close poll
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {canManage ? (
+                <form
+                  className="grid"
+                  style={{ gap: 8 }}
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!token || !sessionId) return;
+                    const fd = new FormData(e.currentTarget);
+                    const question = String(fd.get("question") || "").trim();
+                    const options = String(fd.get("options") || "")
+                      .split("\n")
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    if (!question || options.length < 2) return;
+                    await apiFetch(`/polls/session/${sessionId}`, {
+                      method: "POST",
+                      body: JSON.stringify({ question, options }),
+                    }, token);
+                    e.currentTarget.reset();
+                    await reloadPollsAndFeedback();
+                  }}
+                >
+                  <input className="input" name="question" placeholder="Poll question" required />
+                  <textarea
+                    className="textarea"
+                    name="options"
+                    placeholder={"Option A\nOption B\nOption C"}
+                    rows={3}
+                    required
+                  />
+                  <button type="submit" className="button secondary">
+                    Create draft poll
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
+
+          {feedbackOn && feedback?.sessionEnded ? (
+            <div className="card" style={{ marginTop: 16 }}>
+              <h3 style={{ marginTop: 0 }}>Session feedback</h3>
+              {feedback.mine ? (
+                <p className="help-text">
+                  You rated this {feedback.mine.rating}/5
+                  {feedback.mine.comment ? ` — “${feedback.mine.comment}”` : ""}
+                </p>
+              ) : (
+                <form
+                  className="grid"
+                  style={{ gap: 8 }}
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
+                    await submitFeedback(Number(fd.get("rating")), String(fd.get("comment") || "").trim());
+                  }}
+                >
+                  <label className="help-text">
+                    Rating
+                    <select className="select" name="rating" defaultValue={5} required>
+                      {[5, 4, 3, 2, 1].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <textarea className="textarea" name="comment" placeholder="Optional comment" rows={2} />
+                  <button type="submit" className="button">
+                    Submit feedback
+                  </button>
+                </form>
+              )}
+              {canManage && feedback.summary ? (
+                <p className="help-text">
+                  Summary: {feedback.summary.count} responses
+                  {feedback.summary.average != null ? ` · avg ${feedback.summary.average.toFixed(1)}` : ""}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </>
       )}
 
