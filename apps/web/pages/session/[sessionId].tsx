@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue } from "@event-app/shared";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
+import { ConciergeChat } from "../../components/ConciergeChat";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
 import { formatEventTimeRange } from "../../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../../lib/push";
@@ -216,7 +217,9 @@ export default function SessionPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [venueMapsOn, setVenueMapsOn] = useState(false);
+  const [conciergeOn, setConciergeOn] = useState(false);
   const [roomMapPin, setRoomMapPin] = useState<{ mapId: string; pinId: string } | null>(null);
+  const [activeEventId, setActiveEventId] = useState<string | null>(null);
 
   const refreshUser = useCallback(async (t: string) => {
     const fresh = await apiFetch<User>("/auth/me", {}, t);
@@ -313,8 +316,11 @@ export default function SessionPage() {
           token,
         );
         const on = resolveFeatureEnabled("venue_maps", feats.overrides || {});
+        const concierge = resolveFeatureEnabled("concierge", feats.overrides || {});
         if (cancelled) return;
         setVenueMapsOn(on);
+        setConciergeOn(concierge);
+        if (evId) setActiveEventId(evId);
         if (!on) {
           setRoomMapPin(null);
           return;
@@ -974,6 +980,8 @@ export default function SessionPage() {
           </div>
         </>
       )}
+
+      {activeEventId && conciergeOn ? <ConciergeChat eventId={activeEventId} enabled /> : null}
     </div>
   );
 }

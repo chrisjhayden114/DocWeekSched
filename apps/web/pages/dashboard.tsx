@@ -9,6 +9,7 @@ import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../compon
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { EventSettingsModal } from "../components/EventSettingsModal";
+import { ConciergeChat } from "../components/ConciergeChat";
 import { KebabMenu } from "../components/KebabMenu";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { UploadDropzone } from "../components/UploadDropzone";
@@ -1903,6 +1904,18 @@ export default function Dashboard() {
         <p className="text-meta" style={{ textAlign: "center", marginTop: 28, opacity: 0.75 }}>
           Powered by EventPilot
         </p>
+      ) : null}
+
+      {activeEventId && featureOn("concierge") ? (
+        <ConciergeChat
+          eventId={activeEventId}
+          enabled
+          onMapHint={(hint) => {
+            if (hint.mapId && featureOn("venue_maps")) {
+              setActive(MAPS_TAB);
+            }
+          }}
+        />
       ) : null}
 
     </div>

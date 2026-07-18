@@ -8,6 +8,7 @@ import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../compon
 import { SetupCopilotChat } from "../../../../components/SetupCopilotChat";
 import { VenueMapEditor } from "../../../../components/VenueMapEditor";
 import { AnnouncementComposer } from "../../../../components/AnnouncementComposer";
+import { EventFaqEditor } from "../../../../components/EventFaqEditor";
 import { apiFetch } from "../../../../lib/api";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
@@ -694,6 +695,7 @@ export default function OrganizerEventPage() {
               </button>
               {featuresDirty ? <span className="help-text">Unsaved changes</span> : null}
             </div>
+            {eventId ? <EventFaqEditor eventId={eventId} /> : null}
           </section>
         ) : null}
       </main>
