@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ReviewChangeset, parseCsvToTable } from "../../../../components/ReviewChangeset";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
+import { VenueMapEditor } from "../../../../components/VenueMapEditor";
 import { apiFetch } from "../../../../lib/api";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
@@ -56,7 +57,7 @@ const MAPPING_OPTIONS = [
 export default function OrganizerEventPage() {
   const router = useRouter();
   const eventId = typeof router.query.eventId === "string" ? router.query.eventId : "";
-  const [tab, setTab] = useState<"overview" | "program" | "people" | "invites" | "features">("overview");
+  const [tab, setTab] = useState<"overview" | "program" | "people" | "invites" | "maps" | "features">("overview");
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [featuresDirty, setFeaturesDirty] = useState(false);
@@ -325,6 +326,7 @@ export default function OrganizerEventPage() {
               ["program", "Program"],
               ["people", "Speakers"],
               ["invites", "Invites"],
+              ["maps", "Maps"],
               ["features", "Features"],
             ] as const
           ).map(([id, label]) => (
@@ -603,6 +605,8 @@ export default function OrganizerEventPage() {
             ) : null}
           </section>
         ) : null}
+
+        {tab === "maps" && eventId ? <VenueMapEditor eventId={eventId} rooms={rooms} /> : null}
 
         {tab === "features" ? (
           <section>

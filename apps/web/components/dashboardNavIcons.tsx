@@ -20,6 +20,7 @@ export type MainNavTab =
   | "Attendees"
   | "Participants and Invites"
   | "Community"
+  | "Maps"
   | "Messages"
   | "Notifications"
   | "Profile";
@@ -54,6 +55,13 @@ export function MainNavIcon({ tab }: { tab: MainNavTab }) {
         <IconFrame>
           <path d="M14 9a2 2 0 0 1-2 2H6l-4 3V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
           <path d="M22 9V6a2 2 0 0 0-2-2h-3" />
+        </IconFrame>
+      );
+    case "Maps":
+      return (
+        <IconFrame>
+          <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z" />
+          <path d="M9 3v15M15 6v15" />
         </IconFrame>
       );
     case "Messages":

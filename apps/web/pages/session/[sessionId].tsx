@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue } from "@event-app/shared";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
 
@@ -41,6 +42,8 @@ type Session = {
   title: string;
   description?: string;
   location?: string | null;
+  roomId?: string | null;
+  room?: { id: string; name: string } | null;
   speakers?: string | null;
   zoomLink?: string | null;
   recordingUrl?: string | null;
@@ -185,6 +188,8 @@ export default function SessionPage() {
   const [resourceKind, setResourceKind] = useState<"LINK" | "FILE">("LINK");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [venueMapsOn, setVenueMapsOn] = useState(false);
+  const [roomMapPin, setRoomMapPin] = useState<{ mapId: string; pinId: string } | null>(null);
 
   const refreshUser = useCallback(async (t: string) => {
     const fresh = await apiFetch<User>("/auth/me", {}, t);
@@ -264,6 +269,47 @@ export default function SessionPage() {
 
     load();
   }, [token, sessionId, router.isReady]);
+
+  useEffect(() => {
+    if (!token || !session?.roomId) {
+      setRoomMapPin(null);
+      return;
+    }
+    const evId = window.localStorage.getItem("activeEventId");
+    const ev = withEventHeaders(evId);
+    let cancelled = false;
+    (async () => {
+      try {
+        const feats = await apiFetch<{ overrides: Partial<Record<FeatureKey, FeatureOverrideValue>> }>(
+          "/event/features",
+          ev,
+          token,
+        );
+        const on = resolveFeatureEnabled("venue_maps", feats.overrides || {});
+        if (cancelled) return;
+        setVenueMapsOn(on);
+        if (!on) {
+          setRoomMapPin(null);
+          return;
+        }
+        const pin = await apiFetch<{ id: string; mapId: string; map: { id: string } }>(
+          `/event/maps/by-room/${session.roomId}`,
+          ev,
+          token,
+        ).catch(() => null);
+        if (cancelled) return;
+        setRoomMapPin(pin ? { mapId: pin.mapId || pin.map.id, pinId: pin.id } : null);
+      } catch {
+        if (!cancelled) {
+          setVenueMapsOn(false);
+          setRoomMapPin(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, session?.roomId]);
 
   const patchAttendance = async (body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode }) => {
     if (!token || !sessionId) return;
@@ -504,6 +550,13 @@ export default function SessionPage() {
               {session.fileUrl && (
                 <a href={session.fileUrl} target="_blank" rel="noreferrer">Materials</a>
               )}
+              {venueMapsOn && roomMapPin ? (
+                <Link
+                  href={`/dashboard?tab=Maps&mapId=${encodeURIComponent(roomMapPin.mapId)}&pinId=${encodeURIComponent(roomMapPin.pinId)}`}
+                >
+                  View on map
+                </Link>
+              ) : null}
             </div>
 
             <div className="session-page-toolbar">

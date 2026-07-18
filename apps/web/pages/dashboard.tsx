@@ -12,6 +12,7 @@ import { EventSettingsModal } from "../components/EventSettingsModal";
 import { KebabMenu } from "../components/KebabMenu";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { UploadDropzone } from "../components/UploadDropzone";
+import { VenueMapsAttendee, roomPinIndex } from "../components/VenueMapsAttendee";
 import { apiFetch, clearAuthClientState } from "../lib/api";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
@@ -51,6 +52,8 @@ type Session = {
   title: string;
   description?: string;
   location?: string | null;
+  roomId?: string | null;
+  room?: { id: string; name: string } | null;
   speakers?: string | null;
   zoomLink?: string | null;
   recordingUrl?: string | null;
@@ -199,16 +202,18 @@ type UserNotificationRow = {
 
 const COMMUNITY_TAB = "Community" as const;
 const PARTICIPANTS_INVITES_TAB = "Participants and Invites" as const;
+const MAPS_TAB = "Maps" as const;
 const adminTabs = [
   "Agenda",
   "Attendees",
   PARTICIPANTS_INVITES_TAB,
   COMMUNITY_TAB,
+  MAPS_TAB,
   "Messages",
   "Notifications",
   "Profile",
 ] as const;
-const participantTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Notifications", "Profile"] as const;
+const participantTabs = ["Agenda", "Attendees", COMMUNITY_TAB, MAPS_TAB, "Messages", "Notifications", "Profile"] as const;
 type Tab = (typeof adminTabs)[number];
 
 type CommunityChannelFilter = "ALL" | "GENERAL" | "MEETUP" | "MOMENTS" | "LOCAL" | "ICEBREAKER";
@@ -279,6 +284,11 @@ export default function Dashboard() {
   const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
   const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
+  const [roomPins, setRoomPins] = useState<Record<string, { mapId: string; pinId: string }>>({});
+  const [mapsFocus, setMapsFocus] = useState<{ mapId: string | null; pinId: string | null }>({
+    mapId: null,
+    pinId: null,
+  });
   const myTimezone = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -473,6 +483,7 @@ export default function Dashboard() {
       if (tab === "Attendees") return featureOn("attendee_directory");
       if (tab === COMMUNITY_TAB) return featureOn("community");
       if (tab === "Messages") return messagingEnabled;
+      if (tab === MAPS_TAB) return featureOn("venue_maps");
       return true;
     });
   }, [isAdmin, featureOn, messagingEnabled]);
@@ -484,6 +495,32 @@ export default function Dashboard() {
   const timezoneToggleOn = featureOn("timezone_toggle");
   const sessionLikesOn = featureOn("session_likes");
   const engagementPointsOn = featureOn("engagement_points");
+  const venueMapsOn = featureOn("venue_maps");
+
+  useEffect(() => {
+    if (!token || !activeEventId || !venueMapsOn) {
+      setRoomPins({});
+      return;
+    }
+    apiFetch<Array<{ id: string; pins: Array<{ id: string; linkedRoomId?: string | null }> }>>(
+      "/event/maps/",
+      withEventHeaders(),
+      token,
+    )
+      .then((list) => setRoomPins(roomPinIndex(list as never)))
+      .catch(() => setRoomPins({}));
+  }, [token, activeEventId, venueMapsOn]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const mapId = typeof router.query.mapId === "string" ? router.query.mapId : null;
+    const pinId = typeof router.query.pinId === "string" ? router.query.pinId : null;
+    const tabQ = typeof router.query.tab === "string" ? router.query.tab : null;
+    if (tabQ === "Maps" || mapId || pinId) {
+      setActive(MAPS_TAB);
+      setMapsFocus({ mapId, pinId });
+    }
+  }, [router.isReady, router.query.mapId, router.query.pinId, router.query.tab]);
 
   useEffect(() => {
     if (!availableTabs.some((tab) => tab === active)) {
@@ -633,6 +670,18 @@ export default function Dashboard() {
 
   const goToSessionPage = (sessionId: string) => {
     router.push(`/session/${sessionId}`);
+  };
+
+  const goToRoomOnMap = (roomId: string) => {
+    const pin = roomPins[roomId];
+    if (!pin) return;
+    setMapsFocus({ mapId: pin.mapId, pinId: pin.pinId });
+    setActive(MAPS_TAB);
+    void router.replace(
+      { pathname: "/dashboard", query: { tab: "Maps", mapId: pin.mapId, pinId: pin.pinId } },
+      undefined,
+      { shallow: true },
+    );
   };
 
   const toggleSessionLike = async (sessionId: string) => {
@@ -846,6 +895,8 @@ export default function Dashboard() {
                 onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
                 likesEnabled={sessionLikesOn}
                 qaEnabled={featureOn("session_qa")}
+                roomPins={venueMapsOn ? roomPins : {}}
+                onViewOnMap={venueMapsOn ? goToRoomOnMap : undefined}
                 onEditSession={(session) => {
                   setEditingSession(session);
                   setSessionFormKey((k) => k + 1);
@@ -867,6 +918,8 @@ export default function Dashboard() {
                 onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
                 likesEnabled={sessionLikesOn}
                 qaEnabled={featureOn("session_qa")}
+                roomPins={venueMapsOn ? roomPins : {}}
+                onViewOnMap={venueMapsOn ? goToRoomOnMap : undefined}
                 onEditSession={(session) => {
                   setEditingSession(session);
                   setSessionFormKey((k) => k + 1);
@@ -925,6 +978,19 @@ export default function Dashboard() {
               ) : null}
             </div>
           )}
+        </div>
+      )}
+
+      {active === MAPS_TAB && venueMapsOn && (
+        <div className="card">
+          <VenueMapsAttendee
+            eventId={activeEventId}
+            token={token}
+            withEventHeaders={withEventHeaders}
+            focusMapId={mapsFocus.mapId}
+            focusPinId={mapsFocus.pinId}
+            displayTimezone={agendaDisplayTimezone}
+          />
         </div>
       )}
 
@@ -1553,6 +1619,8 @@ function ScheduleBoard({
   onToggleLike,
   likesEnabled = true,
   qaEnabled = true,
+  roomPins = {},
+  onViewOnMap,
   onEditSession,
   onGoToSession,
 }: {
@@ -1570,6 +1638,8 @@ function ScheduleBoard({
   onToggleLike?: (sessionId: string) => void;
   likesEnabled?: boolean;
   qaEnabled?: boolean;
+  roomPins?: Record<string, { mapId: string; pinId: string }>;
+  onViewOnMap?: (roomId: string) => void;
   onEditSession: (session: Session) => void;
   onGoToSession: (sessionId: string) => void;
 }) {
@@ -1690,6 +1760,18 @@ function ScheduleBoard({
                         {s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Recording</a>}
                         {s.fileLink && <a href={s.fileLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Resources</a>}
                         {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Uploaded File</a>}
+                        {s.roomId && onViewOnMap && roomPins[s.roomId] ? (
+                          <button
+                            type="button"
+                            className="linkish"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onViewOnMap(s.roomId!);
+                            }}
+                          >
+                            View on map
+                          </button>
+                        ) : null}
                       </div>
                       <div className="schedule-event-footer">
                         <div className="schedule-meta-line">
