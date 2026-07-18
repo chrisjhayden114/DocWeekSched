@@ -72,6 +72,8 @@ export default function OrganizerDashboard() {
               {" · "}
               <Link href="/organizer/billing">Billing</Link>
               {" · "}
+              <Link href="/organizer/ai-usage">AI usage</Link>
+              {" · "}
               <Link href="/pricing">Pricing</Link>
               {" · "}
               Organizer
