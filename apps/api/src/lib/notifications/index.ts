@@ -37,6 +37,10 @@ export {
   zonedWallTimeToUtc,
   parseHm,
 } from "./timezone";
+export {
+  notifySessionStartingSoon,
+  sessionStartingSoonWindow,
+} from "./sessionStartingSoon";
 
 export async function notifyNewCommunityThread(params: {
   eventId: string;

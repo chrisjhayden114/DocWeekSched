@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue } from "@event-app/shared";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
+import { offerPushAfterFirstAgendaSave } from "../../lib/push";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const RESOURCE_DATA_URL_MAX_CHARS = 4_500_000;
@@ -53,8 +54,21 @@ type Session = {
   startsAt: string;
   endsAt: string;
   allowVirtualJoin?: boolean | null;
+  inPersonCapacity?: number | null;
+  virtualCapacity?: number | null;
   speaker?: { name: string };
   speakerId?: string | null;
+  sessionSpeakers?: {
+    sortOrder: number;
+    speaker: { id: string; name: string; title?: string | null; affiliation?: string | null; photoUrl?: string | null };
+  }[];
+  items?: {
+    id: string;
+    title: string;
+    sortOrder: number;
+    authors: { name: string; sortOrder: number }[];
+    discussantSpeaker?: { id: string; name: string } | null;
+  }[];
   attendances?: {
     userId: string;
     status: "JOINING" | "NOT_JOINING";
@@ -333,7 +347,10 @@ export default function SessionPage() {
       }, token);
       const meta = await apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(window.localStorage.getItem("activeEventId")), token);
       setMyAttendance(meta.attendance);
-      if (body.status === "JOINING") void refreshUser(token);
+      if (body.status === "JOINING") {
+        void refreshUser(token);
+        void offerPushAfterFirstAgendaSave(token);
+      }
       void reloadSessionAndMessages();
     } catch {
       setMyAttendance(prevAttendance);
@@ -497,7 +514,29 @@ export default function SessionPage() {
             <h2 style={{ margin: "0 0 8px", fontFamily: "Merriweather, Georgia, serif" }}>{session.title}</h2>
             <p style={{ color: "var(--ink-muted)", margin: "0 0 8px" }}>
               {formatTimeRangeInZone(session.startsAt, session.endsAt, displayTimezone)}
+              {session.room?.name ? ` · ${session.room.name}` : session.location ? ` · ${session.location}` : ""}
             </p>
+            {(() => {
+              const inPerson = (session.attendances || []).filter(
+                (a) => a.status === "JOINING" && (a.joinMode === "IN_PERSON" || !a.joinMode),
+              ).length;
+              const virtual = (session.attendances || []).filter(
+                (a) => a.status === "JOINING" && a.joinMode === "VIRTUAL",
+              ).length;
+              const hasCap = session.inPersonCapacity != null || session.virtualCapacity != null;
+              if (!hasCap) return null;
+              return (
+                <p className="help-text" style={{ margin: "0 0 10px" }}>
+                  Capacity: {inPerson}
+                  {session.inPersonCapacity != null ? `/${session.inPersonCapacity}` : ""} in-person · {virtual}
+                  {session.virtualCapacity != null ? `/${session.virtualCapacity}` : ""} virtual
+                  {(session.inPersonCapacity != null && inPerson >= session.inPersonCapacity) ||
+                  (session.virtualCapacity != null && virtual >= session.virtualCapacity)
+                    ? " · Full — waitlist available from the agenda"
+                    : ""}
+                </p>
+              );
+            })()}
             <div className="nav agenda-timezone-toggle" style={{ marginBottom: 12 }}>
               <button
                 type="button"
@@ -514,31 +553,63 @@ export default function SessionPage() {
                 Event timezone
               </button>
             </div>
-            {(session.speakers || session.speaker?.name || session.location) && (
-              <p className="schedule-speaker schedule-speaker-with-location" style={{ margin: "0 0 8px" }}>
-                {(session.speakers || session.speaker?.name) && (
-                  <>
+            {(session.sessionSpeakers && session.sessionSpeakers.length > 0) ||
+            session.speakers ||
+            session.speaker?.name ||
+            session.location ||
+            session.room?.name ? (
+              <div style={{ margin: "0 0 8px" }}>
+                {session.sessionSpeakers && session.sessionSpeakers.length > 0 ? (
+                  <p style={{ margin: "0 0 6px" }}>
                     <strong style={{ color: "var(--ink-900)" }}>Speakers:</strong>{" "}
-                    <span className="schedule-speaker-names">{session.speakers || session.speaker?.name}</span>
-                  </>
+                    {session.sessionSpeakers.map((row, i) => (
+                      <span key={row.speaker.id}>
+                        {i > 0 ? " · " : ""}
+                        <Link href={`/dashboard?tab=Attendees`}>{row.speaker.name}</Link>
+                        {row.speaker.title || row.speaker.affiliation
+                          ? ` (${[row.speaker.title, row.speaker.affiliation].filter(Boolean).join(", ")})`
+                          : ""}
+                      </span>
+                    ))}
+                  </p>
+                ) : (session.speakers || session.speaker?.name) ? (
+                  <p className="schedule-speaker" style={{ margin: "0 0 6px" }}>
+                    <strong style={{ color: "var(--ink-900)" }}>Speakers:</strong>{" "}
+                    {session.speakers || session.speaker?.name}
+                  </p>
+                ) : null}
+                {(session.room?.name || session.location) && (
+                  <p style={{ margin: 0, color: "var(--ink-muted)" }}>
+                    <strong style={{ color: "var(--ink-900)" }}>Room:</strong>{" "}
+                    {session.room?.name || session.location}
+                  </p>
                 )}
-                {session.location && (session.speakers || session.speaker?.name) && (
-                  <span className="schedule-speaker-sep" aria-hidden>
-                    {" "}
-                    —{" "}
-                  </span>
-                )}
-                {session.location && (
-                  <>
-                    {!(session.speakers || session.speaker?.name) && (
-                      <strong style={{ color: "var(--ink-900)" }}>Location:</strong>
-                    )}{" "}
-                    <span className="schedule-session-location">{session.location}</span>
-                  </>
-                )}
-              </p>
-            )}
+              </div>
+            ) : null}
             {session.description && <p style={{ margin: "12px 0", lineHeight: 1.5 }}>{session.description}</p>}
+            {session.items && session.items.length > 0 ? (
+              <div style={{ margin: "16px 0" }}>
+                <h3 style={{ margin: "0 0 8px", fontFamily: "Merriweather, Georgia, serif", fontSize: "1.05rem" }}>
+                  Program
+                </h3>
+                <ol className="session-items-list" style={{ margin: 0, paddingLeft: "1.2rem" }}>
+                  {session.items.map((item) => (
+                    <li key={item.id} style={{ marginBottom: 8 }}>
+                      <strong>{item.title}</strong>
+                      {item.authors?.length ? (
+                        <span className="help-text">
+                          {" "}
+                          — {item.authors.map((a) => a.name).join(", ")}
+                        </span>
+                      ) : null}
+                      {item.discussantSpeaker ? (
+                        <span className="help-text"> · Discussant: {item.discussantSpeaker.name}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
             <div className="schedule-links" style={{ marginBottom: 12 }}>
               {session.zoomLink && <OnlineMeetingLink href={session.zoomLink} />}
               {session.recordingUrl && (

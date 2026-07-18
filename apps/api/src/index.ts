@@ -24,7 +24,9 @@ import { mapsRouter } from "./routes/maps";
 import { meetingsRouter } from "./routes/meetings";
 import { moderationRouter } from "./routes/moderation";
 import { icsRouter } from "./routes/ics";
+import { pushRouter } from "./routes/push";
 import { asyncHandler } from "./lib/authorization";
+import { flushQueuedPushes, notifySessionStartingSoon } from "./lib/notifications";
 
 const app = express();
 
@@ -97,6 +99,7 @@ app.use("/announcements", announcementsRouter);
 app.use("/meetings", meetingsRouter);
 app.use("/moderation", moderationRouter);
 app.use("/ics", icsRouter);
+app.use("/push", pushRouter);
 app.use("/surveys", surveysRouter);
 app.use("/conversations", conversationsRouter);
 app.use("/attendees", attendeesRouter);
@@ -127,4 +130,10 @@ app.listen(env.apiPort, () => {
   } else if (env.cookieDomain) {
     console.log(`[auth] Session cookies Domain=${env.cookieDomain} SameSite=${env.cookieSameSite}`);
   }
+
+  const tickMs = Number(process.env.NOTIFICATION_JOB_INTERVAL_MS || 60_000);
+  setInterval(() => {
+    void flushQueuedPushes().catch((err) => console.error("[notifications] flushQueuedPushes", err));
+    void notifySessionStartingSoon().catch((err) => console.error("[notifications] sessionStartingSoon", err));
+  }, tickMs);
 });

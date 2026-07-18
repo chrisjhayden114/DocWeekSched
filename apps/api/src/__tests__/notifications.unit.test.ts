@@ -69,3 +69,17 @@ describe("quiet hours (attendee-local)", () => {
     }
   });
 });
+
+describe("session starting soon", () => {
+  it("maps kind to INTERRUPT", () => {
+    expect(classForKind(NotificationKind.SESSION_STARTING_SOON)).toBe(NotificationClass.INTERRUPT);
+  });
+
+  it("opens 15–20 minutes ahead by default", async () => {
+    const { sessionStartingSoonWindow } = await import("../lib/notifications/sessionStartingSoon");
+    const now = new Date("2027-06-01T12:00:00Z");
+    const { from, to } = sessionStartingSoonWindow(now);
+    expect(from.toISOString()).toBe("2027-06-01T12:15:00.000Z");
+    expect(to.toISOString()).toBe("2027-06-01T12:20:00.000Z");
+  });
+});

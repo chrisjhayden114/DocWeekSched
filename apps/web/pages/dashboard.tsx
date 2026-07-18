@@ -13,8 +13,11 @@ import { KebabMenu } from "../components/KebabMenu";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { UploadDropzone } from "../components/UploadDropzone";
 import { VenueMapsAttendee, roomPinIndex } from "../components/VenueMapsAttendee";
+import { MeetingRequestModal, MeetingRequestsPanel } from "../components/MeetingRequestsPanel";
+import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
 import { apiFetch, clearAuthClientState } from "../lib/api";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
+import { offerPushAfterFirstAgendaSave } from "../lib/push";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -301,6 +304,8 @@ export default function Dashboard() {
     mapId: null,
     pinId: null,
   });
+  const [meetingTarget, setMeetingTarget] = useState<{ id: string; name: string } | null>(null);
+  const [meetingsRefreshKey, setMeetingsRefreshKey] = useState(0);
   const myTimezone = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -702,6 +707,7 @@ export default function Dashboard() {
       setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
       if (body.status === "JOINING") {
         void refreshUser();
+        void offerPushAfterFirstAgendaSave(token);
       }
     } catch (err) {
       setMyAttendance(prevAttendance);
@@ -751,6 +757,27 @@ export default function Dashboard() {
       void refreshUser();
     } catch {
       setLikedSessionIds(prevLikes);
+    }
+  };
+
+  const toggleSessionBookmark = async (sessionId: string) => {
+    if (!token) return;
+    const starred = bookmarkedSessionIds.includes(sessionId);
+    const prev = bookmarkedSessionIds;
+    if (starred) {
+      setBookmarkedSessionIds((ids) => ids.filter((id) => id !== sessionId));
+      try {
+        await apiFetch(`/sessions/${sessionId}/bookmark`, { method: "DELETE" }, token);
+      } catch {
+        setBookmarkedSessionIds(prev);
+      }
+      return;
+    }
+    setBookmarkedSessionIds((ids) => [...ids, sessionId]);
+    try {
+      await apiFetch(`/sessions/${sessionId}/bookmark`, { method: "PUT" }, token);
+    } catch {
+      setBookmarkedSessionIds(prev);
     }
   };
 
@@ -1031,8 +1058,10 @@ export default function Dashboard() {
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={sessionLikesOn ? likedSessionIds : []}
+                bookmarkedSessionIds={bookmarkedSessionIds}
                 onPatchAttendance={patchSessionAttendance}
                 onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
+                onToggleBookmark={toggleSessionBookmark}
                 likesEnabled={sessionLikesOn}
                 qaEnabled={featureOn("session_qa")}
                 roomPins={venueMapsOn ? roomPins : {}}
@@ -1054,8 +1083,10 @@ export default function Dashboard() {
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={sessionLikesOn ? likedSessionIds : []}
+                bookmarkedSessionIds={bookmarkedSessionIds}
                 onPatchAttendance={patchSessionAttendance}
                 onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
+                onToggleBookmark={toggleSessionBookmark}
                 likesEnabled={sessionLikesOn}
                 qaEnabled={featureOn("session_qa")}
                 roomPins={venueMapsOn ? roomPins : {}}
@@ -1140,12 +1171,30 @@ export default function Dashboard() {
             attendees={attendees}
             currentUserId={user.id}
             onMessage={startDirectMessage}
+            onRequestMeeting={(a) => setMeetingTarget({ id: a.id, name: a.name })}
+          />
+          {token ? (
+            <MeetingRequestsPanel
+              key={meetingsRefreshKey}
+              token={token}
+              withEventHeaders={withEventHeaders}
+              currentUserId={user.id}
+            />
+          ) : null}
+          <MeetingRequestModal
+            open={Boolean(meetingTarget)}
+            toUser={meetingTarget}
+            token={token!}
+            withEventHeaders={withEventHeaders}
+            onClose={() => setMeetingTarget(null)}
+            onSent={() => setMeetingsRefreshKey((k) => k + 1)}
           />
         </>
       )}
 
       {active === PARTICIPANTS_INVITES_TAB && isAdmin && (
         <div className="grid" style={{ gap: 16 }}>
+          <ModerationReportsPanel token={token!} withEventHeaders={withEventHeaders} />
           <div className="card" style={{ padding: 18 }}>
             <h3 style={{ marginTop: 0 }}>Add participants</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
@@ -1765,8 +1814,10 @@ function ScheduleBoard({
   isAdmin,
   myAttendance,
   likedSessionIds,
+  bookmarkedSessionIds = [],
   onPatchAttendance,
   onToggleLike,
+  onToggleBookmark,
   likesEnabled = true,
   qaEnabled = true,
   roomPins = {},
@@ -1781,11 +1832,13 @@ function ScheduleBoard({
   isAdmin: boolean;
   myAttendance: SessionAttendance[];
   likedSessionIds: string[];
+  bookmarkedSessionIds?: string[];
   onPatchAttendance: (
     sessionId: string,
     body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode },
   ) => void | Promise<void>;
   onToggleLike?: (sessionId: string) => void;
+  onToggleBookmark?: (sessionId: string) => void;
   likesEnabled?: boolean;
   qaEnabled?: boolean;
   roomPins?: Record<string, { mapId: string; pinId: string }>;
@@ -1856,6 +1909,7 @@ function ScheduleBoard({
                   const asyncJoining = joiningList.filter((a) => a.joinMode === "ASYNC").length;
                   const inPersonJoining = joinedCount - virtualJoining - asyncJoining;
                   const liked = likedSessionIds.includes(s.id);
+                  const starred = bookmarkedSessionIds.includes(s.id);
                   const likeCount = (s.likes || []).length;
                   const joining = myStatus === "JOINING";
                   const myMode = myRow?.joinMode ?? "IN_PERSON";
@@ -2028,6 +2082,21 @@ function ScheduleBoard({
                               }}
                             >
                               Like
+                            </button>
+                          ) : null}
+                          {onToggleBookmark ? (
+                            <button
+                              className={`button schedule-toolbar-btn ${starred ? "" : "secondary"}`}
+                              type="button"
+                              title={starred ? "Remove star (session starting soon alerts)" : "Star for reminders"}
+                              aria-label={starred ? "Unstar session" : "Star session"}
+                              aria-pressed={starred}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onToggleBookmark(s.id);
+                              }}
+                            >
+                              {starred ? "★" : "☆"}
                             </button>
                           ) : null}
                           {isAdmin && (
@@ -3282,10 +3351,12 @@ function AttendeeDirectory({
   attendees,
   currentUserId,
   onMessage,
+  onRequestMeeting,
 }: {
   attendees: User[];
   currentUserId: string;
   onMessage: (userId: string) => void;
+  onRequestMeeting?: (user: User) => void;
 }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
@@ -3293,7 +3364,7 @@ function AttendeeDirectory({
     const list = [...attendees].sort((a, b) => a.name.localeCompare(b.name));
     if (!q) return list;
     return list.filter((a) => {
-      const hay = `${a.name} ${a.email} ${a.researchInterests || ""}`.toLowerCase();
+      const hay = `${a.name} ${a.email} ${a.researchInterests || ""} ${a.title || ""} ${a.affiliation || ""}`.toLowerCase();
       return hay.includes(q);
     });
   }, [attendees, q]);
@@ -3317,6 +3388,11 @@ function AttendeeDirectory({
         <div className="attendee-body">
           <div className="attendee-name">{a.name}</div>
           <div className="attendee-meta">{a.email}</div>
+          {(a.title || a.affiliation) && (
+            <div className="attendee-meta">
+              {[a.title, a.affiliation].filter(Boolean).join(" · ")}
+            </div>
+          )}
           {a.participantType && (
             <div className="attendee-meta attendee-role-note">
               {participantTypeLabel(a.participantType)}
@@ -3327,9 +3403,16 @@ function AttendeeDirectory({
           )}
         </div>
         {a.id !== currentUserId ? (
-          <button className="button attendee-msg-btn" type="button" onClick={() => onMessage(a.id)}>
-            Message
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+            <button className="button attendee-msg-btn" type="button" onClick={() => onMessage(a.id)}>
+              Message
+            </button>
+            {onRequestMeeting ? (
+              <button className="button secondary attendee-msg-btn" type="button" onClick={() => onRequestMeeting(a)}>
+                Request meeting
+              </button>
+            ) : null}
+          </div>
         ) : (
           <span className="help-text">You</span>
         )}

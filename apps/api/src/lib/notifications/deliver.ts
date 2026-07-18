@@ -1,8 +1,10 @@
 import {
   NotificationClass,
   NotificationDelivery,
+  NotificationKind,
 } from "@prisma/client";
 import { prisma } from "../db";
+import { sendWebPushToUser } from "../push/webPush";
 import { tryChargePushBudget } from "./budget";
 import {
   classForKind,
@@ -13,6 +15,20 @@ import {
   type ResolvedPrefs,
 } from "./types";
 import { isInQuietHours, nextQuietHoursEnd } from "./timezone";
+
+async function maybePush(
+  userId: string,
+  delivery: NotificationDelivery,
+  title: string,
+  body?: string | null,
+  sessionId?: string | null,
+): Promise<void> {
+  if (delivery !== NotificationDelivery.PUSHED) return;
+  const url = sessionId
+    ? `/session/${sessionId}`
+    : "/dashboard?tab=Notifications";
+  await sendWebPushToUser(userId, { title, body, url }).catch(() => undefined);
+}
 
 async function resolvePrefs(userId: string, eventId: string, eventTimezone: string): Promise<ResolvedPrefs> {
   const [eventPref, globalPref] = await Promise.all([
@@ -46,6 +62,22 @@ export async function deliverNotification(
   input: DeliverInput,
   now = new Date(),
 ): Promise<DeliverResult> {
+  if (input.pushDedupKey) {
+    const existing = await prisma.userNotification.findFirst({
+      where: { pushDedupKey: input.pushDedupKey },
+    });
+    if (existing) {
+      return {
+        notificationId: existing.id,
+        class: existing.class,
+        delivery: existing.delivery,
+        budgetCharged: existing.budgetCharged,
+        degradedToDigest: existing.delivery === NotificationDelivery.DIGESTED,
+        suppressed: existing.delivery === NotificationDelivery.SUPPRESSED,
+      };
+    }
+  }
+
   const eventTimezone = await loadEventTimezone(input.eventId);
   const prefs = await resolvePrefs(input.userId, input.eventId, eventTimezone);
   const klass = classForKind(input.kind);
@@ -130,6 +162,7 @@ export async function deliverNotification(
         budgetCharged: false,
       },
     });
+    await maybePush(input.userId, NotificationDelivery.PUSHED, input.title, input.body, input.sessionId);
     return {
       notificationId: row.id,
       class: NotificationClass.INTERRUPT,
@@ -226,6 +259,7 @@ export async function deliverNotification(
       budgetCharged: true,
     },
   });
+  await maybePush(input.userId, NotificationDelivery.PUSHED, input.title, input.body, input.sessionId);
   return {
     notificationId: row.id,
     class: NotificationClass.INTERRUPT,
@@ -287,6 +321,9 @@ export async function flushQueuedPushes(now = new Date()): Promise<number> {
         ? { delivery: NotificationDelivery.PUSHED, budgetCharged: true, queuedUntil: null }
         : { delivery: NotificationDelivery.DIGESTED, budgetCharged: false, queuedUntil: null },
     });
+    if (charged) {
+      await maybePush(n.userId, NotificationDelivery.PUSHED, n.title, n.body, n.sessionId);
+    }
     flushed += 1;
   }
   return flushed;
