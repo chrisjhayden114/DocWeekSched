@@ -31,7 +31,8 @@ export type FeatureKey =
   | "concierge"
   | "venue_maps"
   | "waitlist_visibility"
-  | "daily_digest";
+  | "daily_digest"
+  | "cfp";
 
 export type FeatureOverrideValue = boolean | "daily" | "weekly" | "interrupts_only";
 
@@ -198,6 +199,13 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     defaultOn: true,
     defaultValue: "daily",
   },
+  {
+    key: "cfp",
+    name: "Call for papers",
+    plainDescription: "Public abstract submission and program-committee review for this event.",
+    category: "sessions",
+    defaultOn: false,
+  },
 ];
 
 export const FEATURE_BY_KEY: Record<FeatureKey, FeatureDefinition> = Object.fromEntries(
@@ -263,6 +271,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       waitlist_visibility: true,
       venue_maps: false,
       daily_digest: "interrupts_only",
+      cfp: false,
     },
   },
   {
@@ -288,6 +297,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       waitlist_visibility: true,
       venue_maps: true,
       daily_digest: true,
+      cfp: true,
     },
   },
 ];

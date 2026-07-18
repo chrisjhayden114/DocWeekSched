@@ -30,6 +30,8 @@ export type EventAccess = {
   isOrgStaff: boolean;
   isEventAdmin: boolean;
   canManageEvent: boolean;
+  /** EventMembership.REVIEWER — never grants canManageEvent. */
+  isEventReviewer: boolean;
 };
 
 /**
@@ -91,7 +93,9 @@ export async function requireEventAccess(
   const orgRole = orgMembership?.role ?? null;
   const eventRole = eventMembership?.role ?? null;
   const isOrgStaff = orgRole != null && orgRoleAtLeast(orgRole, OrgRole.STAFF);
+  /** REVIEWER must never receive manage rights (billing / rosters / settings). */
   const isEventAdmin = eventRole === EventMemberRole.ADMIN || isOrgStaff;
+  const isEventReviewer = eventRole === EventMemberRole.REVIEWER;
   const canManageEvent = isEventAdmin;
 
   if (opts.ownerOnly) {
@@ -115,7 +119,49 @@ export async function requireEventAccess(
     isOrgStaff,
     isEventAdmin,
     canManageEvent,
+    isEventReviewer,
   };
+}
+
+/**
+ * CFP organizer manage (create form, assign reviewers, decisions) —
+ * org STAFF+ or event ADMIN only. REVIEWER is never enough.
+ */
+export async function requireCfpManage(userId: string, eventId: string): Promise<EventAccess> {
+  return requireEventAccess(userId, eventId, { manage: true });
+}
+
+/**
+ * Reviewer access to a CFP form: event/org managers, or listed CfpReviewer.
+ * Does not grant canManageEvent for pure REVIEWER memberships.
+ */
+export async function requireCfpReviewer(
+  userId: string,
+  cfpFormId: string,
+): Promise<{
+  access: EventAccess;
+  form: { id: string; eventId: string; blindReview: boolean; rubric: unknown; title: string };
+  isManager: boolean;
+}> {
+  const form = await prisma.cfpForm.findUnique({
+    where: { id: cfpFormId },
+    select: { id: true, eventId: true, blindReview: true, rubric: true, title: true },
+  });
+  if (!form) throw new HttpError(404, { error: "CFP not found" });
+
+  const access = await requireEventAccess(userId, form.eventId, { requireMembership: false });
+  const isManager = access.canManageEvent;
+  if (isManager) {
+    return { access, form, isManager: true };
+  }
+
+  const listed = await prisma.cfpReviewer.findUnique({
+    where: { cfpFormId_userId: { cfpFormId, userId } },
+  });
+  if (!listed) {
+    throw new HttpError(403, { error: "Forbidden" });
+  }
+  return { access, form, isManager: false };
 }
 
 export function asyncHandler(
