@@ -510,6 +510,75 @@ eventRouter.post(
   }),
 );
 
+const featuresPutSchema = z.object({
+  overrides: z.record(z.union([z.boolean(), z.enum(["daily", "weekly", "interrupts_only"])])).optional(),
+  preset: z.enum(["everything", "focused", "academic"]).optional(),
+});
+
+eventRouter.get(
+  "/features",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+    const {
+      loadFeatureOverrides,
+      buildFeatureState,
+      FEATURE_PRESETS,
+    } = await import("../lib/features");
+    const overrides = await loadFeatureOverrides(event.id);
+    const features = buildFeatureState(overrides, event.organizationId);
+    return res.json({
+      eventId: event.id,
+      overrides,
+      features,
+      presets: FEATURE_PRESETS.map((p) => ({
+        id: p.id,
+        name: p.name,
+        plainDescription: p.plainDescription,
+      })),
+    });
+  }),
+);
+
+eventRouter.put(
+  "/features",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = featuresPutSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+
+    const {
+      loadFeatureOverrides,
+      applyPreset,
+      upsertFeatureOverrides,
+      buildFeatureState,
+      mergeOverrides,
+    } = await import("../lib/features");
+
+    let next = await loadFeatureOverrides(event.id);
+    if (parsed.data.preset) {
+      next = mergeOverrides(next, applyPreset(parsed.data.preset));
+    }
+    if (parsed.data.overrides) {
+      next = mergeOverrides(next, parsed.data.overrides as Record<string, boolean | "daily" | "weekly" | "interrupts_only">);
+    }
+
+    const { overrides, forcedOff } = await upsertFeatureOverrides(event.id, next);
+    const features = buildFeatureState(overrides, event.organizationId);
+    return res.json({
+      eventId: event.id,
+      overrides,
+      features,
+      forcedOff,
+      note: "Turning a feature off never deletes existing posts, messages, or Q&A — they stay hidden and return if you turn it back on.",
+    });
+  }),
+);
+
 async function ensureUniqueOrgSlug(base: string): Promise<string> {
   let candidate = base.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-") || "org";
   let n = 0;

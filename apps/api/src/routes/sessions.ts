@@ -7,6 +7,7 @@ import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { getStorageProvider } from "../lib/storage";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { requireFeature } from "../lib/features";
 
 export const sessionsRouter = Router();
 
@@ -554,6 +555,7 @@ sessionsRouter.put(
       throw new HttpError(404, { error: "Session not found" });
     }
     await requireEventAccess(req.user!.id, sessionRow.eventId);
+    await requireFeature(sessionRow.eventId, "session_likes");
 
     const userId = req.user!.id;
     const existing = await prisma.sessionLike.findUnique({
@@ -579,6 +581,7 @@ sessionsRouter.delete(
       throw new HttpError(404, { error: "Session not found" });
     }
     await requireEventAccess(req.user!.id, sessionRow.eventId);
+    await requireFeature(sessionRow.eventId, "session_likes");
 
     await prisma.sessionLike.deleteMany({
       where: {
@@ -599,6 +602,7 @@ sessionsRouter.get(
       throw new HttpError(404, { error: "Session not found" });
     }
     await requireEventAccess(req.user!.id, session.eventId);
+    await requireFeature(session.eventId, "session_qa");
 
     const threads = await prisma.sessionDiscussionThread.findMany({
       where: { sessionId: session.id },
@@ -631,6 +635,7 @@ sessionsRouter.post(
       throw new HttpError(404, { error: "Session not found" });
     }
     await requireEventAccess(req.user!.id, session.eventId);
+    await requireFeature(session.eventId, "session_qa");
 
     const userId = req.user!.id;
     const thread = await prisma.sessionDiscussionThread.create({

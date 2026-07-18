@@ -7,6 +7,7 @@ import { allAttendeeUserIds, notifyNewMessage } from "../lib/notifications";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { requireFeature } from "../lib/features";
 
 export const conversationsRouter = Router();
 
@@ -58,7 +59,16 @@ conversationsRouter.get(
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json(conversations);
+    const { featureEnabled } = await import("../lib/features");
+    const filtered = [];
+    for (const c of conversations) {
+      if (c.type === "EVENT" && !(await featureEnabled(event.id, "messaging_event_chat"))) continue;
+      if (c.type === "DIRECT" && !(await featureEnabled(event.id, "messaging_dms"))) continue;
+      if (c.type === "GROUP" && !(await featureEnabled(event.id, "messaging_groups"))) continue;
+      filtered.push(c);
+    }
+
+    return res.json(filtered);
   }),
 );
 
@@ -76,6 +86,7 @@ conversationsRouter.post(
     const otherUserId = parsed.data.userId;
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(userId, event.id);
+    await requireFeature(event.id, "messaging_dms");
     await assertEventMembers(event.id, [otherUserId]);
 
     const existing = await getDirectConversation(userId, otherUserId, event.id);
@@ -115,6 +126,7 @@ conversationsRouter.post(
     const userId = req.user!.id;
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(userId, event.id);
+    await requireFeature(event.id, "messaging_groups");
 
     const memberIds = Array.from(new Set([userId, ...parsed.data.memberIds]));
     await assertEventMembers(event.id, memberIds.filter((id) => id !== userId));
@@ -151,6 +163,14 @@ conversationsRouter.get(
 
     await requireEventAccess(userId, conversation.eventId);
 
+    if (conversation.type === "EVENT") {
+      await requireFeature(conversation.eventId, "messaging_event_chat");
+    } else if (conversation.type === "DIRECT") {
+      await requireFeature(conversation.eventId, "messaging_dms");
+    } else if (conversation.type === "GROUP") {
+      await requireFeature(conversation.eventId, "messaging_groups");
+    }
+
     if (conversation.type !== "EVENT" && !conversation.members.some((m) => m.userId === userId)) {
       throw new HttpError(403, { error: "Forbidden" });
     }
@@ -186,6 +206,14 @@ conversationsRouter.post(
     }
 
     const access = await requireEventAccess(userId, conversation.eventId);
+
+    if (conversation.type === "EVENT") {
+      await requireFeature(conversation.eventId, "messaging_event_chat");
+    } else if (conversation.type === "DIRECT") {
+      await requireFeature(conversation.eventId, "messaging_dms");
+    } else if (conversation.type === "GROUP") {
+      await requireFeature(conversation.eventId, "messaging_groups");
+    }
 
     if (conversation.type !== "EVENT" && !conversation.members.some((m) => m.userId === userId)) {
       throw new HttpError(403, { error: "Forbidden" });

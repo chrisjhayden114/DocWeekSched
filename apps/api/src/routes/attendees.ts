@@ -11,6 +11,7 @@ import { notifyMany } from "../lib/notifications";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { randomBytes } from "crypto";
+import { requireFeature } from "../lib/features";
 
 export const attendeesRouter = Router();
 

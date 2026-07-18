@@ -7,6 +7,7 @@ import { notifyNewCommunityThread, notifyCommunityReply } from "../lib/notificat
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { featureKeyForNetworkChannel, requireFeature, featureEnabled } from "../lib/features";
 
 export const networkRouter = Router();
 
@@ -45,13 +46,28 @@ networkRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
+    await requireFeature(event.id, "community");
 
     const rawChannel = typeof req.query.channel === "string" ? req.query.channel : undefined;
     const allowed: NetworkChannel[] = ["GENERAL", "MEETUP", "MOMENTS", "LOCAL", "ICEBREAKER"];
     const channel =
       rawChannel && (allowed as string[]).includes(rawChannel) ? (rawChannel as NetworkChannel) : undefined;
+
+    if (channel) {
+      const channelKey = featureKeyForNetworkChannel(channel);
+      if (channelKey) await requireFeature(event.id, channelKey);
+    }
+
+    const enabledChannels: NetworkChannel[] = [];
+    for (const ch of allowed) {
+      const key = featureKeyForNetworkChannel(ch);
+      if (key && (await featureEnabled(event.id, key))) enabledChannels.push(ch);
+    }
+
     const threads = await prisma.networkThread.findMany({
-      where: channel ? { eventId: event.id, channel } : { eventId: event.id },
+      where: channel
+        ? { eventId: event.id, channel }
+        : { eventId: event.id, channel: { in: enabledChannels } },
       orderBy: { createdAt: "desc" },
       include: {
         author: { select: { id: true, name: true, role: true, photoUrl: true } },
@@ -77,9 +93,12 @@ networkRouter.post(
 
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
+    await requireFeature(event.id, "community");
 
     const userId = req.user!.id;
     const channel = parsed.data.channel ?? NetworkChannel.GENERAL;
+    const channelKey = featureKeyForNetworkChannel(channel);
+    if (channelKey) await requireFeature(event.id, channelKey);
 
     let meetupInviteEveryone = false;
     let meetupParticipantIds: string[] = [];
