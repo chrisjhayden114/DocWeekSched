@@ -24,6 +24,9 @@ const sessionSchema = z.object({
   fileUrl: optionalLink,
   fileLink: optionalLink,
   allowVirtualJoin: z.boolean().optional(),
+  /** null = unlimited */
+  inPersonCapacity: z.number().int().positive().nullable().optional(),
+  virtualCapacity: z.number().int().positive().nullable().optional(),
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
   speakerId: z.string().optional(),
@@ -120,13 +123,26 @@ const sessionInclude = {
       user: { select: { id: true, name: true, email: true, photoUrl: true } },
     },
   },
+  waitlistEntries: {
+    orderBy: [{ mode: "asc" as const }, { position: "asc" as const }],
+    select: {
+      id: true,
+      userId: true,
+      mode: true,
+      position: true,
+      createdAt: true,
+      promotedAt: true,
+      holdExpiresAt: true,
+      user: { select: { id: true, name: true, email: true, photoUrl: true } },
+    },
+  },
   likes: {
     select: {
       userId: true,
       user: { select: { id: true, name: true, email: true, photoUrl: true } },
     },
   },
-} as const;
+} satisfies Prisma.SessionInclude;
 
 async function syncSessionSpeakers(sessionId: string, eventId: string, speakerIds: string[]) {
   const unique = [...new Set(speakerIds)];
@@ -372,6 +388,8 @@ sessionsRouter.post(
         trackId: parsed.data.trackId ?? null,
         roomId: parsed.data.roomId ?? null,
         allowVirtualJoin: parsed.data.allowVirtualJoin ?? true,
+        inPersonCapacity: parsed.data.inPersonCapacity === undefined ? null : parsed.data.inPersonCapacity,
+        virtualCapacity: parsed.data.virtualCapacity === undefined ? null : parsed.data.virtualCapacity,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: new Date(parsed.data.endsAt),
         eventId: event.id,
@@ -422,6 +440,12 @@ sessionsRouter.put(
     };
     if (parsed.data.allowVirtualJoin !== undefined) {
       sessionUpdate.allowVirtualJoin = parsed.data.allowVirtualJoin;
+    }
+    if (parsed.data.inPersonCapacity !== undefined) {
+      sessionUpdate.inPersonCapacity = parsed.data.inPersonCapacity;
+    }
+    if (parsed.data.virtualCapacity !== undefined) {
+      sessionUpdate.virtualCapacity = parsed.data.virtualCapacity;
     }
     if (parsed.data.trackId !== undefined) {
       sessionUpdate.trackId = parsed.data.trackId;
@@ -510,38 +534,146 @@ sessionsRouter.put(
       where: { userId_sessionId: { userId, sessionId: req.params.id } },
     });
 
-    const nextJoinMode =
-      parsed.data.status === "NOT_JOINING"
-        ? null
-        : parsed.data.joinMode ?? prior?.joinMode ?? "IN_PERSON";
+    const {
+      joinSessionOrWaitlist,
+      leaveSessionAttendance,
+    } = await import("../lib/waitlist/capacity");
 
+    if (parsed.data.status === "NOT_JOINING") {
+      await leaveSessionAttendance({ sessionId: req.params.id, userId });
+      return res.json({ ok: true, status: "NOT_JOINING" });
+    }
+
+    const nextJoinMode = parsed.data.joinMode ?? prior?.joinMode ?? "IN_PERSON";
     if (nextJoinMode === "VIRTUAL" && sessionRow.allowVirtualJoin === false) {
       return res.status(400).json({ error: "Virtual joining is not available for this session" });
     }
 
-    await prisma.sessionAttendance.upsert({
-      where: {
-        userId_sessionId: {
-          userId,
-          sessionId: req.params.id,
-        },
-      },
-      update: { status: parsed.data.status, joinMode: nextJoinMode },
-      create: {
-        userId,
-        sessionId: req.params.id,
-        status: parsed.data.status,
-        joinMode: parsed.data.status === "NOT_JOINING" ? null : parsed.data.joinMode ?? "IN_PERSON",
-      },
+    // Mode change while already joining: leave old bucket then join new (frees seat → may promote)
+    if (
+      prior?.status === "JOINING" &&
+      prior.joinMode &&
+      prior.joinMode !== nextJoinMode
+    ) {
+      await leaveSessionAttendance({ sessionId: req.params.id, userId });
+    }
+
+    const result = await joinSessionOrWaitlist({
+      sessionId: req.params.id,
+      userId,
+      mode: nextJoinMode,
     });
 
     const wasJoining = prior?.status === "JOINING";
-    const nowJoining = parsed.data.status === "JOINING";
-    if (nowJoining && !wasJoining) {
+    if (result.kind === "joined" && !wasJoining) {
       await awardEngagementPoints(userId, POINTS.SESSION_JOIN);
     }
 
+    if (result.kind === "waitlisted") {
+      return res.status(409).json({
+        ok: false,
+        code: "SESSION_FULL",
+        waitlisted: true,
+        position: result.position,
+        capacity: result.capacity,
+        current: result.current,
+        error: result.message,
+        message: result.message,
+      });
+    }
+
+    return res.json({ ok: true, status: "JOINING", joinMode: nextJoinMode });
+  }),
+);
+
+sessionsRouter.get(
+  "/:id/waitlist",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const sessionRow = await findSessionWithEvent(req.params.id);
+    if (!sessionRow) throw new HttpError(404, { error: "Session not found" });
+    const access = await requireEventAccess(req.user!.id, sessionRow.eventId);
+    const { listWaitlist } = await import("../lib/waitlist/capacity");
+    const { featureEnabled } = await import("../lib/features");
+    const entries = await listWaitlist(req.params.id);
+    const showPositions = await featureEnabled(sessionRow.eventId, "waitlist_visibility");
+
+    if (!access.canManageEvent && !showPositions) {
+      const mine = entries.find((e) => e.userId === req.user!.id);
+      return res.json({
+        entries: mine
+          ? [{ id: mine.id, mode: mine.mode, position: mine.position, promotedAt: mine.promotedAt, holdExpiresAt: mine.holdExpiresAt, isYou: true }]
+          : [],
+        showPositions: false,
+      });
+    }
+
+    if (!access.canManageEvent) {
+      return res.json({
+        entries: entries.map((e) => ({
+          id: e.id,
+          mode: e.mode,
+          position: e.position,
+          promotedAt: e.promotedAt,
+          holdExpiresAt: e.holdExpiresAt,
+          isYou: e.userId === req.user!.id,
+          user: e.userId === req.user!.id ? e.user : { id: e.userId, name: e.user.name },
+        })),
+        showPositions: true,
+      });
+    }
+
+    return res.json({ entries, showPositions: true });
+  }),
+);
+
+sessionsRouter.post(
+  "/:id/waitlist/:entryId/promote",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const sessionRow = await findSessionWithEvent(req.params.id);
+    if (!sessionRow) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, sessionRow.eventId, { manage: true });
+    const { manualPromoteEntry } = await import("../lib/waitlist/capacity");
+    await manualPromoteEntry(req.params.entryId);
     return res.json({ ok: true });
+  }),
+);
+
+sessionsRouter.delete(
+  "/:id/waitlist/:entryId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const sessionRow = await findSessionWithEvent(req.params.id);
+    if (!sessionRow) throw new HttpError(404, { error: "Session not found" });
+    const access = await requireEventAccess(req.user!.id, sessionRow.eventId);
+    const entry = await prisma.waitlistEntry.findUnique({ where: { id: req.params.entryId } });
+    if (!entry || entry.sessionId !== req.params.id) {
+      throw new HttpError(404, { error: "Waitlist entry not found" });
+    }
+    if (!access.canManageEvent && entry.userId !== req.user!.id) {
+      throw new HttpError(403, { error: "Forbidden" });
+    }
+    const { removeWaitlistEntry } = await import("../lib/waitlist/capacity");
+    await removeWaitlistEntry(req.params.entryId);
+    return res.json({ ok: true });
+  }),
+);
+
+sessionsRouter.post(
+  "/waitlist/expire-holds",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    // Organizers can trigger expiry sweep; also useful for tests.
+    if (req.user!.role !== "ADMIN") {
+      throw new HttpError(403, { error: "Forbidden" });
+    }
+    const { expireAllHolds } = await import("../lib/waitlist/capacity");
+    const promoted = await expireAllHolds();
+    return res.json({ ok: true, promoted });
   }),
 );
 
