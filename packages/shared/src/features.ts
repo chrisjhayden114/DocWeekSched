@@ -188,9 +188,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     key: "waitlist_visibility",
     name: "Waitlist visibility",
     plainDescription: "Show waitlist position when a session is full.",
-    category: "planned",
-    defaultOn: false,
-    plannedPhase: "P1",
+    category: "sessions",
+    defaultOn: true,
   },
   {
     key: "daily_digest",
@@ -237,6 +236,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       public_leaderboard: false,
       timezone_toggle: true,
       attendee_directory: true,
+      waitlist_visibility: true,
     },
   },
   {
@@ -260,6 +260,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       timezone_toggle: true,
       attendee_directory: false,
       matchmaker: false,
+      waitlist_visibility: true,
     },
   },
   {
@@ -282,6 +283,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       public_leaderboard: false,
       timezone_toggle: true,
       attendee_directory: true,
+      waitlist_visibility: true,
     },
   },
 ];

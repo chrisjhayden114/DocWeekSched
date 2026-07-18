@@ -91,3 +91,27 @@ export async function sendEmailVerificationEmail(opts: {
 <p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.verifyUrl)}</p>`,
   });
 }
+
+export async function sendWaitlistPromotedEmail(opts: {
+  to: string;
+  name: string;
+  sessionTitle: string;
+  modeLabel: string;
+  holdHours: number;
+  holdExpiresAt: Date;
+  agendaUrl: string;
+}): Promise<SendEmailResult> {
+  const from = buildFromLine(null);
+  return getEmailProvider().send({
+    to: opts.to,
+    from,
+    subject: `Seat available: ${opts.sessionTitle}`,
+    logLabel: "waitlist-promoted",
+    copyUrl: opts.agendaUrl,
+    html: `<p>Hi ${escapeHtml(opts.name)},</p>
+<p>A <strong>${escapeHtml(opts.modeLabel)}</strong> seat opened for <strong>${escapeHtml(opts.sessionTitle)}</strong>.</p>
+<p>You have <strong>${opts.holdHours} hours</strong> to confirm on your agenda (hold until ${escapeHtml(opts.holdExpiresAt.toUTCString())}).</p>
+<p><a href="${opts.agendaUrl.replace(/"/g, "&quot;")}">Open agenda</a></p>
+<p>If you do not confirm in time, the seat will pass to the next person on the waitlist.</p>`,
+  });
+}
