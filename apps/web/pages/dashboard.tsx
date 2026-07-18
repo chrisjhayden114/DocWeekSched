@@ -41,6 +41,7 @@ type Event = {
   timezone: string;
   startDate: string;
   endDate: string;
+  showPoweredByBadge?: boolean;
 };
 
 type AgendaJoinMode = "VIRTUAL" | "IN_PERSON" | "ASYNC";
@@ -1511,6 +1512,12 @@ export default function Dashboard() {
           }
         }}
       />
+
+      {event?.showPoweredByBadge ? (
+        <p className="text-meta" style={{ textAlign: "center", marginTop: 28, opacity: 0.75 }}>
+          Powered by EventPilot
+        </p>
+      ) : null}
 
     </div>
   );

@@ -70,6 +70,10 @@ export default function OrganizerDashboard() {
             <p className="help-text" style={{ margin: 0 }}>
               <Link href="/dashboard">Attendee app</Link>
               {" · "}
+              <Link href="/organizer/billing">Billing</Link>
+              {" · "}
+              <Link href="/pricing">Pricing</Link>
+              {" · "}
               Organizer
             </p>
             <h1 style={{ margin: "4px 0 0" }}>Your events</h1>
