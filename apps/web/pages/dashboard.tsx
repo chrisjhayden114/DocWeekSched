@@ -17,7 +17,10 @@ import { MeetingRequestModal, MeetingRequestsPanel } from "../components/Meeting
 import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
 import { apiFetch, clearAuthClientState } from "../lib/api";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
+import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
+import { AutolinkText } from "../components/AutolinkText";
+import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -201,11 +204,26 @@ type NetworkThread = {
 
 type UserNotificationRow = {
   id: string;
-  kind: "COMMUNITY_THREAD" | "COMMUNITY_REPLY" | "MESSAGE" | "ADMIN_REQUEST" | "WAITLIST_PROMOTED";
+  kind:
+    | "COMMUNITY_THREAD"
+    | "COMMUNITY_REPLY"
+    | "MESSAGE"
+    | "ADMIN_REQUEST"
+    | "WAITLIST_PROMOTED"
+    | "ANNOUNCEMENT"
+    | "MEETING_REQUEST"
+    | "MEETING_ACCEPTED"
+    | "SESSION_CHANGED"
+    | "SESSION_STARTING_SOON"
+    | "DIGEST_ROLLUP"
+    | "USER_REPORT";
   title: string;
   body: string | null;
   threadId: string | null;
   conversationId: string | null;
+  sessionId?: string | null;
+  meetingRequestId?: string | null;
+  announcementId?: string | null;
   readAt: string | null;
   createdAt: string;
 };
@@ -264,10 +282,12 @@ export default function Dashboard() {
   const [event, setEvent] = useState<Event | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attendees, setAttendees] = useState<User[]>([]);
+  const [attendeesLoading, setAttendeesLoading] = useState(false);
   const [networkThreads, setNetworkThreads] = useState<NetworkThread[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [newChatMode, setNewChatMode] = useState<null | "direct" | "group">(null);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
   const [agendaTimeMode, setAgendaTimeMode] = useState<"MY" | "EVENT">("MY");
@@ -399,7 +419,12 @@ export default function Dashboard() {
         }
       }
       if (active === "Attendees" || active === PARTICIPANTS_INVITES_TAB) {
-        setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+        setAttendeesLoading(true);
+        try {
+          setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+        } finally {
+          setAttendeesLoading(false);
+        }
       }
       if (active === COMMUNITY_TAB) {
         const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
@@ -509,6 +534,26 @@ export default function Dashboard() {
     () => notifications.filter((row) => !row.readAt).length,
     [notifications],
   );
+  const unreadConversationIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const n of notifications) {
+      if (n.kind === "MESSAGE" && !n.readAt && n.conversationId) ids.add(n.conversationId);
+    }
+    return ids;
+  }, [notifications]);
+  const notificationsByDay = useMemo(() => {
+    const groups: { heading: string; items: UserNotificationRow[] }[] = [];
+    let current = "";
+    for (const n of notifications) {
+      const heading = formatDayHeading(n.createdAt);
+      if (heading !== current) {
+        current = heading;
+        groups.push({ heading, items: [] });
+      }
+      groups[groups.length - 1]!.items.push(n);
+    }
+    return groups;
+  }, [notifications]);
   const rosterAdminCount = useMemo(() => attendees.filter((a) => a.role === "ADMIN").length, [attendees]);
   const timezoneToggleOn = featureOn("timezone_toggle");
   const sessionLikesOn = featureOn("session_likes");
@@ -640,17 +685,6 @@ export default function Dashboard() {
     () => messagingConversationsOrdered.filter((c) => c.type !== "EVENT"),
     [messagingConversationsOrdered],
   );
-
-  const filteredMessageAttendees = useMemo(() => {
-    const uid = user?.id;
-    if (!uid) return [];
-    return attendees.filter((a) => {
-      if (a.id === uid) return false;
-      if (!messageSearchLower) return true;
-      const hay = `${a.name} ${a.email || ""} ${a.researchInterests || ""}`.toLowerCase();
-      return hay.includes(messageSearchLower);
-    });
-  }, [attendees, messageSearchLower, user?.id]);
 
   const filteredDirectAndGroup = useMemo(() => {
     if (!user) return [];
@@ -1170,6 +1204,7 @@ export default function Dashboard() {
           <AttendeeDirectory
             attendees={attendees}
             currentUserId={user.id}
+            loading={attendeesLoading}
             onMessage={startDirectMessage}
             onRequestMeeting={(a) => setMeetingTarget({ id: a.id, name: a.name })}
           />
@@ -1402,56 +1437,77 @@ export default function Dashboard() {
               You&apos;re all caught up.
             </p>
           ) : (
-            <ul className="notification-list" style={{ listStyle: "none", padding: 0, margin: "16px 0 0" }}>
-              {notifications.map((n) => (
-                <li key={n.id} style={{ borderBottom: "1px solid var(--border)", padding: "12px 0" }}>
-                  <button
-                    type="button"
-                    className={`notification-row${n.readAt ? "" : " is-unread"}`}
-                    onClick={async () => {
-                      if (!n.readAt) {
-                        await apiFetch(`/notifications/${n.id}/read`, withEventHeaders({ method: "PATCH" }), token!);
-                        setNotifications((prev) =>
-                          prev.map((row) => (row.id === n.id ? { ...row, readAt: new Date().toISOString() } : row)),
-                        );
-                      }
-                      if (n.kind === "ADMIN_REQUEST") {
-                        setActive(PARTICIPANTS_INVITES_TAB);
-                      } else if (n.threadId) {
-                        setCommunityChannel("ALL");
-                        setCommunityFocusThreadId(n.threadId);
-                        setActive(COMMUNITY_TAB);
-                      } else if (n.conversationId) {
-                        setActive("Messages");
-                        setActiveConversationId(n.conversationId);
-                        apiFetch<Conversation[]>("/conversations", withEventHeaders(), token!)
-                          .then(setConversations)
-                          .catch(() => null);
-                      }
-                    }}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      cursor: "pointer",
-                      font: "inherit",
-                    }}
-                  >
-                    <strong style={{ display: "block" }}>{n.title}</strong>
-                    {n.body ? (
-                      <span className="help-text" style={{ display: "block", marginTop: 4 }}>
-                        {n.body}
-                      </span>
-                    ) : null}
-                    <span className="help-text" style={{ display: "block", marginTop: 6, fontSize: 12 }}>
-                      {new Date(n.createdAt).toLocaleString()}
-                    </span>
-                  </button>
-                </li>
+            <div style={{ marginTop: 16 }}>
+              {notificationsByDay.map((group) => (
+                <div key={group.heading} style={{ marginBottom: 18 }}>
+                  <h4 className="help-text" style={{ margin: "0 0 8px", fontWeight: 700, letterSpacing: "0.02em" }}>
+                    {group.heading}
+                  </h4>
+                  <ul className="notification-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                    {group.items.map((n) => (
+                      <li key={n.id} style={{ borderBottom: "1px solid var(--border)", padding: "12px 0" }}>
+                        <button
+                          type="button"
+                          className={`notification-row${n.readAt ? "" : " is-unread"}`}
+                          onClick={async () => {
+                            if (!n.readAt) {
+                              await apiFetch(`/notifications/${n.id}/read`, withEventHeaders({ method: "PATCH" }), token!);
+                              setNotifications((prev) =>
+                                prev.map((row) => (row.id === n.id ? { ...row, readAt: new Date().toISOString() } : row)),
+                              );
+                            }
+                            if (n.kind === "ADMIN_REQUEST" || n.kind === "USER_REPORT") {
+                              setActive(PARTICIPANTS_INVITES_TAB);
+                            } else if (n.kind === "MEETING_REQUEST" || n.kind === "MEETING_ACCEPTED" || n.meetingRequestId) {
+                              setActive("Attendees");
+                            } else if (n.sessionId) {
+                              router.push(`/session/${n.sessionId}`);
+                            } else if (n.threadId) {
+                              setCommunityChannel("ALL");
+                              setCommunityFocusThreadId(n.threadId);
+                              setActive(COMMUNITY_TAB);
+                            } else if (n.conversationId) {
+                              setActive("Messages");
+                              setActiveConversationId(n.conversationId);
+                              apiFetch<Conversation[]>("/conversations", withEventHeaders(), token!)
+                                .then(setConversations)
+                                .catch(() => null);
+                            }
+                          }}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                            font: "inherit",
+                            display: "flex",
+                            gap: 10,
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <span className="notification-kind-icon" aria-hidden>
+                            {notificationKindIcon(n.kind)}
+                          </span>
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <strong style={{ display: "block" }}>{n.title}</strong>
+                            {n.body ? (
+                              <span className="help-text" style={{ display: "block", marginTop: 4 }}>
+                                {n.body}
+                              </span>
+                            ) : null}
+                            <span className="help-text" style={{ display: "block", marginTop: 6, fontSize: 12 }}>
+                              {formatEventDateTime(n.createdAt)}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       )}
@@ -1459,43 +1515,76 @@ export default function Dashboard() {
       {active === "Messages" && (
         <div className="grid two messages-layout">
           <div className="card message-sidebar-card">
-            <h3 style={{ marginTop: 0 }}>Messages</h3>
-            <p className="help-text" style={{ marginTop: 0 }}>
-              <strong>Direct:</strong> pick someone below and click <strong>Start chat</strong>, then select their name under &quot;Your chats&quot;.{" "}
-              <strong>Everyone — event chat</strong> reaches all attendees; admins can broadcast there. Session Q&amp;A stays on each session page.
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h3 style={{ margin: 0 }}>Messages</h3>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setNewChatMode((prev) => (prev ? null : "direct"))}
+              >
+                {newChatMode ? "Close" : "+ New"}
+              </button>
+            </div>
+            <p className="help-text" style={{ marginTop: 8 }}>
+              Your chats are listed below. Use <strong>+ New</strong> for a direct or group conversation.{" "}
+              <strong>Everyone — event chat</strong> reaches all attendees; session Q&amp;A stays on each session page.
             </p>
-            <DirectChatForm
-              attendees={filteredMessageAttendees}
-              currentUserId={user.id}
-              token={token!}
-              withEventHeaders={withEventHeaders}
-              onCreated={(c) => {
-                setConversations([c, ...conversations]);
-                setActiveConversationId(c.id);
-              }}
-            />
-            <GroupChatForm
-              attendees={filteredMessageAttendees}
-              currentUserId={user.id}
-              token={token!}
-              withEventHeaders={withEventHeaders}
-              onCreated={(c) => {
-                setConversations([c, ...conversations]);
-                setActiveConversationId(c.id);
-              }}
-            />
-            <hr style={{ margin: "18px 0", border: 0, borderTop: "1px solid var(--border)" }} />
+            {newChatMode ? (
+              <div className="new-chat-panel" style={{ marginBottom: 14, padding: 12, border: "1px solid var(--border)", borderRadius: 10 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <button
+                    type="button"
+                    className={newChatMode === "direct" ? "button" : "button secondary"}
+                    onClick={() => setNewChatMode("direct")}
+                  >
+                    Direct
+                  </button>
+                  <button
+                    type="button"
+                    className={newChatMode === "group" ? "button" : "button secondary"}
+                    onClick={() => setNewChatMode("group")}
+                  >
+                    Group
+                  </button>
+                </div>
+                {newChatMode === "direct" ? (
+                  <DirectChatForm
+                    attendees={attendees}
+                    currentUserId={user.id}
+                    token={token!}
+                    withEventHeaders={withEventHeaders}
+                    onCreated={(c) => {
+                      setConversations([c, ...conversations]);
+                      setActiveConversationId(c.id);
+                      setNewChatMode(null);
+                    }}
+                  />
+                ) : (
+                  <GroupChatForm
+                    attendees={attendees}
+                    currentUserId={user.id}
+                    token={token!}
+                    withEventHeaders={withEventHeaders}
+                    onCreated={(c) => {
+                      setConversations([c, ...conversations]);
+                      setActiveConversationId(c.id);
+                      setNewChatMode(null);
+                    }}
+                  />
+                )}
+              </div>
+            ) : null}
             <label className="help-text" htmlFor="message-directory-search" style={{ display: "block", marginBottom: 6 }}>
-              Filter people and chat names
+              Filter chats
             </label>
             <input
               id="message-directory-search"
               className="input"
               type="search"
-              placeholder="Type a name, email, or topic…"
+              placeholder="Type a name or chat topic…"
               value={messageDirectoryQuery}
               onChange={(e) => setMessageDirectoryQuery(e.target.value)}
-              aria-label="Search people and conversations"
+              aria-label="Search conversations"
             />
             <h4 style={{ margin: "16px 0 8px" }}>Your chats</h4>
             <div className="grid" style={{ gap: 8 }}>
@@ -1504,8 +1593,14 @@ export default function Dashboard() {
                   type="button"
                   className={activeConversationId === eventWideConversation.id ? "button" : "button secondary"}
                   onClick={() => setActiveConversationId(eventWideConversation.id)}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
                 >
-                  {formatConversationName(eventWideConversation, user)}
+                  <span>{formatConversationName(eventWideConversation, user)}</span>
+                  {unreadConversationIds.has(eventWideConversation.id) ? (
+                    <span className="help-text" style={{ fontWeight: 700, fontSize: 12 }}>
+                      New
+                    </span>
+                  ) : null}
                 </button>
               ) : null}
               {filteredDirectAndGroup.map((c) => (
@@ -1514,8 +1609,14 @@ export default function Dashboard() {
                   className={activeConversationId === c.id ? "button" : "button secondary"}
                   onClick={() => setActiveConversationId(c.id)}
                   type="button"
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
                 >
-                  {formatConversationName(c, user)}
+                  <span>{formatConversationName(c, user)}</span>
+                  {unreadConversationIds.has(c.id) ? (
+                    <span className="help-text" style={{ fontWeight: 700, fontSize: 12 }}>
+                      New
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -1537,7 +1638,7 @@ export default function Dashboard() {
                     ? "Only people in this group see these messages."
                     : activeConversation
                       ? "Only you and this person are in this thread."
-                      : "Select a chat on the left, or start one by choosing a participant."}
+                      : "Select a chat from the list, or start one with + New."}
               </p>
             </div>
             <div
@@ -1634,9 +1735,11 @@ export default function Dashboard() {
                         </div>
                       </form>
                     ) : (
-                      <p style={{ margin: "4px 0" }}>{m.body}</p>
+                      <p style={{ margin: "4px 0" }}>
+                        <AutolinkText text={m.body} />
+                      </p>
                     )}
-                    <small style={{ color: "var(--ink-500)" }}>{new Date(m.createdAt).toLocaleString()}</small>
+                    <small style={{ color: "var(--ink-500)" }}>{formatEventDateTime(m.createdAt)}</small>
                   </div>
                 ))
               )}
@@ -1979,16 +2082,42 @@ function ScheduleBoard({
                       </div>
                       <div className="schedule-event-footer">
                         <div className="schedule-meta-line">
-                          {formatTimeRange(s.startsAt, s.endsAt, displayTimezone)}
-                          {" · "}
-                          {inPersonJoining}
-                          {s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person ·{" "}
-                          {virtualJoining}
-                          {s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual · {asyncJoining}{" "}
-                          async · {likeCount} likes
-                          {(s.waitlistEntries?.length || 0) > 0
-                            ? ` · ${s.waitlistEntries!.length} waitlisted`
-                            : ""}
+                          <span className="schedule-meta-time">
+                            {formatEventTimeRange(s.startsAt, s.endsAt, displayTimezone)}
+                          </span>
+                          {joining ? (
+                            <span className="schedule-meta-my-mode"> · MY: {joinModeShort}</span>
+                          ) : null}
+                        </div>
+                        <div
+                          className="schedule-meta-detail"
+                          title={`${inPersonJoining}${s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person · ${virtualJoining}${s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual · ${asyncJoining} async${likeCount ? ` · ${likeCount} likes` : ""}${(s.waitlistEntries?.length || 0) > 0 ? ` · ${s.waitlistEntries!.length} waitlisted` : ""}`}
+                        >
+                          {isAdmin || likeCount > 0 || (s.waitlistEntries?.length || 0) > 0 ? (
+                            <span className="schedule-meta-detail-text text-meta">
+                              {isAdmin ? (
+                                <>
+                                  {inPersonJoining}
+                                  {s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person ·{" "}
+                                  {virtualJoining}
+                                  {s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual · {asyncJoining}{" "}
+                                  async
+                                  {likeCount > 0 ? ` · ${likeCount} likes` : ""}
+                                  {(s.waitlistEntries?.length || 0) > 0
+                                    ? ` · ${s.waitlistEntries!.length} waitlisted`
+                                    : ""}
+                                </>
+                              ) : (
+                                <>
+                                  {likeCount > 0 ? `${likeCount} likes` : null}
+                                  {likeCount > 0 && (s.waitlistEntries?.length || 0) > 0 ? " · " : null}
+                                  {(s.waitlistEntries?.length || 0) > 0
+                                    ? `${s.waitlistEntries!.length} waitlisted`
+                                    : null}
+                                </>
+                              )}
+                            </span>
+                          ) : null}
                         </div>
                         <div className="schedule-actions schedule-actions-toolbar schedule-actions-with-attendance">
                           <div onClick={(event) => event.stopPropagation()} role="group" aria-label="My agenda">
@@ -3347,34 +3476,97 @@ function AttendeeAvatar({ photoUrl, name }: { photoUrl?: string | null; name: st
   );
 }
 
+function lastNameOf(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1]! : name;
+}
+
+function splitInterestTokens(raw: string) {
+  return raw
+    .split(/[,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function notificationKindIcon(kind: UserNotificationRow["kind"] | string) {
+  switch (kind) {
+    case "MESSAGE":
+      return "✉";
+    case "COMMUNITY_THREAD":
+    case "COMMUNITY_REPLY":
+      return "💬";
+    case "ANNOUNCEMENT":
+      return "📣";
+    case "MEETING_REQUEST":
+    case "MEETING_ACCEPTED":
+      return "🤝";
+    case "SESSION_CHANGED":
+    case "SESSION_STARTING_SOON":
+      return "📅";
+    case "ADMIN_REQUEST":
+      return "🔑";
+    case "WAITLIST_PROMOTED":
+      return "🎫";
+    case "USER_REPORT":
+      return "🚩";
+    default:
+      return "•";
+  }
+}
+
 function AttendeeDirectory({
   attendees,
   currentUserId,
   onMessage,
   onRequestMeeting,
+  loading = false,
 }: {
   attendees: User[];
   currentUserId: string;
   onMessage: (userId: string) => void;
   onRequestMeeting?: (user: User) => void;
+  loading?: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [interestFilter, setInterestFilter] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const q = query.trim().toLowerCase();
+  const interestLower = interestFilter?.trim().toLowerCase() || "";
+
   const filtered = useMemo(() => {
-    const list = [...attendees].sort((a, b) => a.name.localeCompare(b.name));
-    if (!q) return list;
+    const list = [...attendees].sort((a, b) => {
+      const lastCmp = lastNameOf(a.name).localeCompare(lastNameOf(b.name), undefined, { sensitivity: "base" });
+      if (lastCmp !== 0) return lastCmp;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
     return list.filter((a) => {
-      const hay = `${a.name} ${a.email} ${a.researchInterests || ""} ${a.title || ""} ${a.affiliation || ""}`.toLowerCase();
+      if (interestLower) {
+        const interests = splitInterestTokens(a.researchInterests || "").map((t) => t.toLowerCase());
+        if (!interests.some((t) => t === interestLower)) return false;
+      }
+      if (!q) return true;
+      const hay = `${a.name} ${a.email} ${a.researchInterests || ""} ${a.title || ""} ${a.affiliation || ""} ${a.bio || ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [attendees, q]);
+  }, [attendees, q, interestLower]);
 
   let lastLetter = "";
   const rows = filtered.map((a) => {
-    const initial = (a.name.trim()[0] || "#").toUpperCase();
-    const letter = /[A-Z]/.test(initial) ? initial : "#";
+    const lastInitial = (lastNameOf(a.name).trim()[0] || "#").toUpperCase();
+    const letter = /[A-Z]/.test(lastInitial) ? lastInitial : "#";
     const isNewLetter = letter !== lastLetter;
     if (isNewLetter) lastLetter = letter;
+    const expanded = Boolean(expandedIds[a.id]);
+    const interests = splitInterestTokens(a.researchInterests || "");
+    const clampStyle = expanded
+      ? undefined
+      : ({
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        } as CSSProperties);
+    const hasClampable = Boolean(a.bio?.trim()) || interests.length > 0;
     return (
       <div
         className="attendee-row"
@@ -3398,9 +3590,53 @@ function AttendeeDirectory({
               {participantTypeLabel(a.participantType)}
             </div>
           )}
-          {a.researchInterests && (
-            <div className="attendee-meta attendee-research">{a.researchInterests}</div>
-          )}
+          {a.bio?.trim() ? (
+            <div className={`attendee-meta bio-clamp${expanded ? " is-expanded" : ""}`} style={clampStyle}>
+              {a.bio}
+            </div>
+          ) : null}
+          {interests.length > 0 ? (
+            <div
+              className={`attendee-meta attendee-research bio-clamp${expanded ? " is-expanded" : ""}`}
+              style={{
+                ...clampStyle,
+                display: expanded ? "flex" : clampStyle ? "-webkit-box" : "flex",
+                flexWrap: expanded ? "wrap" : undefined,
+                gap: 6,
+              }}
+            >
+              {interests.map((interest) => {
+                const active = interestLower === interest.toLowerCase();
+                return (
+                  <button
+                    key={`${a.id}-${interest}`}
+                    type="button"
+                    className={`chip interest-chip${active ? " is-active" : ""}`}
+                    onClick={() =>
+                      setInterestFilter((prev) => (prev?.toLowerCase() === interest.toLowerCase() ? null : interest))
+                    }
+                    style={{
+                      cursor: "pointer",
+                      border: active ? "1px solid var(--uk-blue)" : "none",
+                      background: active ? "rgba(0, 51, 160, 0.16)" : undefined,
+                    }}
+                  >
+                    {interest}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {hasClampable ? (
+            <button
+              type="button"
+              className="button secondary"
+              style={{ marginTop: 6, padding: "2px 8px", minHeight: 28, fontSize: 12, alignSelf: "flex-start" }}
+              onClick={() => setExpandedIds((prev) => ({ ...prev, [a.id]: !prev[a.id] }))}
+            >
+              {expanded ? "Less" : "More"}
+            </button>
+          ) : null}
         </div>
         {a.id !== currentUserId ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
@@ -3421,6 +3657,7 @@ function AttendeeDirectory({
   });
 
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const showSkeleton = loading && attendees.length === 0;
   return (
     <div className="attendee-directory card">
       <div className="attendee-directory-toolbar">
@@ -3445,14 +3682,30 @@ function AttendeeDirectory({
           ))}
         </div>
       </div>
+      {interestFilter ? (
+        <div style={{ padding: "8px 16px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="help-text">Filtering by interest:</span>
+          <button
+            type="button"
+            className="chip interest-chip is-active"
+            onClick={() => setInterestFilter(null)}
+            style={{ cursor: "pointer", border: "1px solid var(--uk-blue)" }}
+          >
+            {interestFilter} ×
+          </button>
+        </div>
+      ) : null}
       <div className="attendee-rows">
-        {rows.length > 0 ? (
+        {showSkeleton ? (
+          Array.from({ length: 6 }, (_, i) => <div key={i} className="skeleton-row list-skeleton-row" style={{ margin: "12px 16px" }} />)
+        ) : rows.length > 0 ? (
           rows
         ) : (
           <p className="list-empty text-body-md" style={{ margin: "var(--space-4) 0" }}>
-            {q ? (
+            {q || interestFilter ? (
               <>
-                No attendees match &apos;{query.trim()}&apos;.
+                No attendees match{q ? ` '${query.trim()}'` : ""}
+                {interestFilter ? ` with interest “${interestFilter}”` : ""}.
               </>
             ) : (
               <>No attendees yet.</>
@@ -3707,7 +3960,7 @@ function CommunityBoard({
         </div>
       </div>
 
-      <form className="card grid" onSubmit={createThread}>
+      <form className="card grid community-compose-card" onSubmit={createThread}>
         <h4 style={{ margin: 0 }}>New post</h4>
         <p className="help-text" style={{ margin: 0 }}>
           {composeHint}
@@ -3736,15 +3989,24 @@ function CommunityBoard({
             </select>
           </label>
         )}
-        <input className="input" name="title" placeholder="Title" required />
-        <textarea className="textarea" name="body" placeholder="Description or message" required rows={4} />
+        <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+          Title
+          <input className="input" name="title" placeholder="Title" required />
+        </label>
+        <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+          Message
+          <textarea className="textarea" name="body" placeholder="Description or message" required rows={4} />
+        </label>
         {composeChannel === "LOCAL" && (
           <>
-            <input
-              className="input"
-              name="mapsUrl"
-              placeholder="Google Maps link (Share → Copy link from the Maps app or website)"
-            />
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Maps link
+              <input
+                className="input"
+                name="mapsUrl"
+                placeholder="Google Maps link (Share → Copy link from the Maps app or website)"
+              />
+            </label>
             <button
               type="button"
               className="button secondary"
@@ -3811,7 +4073,10 @@ function CommunityBoard({
                 </p>
               </>
             )}
-            <input className="input" type="datetime-local" name="meetupStartsAt" />
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Starts at
+              <input className="input" type="datetime-local" name="meetupStartsAt" />
+            </label>
             <label className="help-text" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="checkbox"
@@ -3824,73 +4089,49 @@ function CommunityBoard({
               Invite everyone at this event
             </label>
             {!meetupInviteEveryone && (
-              <fieldset className="community-attendee-picks">
-                <legend className="help-text">Participants (required if not inviting everyone)</legend>
-                <div className="community-attendee-pick-grid">
-                  {attendees
-                    .filter((a) => a.id !== currentUserId)
-                    .map((a) => (
-                      <label key={a.id} className="community-attendee-pick">
-                        <input
-                          type="checkbox"
-                          checked={meetupParticipantIds.includes(a.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setMeetupParticipantIds((prev) => [...prev, a.id]);
-                            } else {
-                              setMeetupParticipantIds((prev) => prev.filter((id) => id !== a.id));
-                            }
-                          }}
-                        />
-                        {a.name}
-                      </label>
-                    ))}
-                </div>
-              </fieldset>
+              <SearchableMultiSelect
+                label="Participants (required if not inviting everyone)"
+                people={attendees}
+                selectedIds={meetupParticipantIds}
+                excludeIds={[currentUserId]}
+                placeholder="Search participants…"
+                onChange={setMeetupParticipantIds}
+              />
             )}
           </>
         )}
         {composeChannel === "MOMENTS" && (
           <>
-            <fieldset className="community-attendee-picks">
-              <legend className="help-text">Tag people (optional)</legend>
-              <div className="community-attendee-pick-grid">
-                {attendees
-                  .filter((a) => a.id !== currentUserId)
-                  .map((a) => (
-                    <label key={a.id} className="community-attendee-pick">
-                      <input
-                        type="checkbox"
-                        checked={taggedUserIds.includes(a.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setTaggedUserIds((prev) => [...prev, a.id]);
-                          } else {
-                            setTaggedUserIds((prev) => prev.filter((id) => id !== a.id));
-                          }
-                        }}
-                      />
-                      {a.name}
-                    </label>
-                  ))}
-              </div>
-            </fieldset>
-            <input className="input" name="imageUrl" placeholder="Image URL (optional, in addition to uploads)" />
-            <input
-              className="input"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={async (ev) => {
-                const files = [...(ev.target.files || [])].slice(0, 12);
-                const next: string[] = [];
-                for (const file of files) {
-                  next.push(await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 }));
-                }
-                setMomentImageUrls((prev) => [...prev, ...next].slice(0, 12));
-                ev.target.value = "";
-              }}
+            <SearchableMultiSelect
+              label="Tag people (optional)"
+              people={attendees}
+              selectedIds={taggedUserIds}
+              excludeIds={[currentUserId]}
+              placeholder="Search people to tag…"
+              onChange={setTaggedUserIds}
             />
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Image URL
+              <input className="input" name="imageUrl" placeholder="Image URL (optional, in addition to uploads)" />
+            </label>
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Upload photos
+              <input
+                className="input"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={async (ev) => {
+                  const files = [...(ev.target.files || [])].slice(0, 12);
+                  const next: string[] = [];
+                  for (const file of files) {
+                    next.push(await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 }));
+                  }
+                  setMomentImageUrls((prev) => [...prev, ...next].slice(0, 12));
+                  ev.target.value = "";
+                }}
+              />
+            </label>
             {momentImageUrls.length > 0 && (
               <div className="moment-thumb-strip moment-thumb-strip--composer">
                 {momentImageUrls.map((url, idx) => (
@@ -3928,7 +4169,7 @@ function CommunityBoard({
             const open = openId === t.id;
             const ch = t.channel || "GENERAL";
             const channelIconKey = networkThreadChannelKey(ch);
-            const lastReply = t.replies[t.replies.length - 1];
+            const lastReply = t.replies?.[t.replies.length - 1];
             const gallery = threadImageGallery(t);
             const taggedNames = (t.taggedUserIds ?? []).map((id) => nameById[id]).filter(Boolean);
             const meetupNames = (t.meetupParticipantIds ?? []).map((id) => nameById[id]).filter(Boolean);
@@ -3947,8 +4188,8 @@ function CommunityBoard({
                   <div style={{ minWidth: 0 }}>
                     <div className="community-thread-meta">
                       {lastReply
-                        ? `Last reply ${new Date(lastReply.createdAt).toLocaleString()}`
-                        : `Started ${new Date(t.createdAt).toLocaleString()}`}
+                        ? `Last reply ${formatRelativeTime(lastReply.createdAt)}`
+                        : `Started ${formatRelativeTime(t.createdAt)}`}
                     </div>
                     <h4 className="community-thread-title">{t.title}</h4>
                     <p className="community-thread-desc">{t.body}</p>
@@ -3986,7 +4227,7 @@ function CommunityBoard({
                         {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
                       </div>
                     )}
-                    <div className="community-thread-foot">{t.replies.length} replies</div>
+                    <div className="community-thread-foot">{t.replies?.length ?? 0} replies</div>
                   </div>
                   <button type="button" className="button secondary community-open-btn" onClick={() => setOpenId(open ? null : t.id)}>
                     {open ? "Close" : "Open"}
@@ -4061,7 +4302,7 @@ function CommunityBoard({
                       </div>
                     )}
                     <div className="network-replies">
-                      {t.replies.map((r) => (
+                      {t.replies?.map((r) => (
                         <div key={r.id} className="network-reply">
                           <strong>{r.author.name}</strong>
                           <span className="help-text"> · {new Date(r.createdAt).toLocaleString()}</span>
@@ -4202,10 +4443,11 @@ function DirectChatForm({
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onCreated: (c: Conversation) => void;
 }) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const userId = String(form.get("userId") || "");
+    const userId = selectedIds[0];
     if (!userId) return;
     const conversation = await apiFetch<Conversation>(
       "/conversations/direct",
@@ -4213,28 +4455,24 @@ function DirectChatForm({
       token,
     );
     onCreated(conversation);
+    setSelectedIds([]);
   }
 
   return (
-    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8, marginBottom: 12 }}>
+    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
       <h4 style={{ margin: 0 }}>Message someone one-on-one</h4>
       <p className="help-text" style={{ margin: 0 }}>
-        Choose a participant, then <strong>Start chat</strong>. The thread appears under &quot;Your chats&quot;.
+        Search and pick one participant, then <strong>Start chat</strong>.
       </p>
-      <label className="help-text" style={{ margin: 0 }} htmlFor="direct-chat-participant">
-        Participant
-      </label>
-      <select id="direct-chat-participant" className="select" name="userId" required defaultValue="">
-        <option value="" disabled>
-          Choose a participant…
-        </option>
-        {attendees.filter((a) => a.id !== currentUserId).map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name} ({a.role})
-          </option>
-        ))}
-      </select>
-      <button className="button secondary" type="submit">
+      <SearchableMultiSelect
+        label="Participant"
+        people={attendees}
+        selectedIds={selectedIds}
+        excludeIds={[currentUserId]}
+        placeholder="Search people…"
+        onChange={(ids) => setSelectedIds(ids.length <= 1 ? ids : [ids[ids.length - 1]!])}
+      />
+      <button className="button secondary" type="submit" disabled={selectedIds.length !== 1}>
         Start chat
       </button>
     </form>
@@ -4254,34 +4492,48 @@ function GroupChatForm({
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onCreated: (c: Conversation) => void;
 }) {
+  const [name, setName] = useState("");
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const name = String(form.get("name") || "");
-    const memberIds = form.getAll("memberIds").map((id) => String(id)).filter((id) => id && id !== currentUserId);
-    if (!name || memberIds.length === 0) return;
+    const cleaned = memberIds.filter((id) => id && id !== currentUserId);
+    if (!name.trim() || cleaned.length === 0) return;
     const conversation = await apiFetch<Conversation>(
       "/conversations/group",
-      withEventHeaders({ method: "POST", body: JSON.stringify({ name, memberIds }) }),
+      withEventHeaders({ method: "POST", body: JSON.stringify({ name: name.trim(), memberIds: cleaned }) }),
       token,
     );
     onCreated(conversation);
-    event.currentTarget.reset();
+    setName("");
+    setMemberIds([]);
   }
 
   return (
     <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
       <h4 style={{ margin: 0 }}>Create a group chat</h4>
       <p className="help-text" style={{ margin: 0 }}>
-        Name the group and select at least one other person (hold Ctrl/Cmd to pick multiple).
+        Name the group and select at least one other person.
       </p>
-      <input className="input" name="name" placeholder="Group name" required />
-      <select className="select" name="memberIds" multiple size={4} required>
-        {attendees.filter((a) => a.id !== currentUserId).map((a) => (
-          <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
-        ))}
-      </select>
-      <button className="button secondary" type="submit">Create</button>
+      <input
+        className="input"
+        name="name"
+        placeholder="Group name"
+        required
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <SearchableMultiSelect
+        label="Members"
+        people={attendees}
+        selectedIds={memberIds}
+        excludeIds={[currentUserId]}
+        placeholder="Search people…"
+        onChange={setMemberIds}
+      />
+      <button className="button secondary" type="submit" disabled={!name.trim() || memberIds.length === 0}>
+        Create
+      </button>
     </form>
   );
 }

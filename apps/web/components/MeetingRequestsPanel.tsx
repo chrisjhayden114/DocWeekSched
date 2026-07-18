@@ -188,6 +188,7 @@ export function MeetingRequestModal({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (!toUser) return;
     if (!startsAt || !endsAt) {
       setError("Choose a start and end time");
       return;
