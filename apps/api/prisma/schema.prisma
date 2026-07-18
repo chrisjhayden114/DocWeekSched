@@ -250,6 +250,31 @@ enum ConciergePendingActionStatus {
   EXPIRED
 }
 
+enum OpsDetectorKind {
+  SESSION_CHANGED
+  QA_STALE
+  LOW_CHECKIN
+  CAPACITY_PRESSURE
+  MODERATION
+  DAILY_DIGEST
+}
+
+enum OpsCardStatus {
+  OPEN
+  APPLIED
+  DISMISSED
+}
+
+enum OpsDraftActionType {
+  ANNOUNCEMENT
+  DM
+  SPEAKER_NUDGE
+  ROOM_MOVE
+  OPEN_VIRTUAL
+  MODERATION_REVIEW
+  DIGEST_NOTE
+}
+
 enum AdminAccessRequestStatus {
   PENDING
   GRANTED
@@ -284,6 +309,7 @@ model Organization {
   auditLogs                 AuditLog[]
   backgroundJobs            BackgroundJob[]
   agendaIngestRuns          AgendaIngestRun[]
+  opsInboxCards             OpsInboxCard[]
 }
 
 model OrgMembership {
@@ -348,8 +374,8 @@ model EventMembership {
   /// Still requires directoryOptIn both directions to appear in / receive suggestions.
   matchMeEnabled Boolean         @default(true)
   /// Opaque per-membership code for QR / offline staff scanner (not a password).
-  /// Client-side default (cuid) so every new membership auto-generates a unique code;
-  /// existing rows were backfilled in the Phase 5 migration. No DB-level default needed.
+  /// Client-side default (cuid) so every membership-create path auto-populates it;
+  /// column is NOT NULL in the DB with existing rows backfilled. Do NOT remove this default.
   checkInCode    String          @default(cuid())
 
   @@unique([eventId, userId])
@@ -491,6 +517,8 @@ model User {
   matchProfileEmbedding       MatchProfileEmbedding?
   matchSuggestionsFor         MatchSuggestion[]        @relation("MatchSuggestionFor")
   matchSuggestionsAsSuggested MatchSuggestion[]        @relation("MatchSuggestionSuggested")
+  opsCardsDismissed           OpsInboxCard[]           @relation("OpsInboxCardDismissedBy")
+  opsCardsApplied             OpsInboxCard[]           @relation("OpsInboxCardAppliedBy")
 }
 
 model Event {
@@ -526,6 +554,8 @@ model Event {
   slugInviteExpiresAt  DateTime?
   slugInviteCapacity   Int?
   slugInviteUseCount   Int                  @default(0)
+  /// Keyword list for ops moderation detector (Phase A5). Empty = off.
+  communityBlocklist   Json                 @default("[]")
   sessions             Session[]
   tracks               Track[]
   rooms                Room[]
@@ -559,6 +589,8 @@ model Event {
   conciergePendingActions ConciergePendingAction[]
   matchSuggestions     MatchSuggestion[]
   sponsors             Sponsor[]
+  sessionScheduleChanges SessionScheduleChange[]
+  opsInboxCards        OpsInboxCard[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -592,6 +624,8 @@ model Room {
   eventId   String
   event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name      String
+  /// NULL = unknown capacity (ops room-move will not rank as "larger").
+  capacity  Int?
   sortOrder Int       @default(0)
   createdAt DateTime  @default(now())
   sessions  Session[]
@@ -699,6 +733,7 @@ model Session {
   cfpConversions    CfpSubmission[]            @relation("CfpConvertedSession")
   polls             SessionPoll[]
   feedback          SessionFeedback[]
+  scheduleChanges   SessionScheduleChange[]
 
   @@index([trackId])
   @@index([roomId])
@@ -1660,4 +1695,64 @@ model MatchSuggestion {
   @@index([forUserId])
   @@index([suggestedUserId])
   @@index([eventId, createdAt])
+}
+
+/// Published session time/room change feed for ops SESSION_CHANGED detector (Phase A5).
+model SessionScheduleChange {
+  id                    String    @id @default(cuid())
+  eventId               String
+  event                 Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sessionId             String
+  session               Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  previousStartsAt      DateTime
+  newStartsAt           DateTime
+  /// Snapshot only — no FK (room may later be deleted).
+  previousRoomId        String?
+  newRoomId             String?
+  publishStatusAtChange String
+  createdAt             DateTime  @default(now())
+  consumedAt            DateTime?
+  /// Soft link to OpsInboxCard.id (no FK — cards may be pruned independently).
+  opsCardId             String?
+
+  @@index([eventId, consumedAt])
+  @@index([sessionId, createdAt])
+}
+
+/// Organizer Ops Inbox card — draft only until explicit Apply/Send (Phase A5).
+model OpsInboxCard {
+  id                 String             @id @default(cuid())
+  organizationId     String
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String
+  event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  detectorKind       OpsDetectorKind
+  /// Sticky dismiss + idempotent create: unique per event.
+  triggerInstanceKey String
+  status             OpsCardStatus      @default(OPEN)
+  triggerSummary     String
+  evidence           Json               @default("{}")
+  /// Frozen on Apply/Send for audit.
+  evidenceSnapshot   Json               @default("{}")
+  draftActionType    OpsDraftActionType
+  draftTitle         String
+  draftBody          String
+  draftPayload       Json               @default("{}")
+  draftMetered       Boolean            @default(false)
+  dismissedAt        DateTime?
+  dismissedById      String?
+  dismissedBy        User?              @relation("OpsInboxCardDismissedBy", fields: [dismissedById], references: [id], onDelete: SetNull)
+  appliedAt          DateTime?
+  appliedById        String?
+  appliedBy          User?              @relation("OpsInboxCardAppliedBy", fields: [appliedById], references: [id], onDelete: SetNull)
+  appliedChannelRef  String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([eventId, triggerInstanceKey])
+  @@index([eventId, status, createdAt])
+  @@index([eventId, detectorKind, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([dismissedById])
+  @@index([appliedById])
 }
