@@ -232,6 +232,9 @@ describe("Matchmaker (DB)", () => {
 
   it("embedding recomputes on profile edit (sourceHash change)", async () => {
     if (!dbReady) return;
+    // Isolation: earlier matching tests already cached bob's embedding, so clear it
+    // to assert the fresh-compute path deterministically.
+    await prisma.matchProfileEmbedding.deleteMany({ where: { userId: ids.bobId! } });
     const first = await ensureProfileEmbedding(ids.bobId!, {
       organizationId: ids.orgId!,
       eventId: ids.eventId!,
