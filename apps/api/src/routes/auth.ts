@@ -59,6 +59,9 @@ const meSelect = {
   role: true,
   photoUrl: true,
   researchInterests: true,
+  title: true,
+  affiliation: true,
+  bio: true,
   participantType: true,
   engagementPoints: true,
   emailVerifiedAt: true,
@@ -417,6 +420,9 @@ authRouter.post(
 const profileSchema = z.object({
   name: z.string().min(1).optional(),
   researchInterests: z.string().max(4000).optional(),
+  title: z.string().max(200).optional().nullable(),
+  affiliation: z.string().max(200).optional().nullable(),
+  bio: z.string().max(4000).optional().nullable(),
   photoUrl: z.string().max(2_000_000).optional(),
   participantType: z
     .enum(["GRAD_STUDENT", "EDD_STUDENT", "PHD_STUDENT", "EDL_ALUMNI", "PROFESSOR"])
@@ -439,6 +445,9 @@ authRouter.put(
       data: {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
         ...(parsed.data.researchInterests !== undefined ? { researchInterests: parsed.data.researchInterests } : {}),
+        ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+        ...(parsed.data.affiliation !== undefined ? { affiliation: parsed.data.affiliation } : {}),
+        ...(parsed.data.bio !== undefined ? { bio: parsed.data.bio } : {}),
         ...(parsed.data.photoUrl !== undefined ? { photoUrl: parsed.data.photoUrl } : {}),
         ...(parsed.data.participantType !== undefined ? { participantType: parsed.data.participantType } : {}),
       },

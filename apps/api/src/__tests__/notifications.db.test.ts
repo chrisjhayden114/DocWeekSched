@@ -254,4 +254,58 @@ describe("calm notification platform (DB)", () => {
     const after = await getPushBudgetStatus(ids.userId!, "America/New_York", noon);
     expect(after.used).toBe(before.used);
   });
+
+  it("meeting accept creates two PersonalAgendaBlocks", async () => {
+    if (!dbReady) return;
+    await prisma.eventMembership.updateMany({
+      where: { eventId: ids.eventId! },
+      data: { directoryOptIn: true },
+    });
+    const starts = new Date("2027-09-01T15:00:00Z");
+    const ends = new Date("2027-09-01T15:30:00Z");
+    const meeting = await prisma.meetingRequest.create({
+      data: {
+        eventId: ids.eventId!,
+        fromUserId: ids.userId!,
+        toUserId: ids.userB!,
+        slots: { create: [{ startsAt: starts, endsAt: ends, sortOrder: 0 }] },
+      },
+      include: { slots: true },
+    });
+    const slot = meeting.slots[0]!;
+    const title = "Meeting: Calm A & Calm B";
+    await prisma.$transaction(async (tx) => {
+      await tx.meetingRequest.update({
+        where: { id: meeting.id },
+        data: { status: "ACCEPTED", respondedAt: new Date() },
+      });
+      await tx.personalAgendaBlock.createMany({
+        data: [
+          {
+            userId: ids.userId!,
+            eventId: ids.eventId!,
+            title,
+            startsAt: slot.startsAt,
+            endsAt: slot.endsAt,
+            source: "MEETING",
+            meetingRequestId: meeting.id,
+          },
+          {
+            userId: ids.userB!,
+            eventId: ids.eventId!,
+            title,
+            startsAt: slot.startsAt,
+            endsAt: slot.endsAt,
+            source: "MEETING",
+            meetingRequestId: meeting.id,
+          },
+        ],
+      });
+    });
+    const blocks = await prisma.personalAgendaBlock.findMany({
+      where: { meetingRequestId: meeting.id },
+    });
+    expect(blocks).toHaveLength(2);
+    expect(new Set(blocks.map((b) => b.userId))).toEqual(new Set([ids.userId, ids.userB]));
+  });
 });

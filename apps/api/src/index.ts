@@ -21,6 +21,8 @@ import { speakersRouter } from "./routes/speakers";
 import { seriesRouter } from "./routes/series";
 import { billingRouter, handleBillingWebhook } from "./routes/billing";
 import { mapsRouter } from "./routes/maps";
+import { meetingsRouter } from "./routes/meetings";
+import { moderationRouter } from "./routes/moderation";
 import { asyncHandler } from "./lib/authorization";
 
 const app = express();
@@ -91,6 +93,8 @@ app.use("/speakers", speakersRouter);
 app.use("/series", seriesRouter);
 app.use("/sessions", sessionsRouter);
 app.use("/announcements", announcementsRouter);
+app.use("/meetings", meetingsRouter);
+app.use("/moderation", moderationRouter);
 app.use("/surveys", surveysRouter);
 app.use("/conversations", conversationsRouter);
 app.use("/attendees", attendeesRouter);

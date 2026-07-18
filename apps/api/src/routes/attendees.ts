@@ -33,6 +33,9 @@ const attendeePublicSelect = {
   role: true,
   photoUrl: true,
   researchInterests: true,
+  title: true,
+  affiliation: true,
+  bio: true,
   participantType: true,
 } as const;
 
@@ -162,16 +165,22 @@ attendeesRouter.get(
 
     if (!access.canManageEvent) {
       return res.json(
-        members.map((m) => ({
-          id: m.user.id,
-          name: m.user.name,
-          email: m.user.email,
-          role: m.user.role,
-          photoUrl: m.user.photoUrl,
-          researchInterests: m.user.researchInterests,
-          participantType: m.user.participantType,
-          eventRole: m.role,
-        })),
+        members
+          .filter((m) => m.directoryOptIn || m.userId === req.user!.id)
+          .map((m) => ({
+            id: m.user.id,
+            name: m.user.name,
+            email: m.user.email,
+            role: m.user.role,
+            photoUrl: m.user.photoUrl,
+            researchInterests: m.user.researchInterests,
+            title: m.user.title,
+            affiliation: m.user.affiliation,
+            bio: m.user.bio,
+            participantType: m.user.participantType,
+            eventRole: m.role,
+            directoryOptIn: m.directoryOptIn,
+          })),
       );
     }
 
@@ -189,13 +198,49 @@ attendeesRouter.get(
           role: u.role,
           photoUrl: u.photoUrl,
           researchInterests: u.researchInterests,
+          title: u.title,
+          affiliation: u.affiliation,
+          bio: u.bio,
           participantType: u.participantType,
           eventRole: m.role,
+          directoryOptIn: m.directoryOptIn,
           inviteStatus,
           inviteExpiresAt: pending && expiresAt ? expiresAt.toISOString() : null,
         };
       }),
     );
+  }),
+);
+
+attendeesRouter.get(
+  "/me",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+    const m = await prisma.eventMembership.findFirst({
+      where: { eventId: event.id, userId: req.user!.id, deletedAt: null },
+    });
+    if (!m) throw new HttpError(404, { error: "Not a member of this event" });
+    return res.json({ directoryOptIn: m.directoryOptIn, role: m.role });
+  }),
+);
+
+attendeesRouter.put(
+  "/me/directory",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = z.object({ directoryOptIn: z.boolean() }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+    const updated = await prisma.eventMembership.updateMany({
+      where: { eventId: event.id, userId: req.user!.id, deletedAt: null },
+      data: { directoryOptIn: parsed.data.directoryOptIn },
+    });
+    if (updated.count === 0) throw new HttpError(404, { error: "Not a member of this event" });
+    return res.json({ directoryOptIn: parsed.data.directoryOptIn });
   }),
 );
 

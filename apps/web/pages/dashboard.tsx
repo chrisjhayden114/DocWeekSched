@@ -24,6 +24,9 @@ type User = {
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
   photoUrl?: string | null;
   researchInterests?: string | null;
+  title?: string | null;
+  affiliation?: string | null;
+  bio?: string | null;
   participantType?: "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | null;
   engagementPoints?: number;
   inviteStatus?: "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED";
@@ -2417,6 +2420,10 @@ function ProfileEditor({
   const [photoPreview, setPhotoPreview] = useState<string | null>(user.photoUrl || null);
   const [name, setName] = useState(user.name);
   const [researchInterests, setResearchInterests] = useState(user.researchInterests || "");
+  const [title, setTitle] = useState(user.title || "");
+  const [affiliation, setAffiliation] = useState(user.affiliation || "");
+  const [bio, setBio] = useState(user.bio || "");
+  const [directoryOptIn, setDirectoryOptIn] = useState(false);
   const [participantType, setParticipantType] = useState<
     "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | ""
   >(
@@ -2429,8 +2436,18 @@ function ProfileEditor({
     setPhotoPreview(user.photoUrl || null);
     setName(user.name);
     setResearchInterests(user.researchInterests || "");
+    setTitle(user.title || "");
+    setAffiliation(user.affiliation || "");
+    setBio(user.bio || "");
     setParticipantType(user.participantType || "");
   }, [user]);
+
+  useEffect(() => {
+    if (!token || !activeEventId) return;
+    apiFetch<{ directoryOptIn: boolean }>("/attendees/me", withEventHeaders(), token)
+      .then((r) => setDirectoryOptIn(r.directoryOptIn))
+      .catch(() => setDirectoryOptIn(false));
+  }, [token, activeEventId, withEventHeaders]);
 
   useEffect(() => {
     try {
@@ -2458,6 +2475,9 @@ function ProfileEditor({
     const payload = {
       name: name.trim(),
       researchInterests,
+      title: title.trim() || null,
+      affiliation: affiliation.trim() || null,
+      bio: bio.trim() || null,
       photoUrl: photoPreview || undefined,
       participantType: participantType || null,
     };
@@ -2469,6 +2489,12 @@ function ProfileEditor({
         method: "PUT",
         body: JSON.stringify(payload),
       }, token);
+      if (activeEventId) {
+        await apiFetch("/attendees/me/directory", withEventHeaders({
+          method: "PUT",
+          body: JSON.stringify({ directoryOptIn }),
+        }), token);
+      }
       onSaved(updated);
       setSaveSuccess("Profile saved.");
     } catch (error) {
@@ -2524,6 +2550,20 @@ function ProfileEditor({
         />
       </label>
       <input className="input" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <input
+        className="input"
+        name="title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title (e.g. PhD Candidate)"
+      />
+      <input
+        className="input"
+        name="affiliation"
+        value={affiliation}
+        onChange={(e) => setAffiliation(e.target.value)}
+        placeholder="Affiliation / organization"
+      />
       <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
         Participant type
         <select
@@ -2542,12 +2582,30 @@ function ProfileEditor({
       </label>
       <textarea
         className="textarea"
+        name="bio"
+        value={bio}
+        onChange={(e) => setBio(e.target.value)}
+        placeholder="Short bio"
+        rows={3}
+      />
+      <textarea
+        className="textarea"
         name="researchInterests"
         value={researchInterests}
         onChange={(e) => setResearchInterests(e.target.value)}
         placeholder="Research interests, projects, and topics you care about"
-        rows={5}
+        rows={4}
       />
+      {activeEventId ? (
+        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={directoryOptIn}
+            onChange={(e) => setDirectoryOptIn(e.target.checked)}
+          />
+          Show me in this event&apos;s attendee directory (opt-in; required for DMs)
+        </label>
+      ) : null}
       {saveError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{saveError}</p>}
       {saveSuccess && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{saveSuccess}</p>}
       <button className="button" type="submit" disabled={saving}>

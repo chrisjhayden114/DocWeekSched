@@ -8,6 +8,7 @@ import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
+import { assertMutuallyVisible } from "../lib/visibility";
 
 export const conversationsRouter = Router();
 
@@ -88,6 +89,13 @@ conversationsRouter.post(
     await requireEventAccess(userId, event.id);
     await requireFeature(event.id, "messaging_dms");
     await assertEventMembers(event.id, [otherUserId]);
+
+    const visible = await assertMutuallyVisible(event.id, userId, otherUserId);
+    if (!visible) {
+      throw new HttpError(403, {
+        error: "Direct messages require both people to opt into the attendee directory",
+      });
+    }
 
     const existing = await getDirectConversation(userId, otherUserId, event.id);
     if (existing) {
