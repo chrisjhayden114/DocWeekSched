@@ -674,6 +674,11 @@ html[data-theme="slate"] .roster-role-badge--admin {
   gap: 16px;
 }
 
+.schedule-admin-rail {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .schedule-list {
   padding: 18px 18px 8px;
 }
