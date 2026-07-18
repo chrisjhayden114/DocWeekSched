@@ -10,6 +10,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { EventSettingsModal } from "../components/EventSettingsModal";
 import { ConciergeChat } from "../components/ConciergeChat";
+import { MatchmakerPanel } from "../components/MatchmakerPanel";
 import { KebabMenu } from "../components/KebabMenu";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { UploadDropzone } from "../components/UploadDropzone";
@@ -217,7 +218,8 @@ type UserNotificationRow = {
     | "SESSION_CHANGED"
     | "SESSION_STARTING_SOON"
     | "DIGEST_ROLLUP"
-    | "USER_REPORT";
+    | "USER_REPORT"
+    | "AGENT_ATTENDEE_TOUCH";
   title: string;
   body: string | null;
   threadId: string | null;
@@ -232,9 +234,11 @@ type UserNotificationRow = {
 const COMMUNITY_TAB = "Community" as const;
 const PARTICIPANTS_INVITES_TAB = "Participants and Invites" as const;
 const MAPS_TAB = "Maps" as const;
+const MATCHMAKER_TAB = "Meet" as const;
 const adminTabs = [
   "Agenda",
   "Attendees",
+  MATCHMAKER_TAB,
   PARTICIPANTS_INVITES_TAB,
   COMMUNITY_TAB,
   MAPS_TAB,
@@ -242,7 +246,16 @@ const adminTabs = [
   "Notifications",
   "Profile",
 ] as const;
-const participantTabs = ["Agenda", "Attendees", COMMUNITY_TAB, MAPS_TAB, "Messages", "Notifications", "Profile"] as const;
+const participantTabs = [
+  "Agenda",
+  "Attendees",
+  MATCHMAKER_TAB,
+  COMMUNITY_TAB,
+  MAPS_TAB,
+  "Messages",
+  "Notifications",
+  "Profile",
+] as const;
 type Tab = (typeof adminTabs)[number];
 
 type CommunityChannelFilter = "ALL" | "GENERAL" | "MEETUP" | "MOMENTS" | "LOCAL" | "ICEBREAKER";
@@ -287,6 +300,7 @@ export default function Dashboard() {
   const [networkThreads, setNetworkThreads] = useState<NetworkThread[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [messagePrefill, setMessagePrefill] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newChatMode, setNewChatMode] = useState<null | "direct" | "group">(null);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
@@ -525,6 +539,7 @@ export default function Dashboard() {
     const base = isAdmin ? adminTabs : participantTabs;
     return base.filter((tab) => {
       if (tab === "Attendees") return featureOn("attendee_directory");
+      if (tab === MATCHMAKER_TAB) return featureOn("matchmaker");
       if (tab === COMMUNITY_TAB) return featureOn("community");
       if (tab === "Messages") return messagingEnabled;
       if (tab === MAPS_TAB) return featureOn("venue_maps");
@@ -1228,6 +1243,31 @@ export default function Dashboard() {
         </>
       )}
 
+      {active === MATCHMAKER_TAB && token && activeEventId && featureOn("matchmaker") ? (
+        <MatchmakerPanel
+          eventId={activeEventId}
+          token={token}
+          withEventHeaders={withEventHeaders}
+          onViewProfile={(userId) => {
+            setActive("Attendees");
+            // Directory shows all opted-in; focus via hash for accessibility
+            if (typeof window !== "undefined") {
+              window.location.hash = `attendee-${userId}`;
+            }
+          }}
+          onDraftIntro={({ conversationId, prefillBody }) => {
+            if (!conversations.some((c) => c.id === conversationId)) {
+              apiFetch<Conversation[]>("/conversations", withEventHeaders(), token)
+                .then(setConversations)
+                .catch(() => null);
+            }
+            setActiveConversationId(conversationId);
+            setMessagePrefill(prefillBody);
+            setActive("Messages");
+          }}
+        />
+      ) : null}
+
       {active === PARTICIPANTS_INVITES_TAB && isAdmin && (
         <div className="grid" style={{ gap: 16 }}>
           <ModerationReportsPanel token={token!} withEventHeaders={withEventHeaders} />
@@ -1459,6 +1499,8 @@ export default function Dashboard() {
                             }
                             if (n.kind === "ADMIN_REQUEST" || n.kind === "USER_REPORT") {
                               setActive(PARTICIPANTS_INVITES_TAB);
+                            } else if (n.kind === "AGENT_ATTENDEE_TOUCH") {
+                              setActive(MATCHMAKER_TAB);
                             } else if (n.kind === "MEETING_REQUEST" || n.kind === "MEETING_ACCEPTED" || n.meetingRequestId) {
                               setActive("Attendees");
                             } else if (n.sessionId) {
@@ -1749,8 +1791,11 @@ export default function Dashboard() {
               token={token!}
               conversationId={activeConversationId}
               withEventHeaders={withEventHeaders}
+              initialBody={messagePrefill}
+              onInitialBodyConsumed={() => setMessagePrefill(null)}
               onSent={async (m) => {
                 setMessages([...messages, m]);
+                setMessagePrefill(null);
                 await refreshUser();
                 apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!)
                   .then(setNotifications)
@@ -2777,6 +2822,7 @@ function ProfileEditor({
   const [affiliation, setAffiliation] = useState(user.affiliation || "");
   const [bio, setBio] = useState(user.bio || "");
   const [directoryOptIn, setDirectoryOptIn] = useState(false);
+  const [matchMeEnabled, setMatchMeEnabled] = useState(true);
   const [participantType, setParticipantType] = useState<
     "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | ""
   >(
@@ -2797,9 +2843,15 @@ function ProfileEditor({
 
   useEffect(() => {
     if (!token || !activeEventId) return;
-    apiFetch<{ directoryOptIn: boolean }>("/attendees/me", withEventHeaders(), token)
-      .then((r) => setDirectoryOptIn(r.directoryOptIn))
-      .catch(() => setDirectoryOptIn(false));
+    apiFetch<{ directoryOptIn: boolean; matchMeEnabled?: boolean }>("/attendees/me", withEventHeaders(), token)
+      .then((r) => {
+        setDirectoryOptIn(r.directoryOptIn);
+        setMatchMeEnabled(r.matchMeEnabled !== false);
+      })
+      .catch(() => {
+        setDirectoryOptIn(false);
+        setMatchMeEnabled(true);
+      });
   }, [token, activeEventId, withEventHeaders]);
 
   useEffect(() => {
@@ -2847,6 +2899,14 @@ function ProfileEditor({
           method: "PUT",
           body: JSON.stringify({ directoryOptIn }),
         }), token);
+        try {
+          await apiFetch("/attendees/me/match-me", withEventHeaders({
+            method: "PUT",
+            body: JSON.stringify({ matchMeEnabled }),
+          }), token);
+        } catch {
+          /* ignore */
+        }
       }
       onSaved(updated);
       setSaveSuccess("Profile saved.");
@@ -2950,14 +3010,25 @@ function ProfileEditor({
         rows={4}
       />
       {activeEventId ? (
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={directoryOptIn}
-            onChange={(e) => setDirectoryOptIn(e.target.checked)}
-          />
-          Show me in this event&apos;s attendee directory (opt-in; required for DMs)
-        </label>
+        <>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={directoryOptIn}
+              onChange={(e) => setDirectoryOptIn(e.target.checked)}
+            />
+            Show me in this event&apos;s attendee directory (opt-in; required for DMs)
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={matchMeEnabled}
+              disabled={!directoryOptIn}
+              onChange={(e) => setMatchMeEnabled(e.target.checked)}
+            />
+            Match me — suggest people with shared interests (one-tap mute when off)
+          </label>
+        </>
       ) : null}
       {saveError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{saveError}</p>}
       {saveSuccess && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{saveSuccess}</p>}
@@ -3522,6 +3593,9 @@ function notificationKindIcon(kind: UserNotificationRow["kind"] | string) {
       return "🎫";
     case "USER_REPORT":
       return "🚩";
+    case "AGENT_ATTENDEE_TOUCH":
+    case "DIGEST_ROLLUP":
+      return "✦";
     default:
       return "•";
   }
@@ -4396,27 +4470,39 @@ function MessageComposer({
   conversationId,
   withEventHeaders,
   onSent,
+  initialBody,
+  onInitialBodyConsumed,
 }: {
   token: string;
   conversationId: string | null;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onSent: (m: Message) => void | Promise<void>;
+  initialBody?: string | null;
+  onInitialBodyConsumed?: () => void;
 }) {
   const [sending, setSending] = useState(false);
+  const [body, setBody] = useState("");
+
+  useEffect(() => {
+    if (initialBody == null) return;
+    setBody(initialBody);
+    onInitialBodyConsumed?.();
+  }, [initialBody, conversationId, onInitialBodyConsumed]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!conversationId || sending) return;
-    const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    const trimmed = body.trim();
+    if (!trimmed) return;
     setSending(true);
     try {
       const message = await apiFetch<Message>(
         `/conversations/${conversationId}/messages`,
-        withEventHeaders({ method: "POST", body: JSON.stringify(payload) }),
+        withEventHeaders({ method: "POST", body: JSON.stringify({ body: trimmed }) }),
         token,
       );
       await onSent(message);
+      setBody("");
       event.currentTarget.reset();
     } finally {
       setSending(false);
@@ -4427,6 +4513,9 @@ function MessageComposer({
     <form className="message-composer-form grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
       <label className="help-text" style={{ margin: 0 }} htmlFor="message-composer-body">
         Your message
+        {body.trim() ? (
+          <span className="help-text"> · Edit before sending</span>
+        ) : null}
       </label>
       <textarea
         id="message-composer-body"
@@ -4435,8 +4524,10 @@ function MessageComposer({
         placeholder="Write something…"
         required
         disabled={sending}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
       />
-      <button className="button" disabled={!conversationId || sending}>
+      <button className="button" disabled={!conversationId || sending || !body.trim()}>
         {sending ? "Sending…" : "Send"}
       </button>
     </form>
