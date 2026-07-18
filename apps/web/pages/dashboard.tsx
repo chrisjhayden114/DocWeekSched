@@ -1,10 +1,10 @@
+import { useRouter } from "next/router";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   resolveFeatureEnabled,
   type FeatureKey,
   type FeatureOverrideValue,
 } from "@event-app/shared";
-import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DateTimePicker } from "../components/DateTimePicker";
@@ -60,6 +60,8 @@ type Session = {
   startsAt: string;
   endsAt: string;
   allowVirtualJoin?: boolean | null;
+  inPersonCapacity?: number | null;
+  virtualCapacity?: number | null;
   speaker?: { name: string };
   speakerId?: string | null;
   bookmarks?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
@@ -67,6 +69,15 @@ type Session = {
     userId: string;
     status: "JOINING" | "NOT_JOINING";
     joinMode?: AgendaJoinMode | null;
+    user: Pick<User, "id" | "name" | "email" | "photoUrl">;
+  }[];
+  waitlistEntries?: {
+    id: string;
+    userId: string;
+    mode: AgendaJoinMode;
+    position: number;
+    promotedAt?: string | null;
+    holdExpiresAt?: string | null;
     user: Pick<User, "id" | "name" | "email" | "photoUrl">;
   }[];
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
@@ -177,7 +188,7 @@ type NetworkThread = {
 
 type UserNotificationRow = {
   id: string;
-  kind: "COMMUNITY_THREAD" | "COMMUNITY_REPLY" | "MESSAGE" | "ADMIN_REQUEST";
+  kind: "COMMUNITY_THREAD" | "COMMUNITY_REPLY" | "MESSAGE" | "ADMIN_REQUEST" | "WAITLIST_PROMOTED";
   title: string;
   body: string | null;
   threadId: string | null;
@@ -608,8 +619,15 @@ export default function Dashboard() {
       if (body.status === "JOINING") {
         void refreshUser();
       }
-    } catch {
+    } catch (err) {
       setMyAttendance(prevAttendance);
+      const msg = err instanceof Error ? err.message : "Could not update attendance";
+      if (/waitlist|full/i.test(msg)) {
+        window.alert(msg);
+        setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token).catch(() => sessions));
+        const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token).catch(() => null);
+        if (meta) setMyAttendance(meta.attendance);
+      }
     }
   };
 
@@ -1622,6 +1640,10 @@ function ScheduleBoard({
                   const joining = myStatus === "JOINING";
                   const myMode = myRow?.joinMode ?? "IN_PERSON";
                   const sessionAllowsVirtual = s.allowVirtualJoin !== false;
+                  const inPersonFull =
+                    s.inPersonCapacity != null && inPersonJoining >= s.inPersonCapacity;
+                  const virtualFull =
+                    s.virtualCapacity != null && virtualJoining >= s.virtualCapacity;
                   const joinModeShort =
                     myMode === "VIRTUAL" ? "Virtual" : myMode === "ASYNC" ? "Async" : "In person";
                   return (
@@ -1640,6 +1662,11 @@ function ScheduleBoard({
                           {slot.sessions.length > 1 && (
                             <span className="schedule-option-chip">Option {optionIndex + 1}</span>
                           )}
+                          {inPersonFull || virtualFull ? (
+                            <span className="schedule-option-chip" style={{ marginLeft: 6 }}>
+                              Full — waitlist
+                            </span>
+                          ) : null}
                         </h4>
                       </div>
                       {(s.speakers || s.speaker?.name || s.location) && (
@@ -1668,7 +1695,14 @@ function ScheduleBoard({
                         <div className="schedule-meta-line">
                           {formatTimeRange(s.startsAt, s.endsAt, displayTimezone)}
                           {" · "}
-                          {inPersonJoining} in-person · {virtualJoining} virtual · {asyncJoining} async · {likeCount} likes
+                          {inPersonJoining}
+                          {s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person ·{" "}
+                          {virtualJoining}
+                          {s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual · {asyncJoining}{" "}
+                          async · {likeCount} likes
+                          {(s.waitlistEntries?.length || 0) > 0
+                            ? ` · ${s.waitlistEntries!.length} waitlisted`
+                            : ""}
                         </div>
                         <div className="schedule-actions schedule-actions-toolbar schedule-actions-with-attendance">
                           <div onClick={(event) => event.stopPropagation()} role="group" aria-label="My agenda">
@@ -2632,6 +2666,25 @@ function SessionForm({
   const [imageUrl, setImageUrl] = useState(editing?.imageUrl || "");
   const [recordingUrl, setRecordingUrl] = useState(editing?.recordingUrl || "");
   const [fileUrl, setFileUrl] = useState(editing?.fileUrl || "");
+  const [waitlist, setWaitlist] = useState(editing?.waitlistEntries || []);
+
+  useEffect(() => {
+    setWaitlist(editing?.waitlistEntries || []);
+  }, [editing?.id, editing?.waitlistEntries]);
+
+  async function refreshWaitlist() {
+    if (!editing) return;
+    try {
+      const res = await apiFetch<{ entries: NonNullable<Session["waitlistEntries"]> }>(
+        `/sessions/${editing.id}/waitlist`,
+        eventHeaders(),
+        token,
+      );
+      setWaitlist(res.entries as NonNullable<Session["waitlistEntries"]>);
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2650,6 +2703,18 @@ function SessionForm({
         fileLink: String(form.get("fileLink") || ""),
         fileUrl: fileUrl || String(form.get("fileUrl") || ""),
         allowVirtualJoin: form.get("allowVirtualJoin") === "on",
+        inPersonCapacity: (() => {
+          const raw = String(form.get("inPersonCapacity") || "").trim();
+          if (!raw) return null;
+          const n = Number(raw);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })(),
+        virtualCapacity: (() => {
+          const raw = String(form.get("virtualCapacity") || "").trim();
+          if (!raw) return null;
+          const n = Number(raw);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })(),
         startsAt: zonedDateTimeLocalToIso(String(form.get("startsAt") || ""), eventTimezone),
         endsAt: zonedDateTimeLocalToIso(String(form.get("endsAt") || ""), eventTimezone),
         speakerId: String(form.get("speakerId") || "") || undefined,
@@ -2697,6 +2762,31 @@ function SessionForm({
             />
             <span>Allow participants to join virtually</span>
           </label>
+          <label>
+            In-person capacity
+            <input
+              className="input"
+              name="inPersonCapacity"
+              type="number"
+              min={1}
+              placeholder="Unlimited"
+              defaultValue={editing?.inPersonCapacity ?? ""}
+            />
+          </label>
+          <label>
+            Virtual capacity
+            <input
+              className="input"
+              name="virtualCapacity"
+              type="number"
+              min={1}
+              placeholder="Unlimited"
+              defaultValue={editing?.virtualCapacity ?? ""}
+            />
+          </label>
+          <p className="text-meta" style={{ margin: 0 }}>
+            Leave blank for unlimited. When full, attendees can join a waitlist for that mode.
+          </p>
         </section>
 
         <section className="session-form-section">
@@ -2768,6 +2858,84 @@ function SessionForm({
             onFile={async (file) => setFileUrl(await fileToDataUrl(file))}
           />
         </section>
+
+        {editing ? (
+          <section className="session-form-section">
+            <h4>Roster & waitlist</h4>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              In-person:{" "}
+              {(editing.attendances || []).filter((a) => a.status === "JOINING" && a.joinMode === "IN_PERSON").length}
+              {editing.inPersonCapacity != null ? ` / ${editing.inPersonCapacity}` : " (unlimited)"}
+              {" · "}
+              Virtual:{" "}
+              {(editing.attendances || []).filter((a) => a.status === "JOINING" && a.joinMode === "VIRTUAL").length}
+              {editing.virtualCapacity != null ? ` / ${editing.virtualCapacity}` : " (unlimited)"}
+            </p>
+            {waitlist.length === 0 ? (
+              <p className="text-meta">No one on the waitlist.</p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+                {waitlist.map((w) => (
+                  <li
+                    key={w.id}
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
+                      padding: "8px 10px",
+                    }}
+                  >
+                    <span>
+                      #{w.position} {w.user.name} · {w.mode === "VIRTUAL" ? "virtual" : "in person"}
+                      {w.promotedAt ? " · seat offered" : ""}
+                    </span>
+                    <span style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => {
+                          void (async () => {
+                            await apiFetch(
+                              `/sessions/${editing.id}/waitlist/${w.id}/promote`,
+                              eventHeaders({ method: "POST", body: "{}" }),
+                              token,
+                            );
+                            await refreshWaitlist();
+                          })().catch((err) =>
+                            window.alert(err instanceof Error ? err.message : "Promote failed"),
+                          );
+                        }}
+                      >
+                        Promote
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => {
+                          void (async () => {
+                            await apiFetch(
+                              `/sessions/${editing.id}/waitlist/${w.id}`,
+                              eventHeaders({ method: "DELETE" }),
+                              token,
+                            );
+                            await refreshWaitlist();
+                          })().catch((err) =>
+                            window.alert(err instanceof Error ? err.message : "Remove failed"),
+                          );
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="button" type="submit" disabled={submitting}>
