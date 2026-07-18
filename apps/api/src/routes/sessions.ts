@@ -8,6 +8,7 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { getStorageProvider } from "../lib/storage";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
+import { sessionVisibilityWhere, isSessionAttendeeVisible } from "../lib/ai/ingest/visibility";
 
 export const sessionsRouter = Router();
 
@@ -59,7 +60,7 @@ const resourceSchema = z.object({
 async function findSessionWithEvent(sessionId: string) {
   return prisma.session.findUnique({
     where: { id: sessionId },
-    select: { id: true, eventId: true, allowVirtualJoin: true },
+    select: { id: true, eventId: true, allowVirtualJoin: true, publishStatus: true },
   });
 }
 
@@ -170,10 +171,10 @@ sessionsRouter.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await resolveEventFromRequest(req);
-    await requireEventAccess(req.user!.id, event.id);
+    const access = await requireEventAccess(req.user!.id, event.id);
 
     const sessions = await prisma.session.findMany({
-      where: { eventId: event.id },
+      where: { eventId: event.id, ...sessionVisibilityWhere(access) },
       orderBy: { startsAt: "asc" },
       include: sessionInclude,
     });
@@ -186,10 +187,10 @@ sessionsRouter.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await resolveEventFromRequest(req);
-    await requireEventAccess(req.user!.id, event.id);
+    const access = await requireEventAccess(req.user!.id, event.id);
 
     const eventSessionIds = await prisma.session.findMany({
-      where: { eventId: event.id },
+      where: { eventId: event.id, ...sessionVisibilityWhere(access) },
       select: { id: true },
     });
     const sessionIds = eventSessionIds.map((s) => s.id);
@@ -353,7 +354,16 @@ sessionsRouter.get(
       throw new HttpError(404, { error: "Session not found" });
     }
 
-    await requireEventAccess(req.user!.id, session.eventId);
+    const access = await requireEventAccess(req.user!.id, session.eventId);
+    if (
+      !isSessionAttendeeVisible({
+        canManageEvent: access.canManageEvent,
+        eventStatus: access.event.status,
+        publishStatus: session.publishStatus,
+      })
+    ) {
+      throw new HttpError(404, { error: "Session not found" });
+    }
 
     const full = await prisma.session.findUnique({
       where: { id: session.id },
