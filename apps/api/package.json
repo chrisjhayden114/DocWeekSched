@@ -11,9 +11,11 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint src --max-warnings 0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.3",
     "@event-app/config": "*",
     "@event-app/shared": "*",
     "@prisma/client": "^5.18.0",
@@ -33,6 +35,9 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/web-push": "^3.6.4",
+    "@typescript-eslint/eslint-plugin": "^8.64.0",
+    "@typescript-eslint/parser": "^8.64.0",
+    "eslint": "^10.7.0",
     "prisma": "^5.18.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
