@@ -177,6 +177,31 @@ enum AuditAction {
   OTHER
 }
 
+enum SessionPublishStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum AgendaIngestSourceKind {
+  PASTE
+  PDF
+  DOCX
+  XLSX
+  CSV
+  IMAGE
+  URL
+}
+
+enum AgendaIngestRunStatus {
+  PENDING
+  EXTRACTING
+  READY_FOR_REVIEW
+  CONFIRMING
+  CONFIRMED
+  FAILED
+  CANCELLED
+}
+
 enum AdminAccessRequestStatus {
   PENDING
   GRANTED
@@ -210,6 +235,7 @@ model Organization {
   aiUsageRecords            AiUsageRecord[]
   auditLogs                 AuditLog[]
   backgroundJobs            BackgroundJob[]
+  agendaIngestRuns          AgendaIngestRun[]
 }
 
 model OrgMembership {
@@ -390,6 +416,7 @@ model User {
   aiUsageRecords              AiUsageRecord[]
   auditLogs                   AuditLog[]               @relation("AuditLogActor")
   backgroundJobsCreated       BackgroundJob[]          @relation("BackgroundJobCreator")
+  agendaIngestRuns            AgendaIngestRun[]        @relation("AgendaIngestRunCreator")
 }
 
 model Event {
@@ -451,6 +478,7 @@ model Event {
   aiUsageRecords       AiUsageRecord[]
   auditLogs            AuditLog[]
   backgroundJobs       BackgroundJob[]
+  agendaIngestRuns     AgendaIngestRun[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -563,6 +591,8 @@ model Session {
   inPersonCapacity  Int?
   /// NULL = unlimited virtual JOINING seats.
   virtualCapacity   Int?
+  /// DRAFT = organizer-only (ingest confirm); PUBLISHED = attendee-visible when event is ACTIVE.
+  publishStatus     SessionPublishStatus       @default(PUBLISHED)
   startsAt          DateTime
   endsAt            DateTime
   event             Event                      @relation(fields: [eventId], references: [id])
@@ -588,6 +618,7 @@ model Session {
 
   @@index([trackId])
   @@index([roomId])
+  @@index([eventId, publishStatus])
 }
 
 model SessionSpeaker {
@@ -1132,4 +1163,44 @@ model BackgroundJob {
   @@index([status, scheduledAt])
   @@index([organizationId, createdAt])
   @@index([eventId, type, createdAt])
+}
+
+/// Agenda ingest history + raw source link (Phase A1).
+model AgendaIngestRun {
+  id                String                 @id @default(cuid())
+  organizationId    String
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId           String
+  event             Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdById       String?
+  createdBy         User?                  @relation("AgendaIngestRunCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  sourceKind        AgendaIngestSourceKind
+  sourceFileName    String?
+  sourceMime        String?
+  sourceBytes       Int?
+  sourceUrl         String?
+  sourceStorageKey  String?
+  sourceTextPreview String?
+  status            AgendaIngestRunStatus  @default(PENDING)
+  /// Soft link to BackgroundJob.id (no FK — jobs may be pruned independently).
+  jobId             String?
+  extraction        Json?
+  assumptions       Json                   @default("[]")
+  changeset         Json?
+  reviewState       Json?
+  error             String?
+  createdCount      Int                    @default(0)
+  updatedCount      Int                    @default(0)
+  deletedCount      Int                    @default(0)
+  speakerCount      Int                    @default(0)
+  itemCount         Int                    @default(0)
+  aiGenerated       Boolean                @default(true)
+  confirmedAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([eventId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdById, createdAt])
 }
