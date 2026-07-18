@@ -27,9 +27,11 @@ import { icsRouter } from "./routes/ics";
 import { pushRouter } from "./routes/push";
 import { jobsRouter } from "./routes/jobs";
 import { aiUsageRouter } from "./routes/aiUsage";
+import { agendaIngestRouter } from "./routes/agendaIngest";
 import { asyncHandler } from "./lib/authorization";
 import { flushQueuedPushes, notifySessionStartingSoon } from "./lib/notifications";
 import { startJobPoller } from "./lib/jobs";
+import { registerAgendaIngestJob } from "./lib/ai/ingest";
 
 const app = express();
 
@@ -105,6 +107,7 @@ app.use("/ics", icsRouter);
 app.use("/push", pushRouter);
 app.use("/jobs", jobsRouter);
 app.use("/ai/usage", aiUsageRouter);
+app.use("/ai/ingest", agendaIngestRouter);
 app.use("/surveys", surveysRouter);
 app.use("/conversations", conversationsRouter);
 app.use("/attendees", attendeesRouter);
@@ -141,5 +144,6 @@ app.listen(env.apiPort, () => {
     void flushQueuedPushes().catch((err) => console.error("[notifications] flushQueuedPushes", err));
     void notifySessionStartingSoon().catch((err) => console.error("[notifications] sessionStartingSoon", err));
   }, tickMs);
+  registerAgendaIngestJob();
   startJobPoller();
 });
