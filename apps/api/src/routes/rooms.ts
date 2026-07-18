@@ -10,6 +10,8 @@ export const roomsRouter = Router();
 const roomSchema = z.object({
   name: z.string().min(1).max(120),
   sortOrder: z.number().int().optional(),
+  /** null = unknown capacity */
+  capacity: z.number().int().positive().nullable().optional(),
 });
 
 roomsRouter.get(
@@ -40,6 +42,7 @@ roomsRouter.post(
         eventId: event.id,
         name: parsed.data.name.trim(),
         sortOrder: parsed.data.sortOrder ?? 0,
+        capacity: parsed.data.capacity === undefined ? null : parsed.data.capacity,
       },
     });
     return res.status(201).json(room);
@@ -62,6 +65,7 @@ roomsRouter.put(
       data: {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
         ...(parsed.data.sortOrder !== undefined ? { sortOrder: parsed.data.sortOrder } : {}),
+        ...(parsed.data.capacity !== undefined ? { capacity: parsed.data.capacity } : {}),
       },
     });
     return res.json(updated);

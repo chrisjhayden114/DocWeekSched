@@ -32,16 +32,17 @@ import { setupCopilotRouter } from "./routes/setupCopilot";
 import { conciergeRouter, eventFaqRouter } from "./routes/concierge";
 import { cfpRouter } from "./routes/cfp";
 import { matchmakerRouter } from "./routes/matchmaker";
+import { opsRouter } from "./routes/ops";
 import { pollsRouter } from "./routes/polls";
 import { feedbackRouter } from "./routes/feedback";
 import { analyticsRouter } from "./routes/analytics";
 import { sponsorsRouter } from "./routes/sponsors";
 import { asyncHandler } from "./lib/authorization";
 import { flushQueuedPushes, notifySessionStartingSoon } from "./lib/notifications";
-import { startJobPoller } from "./lib/jobs";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
 import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
-
+import { OPS_DETECT_SWEEP_JOB, registerOpsJobs } from "./lib/ai/ops";
+import { enqueueJob, startJobPoller } from "./lib/jobs";
 const app = express();
 
 
@@ -120,6 +121,7 @@ app.use("/ai/ingest", agendaIngestRouter);
 app.use("/ai/setup-copilot", setupCopilotRouter);
 app.use("/ai/concierge", conciergeRouter);
 app.use("/ai/matchmaker", matchmakerRouter);
+app.use("/ai/ops", opsRouter);
 app.use("/polls", pollsRouter);
 app.use("/feedback", feedbackRouter);
 app.use("/analytics", analyticsRouter);
@@ -162,7 +164,18 @@ app.listen(env.apiPort, () => {
     void flushQueuedPushes().catch((err) => console.error("[notifications] flushQueuedPushes", err));
     void notifySessionStartingSoon().catch((err) => console.error("[notifications] sessionStartingSoon", err));
   }, tickMs);
+
+  // Periodic ops detector sweep (enqueue per-event jobs; never auto-applies cards).
+  const opsSweepMs = Number(process.env.OPS_DETECT_SWEEP_INTERVAL_MS || 5 * 60_000);
+  setInterval(() => {
+    void enqueueJob({
+      type: OPS_DETECT_SWEEP_JOB,
+      payload: {},
+    }).catch((err) => console.error("[ops] detect sweep enqueue", err));
+  }, opsSweepMs);
+
   registerAgendaIngestJob();
   registerMatchmakerJobs();
+  registerOpsJobs();
   startJobPoller();
 });

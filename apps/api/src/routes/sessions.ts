@@ -9,6 +9,7 @@ import { getStorageProvider } from "../lib/storage";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
 import { sessionVisibilityWhere, isSessionAttendeeVisible } from "../lib/ai/ingest/visibility";
+import { recordSessionScheduleChange } from "../lib/ai/ops/scheduleChange";
 
 export const sessionsRouter = Router();
 
@@ -60,7 +61,14 @@ const resourceSchema = z.object({
 async function findSessionWithEvent(sessionId: string) {
   return prisma.session.findUnique({
     where: { id: sessionId },
-    select: { id: true, eventId: true, allowVirtualJoin: true, publishStatus: true },
+    select: {
+      id: true,
+      eventId: true,
+      allowVirtualJoin: true,
+      publishStatus: true,
+      startsAt: true,
+      roomId: true,
+    },
   });
 }
 
@@ -484,6 +492,20 @@ sessionsRouter.put(
           data: { joinMode: "IN_PERSON" },
         });
       }
+
+      const newStartsAt = new Date(parsed.data.startsAt);
+      const newRoomId =
+        parsed.data.roomId !== undefined ? parsed.data.roomId : existing.roomId;
+      await recordSessionScheduleChange({
+        eventId: existing.eventId,
+        sessionId: existing.id,
+        publishStatus: existing.publishStatus,
+        previousStartsAt: existing.startsAt,
+        newStartsAt,
+        previousRoomId: existing.roomId,
+        newRoomId: newRoomId ?? null,
+        tx,
+      });
 
       return updated;
     });
