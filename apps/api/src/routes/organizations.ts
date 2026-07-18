@@ -79,12 +79,20 @@ organizationsRouter.post(
       data: {
         name: parsed.data.name.trim(),
         slug,
+        plan: "FREE",
+        eventAllowance: 1,
         memberships: {
           create: { userId: req.user!.id, role: OrgRole.OWNER },
         },
       },
     });
-    return res.status(201).json({ id: org.id, name: org.name, slug: org.slug, role: OrgRole.OWNER });
+    return res.status(201).json({
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      role: OrgRole.OWNER,
+      plan: org.plan,
+    });
   }),
 );
 

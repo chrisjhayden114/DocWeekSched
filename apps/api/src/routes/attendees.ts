@@ -43,7 +43,7 @@ async function createAndEmailInvite(
   data: InviteInput,
 ): Promise<
   | { ok: true; inviteUrl: string; emailDelivered: boolean; emailFallbackMessage?: string }
-  | { ok: false; error: string }
+  | { ok: false; error: string; status?: number; body?: Record<string, unknown> }
 > {
   const email = data.email.trim().toLowerCase();
   const name = data.name.trim();
@@ -53,12 +53,16 @@ async function createAndEmailInvite(
   const base = env.webBaseUrl.replace(/\/$/, "");
 
   let userId: string;
+  let isNewRosterSeat = true;
   if (existing) {
     const already = await prisma.eventMembership.findUnique({
       where: { eventId_userId: { eventId: event.id, userId: existing.id } },
     });
-    if (already && !existing.profileSetupTokenHash) {
+    if (already && !already.deletedAt && !existing.profileSetupTokenHash) {
       return { ok: false, error: "This person is already on the event roster" };
+    }
+    if (already && !already.deletedAt) {
+      isNewRosterSeat = false;
     }
     await prisma.user.update({
       where: { id: existing.id },
@@ -86,6 +90,18 @@ async function createAndEmailInvite(
       },
     });
     userId = created.id;
+  }
+
+  if (isNewRosterSeat) {
+    try {
+      const { assertCanAddAttendee } = await import("../lib/billing");
+      await assertCanAddAttendee(event.id);
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return { ok: false, error: err.message, status: err.status, body: err.body };
+      }
+      throw err;
+    }
   }
 
   await prisma.eventMembership.upsert({
@@ -197,6 +213,9 @@ attendeesRouter.post(
 
     const result = await createAndEmailInvite(event, parsed.data);
     if (!result.ok) {
+      if (result.status && result.body) {
+        return res.status(result.status).json(result.body);
+      }
       return res.status(409).json({ error: result.error });
     }
     return res.json({
@@ -282,6 +301,13 @@ attendeesRouter.post(
           emailFallbackMessage: result.emailFallbackMessage,
         });
       } else {
+        if (result.status === 402 || result.status === 403) {
+          return res.status(result.status).json({
+            ...(result.body || { error: result.error }),
+            sent,
+            failed,
+          });
+        }
         failed.push({ email: inv.email.trim().toLowerCase(), error: result.error });
       }
     }

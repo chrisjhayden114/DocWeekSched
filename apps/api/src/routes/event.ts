@@ -143,7 +143,13 @@ eventRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
-    return res.json({ ...event, uiStatus: uiEventStatus(event) });
+    const { can } = await import("../lib/billing");
+    const hideBadge = await can(event.organizationId, "hide_powered_by_badge");
+    return res.json({
+      ...event,
+      uiStatus: uiEventStatus(event),
+      showPoweredByBadge: !hideBadge,
+    });
   }),
 );
 
@@ -179,6 +185,8 @@ eventRouter.post(
       return res.status(400).json({ error: parsed.error.flatten() });
     }
 
+    const { assertCanCreateEvent, limit } = await import("../lib/billing");
+
     let organizationId = parsed.data.organizationId;
     if (organizationId) {
       await requireOrgRole(req.user!.id, organizationId, OrgRole.STAFF);
@@ -194,6 +202,8 @@ eventRouter.post(
           data: {
             name: `${parsed.data.name} Org`,
             slug: await ensureUniqueOrgSlug(slugBase),
+            plan: "FREE",
+            eventAllowance: 1,
             memberships: {
               create: { userId: req.user!.id, role: OrgRole.OWNER },
             },
@@ -209,10 +219,14 @@ eventRouter.post(
       organizationId = org.organizationId;
     }
 
+    await assertCanCreateEvent(organizationId!);
+
     const slugBase = parsed.data.slug?.trim().toLowerCase() || slugifyEventBase(parsed.data.name);
     const slug = await ensureUniqueEventSlug(slugBase);
     const { newJoinToken } = await import("../lib/inviteTokens");
     const { raw: joinRaw, hash: joinHash } = newJoinToken();
+    const attendeeLimit = await limit(organizationId!, "attendees");
+    const attendeeCap = attendeeLimit == null ? 100000 : attendeeLimit;
 
     const created = await prisma.event.create({
       data: {
@@ -230,7 +244,8 @@ eventRouter.post(
         endDate: new Date(parsed.data.endDate),
         status: EventStatus.DRAFT,
         createdById: req.user!.id,
-        organizationId,
+        organizationId: organizationId!,
+        attendeeCap,
         joinTokenHash: joinHash,
         memberships: {
           create: { userId: req.user!.id, role: EventMemberRole.ADMIN },
@@ -527,7 +542,7 @@ eventRouter.get(
       FEATURE_PRESETS,
     } = await import("../lib/features");
     const overrides = await loadFeatureOverrides(event.id);
-    const features = buildFeatureState(overrides, event.organizationId);
+    const features = await buildFeatureState(overrides, event.organizationId);
     return res.json({
       eventId: event.id,
       overrides,
@@ -568,7 +583,7 @@ eventRouter.put(
     }
 
     const { overrides, forcedOff } = await upsertFeatureOverrides(event.id, next);
-    const features = buildFeatureState(overrides, event.organizationId);
+    const features = await buildFeatureState(overrides, event.organizationId);
     return res.json({
       eventId: event.id,
       overrides,

@@ -19,6 +19,8 @@ import { tracksRouter } from "./routes/tracks";
 import { roomsRouter } from "./routes/rooms";
 import { speakersRouter } from "./routes/speakers";
 import { seriesRouter } from "./routes/series";
+import { billingRouter, handleBillingWebhook } from "./routes/billing";
+import { asyncHandler } from "./lib/authorization";
 
 const app = express();
 
@@ -50,6 +52,27 @@ app.use(
     },
   }),
 );
+
+// Webhooks need the raw body for HMAC verification (before JSON parser).
+app.post(
+  "/billing/webhooks/lemonsqueezy",
+  express.raw({ type: "*/*" }),
+  (req, _res, next) => {
+    (req as { rawBody?: Buffer }).rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body || ""));
+    next();
+  },
+  asyncHandler(handleBillingWebhook),
+);
+app.post(
+  "/billing/webhooks/mock",
+  express.raw({ type: "*/*" }),
+  (req, _res, next) => {
+    (req as { rawBody?: Buffer }).rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body || ""));
+    next();
+  },
+  asyncHandler(handleBillingWebhook),
+);
+
 app.use(express.json({ limit: "25mb" }));
 app.use(cookieParser());
 app.use(requireCsrf);
@@ -59,6 +82,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/auth", authRouter);
 app.use("/event", eventRouter);
 app.use("/organizations", organizationsRouter);
+app.use("/billing", billingRouter);
 app.use("/tracks", tracksRouter);
 app.use("/rooms", roomsRouter);
 app.use("/speakers", speakersRouter);
@@ -75,6 +99,12 @@ app.use("/notifications", notificationsRouter);
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof Error && err.message.startsWith("CORS blocked")) {
     return res.status(403).json({ error: "Origin not allowed" });
+  }
+  if (err && typeof err === "object" && "status" in err && "body" in err) {
+    const httpErr = err as { status: number; body: Record<string, unknown> };
+    if (typeof httpErr.status === "number" && httpErr.status >= 400 && httpErr.status < 600) {
+      return res.status(httpErr.status).json(httpErr.body);
+    }
   }
   console.error(err);
   return res.status(500).json({ error: "Internal server error" });

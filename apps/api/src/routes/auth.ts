@@ -122,10 +122,17 @@ authRouter.post(
     if (eventId) {
       const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
       if (event) {
+        const { assertCanAddAttendee } = await import("../lib/billing");
+        const existingMembership = await prisma.eventMembership.findUnique({
+          where: { eventId_userId: { eventId: event.id, userId: user.id } },
+        });
+        if (!existingMembership || existingMembership.deletedAt) {
+          await assertCanAddAttendee(event.id);
+        }
         await prisma.eventMembership.upsert({
           where: { eventId_userId: { eventId: event.id, userId: user.id } },
           create: { eventId: event.id, userId: user.id, role: EventMemberRole.ATTENDEE },
-          update: {},
+          update: { deletedAt: null },
         });
       }
     }
