@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue } from "@event-app/shared";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
+import { formatEventTimeRange } from "../../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../../lib/push";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -112,17 +113,6 @@ function withEventHeaders(activeEventId: string | null, extra: RequestInit = {})
   return { ...extra, headers: { ...h, "x-event-id": activeEventId } };
 }
 
-function timeZoneAbbrev(date: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "short" }).formatToParts(date);
-  return parts.find((part) => part.type === "timeZoneName")?.value || timeZone;
-}
-
-function formatTimeRangeInZone(start: string, end: string, timeZone: string) {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  return `${startDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone })} – ${endDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone })} ${timeZoneAbbrev(startDate, timeZone)}`;
-}
-
 function formatEventRange(start: string, end: string) {
   const startDate = new Date(start);
   const endDate = new Date(end);
@@ -145,6 +135,29 @@ function openGoogleCalendar(session: Session, eventName: string) {
   if (session.location) url.searchParams.set("location", session.location);
   if (details) url.searchParams.set("details", details);
   window.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
+function downloadSessionIcs(session: Session, eventName: string) {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//EventPilot//EN",
+    "BEGIN:VEVENT",
+    `UID:${session.id}@eventpilot`,
+    `DTSTAMP:${toGoogleCalendarUtc(new Date().toISOString())}`,
+    `DTSTART:${toGoogleCalendarUtc(session.startsAt)}`,
+    `DTEND:${toGoogleCalendarUtc(session.endsAt)}`,
+    `SUMMARY:${session.title.replace(/[,;\\]/g, " ")} (${eventName.replace(/[,;\\]/g, " ")})`,
+    session.location ? `LOCATION:${session.location.replace(/[,;\\]/g, " ")}` : "",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].filter(Boolean);
+  const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${session.title.slice(0, 40).replace(/[^\w\- ]+/g, "") || "session"}.ics`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -448,20 +461,19 @@ export default function SessionPage() {
 
   return (
     <div className="container">
-      {event && (
-        <div
-          className="hero-banner"
-          style={event.bannerUrl ? { backgroundImage: `url(${event.bannerUrl})` } : undefined}
-        />
-      )}
+      {event?.bannerUrl ? (
+        <div className="hero-banner" style={{ backgroundImage: `url(${event.bannerUrl})` }} />
+      ) : null}
       <div className="header app-shell">
         <div className="app-shell-title">
-          <p className="session-backline" style={{ margin: "0 0 6px" }}>
-            <Link href="/dashboard" className="session-back-link">
-              ← Back to schedule
-            </Link>
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <nav className="session-breadcrumb text-meta" aria-label="Breadcrumb">
+            <Link href="/dashboard">{event?.name || "Event"}</Link>
+            <span aria-hidden="true"> › </span>
+            <Link href="/dashboard?tab=Agenda">Agenda</Link>
+            <span aria-hidden="true"> › </span>
+            <span aria-current="page">{session?.title || "Session"}</span>
+          </nav>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
             {event?.logoUrl ? (
               <img
                 src={event.logoUrl}
@@ -480,7 +492,8 @@ export default function SessionPage() {
             <h1 style={{ margin: 0 }}>{event?.name || "Event"}</h1>
           </div>
           <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)", margin: "8px 0 0" }}>
-            {user.name} · Session discussion {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
+            {user.name}
+            {event ? ` · ${formatEventRange(event.startDate, event.endDate)}` : ""}
           </p>
         </div>
         <button
@@ -508,12 +521,16 @@ export default function SessionPage() {
       {!loading && session && (
         <>
           <div className="card session-page-header">
-            {session.imageUrl && (
+            {session.imageUrl ? (
               <img src={session.imageUrl} alt="" className="session-page-image" />
+            ) : (
+              <div className="session-title-banner" aria-hidden="true">
+                <span className="session-title-banner-label">{session.title}</span>
+              </div>
             )}
             <h2 style={{ margin: "0 0 8px", fontFamily: "Merriweather, Georgia, serif" }}>{session.title}</h2>
             <p style={{ color: "var(--ink-muted)", margin: "0 0 8px" }}>
-              {formatTimeRangeInZone(session.startsAt, session.endsAt, displayTimezone)}
+              {formatEventTimeRange(session.startsAt, session.endsAt, displayTimezone)}
               {session.room?.name ? ` · ${session.room.name}` : session.location ? ` · ${session.location}` : ""}
             </p>
             {(() => {
@@ -684,6 +701,15 @@ export default function SessionPage() {
                   onClick={() => openGoogleCalendar(session, event?.name || "Event")}
                 >
                   Add to Google Calendar
+                </button>
+              )}
+              {session && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => downloadSessionIcs(session, event?.name || "Event")}
+                >
+                  Download ICS
                 </button>
               )}
               <button type="button" className={liked ? "button" : "button secondary"} onClick={() => toggleLike()}>

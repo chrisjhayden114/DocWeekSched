@@ -860,6 +860,8 @@ html[data-theme="slate"] .roster-role-badge--admin {
 
 .schedule-speaker-with-location .schedule-speaker-names {
   color: var(--gold-700);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .schedule-speaker-sep {
@@ -976,9 +978,10 @@ html[data-theme="slate"] .schedule-session-location {
 }
 
 .session-attendance-inline .join-mode-switch button {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 3px 6px;
+  padding: 6px 8px;
+  min-height: 32px;
 }
 
 .attendance-join-dot {
@@ -1211,10 +1214,10 @@ html[data-theme="slate"] .schedule-session-location {
   bottom: -4px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: 4px;
   white-space: nowrap;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -2262,6 +2265,38 @@ html[data-theme="slate"] .schedule-session-location {
   animation: skeleton-shimmer 1.2s ease-in-out infinite;
 }
 
+.skeleton-row {
+  height: 72px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--surface-alt) 25%, #e8eef8 50%, var(--surface-alt) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.bio-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bio-clamp.is-expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.interest-chip {
+  margin: 0;
+}
+
+.notification-kind-icon {
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
 @keyframes skeleton-shimmer {
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }
@@ -2403,4 +2438,246 @@ html[data-theme="slate"] .schedule-session-location {
 
 .venue-maps-attendee {
   max-width: 720px;
+}
+
+/* —— Phase 4.5 attendee polish —— */
+.login-card {
+  max-width: 440px;
+  margin: var(--space-6) auto;
+}
+
+.login-brand--card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.branded-error-page {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+}
+
+.branded-error-card {
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.session-breadcrumb a {
+  color: var(--gold-700);
+  font-weight: 700;
+}
+
+.session-title-banner {
+  display: flex;
+  align-items: flex-end;
+  min-height: 88px;
+  margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: linear-gradient(135deg, var(--primary-700) 0%, var(--navy-900) 55%, #152642 100%);
+  color: #fff;
+}
+
+.session-title-banner-label {
+  font: var(--text-display-sm);
+  color: var(--gold-400);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-banner:not([style*="background-image"]) {
+  display: none;
+}
+
+.hero-banner.is-empty {
+  display: none;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.schedule-meta-my-mode {
+  color: var(--primary-700);
+  font-weight: 700;
+}
+
+.schedule-meta-detail-text {
+  display: none;
+}
+
+.schedule-event:hover .schedule-meta-detail-text,
+.schedule-event:focus-within .schedule-meta-detail-text {
+  display: inline;
+}
+
+.searchable-multi-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.searchable-multi-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: var(--text-body-md);
+  color: var(--ink);
+}
+
+.searchable-multi-option:hover,
+.searchable-multi-option.is-selected {
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+
+.searchable-multi-check {
+  width: 1.1rem;
+  font-weight: 800;
+}
+
+.interest-chip.is-active {
+  outline: 2px solid var(--primary-700);
+}
+
+.messages-new-panel {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+
+.chat-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-100);
+  color: var(--primary-700);
+  font: var(--text-meta);
+  font-weight: 700;
+}
+
+/* Tap targets ≥44px on attendee chrome */
+.dashboard-tabs > button,
+.agenda-add-my-btn,
+.schedule-toolbar-btn,
+.attendee-msg-btn,
+.attendee-index-letter,
+.community-subnav button,
+.message-sidebar-card .button,
+.session-page-toolbar .button {
+  min-height: 44px;
+}
+
+.attendee-index-letter {
+  min-width: 44px;
+}
+
+/* Responsive: 768 / 390 */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px 12px 88px;
+    overflow-x: hidden;
+  }
+
+  .schedule-layout {
+    display: block;
+  }
+
+  .schedule-admin-rail {
+    margin-top: var(--space-4);
+  }
+
+  .schedule-slot {
+    display: block;
+  }
+
+  .schedule-time {
+    margin-bottom: var(--space-2);
+  }
+
+  .schedule-events {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-tabs {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    margin: 0 -12px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 24px rgba(24, 37, 63, 0.08);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dashboard-tabs > button {
+    flex: 1 0 auto;
+    min-width: 72px;
+    min-height: 48px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .dashboard-tabs .nav-tab-inner {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+  }
+
+  .app-shell {
+    flex-wrap: wrap;
+  }
+
+  .app-shell-actions {
+    width: 100%;
+  }
+
+  .app-shell-actions .button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 390px) {
+  .container {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .card {
+    padding: var(--space-4);
+  }
+
+  .schedule-actions-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .join-mode-switch button {
+    min-height: 44px;
+  }
 }
