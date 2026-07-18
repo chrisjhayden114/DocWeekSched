@@ -23,6 +23,7 @@ describe("plan catalog", () => {
     expect(free.limits.activeEvents).toBe(1);
     expect(free.limits.attendees).toBe(50);
     expect(free.limits.aiIngestPerEvent).toBe(1);
+    expect(free.limits.aiConciergePerEvent).toBe(50);
     expect(resolveEntitlement(free, "hide_powered_by_badge")).toBe(false);
     expect(resolveEntitlement(free, "community")).toBe(true);
   });
