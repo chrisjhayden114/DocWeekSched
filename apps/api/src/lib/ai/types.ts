@@ -9,6 +9,12 @@ export type AiProviderName = "mock" | "anthropic";
 export type AiChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
+  /** Optional PDF/image parts for Anthropic multimodal extract (ignored by mock). */
+  attachments?: Array<{
+    type: "document" | "image";
+    mediaType: string;
+    base64: string;
+  }>;
 };
 
 export type AiProviderResult = {

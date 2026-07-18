@@ -44,6 +44,8 @@ export async function runAgendaExtract(input: {
   skipCap?: boolean;
   skipMetering?: boolean;
   skipAudit?: boolean;
+  /** Optional multimodal attachment (real PDF/image smoke). */
+  attachment?: { type: "document" | "image"; mediaType: string; base64: string };
 }): Promise<RunExtractResult> {
   const fixtureId = matchFixtureId(input.sourceText);
   const chunks = chunkSourceText(input.sourceText);
@@ -65,7 +67,11 @@ export async function runAgendaExtract(input: {
 
     const result = await gatewayExtract(agendaExtractSchema, [
       { role: "system", content: EXTRACT_SYSTEM },
-      { role: "user", content: userContent },
+      {
+        role: "user",
+        content: userContent,
+        ...(i === 0 && input.attachment ? { attachments: [input.attachment] } : {}),
+      },
     ], {
       organizationId: input.organizationId,
       eventId: input.eventId,

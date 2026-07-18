@@ -33,6 +33,19 @@ const handler: JobHandler = async (job) => {
     throw new Error("No source text available for extract");
   }
 
+  let attachment: { type: "document" | "image"; mediaType: string; base64: string } | undefined;
+  if (run.sourceUrl?.startsWith("data:")) {
+    const m = /^data:([^;,]+)?(?:;charset=[^;,]+)?;base64,(.+)$/i.exec(run.sourceUrl.trim());
+    if (m?.[2]) {
+      const mime = (m[1] || "application/octet-stream").toLowerCase();
+      if (mime === "application/pdf") {
+        attachment = { type: "document", mediaType: "application/pdf", base64: m[2] };
+      } else if (mime.startsWith("image/")) {
+        attachment = { type: "image", mediaType: mime, base64: m[2] };
+      }
+    }
+  }
+
   const event = await prisma.event.findUniqueOrThrow({
     where: { id: job.eventId },
     select: { timezone: true },
@@ -70,6 +83,7 @@ const handler: JobHandler = async (job) => {
         trackName: s.track?.name,
         roomName: s.room?.name,
       })),
+      attachment,
     });
 
     await job.updateProgress(90, "Saving review changeset");

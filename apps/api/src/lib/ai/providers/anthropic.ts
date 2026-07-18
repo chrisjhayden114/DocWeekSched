@@ -33,15 +33,43 @@ export class AnthropicAiProvider implements AiProvider {
       model: this.model,
       max_tokens: 4096,
       system: system || undefined,
-      messages: rest.map((m) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: m.content,
-      })),
+      messages: rest.map((m) => {
+        const parts: Array<
+          | { type: "text"; text: string }
+          | {
+              type: "document";
+              source: { type: "base64"; media_type: string; data: string };
+            }
+          | {
+              type: "image";
+              source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string };
+            }
+        > = [];
+        for (const att of m.attachments || []) {
+          if (att.type === "document") {
+            parts.push({
+              type: "document",
+              source: { type: "base64", media_type: att.mediaType, data: att.base64 },
+            });
+          } else if (att.type === "image") {
+            const mt = att.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+            parts.push({
+              type: "image",
+              source: { type: "base64", media_type: mt, data: att.base64 },
+            });
+          }
+        }
+        parts.push({ type: "text", text: m.content });
+        return {
+          role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+          content: parts.length === 1 && parts[0].type === "text" ? m.content : parts,
+        };
+      }),
     });
 
     const text = response.content
-      .filter((b): b is { type: "text"; text: string } => b.type === "text")
-      .map((b) => b.text)
+      .map((b) => ("text" in b && typeof b.text === "string" ? b.text : ""))
+      .filter(Boolean)
       .join("\n");
 
     return {
