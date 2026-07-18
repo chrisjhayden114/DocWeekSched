@@ -225,6 +225,19 @@ enum CfpDecisionEmailKind {
   REJECT
 }
 
+enum ConciergeMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum ConciergePendingActionStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
 enum AdminAccessRequestStatus {
   PENDING
   GRANTED
@@ -443,6 +456,8 @@ model User {
   cfpReviewers                CfpReviewer[]
   cfpReviews                  CfpReview[]
   cfpDecisionEmailsCreated    CfpDecisionEmail[]       @relation("CfpDecisionEmailCreator")
+  conciergeConversations      ConciergeConversation[]
+  conciergePendingActions     ConciergePendingAction[]
 }
 
 model Event {
@@ -506,6 +521,9 @@ model Event {
   backgroundJobs       BackgroundJob[]
   agendaIngestRuns     AgendaIngestRun[]
   cfpForms             CfpForm[]
+  eventFaqs            EventFaq[]
+  conciergeConversations ConciergeConversation[]
+  conciergePendingActions ConciergePendingAction[]
 
   @@index([organizationId])
   @@index([seriesId])
