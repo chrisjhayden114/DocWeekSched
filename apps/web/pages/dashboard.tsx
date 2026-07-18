@@ -1,3 +1,8 @@
+import {
+  resolveFeatureEnabled,
+  type FeatureKey,
+  type FeatureOverrideValue,
+} from "@event-app/shared";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
@@ -8,6 +13,8 @@ import { KebabMenu } from "../components/KebabMenu";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { UploadDropzone } from "../components/UploadDropzone";
 import { apiFetch, clearAuthClientState } from "../lib/api";
+
+type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
 type User = {
   id: string;
@@ -259,6 +266,7 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState<UserNotificationRow[]>([]);
   const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
   const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
+  const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const myTimezone = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -266,6 +274,11 @@ export default function Dashboard() {
       return "UTC";
     }
   }, []);
+
+  const featureOn = useCallback(
+    (key: FeatureKey) => resolveFeatureEnabled(key, featureOverrides),
+    [featureOverrides],
+  );
 
   const withEventHeaders = (extra: RequestInit = {}): RequestInit => {
     if (!activeEventId) return extra;
@@ -314,6 +327,9 @@ export default function Dashboard() {
         setMyAttendance(meta.attendance);
         setLikedSessionIds(meta.likedSessionIds);
       }).catch(() => null);
+      apiFetch<{ overrides: FeatureOverridesMap }>("/event/features", withEventHeaders(), token)
+        .then((res) => setFeatureOverrides(res.overrides || {}))
+        .catch(() => setFeatureOverrides({}));
     }
   }, [token, activeEventId]);
 
@@ -437,25 +453,48 @@ export default function Dashboard() {
   }, [active, conversations, activeConversationId]);
 
   const isAdmin = useMemo(() => Boolean(user?.isEventAdmin || user?.role === "ADMIN"), [user]);
-  const availableTabs = useMemo(() => (isAdmin ? adminTabs : participantTabs), [isAdmin]);
+  const messagingEnabled =
+    featureOn("messaging_dms") || featureOn("messaging_groups") || featureOn("messaging_event_chat");
+  const availableTabs = useMemo(() => {
+    const base = isAdmin ? adminTabs : participantTabs;
+    return base.filter((tab) => {
+      if (tab === "Attendees") return featureOn("attendee_directory");
+      if (tab === COMMUNITY_TAB) return featureOn("community");
+      if (tab === "Messages") return messagingEnabled;
+      return true;
+    });
+  }, [isAdmin, featureOn, messagingEnabled]);
   const unreadNotifications = useMemo(
     () => notifications.filter((row) => !row.readAt).length,
     [notifications],
   );
   const rosterAdminCount = useMemo(() => attendees.filter((a) => a.role === "ADMIN").length, [attendees]);
+  const timezoneToggleOn = featureOn("timezone_toggle");
+  const sessionLikesOn = featureOn("session_likes");
+  const engagementPointsOn = featureOn("engagement_points");
 
   useEffect(() => {
     if (!availableTabs.some((tab) => tab === active)) {
       setActive("Agenda");
     }
   }, [availableTabs, active]);
+
+  useEffect(() => {
+    if (!timezoneToggleOn && agendaTimeMode !== "EVENT") {
+      setAgendaTimeMode("EVENT");
+    }
+  }, [timezoneToggleOn, agendaTimeMode]);
+
   const sortedSessions = useMemo(
     () => [...sessions].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
     [sessions]
   );
   const agendaDisplayTimezone = useMemo(
-    () => (agendaTimeMode === "EVENT" ? event?.timezone || myTimezone : myTimezone),
-    [agendaTimeMode, event?.timezone, myTimezone],
+    () =>
+      !timezoneToggleOn || agendaTimeMode === "EVENT"
+        ? event?.timezone || myTimezone
+        : myTimezone,
+    [timezoneToggleOn, agendaTimeMode, event?.timezone, myTimezone],
   );
   const groupedAgenda = useMemo(
     () => groupSessionsByDayAndTime(sortedSessions, agendaDisplayTimezone),
@@ -667,7 +706,7 @@ export default function Dashboard() {
           </div>
           <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)" }}>
             {user.name} · {user.role}
-            {typeof user.engagementPoints === "number" && (
+            {engagementPointsOn && typeof user.engagementPoints === "number" && (
               <>
                 {" · "}
                 <span
@@ -746,30 +785,34 @@ export default function Dashboard() {
                 My Schedule
               </button>
             </div>
-            <div className="nav agenda-timezone-toggle" role="tablist" aria-label="Time display mode">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={agendaTimeMode === "MY"}
-                className={agendaTimeMode === "MY" ? "active" : ""}
-                onClick={() => setAgendaTimeMode("MY")}
-              >
-                My timezone
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={agendaTimeMode === "EVENT"}
-                className={agendaTimeMode === "EVENT" ? "active" : ""}
-                onClick={() => setAgendaTimeMode("EVENT")}
-              >
-                Event timezone
-              </button>
-            </div>
+            {timezoneToggleOn ? (
+              <div className="nav agenda-timezone-toggle" role="tablist" aria-label="Time display mode">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={agendaTimeMode === "MY"}
+                  className={agendaTimeMode === "MY" ? "active" : ""}
+                  onClick={() => setAgendaTimeMode("MY")}
+                >
+                  My timezone
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={agendaTimeMode === "EVENT"}
+                  className={agendaTimeMode === "EVENT" ? "active" : ""}
+                  onClick={() => setAgendaTimeMode("EVENT")}
+                >
+                  Event timezone
+                </button>
+              </div>
+            ) : null}
             <p className="help-text" style={{ margin: "8px 0 12px" }}>
               Times shown in{" "}
-              <strong>{agendaDisplayTimezone}</strong>{" "}
-              ({agendaTimeMode === "MY" ? "your device setting" : "event setting"}).
+              <strong>{agendaDisplayTimezone}</strong>
+              {timezoneToggleOn
+                ? ` (${agendaTimeMode === "MY" ? "your device setting" : "event setting"}).`
+                : " (event timezone)."}
             </p>
             {agendaView === "Event Schedule" && (
               <ScheduleBoard
@@ -779,9 +822,11 @@ export default function Dashboard() {
                 displayTimezone={agendaDisplayTimezone}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
-                likedSessionIds={likedSessionIds}
+                likedSessionIds={sessionLikesOn ? likedSessionIds : []}
                 onPatchAttendance={patchSessionAttendance}
-                onToggleLike={toggleSessionLike}
+                onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
+                likesEnabled={sessionLikesOn}
+                qaEnabled={featureOn("session_qa")}
                 onEditSession={(session) => {
                   setEditingSession(session);
                   setSessionFormKey((k) => k + 1);
@@ -798,9 +843,11 @@ export default function Dashboard() {
                 displayTimezone={agendaDisplayTimezone}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
-                likedSessionIds={likedSessionIds}
+                likedSessionIds={sessionLikesOn ? likedSessionIds : []}
                 onPatchAttendance={patchSessionAttendance}
-                onToggleLike={toggleSessionLike}
+                onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
+                likesEnabled={sessionLikesOn}
+                qaEnabled={featureOn("session_qa")}
                 onEditSession={(session) => {
                   setEditingSession(session);
                   setSessionFormKey((k) => k + 1);
@@ -1027,6 +1074,13 @@ export default function Dashboard() {
           onFocusThreadConsumed={clearCommunityFocus}
           token={token!}
           withEventHeaders={withEventHeaders}
+          enabledChannels={{
+            MEETUP: featureOn("community_meetups"),
+            MOMENTS: featureOn("community_moments"),
+            LOCAL: featureOn("community_local"),
+            ICEBREAKER: featureOn("community_icebreakers"),
+            GENERAL: featureOn("community_general"),
+          }}
           onThreadsUpdated={async () => {
             const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
             setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token!));
@@ -1472,6 +1526,8 @@ function ScheduleBoard({
   likedSessionIds,
   onPatchAttendance,
   onToggleLike,
+  likesEnabled = true,
+  qaEnabled = true,
   onEditSession,
   onGoToSession,
 }: {
@@ -1486,7 +1542,9 @@ function ScheduleBoard({
     sessionId: string,
     body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode },
   ) => void | Promise<void>;
-  onToggleLike: (sessionId: string) => void;
+  onToggleLike?: (sessionId: string) => void;
+  likesEnabled?: boolean;
+  qaEnabled?: boolean;
   onEditSession: (session: Session) => void;
   onGoToSession: (sessionId: string) => void;
 }) {
@@ -1673,28 +1731,32 @@ function ScheduleBoard({
                               </div>
                             )}
                           </div>
-                          <button
-                            className="button secondary schedule-toolbar-btn"
-                            type="button"
-                            title="Session Q&A"
-                            aria-label="Session Q&A"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onGoToSession(s.id);
-                            }}
-                          >
-                            Q&amp;A
-                          </button>
-                          <button
-                            className={`button schedule-toolbar-btn ${liked ? "" : "secondary"}`}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onToggleLike(s.id);
-                            }}
-                          >
-                            Like
-                          </button>
+                          {qaEnabled ? (
+                            <button
+                              className="button secondary schedule-toolbar-btn"
+                              type="button"
+                              title="Session Q&A"
+                              aria-label="Session Q&A"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onGoToSession(s.id);
+                              }}
+                            >
+                              Q&amp;A
+                            </button>
+                          ) : null}
+                          {likesEnabled && onToggleLike ? (
+                            <button
+                              className={`button schedule-toolbar-btn ${liked ? "" : "secondary"}`}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onToggleLike(s.id);
+                              }}
+                            >
+                              Like
+                            </button>
+                          ) : null}
                           {isAdmin && (
                             <button
                               className="button secondary schedule-toolbar-btn"
@@ -2891,6 +2953,7 @@ function CommunityBoard({
   token,
   withEventHeaders,
   onThreadsUpdated,
+  enabledChannels,
 }: {
   threads: NetworkThread[];
   channelFilter: CommunityChannelFilter;
@@ -2903,6 +2966,7 @@ function CommunityBoard({
   token: string;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onThreadsUpdated: () => Promise<void>;
+  enabledChannels: Record<Exclude<CommunityChannelFilter, "ALL">, boolean>;
 }) {
   const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
   const [composeChannel, setComposeChannel] = useState<Exclude<CommunityChannelFilter, "ALL">>("GENERAL");
@@ -2921,13 +2985,24 @@ function CommunityBoard({
 
   const nameById = useMemo(() => Object.fromEntries(attendees.map((a) => [a.id, a.name])), [attendees]);
 
+  const composeChannels = useMemo(
+    () =>
+      (["GENERAL", "MEETUP", "MOMENTS", "LOCAL", "ICEBREAKER"] as const).filter((k) => enabledChannels[k]),
+    [enabledChannels],
+  );
+
   useEffect(() => {
-    if (channelFilter === "ALL") {
-      setComposeChannel("GENERAL");
-    } else {
-      setComposeChannel(channelFilter);
+    if (channelFilter !== "ALL" && !enabledChannels[channelFilter]) {
+      onChannelChange("ALL");
+      return;
     }
-  }, [channelFilter]);
+    if (channelFilter !== "ALL") {
+      setComposeChannel(channelFilter);
+      return;
+    }
+    const preferred = composeChannels.includes("GENERAL") ? "GENERAL" : composeChannels[0];
+    if (preferred) setComposeChannel(preferred);
+  }, [channelFilter, enabledChannels, composeChannels, onChannelChange]);
 
   useEffect(() => {
     if (!focusThreadId) return;
@@ -3021,14 +3096,16 @@ function CommunityBoard({
     await onThreadsUpdated();
   }
 
-  const pills: { key: CommunityChannelFilter; label: string }[] = [
-    { key: "ALL", label: "All" },
-    { key: "MEETUP", label: "Meet-ups" },
-    { key: "MOMENTS", label: "Share your moments" },
-    { key: "LOCAL", label: "Local recommendations" },
-    { key: "ICEBREAKER", label: "Break the ice" },
-    { key: "GENERAL", label: "General" },
-  ];
+  const pills: { key: CommunityChannelFilter; label: string }[] = (
+    [
+      { key: "ALL", label: "All" },
+      { key: "MEETUP", label: "Meet-ups" },
+      { key: "MOMENTS", label: "Share your moments" },
+      { key: "LOCAL", label: "Local recommendations" },
+      { key: "ICEBREAKER", label: "Break the ice" },
+      { key: "GENERAL", label: "General" },
+    ] as { key: CommunityChannelFilter; label: string }[]
+  ).filter((p) => p.key === "ALL" || enabledChannels[p.key]);
 
   const composeHint =
     composeChannel === "MEETUP"
@@ -3098,11 +3175,19 @@ function CommunityBoard({
               value={composeChannel}
               onChange={(e) => setComposeChannel(e.target.value as typeof composeChannel)}
             >
-              <option value="GENERAL">General discussion</option>
-              <option value="MEETUP">Meet-up</option>
-              <option value="MOMENTS">Share your moments</option>
-              <option value="LOCAL">Local recommendations</option>
-              <option value="ICEBREAKER">Break the ice</option>
+              {composeChannels.includes("GENERAL") ? (
+                <option value="GENERAL">General discussion</option>
+              ) : null}
+              {composeChannels.includes("MEETUP") ? <option value="MEETUP">Meet-up</option> : null}
+              {composeChannels.includes("MOMENTS") ? (
+                <option value="MOMENTS">Share your moments</option>
+              ) : null}
+              {composeChannels.includes("LOCAL") ? (
+                <option value="LOCAL">Local recommendations</option>
+              ) : null}
+              {composeChannels.includes("ICEBREAKER") ? (
+                <option value="ICEBREAKER">Break the ice</option>
+              ) : null}
             </select>
           </label>
         )}

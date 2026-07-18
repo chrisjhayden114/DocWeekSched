@@ -126,6 +126,9 @@ attendeesRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await resolveEventFromRequest(req);
     const access = await requireEventAccess(req.user!.id, event.id);
+    if (!access.canManageEvent) {
+      await requireFeature(event.id, "attendee_directory");
+    }
 
     const members = await prisma.eventMembership.findMany({
       where: { eventId: event.id, deletedAt: null },
