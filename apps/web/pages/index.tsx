@@ -64,7 +64,6 @@ export default function Home() {
     let cancelled = false;
     (async () => {
       try {
-        // Prefer slug; fall back to opaque join token (never treat as raw CUID oracle on slug endpoint).
         let res = await fetch(`${API_URL}/event/slug/${encodeURIComponent(token)}`, { credentials: "include" });
         if (!res.ok) {
           res = await fetch(`${API_URL}/event/join/${encodeURIComponent(token)}`, { credentials: "include" });
@@ -174,101 +173,147 @@ export default function Home() {
         <title>{linkedEventName ? `${linkedEventName} — ${brand.productName}` : `${brand.productName} — Sign in`}</title>
       </Head>
       <div className="container">
-        <div className="header header--login">
-          <div className="login-brand">
+        <div className="card login-card">
+          <div className="login-brand login-brand--card">
             <EventPilotLogo size={56} className="login-brand-logo" />
             <div className="login-brand-text">
-              <h1>{brand.productName}</h1>
+              <h1 className="text-display-md" style={{ margin: 0 }}>
+                {brand.productName}
+              </h1>
               {linkedEventName ? (
-                <p className="login-guest-event-name" style={{ margin: "6px 0 0" }}>
+                <p className="login-guest-event-name text-body-md" style={{ margin: "6px 0 0" }}>
                   {linkedEventName}
                 </p>
               ) : (
-                <p className="muted" style={{ margin: "6px 0 0" }}>
-                  Sign in to your event workspace
+                <p className="text-body-md" style={{ margin: "6px 0 0", color: "var(--ink-secondary)" }}>
+                  Sign in to your event
                 </p>
               )}
             </div>
           </div>
-        </div>
 
-        <div className="card" style={{ maxWidth: 440, margin: "24px auto" }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button type="button" className={`button ${mode === "login" ? "" : "secondary"}`} onClick={() => setMode("login")}>
-              Login
-            </button>
-            <button
-              type="button"
-              className={`button ${mode === "register" ? "" : "secondary"}`}
-              onClick={() => setMode("register")}
-            >
-              Register
-            </button>
-          </div>
+          <p className="text-body-md" style={{ color: "var(--ink-secondary)", margin: "0 0 var(--space-4)" }}>
+            Have an event link from your organizer? Open it and we&apos;ll bring you to the right place.
+          </p>
 
-          {mode === "register" && (
-            <div style={{ marginBottom: 12 }}>
-              <label className="muted">Account type</label>
-              <select
-                className="select"
-                value={registerType}
-                onChange={(e) => setRegisterType(e.target.value as "participant" | "admin")}
-              >
-                <option value="participant">Participant</option>
-                <option value="admin">Organizer (invite code)</option>
-              </select>
-            </div>
-          )}
+          {mode === "register" ? (
+            <>
+              <div style={{ marginBottom: "var(--space-3)" }}>
+                <label className="text-meta" htmlFor="register-type">
+                  Account type
+                </label>
+                <select
+                  id="register-type"
+                  className="select"
+                  value={registerType}
+                  onChange={(e) => setRegisterType(e.target.value as "participant" | "admin")}
+                >
+                  <option value="participant">Participant</option>
+                  <option value="admin">Organizer (invite code)</option>
+                </select>
+              </div>
+              <form onSubmit={handleSubmit}>
+                <label htmlFor="reg-email">Email</label>
+                <input id="reg-email" className="input" name="email" type="email" required autoComplete="email" />
+                <label htmlFor="reg-name">Name</label>
+                <input id="reg-name" className="input" name="name" type="text" required autoComplete="name" />
+                <label htmlFor="reg-password">Password</label>
+                <input
+                  id="reg-password"
+                  className="input"
+                  name="password"
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+                {registerType === "admin" && (
+                  <>
+                    <label htmlFor="reg-invite">Admin invite code</label>
+                    <input id="reg-invite" className="input" name="inviteCode" type="password" required />
+                  </>
+                )}
+                {error && <p style={{ color: "var(--danger-700)" }}>{error}</p>}
+                {registerMessage && <p style={{ color: "var(--success-700)" }}>{registerMessage}</p>}
+                <button className="button" type="submit" disabled={loading} style={{ marginTop: 12, width: "100%", minHeight: 44 }}>
+                  {loading ? "Please wait…" : "Create account"}
+                </button>
+              </form>
+              <p className="text-body-md" style={{ marginTop: "var(--space-4)", textAlign: "center" }}>
+                Already have an account?{" "}
+                <button type="button" className="linkish" onClick={() => setMode("login")}>
+                  Sign in
+                </button>
+              </p>
+            </>
+          ) : (
+            <>
+              <form onSubmit={handleSubmit}>
+                <label htmlFor="login-email">Email</label>
+                <input id="login-email" className="input" name="email" type="email" required autoComplete="email" />
+                <label htmlFor="login-password">Password</label>
+                <input
+                  id="login-password"
+                  className="input"
+                  name="password"
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="current-password"
+                />
+                {/* Name required by some register payloads; omit from login DOM */}
+                {error && <p style={{ color: "var(--danger-700)" }}>{error}</p>}
+                {registerMessage && <p style={{ color: "var(--success-700)" }}>{registerMessage}</p>}
+                <button className="button" type="submit" disabled={loading} style={{ marginTop: 12, width: "100%", minHeight: 44 }}>
+                  {loading ? "Please wait…" : "Continue"}
+                </button>
+              </form>
 
-          {linkedEventName && (
-            <p className="muted" style={{ fontSize: 14 }}>
-              Have an event link from your organizer? Open it and we&apos;ll bring you to the right place.
-            </p>
-          )}
+              <p style={{ marginTop: "var(--space-3)", textAlign: "center" }}>
+                <button
+                  type="button"
+                  className="linkish"
+                  style={{ minHeight: 44 }}
+                  onClick={() => setForgotOpen((v) => !v)}
+                >
+                  Forgot password?
+                </button>
+              </p>
 
-          <form onSubmit={handleSubmit}>
-            <label>Email</label>
-            <input className="input" name="email" type="email" required autoComplete="email" />
-            <label>Name {mode === "login" ? "(register only)" : ""}</label>
-            <input className="input" name="name" type="text" required={mode === "register"} disabled={mode === "login"} />
-            <label>Password</label>
-            <input className="input" name="password" type="password" required minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} />
-            {mode === "register" && registerType === "admin" && (
-              <>
-                <label>Admin invite code</label>
-                <input className="input" name="inviteCode" type="password" required />
-              </>
-            )}
-            {error && <p style={{ color: "var(--danger, #c22f2f)" }}>{error}</p>}
-            {registerMessage && <p style={{ color: "var(--success-700, #1e7a34)" }}>{registerMessage}</p>}
-            <button className="button" type="submit" disabled={loading} style={{ marginTop: 12, width: "100%" }}>
-              {loading ? "Please wait…" : mode === "login" ? "Continue" : "Create account"}
-            </button>
-          </form>
+              {forgotOpen && (
+                <div style={{ marginTop: "var(--space-2)" }}>
+                  <label htmlFor="forgot-email" className="text-meta">
+                    Email for reset link
+                  </label>
+                  <input
+                    id="forgot-email"
+                    className="input"
+                    type="email"
+                    placeholder="Email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={forgotSending}
+                    style={{ width: "100%", minHeight: 44, marginTop: 8 }}
+                    onClick={() => void sendForgotPassword()}
+                  >
+                    {forgotSending ? "Sending…" : "Send reset link"}
+                  </button>
+                  {forgotMessage && <p className="text-meta">{forgotMessage}</p>}
+                  {forgotError && <p style={{ color: "var(--danger-700)" }}>{forgotError}</p>}
+                </div>
+              )}
 
-          {mode === "login" && (
-            <p style={{ marginTop: 16 }}>
-              <button type="button" className="button secondary" onClick={() => setForgotOpen((v) => !v)}>
-                Forgot password?
-              </button>
-            </p>
-          )}
-
-          {forgotOpen && (
-            <div style={{ marginTop: 12 }}>
-              <input
-                className="input"
-                type="email"
-                placeholder="Email"
-                value={forgotEmail}
-                onChange={(e) => setForgotEmail(e.target.value)}
-              />
-              <button type="button" className="button" disabled={forgotSending} onClick={sendForgotPassword}>
-                {forgotSending ? "Sending…" : "Send reset link"}
-              </button>
-              {forgotMessage && <p className="muted">{forgotMessage}</p>}
-              {forgotError && <p style={{ color: "var(--danger, #c22f2f)" }}>{forgotError}</p>}
-            </div>
+              <p className="text-body-md" style={{ marginTop: "var(--space-4)", textAlign: "center" }}>
+                New here?{" "}
+                <button type="button" className="linkish" onClick={() => setMode("register")}>
+                  Create an account
+                </button>
+              </p>
+            </>
           )}
         </div>
       </div>
