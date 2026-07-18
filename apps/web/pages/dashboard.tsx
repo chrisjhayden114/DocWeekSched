@@ -1,7 +1,12 @@
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DateTimePicker } from "../components/DateTimePicker";
+import { EventSettingsModal } from "../components/EventSettingsModal";
+import { KebabMenu } from "../components/KebabMenu";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
+import { UploadDropzone } from "../components/UploadDropzone";
 import { apiFetch, clearAuthClientState } from "../lib/api";
 
 type User = {
@@ -242,6 +247,15 @@ export default function Dashboard() {
   const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
   const [eventSettingsOpen, setEventSettingsOpen] = useState(false);
   const [eventSettingsError, setEventSettingsError] = useState<string | null>(null);
+  const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
+  const [rosterConfirm, setRosterConfirm] = useState<null | {
+    kind: "make-admin" | "remove-admin" | "delete";
+    user: User;
+  }>(null);
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const [messageConfirmId, setMessageConfirmId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageBody, setEditingMessageBody] = useState("");
   const [notifications, setNotifications] = useState<UserNotificationRow[]>([]);
   const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
   const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
@@ -670,141 +684,20 @@ export default function Dashboard() {
         </div>
         <div className="app-shell-actions">
           {isAdmin && event && (
-            <div className="event-settings-wrap">
-              <button
-                className="button secondary event-settings-trigger"
-                type="button"
-                onClick={() => {
-                  setEventSettingsError(null);
-                  setEventSettingsOpen((open) => !open);
-                }}
-              >
-                {eventSettingsOpen ? "Close Event Settings" : "Edit Event Settings"}
-              </button>
-              {eventSettingsOpen && (
-                <div className="card event-settings-panel">
-                  <div className="event-settings-title">Edit This Event</div>
-                  <p className="help-text" style={{ marginTop: 0 }}>
-                    Update the title, header logo, banner, slug, and dates for the active event.
-                  </p>
-                  <form
-                    className="grid"
-                    style={{ marginTop: 10 }}
-                    onSubmit={async (eventForm) => {
-                      eventForm.preventDefault();
-                      const form = new FormData(eventForm.currentTarget);
-                      await updateCurrentEvent({
-                        name: String(form.get("name") || ""),
-                        slug: String(form.get("slug") || "").trim() || undefined,
-                        bannerUrl: String(form.get("bannerUrl") || ""),
-                        logoUrl: String(form.get("logoUrl") || "").trim() || undefined,
-                        timezone: String(form.get("timezone") || "UTC"),
-                        startDate: zonedDateTimeLocalToIso(
-                          String(form.get("startDate") || ""),
-                          String(form.get("timezone") || event.timezone || "UTC"),
-                        ),
-                        endDate: zonedDateTimeLocalToIso(
-                          String(form.get("endDate") || ""),
-                          String(form.get("timezone") || event.timezone || "UTC"),
-                        ),
-                      });
-                    }}
-                  >
-                    <input className="input" name="name" defaultValue={event.name} required />
-                    <label className="help-text" style={{ margin: 0, display: "grid", gap: 8 }}>
-                      <span>
-                        <strong>Permanent join link</strong> (does not change — use this for email, programs, and
-                        long-term access):{" "}
-                        <strong>
-                          {typeof window !== "undefined"
-                            ? `${window.location.origin}/e/${event.id}`
-                            : `/e/${event.id}`}
-                        </strong>
-                      </span>
-                      <span>
-                        Optional readable link (changes if you edit the slug below):{" "}
-                        <strong>
-                          {typeof window !== "undefined"
-                            ? `${window.location.origin}/e/${event.slug}`
-                            : `/e/${event.slug}`}
-                        </strong>
-                      </span>
-                    </label>
-                    <input
-                      className="input"
-                      name="slug"
-                      defaultValue={event.slug}
-                      pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                      title="Lowercase letters, numbers, and single hyphens"
-                    />
-                    <label className="help-text" style={{ margin: 0 }}>
-                      Header logo (square PNG/JPG; appears next to the event title)
-                    </label>
-                    <input className="input" name="logoUrl" defaultValue={event.logoUrl || ""} placeholder="Logo URL or upload below" />
-                    <input
-                      className="input"
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const data = await fileToDataUrl(file, { maxWidth: 512, maxHeight: 512, quality: 0.88 });
-                        const el = e.currentTarget.form?.elements.namedItem("logoUrl");
-                        if (el instanceof HTMLInputElement) el.value = data;
-                      }}
-                    />
-                    <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL or upload below" />
-                    <input
-                      className="input"
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const data = await fileToDataUrl(file, { maxWidth: 1920, maxHeight: 720, quality: 0.82 });
-                        const el = e.currentTarget.form?.elements.namedItem("bannerUrl");
-                        if (el instanceof HTMLInputElement) el.value = data;
-                      }}
-                    />
-                    {eventSettingsError ? (
-                      <p className="help-text" style={{ color: "#b42318", margin: 0 }}>
-                        {eventSettingsError}
-                      </p>
-                    ) : null}
-                    <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-                      Event timezone
-                      <select className="select" name="timezone" defaultValue={event.timezone} required>
-                        {!EVENT_TIMEZONE_OPTIONS.includes(event.timezone) && (
-                          <option value={event.timezone}>{timezoneOptionLabel(event.timezone)}</option>
-                        )}
-                        {EVENT_TIMEZONE_OPTIONS.map((tz) => (
-                          <option key={tz} value={tz}>{timezoneOptionLabel(tz)}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      name="startDate"
-                      defaultValue={toLocalInputValueInTimeZone(event.startDate, event.timezone)}
-                      required
-                    />
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      name="endDate"
-                      defaultValue={toLocalInputValueInTimeZone(event.endDate, event.timezone)}
-                      required
-                    />
-                    <button className="button" type="submit" disabled={updatingEvent}>
-                      {updatingEvent ? "Saving..." : "Save Event"}
-                    </button>
-                  </form>
-                </div>
-              )}
-            </div>
+            <button
+              className="button secondary event-settings-trigger"
+              type="button"
+              onClick={() => {
+                setEventSettingsError(null);
+                setEventSettingsOpen(true);
+              }}
+            >
+              Event settings
+            </button>
           )}
-          <button className="button secondary" onClick={handleLogout}>Logout</button>
+          <button className="button secondary" onClick={handleLogout}>
+            Logout
+          </button>
         </div>
       </div>
 
@@ -889,7 +782,11 @@ export default function Dashboard() {
                 likedSessionIds={likedSessionIds}
                 onPatchAttendance={patchSessionAttendance}
                 onToggleLike={toggleSessionLike}
-                onEditSession={(session) => setEditingSession(session)}
+                onEditSession={(session) => {
+                  setEditingSession(session);
+                  setSessionFormKey((k) => k + 1);
+                  setSessionDrawerOpen(true);
+                }}
                 onGoToSession={goToSessionPage}
               />
             )}
@@ -904,28 +801,63 @@ export default function Dashboard() {
                 likedSessionIds={likedSessionIds}
                 onPatchAttendance={patchSessionAttendance}
                 onToggleLike={toggleSessionLike}
-                onEditSession={(session) => setEditingSession(session)}
+                onEditSession={(session) => {
+                  setEditingSession(session);
+                  setSessionFormKey((k) => k + 1);
+                  setSessionDrawerOpen(true);
+                }}
                 onGoToSession={goToSessionPage}
               />
             )}
           </div>
           {isAdmin && (
-            <SessionForm
-              key={sessionFormKey}
-              token={token!}
-              eventTimezone={event?.timezone || "UTC"}
-              eventHeaders={withEventHeaders}
-              attendees={attendees}
-              editing={editingSession}
-              onSaved={async () => {
-                setEditingSession(null);
-                setActive("Agenda");
-                setSessionFormKey((k) => k + 1);
-                setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token!));
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              onCancel={() => setEditingSession(null)}
-            />
+            <div className="schedule-admin-rail">
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setEditingSession(null);
+                  setSessionFormKey((k) => k + 1);
+                  setSessionDrawerOpen(true);
+                }}
+              >
+                + New session
+              </button>
+              {sessionDrawerOpen || editingSession ? (
+                <>
+                  <div
+                    className="drawer-backdrop"
+                    role="presentation"
+                    onClick={() => {
+                      setSessionDrawerOpen(false);
+                      setEditingSession(null);
+                    }}
+                  />
+                  <div className="drawer-panel" role="dialog" aria-modal="true" aria-label="Session editor">
+                    <SessionForm
+                      key={sessionFormKey}
+                      token={token!}
+                      eventTimezone={event?.timezone || "UTC"}
+                      eventHeaders={withEventHeaders}
+                      attendees={attendees}
+                      editing={editingSession}
+                      onSaved={async () => {
+                        setEditingSession(null);
+                        setSessionDrawerOpen(false);
+                        setActive("Agenda");
+                        setSessionFormKey((k) => k + 1);
+                        setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token!));
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      onCancel={() => {
+                        setEditingSession(null);
+                        setSessionDrawerOpen(false);
+                      }}
+                    />
+                  </div>
+                </>
+              ) : null}
+            </div>
           )}
         </div>
       )}
@@ -1036,88 +968,42 @@ export default function Dashboard() {
                             : "—"}
                       </td>
                       <td data-label="Actions" className="invite-actions-cell">
-                        {a.role === "ADMIN" ? (
-                          <div className="invite-roster-actions invite-roster-actions--admin">
-                            {a.id === user.id ? (
-                              <p className="roster-admin-note">
-                                <strong>You</strong> — signed in as an administrator for this workspace.
-                              </p>
-                            ) : (
-                              <>
-                                <p className="roster-admin-note">
-                                  <strong>{a.name}</strong> has <strong>administrator</strong> access (events, invites,
-                                  sessions).
-                                </p>
-                                <button
-                                  type="button"
-                                  className="button secondary invite-roster-btn"
-                                  disabled={rosterAdminCount <= 1}
-                                  title={
-                                    rosterAdminCount <= 1
-                                      ? "There must be at least one administrator"
-                                      : "Demote to attendee"
-                                  }
-                                  onClick={async () => {
-                                    const ok = window.confirm(
-                                      `Remove administrator access for ${a.name}? They will become a regular attendee.`,
-                                    );
-                                    if (!ok) return;
-                                    try {
-                                      await apiFetch(`/attendees/${a.id}/remove-admin`, { method: "POST" }, token!);
-                                      setAttendees(
-                                        await apiFetch<User[]>("/attendees", withEventHeaders(), token!),
-                                      );
-                                    } catch (err) {
-                                      window.alert(err instanceof Error ? err.message : "Could not update role.");
-                                    }
-                                  }}
-                                >
-                                  Remove admin access
-                                </button>
-                              </>
-                            )}
-                          </div>
+                        {a.id === user.id ? (
+                          <p className="roster-admin-note text-meta" style={{ margin: 0 }}>
+                            You
+                          </p>
                         ) : (
-                          <div className="invite-roster-actions">
-                            <button
-                              type="button"
-                              className="button secondary invite-roster-btn"
-                              onClick={async () => {
-                                const ok = window.confirm(
-                                  `Make ${a.name} (${a.email}) an administrator? They will be able to manage events, invites, and sessions.`,
-                                );
-                                if (!ok) return;
-                                try {
-                                  await apiFetch(`/attendees/${a.id}/make-admin`, { method: "POST" }, token!);
-                                  setAttendees(
-                                    await apiFetch<User[]>("/attendees", withEventHeaders(), token!),
-                                  );
-                                } catch (err) {
-                                  window.alert(err instanceof Error ? err.message : "Could not promote participant.");
-                                }
-                              }}
-                            >
-                              Make admin
-                            </button>
-                            <button
-                              type="button"
-                              className="button secondary invite-roster-btn"
-                              onClick={async () => {
-                                const ok = window.confirm(
-                                  `Delete ${a.name} (${a.email}) and remove their posts, replies, likes, and participation data?`,
-                                );
-                                if (!ok) return;
-                                try {
-                                  await apiFetch(`/attendees/${a.id}`, { method: "DELETE" }, token!);
-                                  setAttendees((prev) => prev.filter((row) => row.id !== a.id));
-                                } catch (err) {
-                                  window.alert(err instanceof Error ? err.message : "Could not delete participant.");
-                                }
-                              }}
-                            >
-                              Delete participant
-                            </button>
-                          </div>
+                          <KebabMenu
+                            label={`Actions for ${a.name}`}
+                            items={[
+                              ...(a.role === "ADMIN"
+                                ? [
+                                    {
+                                      id: "remove-admin",
+                                      label: "Remove admin access",
+                                      disabled: rosterAdminCount <= 1,
+                                      title:
+                                        rosterAdminCount <= 1
+                                          ? "There must be at least one administrator"
+                                          : undefined,
+                                      onSelect: () => setRosterConfirm({ kind: "remove-admin", user: a }),
+                                    },
+                                  ]
+                                : [
+                                    {
+                                      id: "make-admin",
+                                      label: "Make admin",
+                                      onSelect: () => setRosterConfirm({ kind: "make-admin", user: a }),
+                                    },
+                                  ]),
+                              {
+                                id: "delete",
+                                label: "Remove from event",
+                                tone: "danger" as const,
+                                onSelect: () => setRosterConfirm({ kind: "delete", user: a }),
+                              },
+                            ]}
+                          />
                         )}
                       </td>
                     </tr>
@@ -1339,8 +1225,79 @@ export default function Dashboard() {
               ) : (
                 messages.map((m) => (
                   <div key={m.id} style={{ borderBottom: "1px solid var(--border)", padding: "10px 0" }}>
-                    <strong>{m.user.name}</strong> <span style={{ color: "var(--ink-500)" }}>({m.user.role})</span>
-                    <p style={{ margin: "4px 0" }}>{m.body}</p>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+                      <div>
+                        <strong>{m.user.name}</strong>{" "}
+                        <span style={{ color: "var(--ink-500)" }}>({m.user.role})</span>
+                      </div>
+                      {(isAdmin || m.user.id === user.id) && (
+                        <KebabMenu
+                          label={`Message actions`}
+                          items={[
+                            {
+                              id: "edit",
+                              label: "Edit",
+                              onSelect: () => {
+                                setEditingMessageId(m.id);
+                                setEditingMessageBody(m.body);
+                              },
+                            },
+                            {
+                              id: "delete",
+                              label: "Delete",
+                              tone: "danger",
+                              onSelect: () => setMessageConfirmId(m.id),
+                            },
+                          ]}
+                        />
+                      )}
+                    </div>
+                    {editingMessageId === m.id ? (
+                      <form
+                        className="grid"
+                        style={{ gap: 8, marginTop: 8 }}
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (!activeConversationId || !token) return;
+                          try {
+                            const updated = await apiFetch<Message>(
+                              `/conversations/${activeConversationId}/messages/${m.id}`,
+                              withEventHeaders({
+                                method: "PATCH",
+                                body: JSON.stringify({ body: editingMessageBody }),
+                              }),
+                              token,
+                            );
+                            setMessages((prev) => prev.map((row) => (row.id === m.id ? updated : row)));
+                            setEditingMessageId(null);
+                          } catch (err) {
+                            window.alert(err instanceof Error ? err.message : "Could not save message");
+                          }
+                        }}
+                      >
+                        <textarea
+                          className="textarea"
+                          value={editingMessageBody}
+                          onChange={(e) => setEditingMessageBody(e.target.value)}
+                          rows={3}
+                          required
+                        />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button className="button" type="submit">
+                            Save
+                          </button>
+                          <button
+                            className="button secondary"
+                            type="button"
+                            onClick={() => setEditingMessageId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p style={{ margin: "4px 0" }}>{m.body}</p>
+                    )}
                     <small style={{ color: "var(--ink-500)" }}>{new Date(m.createdAt).toLocaleString()}</small>
                   </div>
                 ))
@@ -1394,6 +1351,112 @@ export default function Dashboard() {
           }}
         />
       )}
+
+      {event ? (
+        <EventSettingsModal
+          open={eventSettingsOpen}
+          eventId={event.id}
+          slugUrlPreview={
+            typeof window !== "undefined" ? `${window.location.origin}/e/${event.slug}` : `/e/${event.slug}`
+          }
+          timezoneOptions={EVENT_TIMEZONE_OPTIONS}
+          timezoneLabel={timezoneOptionLabel}
+          initial={{
+            name: event.name,
+            slug: event.slug,
+            logoUrl: event.logoUrl || "",
+            bannerUrl: event.bannerUrl || "",
+            timezone: event.timezone,
+            startDate: toLocalInputValueInTimeZone(event.startDate, event.timezone),
+            endDate: toLocalInputValueInTimeZone(event.endDate, event.timezone),
+          }}
+          saving={updatingEvent}
+          error={eventSettingsError}
+          onClose={() => setEventSettingsOpen(false)}
+          fileToDataUrl={fileToDataUrl}
+          onSave={async (values) => {
+            await updateCurrentEvent({
+              name: values.name,
+              slug: values.slug.trim() || undefined,
+              logoUrl: values.logoUrl.trim() || undefined,
+              bannerUrl: values.bannerUrl,
+              timezone: values.timezone,
+              startDate: zonedDateTimeLocalToIso(values.startDate, values.timezone),
+              endDate: zonedDateTimeLocalToIso(values.endDate, values.timezone),
+            });
+          }}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        open={Boolean(rosterConfirm)}
+        title={
+          rosterConfirm?.kind === "delete"
+            ? `Remove ${rosterConfirm.user.name}?`
+            : rosterConfirm?.kind === "make-admin"
+              ? `Make ${rosterConfirm.user.name} an admin?`
+              : `Remove admin access?`
+        }
+        body={
+          rosterConfirm?.kind === "delete"
+            ? `${rosterConfirm.user.name} (${rosterConfirm.user.email}) will be removed from this event roster. Their account and posts are kept for 30 days in case you need to restore access.`
+            : rosterConfirm?.kind === "make-admin"
+              ? `${rosterConfirm.user.name} (${rosterConfirm.user.email}) will be able to manage events, invites, and sessions.`
+              : `${rosterConfirm?.user.name} will become a regular attendee.`
+        }
+        confirmLabel={
+          rosterConfirm?.kind === "delete"
+            ? "Remove from event"
+            : rosterConfirm?.kind === "make-admin"
+              ? "Make admin"
+              : "Remove admin"
+        }
+        busy={rosterBusy}
+        onCancel={() => setRosterConfirm(null)}
+        onConfirm={async () => {
+          if (!rosterConfirm || !token) return;
+          setRosterBusy(true);
+          try {
+            if (rosterConfirm.kind === "delete") {
+              await apiFetch(`/attendees/${rosterConfirm.user.id}`, { method: "DELETE" }, token);
+              setAttendees((prev) => prev.filter((row) => row.id !== rosterConfirm.user.id));
+            } else if (rosterConfirm.kind === "make-admin") {
+              await apiFetch(`/attendees/${rosterConfirm.user.id}/make-admin`, { method: "POST" }, token);
+              setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+            } else {
+              await apiFetch(`/attendees/${rosterConfirm.user.id}/remove-admin`, { method: "POST" }, token);
+              setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+            }
+            setRosterConfirm(null);
+          } catch (err) {
+            window.alert(err instanceof Error ? err.message : "Action failed");
+          } finally {
+            setRosterBusy(false);
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(messageConfirmId && activeConversationId)}
+        title="Delete message?"
+        body="This removes the message from the conversation for everyone. This cannot be undone."
+        confirmLabel="Delete message"
+        onCancel={() => setMessageConfirmId(null)}
+        onConfirm={async () => {
+          if (!messageConfirmId || !activeConversationId || !token) return;
+          try {
+            await apiFetch(
+              `/conversations/${activeConversationId}/messages/${messageConfirmId}`,
+              withEventHeaders({ method: "DELETE" }),
+              token,
+            );
+            setMessages((prev) => prev.filter((m) => m.id !== messageConfirmId));
+            setMessageConfirmId(null);
+          } catch (err) {
+            window.alert(err instanceof Error ? err.message : "Could not delete message");
+          }
+        }}
+      />
 
     </div>
   );
@@ -2496,6 +2559,10 @@ function SessionForm({
   onCancel: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [imageUrl, setImageUrl] = useState(editing?.imageUrl || "");
+  const [recordingUrl, setRecordingUrl] = useState(editing?.recordingUrl || "");
+  const [fileUrl, setFileUrl] = useState(editing?.fileUrl || "");
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2508,11 +2575,11 @@ function SessionForm({
         description: String(form.get("description") || ""),
         location: String(form.get("location") || ""),
         speakers: String(form.get("speakers") || ""),
-        imageUrl: String(form.get("imageUrl") || ""),
+        imageUrl: imageUrl || String(form.get("imageUrl") || ""),
         zoomLink: String(form.get("zoomLink") || ""),
-        recordingUrl: String(form.get("recordingUrl") || ""),
+        recordingUrl: recordingUrl || String(form.get("recordingUrl") || ""),
         fileLink: String(form.get("fileLink") || ""),
-        fileUrl: String(form.get("fileUrl") || ""),
+        fileUrl: fileUrl || String(form.get("fileUrl") || ""),
         allowVirtualJoin: form.get("allowVirtualJoin") === "on",
         startsAt: zonedDateTimeLocalToIso(String(form.get("startsAt") || ""), eventTimezone),
         endsAt: zonedDateTimeLocalToIso(String(form.get("endsAt") || ""), eventTimezone),
@@ -2534,114 +2601,137 @@ function SessionForm({
 
   const defaultStart = editing?.startsAt ? toLocalInputValueInTimeZone(editing.startsAt, eventTimezone) : "";
   const defaultEnd = editing?.endsAt ? toLocalInputValueInTimeZone(editing.endsAt, eventTimezone) : "";
-  const removeSession = async () => {
-    if (!editing) return;
-    if (!window.confirm("Delete this session? This cannot be undone.")) return;
-    try {
-      await apiFetch(`/sessions/${editing.id}`, eventHeaders({ method: "DELETE" }), token);
-      onSaved();
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Could not delete session.");
-    }
-  };
 
   return (
-    <form className="card grid" onSubmit={handleSubmit}>
-      <h3>{editing ? "Edit session" : "New session"}</h3>
-      <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
-      <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
-      <input className="input" name="location" placeholder="Location" defaultValue={editing?.location || ""} />
-      <label className="help-text" style={{ margin: 0 }}>
-        Session image or icon (URL or upload)
-      </label>
-      <input className="input" name="imageUrl" placeholder="Image URL" defaultValue={editing?.imageUrl || ""} />
-      <input
-        className="input"
-        type="file"
-        accept="image/*"
-        onChange={async (ev) => {
-          const file = ev.target.files?.[0];
-          if (!file) return;
-          const data = await fileToDataUrl(file);
-          const target = ev.currentTarget.form?.elements.namedItem("imageUrl");
-          if (target instanceof HTMLInputElement) target.value = data;
-        }}
-      />
-      <label className="help-text" style={{ margin: 0 }}>
-        Speaker names (free text — use for guests who are not in the directory)
-      </label>
-      <input className="input" name="speakers" placeholder="e.g. Dr. Jane Smith, keynote panel…" defaultValue={editing?.speakers || ""} />
-      <label className="help-text" style={{ margin: 0 }}>
-        Or link a registered participant as primary speaker
-      </label>
-      <select className="select" name="speakerId" defaultValue={editing?.speakerId || ""}>
-        <option value="">No linked directory speaker</option>
-        {attendees.map((a) => (
-          <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
-        ))}
-      </select>
-      <input
-        className="input"
-        name="zoomLink"
-        placeholder="Online meeting link (Zoom, Google Meet, Teams, etc.)"
-        defaultValue={editing?.zoomLink || ""}
-      />
-      <label className="help-text" style={{ margin: 0 }}>Recording (URL or upload)</label>
-      <input className="input" name="recordingUrl" placeholder="Recording URL" defaultValue={editing?.recordingUrl || ""} />
-      <input
-        className="input"
-        type="file"
-        accept="audio/*,video/*"
-        onChange={async (ev) => {
-          const file = ev.target.files?.[0];
-          if (!file) return;
-          const data = await fileToDataUrl(file);
-          const target = ev.currentTarget.form?.elements.namedItem("recordingUrl");
-          if (target instanceof HTMLInputElement) target.value = data;
-        }}
-      />
-      <input className="input" name="fileLink" placeholder="Presentation or resource link" defaultValue={editing?.fileLink || ""} />
-      <textarea className="textarea" name="fileUrl" placeholder="Optional materials upload (filled automatically)" defaultValue={editing?.fileUrl || ""} />
-      <input
-        className="input"
-        type="file"
-        accept="audio/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,image/*"
-        onChange={async (event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          const data = await fileToDataUrl(file);
-          const target = event.currentTarget.form?.elements.namedItem("fileUrl");
-          if (target instanceof HTMLTextAreaElement) {
-            target.value = data;
+    <>
+      <form className="grid" onSubmit={handleSubmit}>
+        <h3 className="panel-heading">{editing ? "Edit session" : "New session"}</h3>
+
+        <section className="session-form-section">
+          <h4>Basics</h4>
+          <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
+          <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
+          <input className="input" name="location" placeholder="Location / room" defaultValue={editing?.location || ""} />
+        </section>
+
+        <section className="session-form-section">
+          <h4>Schedule</h4>
+          <DateTimePicker name="startsAt" label="Starts" required defaultValue={defaultStart} />
+          <DateTimePicker name="endsAt" label="Ends" required defaultValue={defaultEnd} />
+          <label className="help-text" style={{ margin: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <input
+              type="checkbox"
+              name="allowVirtualJoin"
+              value="on"
+              defaultChecked={editing?.allowVirtualJoin !== false}
+              style={{ marginTop: 3 }}
+            />
+            <span>Allow participants to join virtually</span>
+          </label>
+        </section>
+
+        <section className="session-form-section">
+          <h4>Speakers</h4>
+          <input
+            className="input"
+            name="speakers"
+            placeholder="Free-text speaker names"
+            defaultValue={editing?.speakers || ""}
+          />
+          <select className="select" name="speakerId" defaultValue={editing?.speakerId || ""}>
+            <option value="">No linked directory speaker</option>
+            {attendees.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} ({a.role})
+              </option>
+            ))}
+          </select>
+        </section>
+
+        <section className="session-form-section">
+          <h4>Media</h4>
+          <input
+            className="input"
+            name="imageUrl"
+            placeholder="Image URL"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+          />
+          <UploadDropzone
+            label="Session image"
+            accept="image/*"
+            onFile={async (file) => setImageUrl(await fileToDataUrl(file))}
+          />
+        </section>
+
+        <section className="session-form-section">
+          <h4>Links</h4>
+          <input
+            className="input"
+            name="zoomLink"
+            placeholder="Online meeting link"
+            defaultValue={editing?.zoomLink || ""}
+          />
+          <input
+            className="input"
+            name="recordingUrl"
+            placeholder="Recording URL"
+            value={recordingUrl}
+            onChange={(e) => setRecordingUrl(e.target.value)}
+          />
+          <UploadDropzone
+            label="Recording file"
+            accept="audio/*,video/*"
+            onFile={async (file) => setRecordingUrl(await fileToDataUrl(file))}
+          />
+          <input className="input" name="fileLink" placeholder="Presentation or resource link" defaultValue={editing?.fileLink || ""} />
+          <textarea
+            className="textarea"
+            name="fileUrl"
+            placeholder="Materials (filled by upload)"
+            value={fileUrl}
+            onChange={(e) => setFileUrl(e.target.value)}
+            rows={2}
+          />
+          <UploadDropzone
+            label="Materials upload"
+            accept="audio/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,image/*"
+            onFile={async (file) => setFileUrl(await fileToDataUrl(file))}
+          />
+        </section>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button className="button" type="submit" disabled={submitting}>
+            {submitting ? "Saving…" : editing ? "Save changes" : "Create session"}
+          </button>
+          <button className="button secondary" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          {editing ? (
+            <button className="button button-danger" type="button" onClick={() => setConfirmDelete(true)}>
+              Delete session
+            </button>
+          ) : null}
+        </div>
+      </form>
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this session?"
+        body="This removes the session from the agenda. Attendance and discussion for it will be cleared. This cannot be undone."
+        confirmLabel="Delete session"
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={async () => {
+          if (!editing) return;
+          try {
+            await apiFetch(`/sessions/${editing.id}`, eventHeaders({ method: "DELETE" }), token);
+            setConfirmDelete(false);
+            onSaved();
+          } catch (err) {
+            window.alert(err instanceof Error ? err.message : "Could not delete session.");
           }
         }}
       />
-      <input className="input" type="datetime-local" name="startsAt" required defaultValue={defaultStart} />
-      <input className="input" type="datetime-local" name="endsAt" required defaultValue={defaultEnd} />
-      <label className="help-text" style={{ margin: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <input
-          type="checkbox"
-          name="allowVirtualJoin"
-          value="on"
-          defaultChecked={editing?.allowVirtualJoin !== false}
-          style={{ marginTop: 3 }}
-        />
-        <span>
-          Allow participants to join virtually (turn off for in-person-only sessions such as dinners at someone’s home).
-        </span>
-      </label>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button className="button" type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : editing ? "Save changes" : "Create session"}
-        </button>
-        {editing && (
-          <>
-            <button className="button secondary" type="button" onClick={onCancel}>Cancel</button>
-            <button className="button secondary" type="button" onClick={removeSession}>Delete Session</button>
-          </>
-        )}
-      </div>
-    </form>
+    </>
   );
 }
 
@@ -2748,7 +2838,21 @@ function AttendeeDirectory({
           ))}
         </div>
       </div>
-      <div className="attendee-rows">{rows}</div>
+      <div className="attendee-rows">
+        {rows.length > 0 ? (
+          rows
+        ) : (
+          <p className="list-empty text-body-md" style={{ margin: "var(--space-4) 0" }}>
+            {q ? (
+              <>
+                No attendees match &apos;{query.trim()}&apos;.
+              </>
+            ) : (
+              <>No attendees yet.</>
+            )}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -2809,6 +2913,11 @@ function CommunityBoard({
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
   const [postingThread, setPostingThread] = useState(false);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [confirmDeleteThreadId, setConfirmDeleteThreadId] = useState<string | null>(null);
+  const [confirmDeleteReply, setConfirmDeleteReply] = useState<null | { threadId: string; replyId: string }>(null);
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
 
   const nameById = useMemo(() => Object.fromEntries(attendees.map((a) => [a.id, a.name])), [attendees]);
 
@@ -3262,15 +3371,61 @@ function CommunityBoard({
                         ))}
                       </div>
                     )}
-                    <p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p>
+                    {editingThreadId === t.id ? (
+                      <form
+                        className="grid"
+                        style={{ gap: 8, marginBottom: 12 }}
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          await apiFetch(
+                            `/network/threads/${t.id}`,
+                            withEventHeaders({
+                              method: "PATCH",
+                              body: JSON.stringify({ title: editTitle, body: editBody }),
+                            }),
+                            token,
+                          );
+                          setEditingThreadId(null);
+                          await onThreadsUpdated();
+                        }}
+                      >
+                        <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+                        <textarea className="textarea" rows={4} value={editBody} onChange={(e) => setEditBody(e.target.value)} required />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button className="button" type="submit">
+                            Save post
+                          </button>
+                          <button className="button secondary" type="button" onClick={() => setEditingThreadId(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p>
+                    )}
                     {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
                       <p style={{ margin: "12px 0" }}>
                         <OnlineMeetingLink href={ensureHttpUrl(t.meetupMeetingUrl)} />
                       </p>
                     ) : null}
                     {isAdmin && (
-                      <div style={{ marginBottom: 10 }}>
-                        <button className="button secondary" type="button" onClick={() => deleteThread(t.id)}>
+                      <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={() => {
+                            setEditingThreadId(t.id);
+                            setEditTitle(t.title);
+                            setEditBody(t.body);
+                          }}
+                        >
+                          Edit post
+                        </button>
+                        <button
+                          className="button button-danger"
+                          type="button"
+                          onClick={() => setConfirmDeleteThreadId(t.id)}
+                        >
                           Delete thread
                         </button>
                       </div>
@@ -3285,7 +3440,7 @@ function CommunityBoard({
                             <button
                               type="button"
                               className="button secondary"
-                              onClick={() => deleteThreadReply(t.id, r.id)}
+                              onClick={() => setConfirmDeleteReply({ threadId: t.id, replyId: r.id })}
                               style={{ marginTop: 6 }}
                             >
                               Delete reply
@@ -3323,6 +3478,30 @@ function CommunityBoard({
           })}
         </div>
       </div>
+      <ConfirmDialog
+        open={Boolean(confirmDeleteThreadId)}
+        title="Delete this community post?"
+        body="The post and its replies will be removed for everyone. This cannot be undone."
+        confirmLabel="Delete post"
+        onCancel={() => setConfirmDeleteThreadId(null)}
+        onConfirm={async () => {
+          if (!confirmDeleteThreadId) return;
+          await deleteThread(confirmDeleteThreadId);
+          setConfirmDeleteThreadId(null);
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(confirmDeleteReply)}
+        title="Delete this reply?"
+        body="The reply will be removed for everyone. This cannot be undone."
+        confirmLabel="Delete reply"
+        onCancel={() => setConfirmDeleteReply(null)}
+        onConfirm={async () => {
+          if (!confirmDeleteReply) return;
+          await deleteThreadReply(confirmDeleteReply.threadId, confirmDeleteReply.replyId);
+          setConfirmDeleteReply(null);
+        }}
+      />
     </div>
     </>
   );
