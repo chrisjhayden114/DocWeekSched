@@ -297,9 +297,19 @@ model Event {
   adminAccessRequests  AdminAccessRequest[]
   createdBy            User?                @relation("EventCreator", fields: [createdById], references: [id])
   createdById          String?
+  featureConfig        EventFeatureConfig?
 
   @@index([organizationId])
   @@index([seriesId])
+}
+
+model EventFeatureConfig {
+  id        String   @id @default(cuid())
+  eventId   String   @unique
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  overrides Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Track {
