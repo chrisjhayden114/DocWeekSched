@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ReviewChangeset, parseCsvToTable } from "../../../../components/ReviewChangeset";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
 import { VenueMapEditor } from "../../../../components/VenueMapEditor";
+import { AnnouncementComposer } from "../../../../components/AnnouncementComposer";
 import { apiFetch } from "../../../../lib/api";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
@@ -57,7 +58,9 @@ const MAPPING_OPTIONS = [
 export default function OrganizerEventPage() {
   const router = useRouter();
   const eventId = typeof router.query.eventId === "string" ? router.query.eventId : "";
-  const [tab, setTab] = useState<"overview" | "program" | "people" | "invites" | "maps" | "features">("overview");
+  const [tab, setTab] = useState<
+    "overview" | "program" | "people" | "invites" | "maps" | "announcements" | "features"
+  >("overview");
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [featuresDirty, setFeaturesDirty] = useState(false);
@@ -327,6 +330,7 @@ export default function OrganizerEventPage() {
               ["people", "Speakers"],
               ["invites", "Invites"],
               ["maps", "Maps"],
+              ["announcements", "Announcements"],
               ["features", "Features"],
             ] as const
           ).map(([id, label]) => (
@@ -607,6 +611,10 @@ export default function OrganizerEventPage() {
         ) : null}
 
         {tab === "maps" && eventId ? <VenueMapEditor eventId={eventId} rooms={rooms} /> : null}
+
+        {tab === "announcements" && eventId ? (
+          <AnnouncementComposer eventId={eventId} sessions={sessions.map((s) => ({ id: s.id, title: s.title }))} />
+        ) : null}
 
         {tab === "features" ? (
           <section>
