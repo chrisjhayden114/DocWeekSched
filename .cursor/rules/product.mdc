@@ -13,3 +13,4 @@ You are working on a multi-tenant event-management SaaS run by a solo founder. F
 - Validate all input server-side. Rate-limit auth and public endpoints. Never log secrets or PII.
 - Prefer boring, well-supported libraries already in the repo. Do not introduce a new framework without flagging it and explaining why.
 - When a requirement conflicts with the existing architecture, STOP and present options rather than silently deviating.
+- EventMembership.checkInCode MUST always carry `@default(cuid())` in schema.prisma. It has NO database default — the default is client-side only — so any regeneration or reformat of the schema that drops it silently breaks every event/membership create path. Never remove it. After any edit to schema.prisma, verify the line reads: `checkInCode String @default(cuid())`.
