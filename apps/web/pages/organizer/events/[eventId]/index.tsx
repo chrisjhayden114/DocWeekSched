@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ReviewChangeset, parseCsvToTable } from "../../../../components/ReviewChangeset";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
+import { SetupCopilotChat } from "../../../../components/SetupCopilotChat";
 import { VenueMapEditor } from "../../../../components/VenueMapEditor";
 import { AnnouncementComposer } from "../../../../components/AnnouncementComposer";
 import { apiFetch } from "../../../../lib/api";
@@ -65,6 +66,7 @@ export default function OrganizerEventPage() {
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [featuresDirty, setFeaturesDirty] = useState(false);
   const [featuresSaving, setFeaturesSaving] = useState(false);
+  const [askAssistant, setAskAssistant] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -625,6 +627,34 @@ export default function OrganizerEventPage() {
             <p className="help-text">
               Turn capabilities on or off for attendees. Existing data is preserved when a feature is disabled.
             </p>
+            <div style={{ marginBottom: 16 }}>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setAskAssistant((v) => !v)}
+              >
+                {askAssistant ? "Hide assistant" : "Ask the assistant"}
+              </button>
+            </div>
+            {askAssistant && eventId ? (
+              <div style={{ marginBottom: 20 }}>
+                <SetupCopilotChat
+                  mode="settings"
+                  eventId={eventId}
+                  organizationId={event?.organizationId}
+                  compact
+                  onFormChange={(form) => {
+                    setFeatureOverrides(form.featureOverrides);
+                    setFeaturesDirty(true);
+                  }}
+                  onFeaturesApplied={(overrides) => {
+                    setFeatureOverrides(overrides);
+                    setFeaturesDirty(false);
+                    setMessage("Feature settings updated");
+                  }}
+                />
+              </div>
+            ) : null}
             <FeatureConfigPanel
               overrides={featureOverrides}
               onChange={(next) => {

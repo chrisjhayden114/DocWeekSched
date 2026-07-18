@@ -90,6 +90,12 @@ export default function OrganizerDashboard() {
               New organization
             </Link>
             <Link
+              className="button secondary"
+              href={orgId ? `/organizer/events/new?org=${encodeURIComponent(orgId)}&mode=ai` : "/organizer/org/new"}
+            >
+              Set up with AI
+            </Link>
+            <Link
               className="button"
               href={orgId ? `/organizer/events/new?org=${encodeURIComponent(orgId)}` : "/organizer/org/new"}
             >
@@ -141,10 +147,21 @@ export default function OrganizerDashboard() {
         {!loading && orgId && events.length === 0 ? (
           <section style={{ marginTop: 32 }}>
             <h2 style={{ marginTop: 0 }}>No events yet</h2>
-            <p className="help-text">Create a draft event, add sessions and speakers, then publish when you&apos;re ready.</p>
-            <Link className="button" href={`/organizer/events/new?org=${encodeURIComponent(orgId)}`}>
-              Create your first event
-            </Link>
+            <p className="help-text">
+              Create a draft event, add sessions and speakers, then publish when you&apos;re ready. Or let the setup
+              assistant walk you through it in under two minutes of typing.
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link
+                className="button"
+                href={`/organizer/events/new?org=${encodeURIComponent(orgId)}&mode=ai`}
+              >
+                Set up with AI
+              </Link>
+              <Link className="button secondary" href={`/organizer/events/new?org=${encodeURIComponent(orgId)}`}>
+                Create manually
+              </Link>
+            </div>
           </section>
         ) : null}
 
