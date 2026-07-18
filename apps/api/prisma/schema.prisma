@@ -332,6 +332,9 @@ model EventMembership {
   deletedAt      DateTime?
   /// Per-event directory visibility. Default hidden (privacy-first).
   directoryOptIn Boolean         @default(false)
+  /// Matchmaker participation mute. Default ON; one-tap mute stops refreshes.
+  /// Still requires directoryOptIn both directions to appear in / receive suggestions.
+  matchMeEnabled Boolean         @default(true)
 
   @@unique([eventId, userId])
   @@index([userId])
@@ -458,6 +461,9 @@ model User {
   cfpDecisionEmailsCreated    CfpDecisionEmail[]       @relation("CfpDecisionEmailCreator")
   conciergeConversations      ConciergeConversation[]
   conciergePendingActions     ConciergePendingAction[]
+  matchProfileEmbedding       MatchProfileEmbedding?
+  matchSuggestionsFor         MatchSuggestion[]        @relation("MatchSuggestionFor")
+  matchSuggestionsAsSuggested MatchSuggestion[]        @relation("MatchSuggestionSuggested")
 }
 
 model Event {
@@ -524,6 +530,7 @@ model Event {
   eventFaqs            EventFaq[]
   conciergeConversations ConciergeConversation[]
   conciergePendingActions ConciergePendingAction[]
+  matchSuggestions     MatchSuggestion[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -1453,4 +1460,52 @@ model ConciergePendingAction {
   @@index([eventId, status])
   @@index([expiresAt])
   @@index([conversationId])
+}
+
+/// Cached profile embedding for Matchmaker (Phase A4). Recompute on profile edit when sourceHash changes.
+model MatchProfileEmbedding {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceText String
+  sourceHash String
+  /// Float vector as JSON number[] (app-layer cosine; no pgvector required).
+  embedding  Json
+  dimensions Int
+  model      String
+  provider   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([sourceHash])
+}
+
+/// Ranked "People you should meet" suggestion (DIGEST delivery; draftIntro never auto-sent).
+model MatchSuggestion {
+  id              String   @id @default(cuid())
+  eventId         String
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  forUserId       String
+  forUser         User     @relation("MatchSuggestionFor", fields: [forUserId], references: [id], onDelete: Cascade)
+  suggestedUserId String
+  suggestedUser   User     @relation("MatchSuggestionSuggested", fields: [suggestedUserId], references: [id], onDelete: Cascade)
+  /// 1..5 within the batch.
+  rank            Int
+  whyLine         String
+  /// Editable ice-breaker pre-fill for the DM composer — attendee must press send.
+  draftIntro      String
+  /// Optional 0–2 mutually-free meeting slots: [{ startsAt, endsAt }].
+  proposedSlots   Json?
+  /// Idempotency key: "join" | "week:YYYY-Www".
+  batchKey        String
+  aiGenerated     Boolean  @default(true)
+  /// Soft link to AiUsageRecord.id (no FK).
+  usageId         String?
+  createdAt       DateTime @default(now())
+
+  @@unique([eventId, forUserId, suggestedUserId, batchKey])
+  @@index([eventId, forUserId, batchKey])
+  @@index([forUserId])
+  @@index([suggestedUserId])
+  @@index([eventId, createdAt])
 }
