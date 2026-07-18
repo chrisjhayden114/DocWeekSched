@@ -4203,7 +4203,7 @@ function CommunityBoard({
                         {t.meetupMode
                           ? ` · ${t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"}`
                           : ""}
-                        {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
+                        {t.meetupStartsAt ? ` · ${formatEventDateTime(t.meetupStartsAt)}` : ""}
                       </div>
                     )}
                     {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
@@ -4224,7 +4224,7 @@ function CommunityBoard({
                     {t.meetupMode && ch !== "MEETUP" && (
                       <div className="community-thread-foot">
                         {t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"} meet-up
-                        {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
+                        {t.meetupStartsAt ? ` · ${formatEventDateTime(t.meetupStartsAt)}` : ""}
                       </div>
                     )}
                     <div className="community-thread-foot">{t.replies?.length ?? 0} replies</div>
@@ -4305,7 +4305,7 @@ function CommunityBoard({
                       {t.replies?.map((r) => (
                         <div key={r.id} className="network-reply">
                           <strong>{r.author.name}</strong>
-                          <span className="help-text"> · {new Date(r.createdAt).toLocaleString()}</span>
+                          <span className="help-text"> · {formatEventDateTime(r.createdAt)}</span>
                           <p>{r.body}</p>
                           {isAdmin && (
                             <button

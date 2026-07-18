@@ -852,8 +852,8 @@ html[data-theme="slate"] .roster-role-badge--admin {
 
 .schedule-speaker {
   color: var(--gold-700);
-  font-weight: 600;
-  font: var(--text-meta);
+  font-size: 13px;
+  line-height: 1.4;
   font-weight: 700;
   margin-bottom: 2px;
 }
