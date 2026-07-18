@@ -64,7 +64,15 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, _toke
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error ? (typeof data.error === "string" ? data.error : JSON.stringify(data.error)) : "Request failed");
+    const message = data.error
+      ? typeof data.error === "string"
+        ? data.error
+        : JSON.stringify(data.error)
+      : "Request failed";
+    const err = new Error(message) as Error & { status?: number; body?: unknown };
+    err.status = res.status;
+    err.body = data;
+    throw err;
   }
 
   const data = (await res.json()) as T & { csrfToken?: string };

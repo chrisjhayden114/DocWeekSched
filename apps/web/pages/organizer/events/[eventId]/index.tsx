@@ -343,6 +343,9 @@ export default function OrganizerEventPage() {
               {label}
             </button>
           ))}
+          <Link href={`/organizer/events/${eventId}/ingest`} className="button secondary">
+            Agenda ingest
+          </Link>
         </nav>
 
         {tab === "overview" && event ? (

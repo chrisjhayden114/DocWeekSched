@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 export type ReviewChangeRow =
   | {
@@ -7,6 +7,9 @@ export type ReviewChangeRow =
       email?: string;
       name?: string;
       title?: string;
+      confidence?: number;
+      day?: string;
+      accepted?: boolean;
       [key: string]: unknown;
     }
   | {
@@ -19,8 +22,29 @@ export type ReviewChangeRow =
       kind: "update" | "skip";
       rowIndex: number;
       message?: string;
+      title?: string;
+      confidence?: number;
+      day?: string;
+      accepted?: boolean;
+      [key: string]: unknown;
+    }
+  | {
+      kind: "delete";
+      rowIndex: number;
+      message?: string;
+      title?: string;
+      /** Deletes default unchecked. */
+      accepted?: boolean;
       [key: string]: unknown;
     };
+
+export type ReviewAssumption = {
+  id: string;
+  question: string;
+  defaultAnswer?: string;
+  answer?: string;
+  appliesTo?: string;
+};
 
 export type ReviewChangesetProps = {
   title?: string;
@@ -29,18 +53,32 @@ export type ReviewChangesetProps = {
   onMappingChange?: (mapping: Record<string, string>) => void;
   mappingOptions?: { value: string; label: string }[];
   rows: ReviewChangeRow[];
-  summary?: { creates?: number; errors?: number; skipped?: number; updates?: number };
+  summary?: { creates?: number; errors?: number; skipped?: number; updates?: number; deletes?: number };
   confirmLabel?: string;
   onConfirm?: () => void | Promise<void>;
   onCancel?: () => void;
   busy?: boolean;
   /** Render primary fields for a create/update row */
   renderCreateSummary?: (row: ReviewChangeRow) => string;
+  /** Toggle accept for update/delete/create rows (ingest). */
+  onAcceptChange?: (rowIndex: number, accepted: boolean) => void;
+  assumptions?: ReviewAssumption[];
+  onAssumptionAnswer?: (id: string, answer: string) => void;
+  /** Amber threshold for confidence (default 0.8). */
+  lowConfidence?: number;
+  /** Optional left-column source preview (ingest). */
+  sourcePreview?: string;
 };
 
+function rowAccepted(row: ReviewChangeRow): boolean {
+  if (row.kind === "delete") return row.accepted === true;
+  if (row.kind === "create" || row.kind === "update") return row.accepted !== false;
+  return false;
+}
+
 /**
- * Reusable dry-run review surface (CSV invites now; Agenda Ingest later).
- * Shows column mapping, per-row create/error list, confirm/cancel.
+ * Reusable dry-run review surface (CSV invites + Agenda Ingest).
+ * Shows column mapping, per-row create/update/delete list, confirm/cancel.
  */
 export function ReviewChangeset({
   title = "Review changes",
@@ -55,24 +93,44 @@ export function ReviewChangeset({
   onCancel,
   busy,
   renderCreateSummary,
+  onAcceptChange,
+  assumptions,
+  onAssumptionAnswer,
+  lowConfidence = 0.8,
+  sourcePreview,
 }: ReviewChangesetProps) {
   const creates = useMemo(() => rows.filter((r) => r.kind === "create"), [rows]);
+  const updates = useMemo(() => rows.filter((r) => r.kind === "update"), [rows]);
+  const deletes = useMemo(() => rows.filter((r) => r.kind === "delete"), [rows]);
   const errors = useMemo(() => rows.filter((r) => r.kind === "error"), [rows]);
-  const canConfirm = creates.length > 0 && !busy && Boolean(onConfirm);
+  const acceptedCount = useMemo(() => rows.filter(rowAccepted).length, [rows]);
+  const canConfirm = acceptedCount > 0 && !busy && Boolean(onConfirm);
 
-  return (
-    <div className="review-changeset" style={{ marginTop: 16 }}>
+  const body = (
+    <>
       <h4 style={{ margin: "0 0 8px" }}>{title}</h4>
       {summary ? (
         <p className="help-text" style={{ marginTop: 0 }}>
           {summary.creates != null ? (
             <>
-              <strong>{summary.creates}</strong> ready
+              <strong>{summary.creates}</strong> create
+            </>
+          ) : null}
+          {summary.updates != null && summary.updates > 0 ? (
+            <>
+              {summary.creates != null ? " · " : null}
+              <strong>{summary.updates}</strong> update
+            </>
+          ) : null}
+          {summary.deletes != null && summary.deletes > 0 ? (
+            <>
+              {" · "}
+              <strong>{summary.deletes}</strong> delete proposed
             </>
           ) : null}
           {summary.errors != null ? (
             <>
-              {summary.creates != null ? " · " : null}
+              {(summary.creates != null || summary.updates != null) ? " · " : null}
               <strong style={{ color: "#b42318" }}>{summary.errors}</strong> errors
             </>
           ) : null}
@@ -112,6 +170,27 @@ export function ReviewChangeset({
         </div>
       ) : null}
 
+      {assumptions && assumptions.length > 0 ? (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Assumptions</p>
+          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "grid", gap: 8 }}>
+            {assumptions.map((a) => (
+              <li key={a.id} style={{ fontSize: 14 }}>
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span>{a.question}</span>
+                  <input
+                    className="input"
+                    value={a.answer ?? a.defaultAnswer ?? ""}
+                    onChange={(e) => onAssumptionAnswer?.(a.id, e.target.value)}
+                    placeholder="Your answer"
+                  />
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {errors.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
           <p style={{ margin: "0 0 6px", fontWeight: 600, color: "#b42318" }}>Validation errors</p>
@@ -129,21 +208,103 @@ export function ReviewChangeset({
       {creates.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
           <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Will create</p>
-          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, maxHeight: 240, overflow: "auto" }}>
-            {creates.map((row) => (
-              <li key={`create-${row.rowIndex}`}>
-                {renderCreateSummary
-                  ? renderCreateSummary(row)
-                  : row.email
-                    ? `${row.name || ""} <${row.email}>`.trim()
-                    : row.title || `Row ${row.rowIndex + 1}`}
-              </li>
-            ))}
+          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, maxHeight: 280, overflow: "auto" }}>
+            {creates.map((row) => {
+              const low =
+                typeof row.confidence === "number" && row.confidence < lowConfidence;
+              return (
+                <li
+                  key={`create-${row.rowIndex}`}
+                  style={low ? { color: "#b54708", background: "#fffaeb", padding: "2px 4px" } : undefined}
+                >
+                  {onAcceptChange ? (
+                    <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <input
+                        type="checkbox"
+                        checked={row.accepted !== false}
+                        onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
+                      />
+                      <span>
+                        {row.day ? <span className="help-text">{row.day} · </span> : null}
+                        {renderCreateSummary
+                          ? renderCreateSummary(row)
+                          : row.email
+                            ? `${row.name || ""} <${row.email}>`.trim()
+                            : row.title || `Row ${row.rowIndex + 1}`}
+                        {low ? ` (confidence ${row.confidence!.toFixed(2)})` : null}
+                      </span>
+                    </label>
+                  ) : (
+                    <>
+                      {renderCreateSummary
+                        ? renderCreateSummary(row)
+                        : row.email
+                          ? `${row.name || ""} <${row.email}>`.trim()
+                          : row.title || `Row ${row.rowIndex + 1}`}
+                      {low ? ` (confidence ${row.confidence!.toFixed(2)})` : null}
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </div>
-      ) : (
+      ) : null}
+
+      {updates.length > 0 ? (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Will update</p>
+          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14, maxHeight: 200, overflow: "auto" }}>
+            {updates.map((row) => (
+              <li key={`update-${row.rowIndex}`} style={{ marginBottom: 6 }}>
+                <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  {onAcceptChange ? (
+                    <input
+                      type="checkbox"
+                      checked={row.accepted !== false}
+                      onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
+                    />
+                  ) : null}
+                  <span>
+                    {row.day ? <span className="help-text">{row.day} · </span> : null}
+                    <strong>{row.title || `Row ${row.rowIndex + 1}`}</strong>
+                    {row.message ? ` — ${row.message}` : null}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {deletes.length > 0 ? (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Propose delete (unchecked by default)</p>
+          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14 }}>
+            {deletes.map((row) => (
+              <li key={`delete-${row.rowIndex}`} style={{ marginBottom: 6 }}>
+                <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  {onAcceptChange ? (
+                    <input
+                      type="checkbox"
+                      checked={row.accepted === true}
+                      onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
+                    />
+                  ) : null}
+                  <span>
+                    {row.title || `Session ${row.rowIndex + 1}`}
+                    {row.message ? ` — ${row.message}` : null}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {creates.length === 0 && updates.length === 0 && deletes.length === 0 ? (
         <p className="help-text">Nothing valid to create yet. Fix errors or adjust column mapping.</p>
-      )}
+      ) : null}
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         {onConfirm ? (
@@ -157,6 +318,51 @@ export function ReviewChangeset({
           </button>
         ) : null}
       </div>
+    </>
+  );
+
+  if (sourcePreview) {
+    return (
+      <div className="review-changeset" style={{ marginTop: 16 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.2fr)",
+            gap: 16,
+          }}
+          className="review-changeset-split"
+        >
+          <div>
+            <h4 style={{ margin: "0 0 8px" }}>Source</h4>
+            <pre
+              style={{
+                margin: 0,
+                padding: 12,
+                maxHeight: 480,
+                overflow: "auto",
+                fontSize: 12,
+                whiteSpace: "pre-wrap",
+                background: "var(--surface-muted, #f4f6f9)",
+                borderRadius: 8,
+              }}
+            >
+              {sourcePreview}
+            </pre>
+          </div>
+          <div>{body}</div>
+        </div>
+        <style>{`
+          @media (max-width: 800px) {
+            .review-changeset-split { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div className="review-changeset" style={{ marginTop: 16 }}>
+      {body}
     </div>
   );
 }
