@@ -36,7 +36,8 @@ export type FeatureKey =
   | "session_polls"
   | "session_feedback"
   | "sponsors"
-  | "checkin";
+  | "checkin"
+  | "ops_agent";
 
 export type FeatureOverrideValue = boolean | "daily" | "weekly" | "interrupts_only";
 
@@ -235,6 +236,13 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     category: "engagement",
     defaultOn: true,
   },
+  {
+    key: "ops_agent",
+    name: "Ops Inbox",
+    plainDescription: "Event-day detectors that draft announcements and nudges for organizer review before send.",
+    category: "engagement",
+    defaultOn: true,
+  },
 ];
 
 export const FEATURE_BY_KEY: Record<FeatureKey, FeatureDefinition> = Object.fromEntries(
@@ -279,6 +287,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_feedback: true,
       sponsors: true,
       checkin: true,
+      ops_agent: true,
     },
   },
   {
@@ -311,6 +320,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_feedback: true,
       sponsors: false,
       checkin: true,
+      ops_agent: false,
     },
   },
   {
@@ -342,6 +352,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_feedback: true,
       sponsors: true,
       checkin: true,
+      ops_agent: true,
     },
   },
 ];
