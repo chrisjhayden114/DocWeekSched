@@ -98,6 +98,51 @@ enum NotificationKind {
   MESSAGE
   ADMIN_REQUEST
   WAITLIST_PROMOTED
+  ANNOUNCEMENT
+  MEETING_REQUEST
+  MEETING_ACCEPTED
+  SESSION_CHANGED
+  SESSION_STARTING_SOON
+  DIGEST_ROLLUP
+  USER_REPORT
+}
+
+enum NotificationClass {
+  INTERRUPT
+  DIGEST
+}
+
+enum NotificationDelivery {
+  INBOX
+  QUEUED_PUSH
+  PUSHED
+  DIGESTED
+  SUPPRESSED
+}
+
+enum AnnouncementAudience {
+  EVERYONE
+  ROLE
+  SESSION_JOINERS
+  ATTENDANCE_MODE
+}
+
+enum MeetingRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum ModerationReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+
+enum PersonalAgendaSource {
+  MEETING
+  CUSTOM
 }
 
 enum AdminAccessRequestStatus {
@@ -179,15 +224,17 @@ model SeriesContinuityConsent {
 }
 
 model EventMembership {
-  id        String          @id @default(cuid())
-  eventId   String
-  event     Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      EventMemberRole @default(ATTENDEE)
-  createdAt DateTime        @default(now())
+  id             String          @id @default(cuid())
+  eventId        String
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           EventMemberRole @default(ATTENDEE)
+  createdAt      DateTime        @default(now())
   /// Soft-remove from roster; purged after ~30 days. Null = active.
-  deletedAt DateTime?
+  deletedAt      DateTime?
+  /// Per-event directory visibility. Default hidden (privacy-first).
+  directoryOptIn Boolean         @default(false)
 
   @@unique([eventId, userId])
   @@index([userId])
@@ -249,30 +296,33 @@ model AdminAccessRequest {
 }
 
 model User {
-  id                          String                @id @default(cuid())
-  email                       String                @unique
+  id                          String                   @id @default(cuid())
+  email                       String                   @unique
   name                        String
   role                        Role
   photoUrl                    String?
   researchInterests           String?
+  title                       String?
+  affiliation                 String?
+  bio                         String?
   /// Free-text participant category (e.g. Student, Faculty, Industry). Legacy academic codes may still appear.
   participantType             String?
   passwordHash                String
-  engagementPoints            Int                   @default(0)
+  engagementPoints            Int                      @default(0)
   emailVerifiedAt             DateTime?
-  emailVerifyTokenHash        String?               @unique
+  emailVerifyTokenHash        String?                  @unique
   emailVerifyTokenExpiresAt   DateTime?
-  profileSetupTokenHash       String?               @unique
+  profileSetupTokenHash       String?                  @unique
   profileSetupTokenExpiresAt  DateTime?
-  passwordResetTokenHash      String?               @unique
+  passwordResetTokenHash      String?                  @unique
   passwordResetTokenExpiresAt DateTime?
-  createdAt                   DateTime              @default(now())
+  createdAt                   DateTime                 @default(now())
   sessionBookmarks            SessionBookmark[]
   sessionAttendances          SessionAttendance[]
   waitlistEntries             WaitlistEntry[]
   sessionLikes                SessionLike[]
-  eventsCreated               Event[]               @relation("EventCreator")
-  sessionsAsSpeaker           Session[]             @relation("SessionLinkedUser")
+  eventsCreated               Event[]                  @relation("EventCreator")
+  sessionsAsSpeaker           Session[]                @relation("SessionLinkedUser")
   conversationMembers         ConversationMember[]
   conversationMessages        ConversationMessage[]
   checkIns                    CheckIn[]
@@ -283,11 +333,25 @@ model User {
   sessionDiscussionReplies    SessionDiscussionReply[]
   sessionResources            SessionResource[]
   notifications               UserNotification[]
+  notificationPreferences     NotificationPreference[]
+  notificationPushDays        NotificationPushDay[]
   orgMemberships              OrgMembership[]
   eventMemberships            EventMembership[]
-  adminAccessRequests         AdminAccessRequest[]  @relation("AdminAccessRequester")
-  adminAccessResolutions      AdminAccessRequest[]  @relation("AdminAccessResolver")
+  adminAccessRequests         AdminAccessRequest[]     @relation("AdminAccessRequester")
+  adminAccessResolutions      AdminAccessRequest[]     @relation("AdminAccessResolver")
   seriesContinuityConsents    SeriesContinuityConsent[]
+  announcementsCreated        Announcement[]           @relation("AnnouncementCreator")
+  announcementAuditLogs       AnnouncementAuditLog[]
+  meetingRequestsFrom         MeetingRequest[]         @relation("MeetingRequestFrom")
+  meetingRequestsTo           MeetingRequest[]         @relation("MeetingRequestTo")
+  personalAgendaBlocks        PersonalAgendaBlock[]
+  blocksCreated               UserBlock[]              @relation("UserBlockBlocker")
+  blocksReceived              UserBlock[]              @relation("UserBlockBlocked")
+  reportsFiled                UserReport[]             @relation("UserReportReporter")
+  reportsReceived             UserReport[]             @relation("UserReportReported")
+  reportsResolved             UserReport[]             @relation("UserReportResolver")
+  icsFeedTokens               IcsFeedToken[]
+  pushSubscriptions           PushSubscription[]
 }
 
 model Event {
@@ -329,6 +393,7 @@ model Event {
   venueMaps            VenueMap[]
   speakersRoster       Speaker[]
   announcements        Announcement[]
+  announcementAuditLogs AnnouncementAuditLog[]
   surveys              Survey[]
   conversations        Conversation[]
   checkIns             CheckIn[]
@@ -339,6 +404,12 @@ model Event {
   createdBy            User?                @relation("EventCreator", fields: [createdById], references: [id])
   createdById          String?
   featureConfig        EventFeatureConfig?
+  notificationPreferences NotificationPreference[]
+  meetingRequests      MeetingRequest[]
+  personalAgendaBlocks PersonalAgendaBlock[]
+  userBlocks           UserBlock[]
+  userReports          UserReport[]
+  icsFeedTokens        IcsFeedToken[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -471,6 +542,8 @@ model Session {
   conversations     Conversation[]
   discussionThreads SessionDiscussionThread[]
   resources         SessionResource[]
+  announcements     Announcement[]
+  notifications     UserNotification[]
 
   @@index([trackId])
   @@index([roomId])
@@ -574,12 +647,30 @@ model SessionLike {
 }
 
 model Announcement {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  createdAt DateTime @default(now())
-  event     Event    @relation(fields: [eventId], references: [id])
-  eventId   String
+  id             String                 @id @default(cuid())
+  title          String
+  body           String
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  event          Event                  @relation(fields: [eventId], references: [id])
+  eventId        String
+  createdById    String?
+  createdBy      User?                  @relation("AnnouncementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  audience       AnnouncementAudience   @default(EVERYONE)
+  audienceRole   EventMemberRole?
+  sessionId      String?
+  session        Session?               @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  attendanceMode SessionJoinMode?
+  sendEmail      Boolean                @default(false)
+  isEmergency    Boolean                @default(false)
+  isPreview      Boolean                @default(false)
+  publishedAt    DateTime?
+  auditLogs      AnnouncementAuditLog[]
+  notifications  UserNotification[]
+
+  @@index([eventId, createdAt])
+  @@index([sessionId])
+  @@index([createdById])
 }
 
 model Survey {
@@ -684,19 +775,36 @@ model NetworkThread {
 }
 
 model UserNotification {
-  id             String           @id @default(cuid())
-  userId         String
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  eventId        String?
-  kind           NotificationKind
-  title          String
-  body           String?
-  threadId       String?
-  conversationId String?
-  readAt         DateTime?
-  createdAt      DateTime         @default(now())
+  id               String               @id @default(cuid())
+  userId           String
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId          String?
+  kind             NotificationKind
+  class            NotificationClass    @default(DIGEST)
+  delivery         NotificationDelivery @default(INBOX)
+  title            String
+  body             String?
+  threadId         String?
+  conversationId   String?
+  announcementId   String?
+  announcement     Announcement?        @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  meetingRequestId String?
+  meetingRequest   MeetingRequest?      @relation(fields: [meetingRequestId], references: [id], onDelete: SetNull)
+  sessionId        String?
+  session          Session?             @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  queuedUntil      DateTime?
+  pushDedupKey     String?
+  budgetCharged    Boolean              @default(false)
+  readAt           DateTime?
+  createdAt        DateTime             @default(now())
 
   @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([delivery, queuedUntil])
+  @@index([userId, class, createdAt])
+  @@index([announcementId])
+  @@index([meetingRequestId])
+  @@index([sessionId])
 }
 
 model NetworkReply {
@@ -742,4 +850,171 @@ model SessionResource {
   session    Session             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   userId     String
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Quiet hours / digest / mute categories. Partial unique indexes in migration:
+/// one global row per user (eventId IS NULL) + one per (userId, eventId).
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId         String?
+  event           Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  quietHoursStart String   @default("22:00")
+  quietHoursEnd   String   @default("07:00")
+  digestLocalTime String   @default("07:30")
+  digestEmail     Boolean  @default(false)
+  mutedCategories String[] @default([])
+  timezone        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([eventId])
+}
+
+model NotificationPushDay {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Attendee-local calendar day `YYYY-MM-DD`.
+  dayKey    String
+  pushCount Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dayKey])
+  @@index([userId])
+}
+
+model MeetingRequest {
+  id             String               @id @default(cuid())
+  eventId        String
+  event          Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fromUserId     String
+  fromUser       User                 @relation("MeetingRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId       String
+  toUser         User                 @relation("MeetingRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  status         MeetingRequestStatus @default(PENDING)
+  message        String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  respondedAt    DateTime?
+  slots          MeetingSlot[]
+  agendaBlocks   PersonalAgendaBlock[]
+  notifications  UserNotification[]
+
+  @@index([eventId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([eventId, status])
+}
+
+model MeetingSlot {
+  id               String         @id @default(cuid())
+  meetingRequestId String
+  meetingRequest   MeetingRequest @relation(fields: [meetingRequestId], references: [id], onDelete: Cascade)
+  startsAt         DateTime
+  endsAt           DateTime
+  sortOrder        Int            @default(0)
+
+  @@index([meetingRequestId])
+}
+
+model PersonalAgendaBlock {
+  id               String               @id @default(cuid())
+  userId           String
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId          String
+  event            Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title            String
+  startsAt         DateTime
+  endsAt           DateTime
+  source           PersonalAgendaSource @default(MEETING)
+  meetingRequestId String?
+  meetingRequest   MeetingRequest?      @relation(fields: [meetingRequestId], references: [id], onDelete: SetNull)
+  createdAt        DateTime             @default(now())
+
+  @@index([userId, eventId])
+  @@index([eventId, startsAt])
+  @@index([meetingRequestId])
+}
+
+model AnnouncementAuditLog {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  actorId        String
+  actor          User         @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  action         String
+  payload        Json         @default("{}")
+  createdAt      DateTime     @default(now())
+
+  @@index([announcementId])
+  @@index([eventId, createdAt])
+  @@index([actorId])
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   User     @relation("UserBlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("UserBlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId, eventId])
+  @@index([eventId])
+  @@index([blockedId])
+}
+
+model UserReport {
+  id             String                 @id @default(cuid())
+  reporterId     String
+  reporter       User                   @relation("UserReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String
+  reportedUser   User                   @relation("UserReportReported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reason         String
+  details        String?
+  status         ModerationReportStatus @default(OPEN)
+  createdAt      DateTime               @default(now())
+  resolvedAt     DateTime?
+  resolverId     String?
+  resolver       User?                  @relation("UserReportResolver", fields: [resolverId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status])
+  @@index([reporterId])
+  @@index([reportedUserId])
+}
+
+model IcsFeedToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId, eventId])
+}
+
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime?
+
+  @@index([userId])
 }
