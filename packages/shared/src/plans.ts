@@ -69,7 +69,7 @@ const CORE_ATTENDEE_FEATURES: Partial<Record<EntitlementKey, boolean>> = {
   engagement_points: false,
   public_leaderboard: false,
   matchmaker: false,
-  concierge: false,
+  concierge: true,
   venue_maps: true,
   waitlist_visibility: false,
   daily_digest: false,

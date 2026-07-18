@@ -122,7 +122,12 @@ describe("AI gateway (mock provider, no DB)", () => {
       speakerIds: new Set(["spk_1"]),
       roomIds: new Set(["room_1"]),
       trackIds: new Set(["trk_1"]),
+      mapIds: new Set(),
+      faqIds: new Set(),
       sessions: [],
+      faq: [],
+      maps: [],
+      myAgendaSessionIds: new Set(),
       textBlob: "",
     };
     expect(() => assertGroundedIds(grounding, { sessionIds: ["sess_1"] })).not.toThrow();

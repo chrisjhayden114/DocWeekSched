@@ -173,9 +173,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     key: "concierge",
     name: "Concierge",
     plainDescription: "An in-event assistant that answers questions from the agenda and FAQ.",
-    category: "planned",
-    defaultOn: false,
-    plannedPhase: "A3",
+    category: "sessions",
+    defaultOn: true,
   },
   {
     key: "venue_maps",
@@ -245,6 +244,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       waitlist_visibility: true,
       venue_maps: true,
       daily_digest: true,
+      concierge: true,
     },
   },
   {
@@ -272,6 +272,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       venue_maps: false,
       daily_digest: "interrupts_only",
       cfp: false,
+      concierge: false,
     },
   },
   {

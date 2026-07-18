@@ -1,12 +1,6 @@
 # Phase A3 — Attendee Concierge
 
-**Status: written, not applied.** Review `migration.sql` in full, then on the **dev** Neon branch only:
-
-```bash
-cd apps/api && npx prisma migrate deploy
-```
-
-Do **not** run against production / `ep-square-lab`.
+**Status: applied on dev.** App layer follows in subsequent commits.
 
 ---
 

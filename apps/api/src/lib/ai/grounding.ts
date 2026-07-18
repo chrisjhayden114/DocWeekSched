@@ -11,8 +11,12 @@ export class GroundingError extends Error {
 /**
  * Assemble grounding for ONE event. eventId must come from the server session —
  * never from model output.
+ * Optional userId adds that attendee's agenda only (still never from the model).
  */
-export async function buildEventGroundingContext(eventId: string): Promise<GroundingContext> {
+export async function buildEventGroundingContext(
+  eventId: string,
+  opts?: { userId?: string | null },
+): Promise<GroundingContext> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: {
@@ -47,6 +51,17 @@ export async function buildEventGroundingContext(eventId: string): Promise<Groun
         take: 20,
         orderBy: { publishedAt: "desc" },
       },
+      eventFaqs: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, question: true, answer: true },
+      },
+      venueMaps: {
+        select: {
+          id: true,
+          name: true,
+          pins: { select: { linkedRoomId: true } },
+        },
+      },
     },
   });
   if (!event) throw new GroundingError(`Event not found: ${eventId}`);
@@ -55,8 +70,25 @@ export async function buildEventGroundingContext(eventId: string): Promise<Groun
   const roomIds = new Set(event.rooms.map((r) => r.id));
   const trackIds = new Set(event.tracks.map((t) => t.id));
   const speakerIds = new Set(event.speakersRoster.map((s) => s.id));
+  const mapIds = new Set(event.venueMaps.map((m) => m.id));
+  const faqIds = new Set(event.eventFaqs.map((f) => f.id));
   for (const s of event.sessions) {
     for (const row of s.sessionSpeakers) speakerIds.add(row.speakerId);
+  }
+
+  const myAgendaSessionIds = new Set<string>();
+  if (opts?.userId) {
+    const attendance = await prisma.sessionAttendance.findMany({
+      where: {
+        userId: opts.userId,
+        status: "JOINING",
+        session: { eventId },
+      },
+      select: { sessionId: true },
+    });
+    for (const a of attendance) {
+      if (sessionIds.has(a.sessionId)) myAgendaSessionIds.add(a.sessionId);
+    }
   }
 
   const lines: string[] = [
@@ -66,7 +98,8 @@ export async function buildEventGroundingContext(eventId: string): Promise<Groun
     ...event.sessions.map((s) => {
       const speakers = s.sessionSpeakers.map((r) => r.speaker.name).join(", ") || s.speakers || "";
       const items = s.items.map((i) => `${i.title} [${i.authors.map((a) => a.name).join(", ")}]`).join("; ");
-      return `- [${s.id}] ${s.title} ${s.startsAt.toISOString()}–${s.endsAt.toISOString()}${speakers ? ` speakers=${speakers}` : ""}${items ? ` items=${items}` : ""}`;
+      // Descriptions are corpus text only — never parsed as tool instructions (injection-safe).
+      return `- [${s.id}] ${s.title} ${s.startsAt.toISOString()}–${s.endsAt.toISOString()}${speakers ? ` speakers=${speakers}` : ""}${items ? ` items=${items}` : ""}${s.description ? ` desc=${s.description.slice(0, 200)}` : ""}`;
     }),
     "Rooms:",
     ...event.rooms.map((r) => `- [${r.id}] ${r.name}`),
@@ -74,7 +107,23 @@ export async function buildEventGroundingContext(eventId: string): Promise<Groun
     ...event.tracks.map((t) => `- [${t.id}] ${t.name}`),
     "Speakers:",
     ...event.speakersRoster.map((s) => `- [${s.id}] ${s.name}`),
-  ].filter(Boolean);
+    "FAQ:",
+    ...event.eventFaqs.map((f) => `- [${f.id}] Q: ${f.question} A: ${f.answer}`),
+    "Maps:",
+    ...event.venueMaps.map((m) => {
+      const rooms = m.pins.map((p) => p.linkedRoomId).filter(Boolean).join(",");
+      return `- [${m.id}] ${m.name}${rooms ? ` rooms=${rooms}` : ""}`;
+    }),
+    "Announcements:",
+    ...event.announcements.map((a) => `- ${a.title}: ${a.body.slice(0, 200)}`),
+  ];
+
+  if (myAgendaSessionIds.size) {
+    lines.push(
+      "My agenda session ids:",
+      ...[...myAgendaSessionIds].map((id) => `- ${id}`),
+    );
+  }
 
   return {
     eventId: event.id,
@@ -91,6 +140,8 @@ export async function buildEventGroundingContext(eventId: string): Promise<Groun
     speakerIds,
     roomIds,
     trackIds,
+    mapIds,
+    faqIds,
     sessions: event.sessions.map((s) => ({
       id: s.id,
       title: s.title,
@@ -98,8 +149,16 @@ export async function buildEventGroundingContext(eventId: string): Promise<Groun
       endsAt: s.endsAt,
       roomId: s.roomId,
       trackId: s.trackId,
+      description: s.description,
     })),
-    textBlob: lines.join("\n"),
+    faq: event.eventFaqs,
+    maps: event.venueMaps.map((m) => ({
+      id: m.id,
+      name: m.name,
+      roomIds: m.pins.map((p) => p.linkedRoomId).filter((id): id is string => !!id),
+    })),
+    myAgendaSessionIds,
+    textBlob: lines.filter(Boolean).join("\n"),
   };
 }
 
@@ -108,6 +167,7 @@ export type GroundedIdCandidates = {
   speakerIds?: string[];
   roomIds?: string[];
   trackIds?: string[];
+  mapIds?: string[];
   /** Any id claimed to belong to this event — rejected if not in grounding sets. */
   eventId?: string;
 };
@@ -131,4 +191,18 @@ export function assertGroundedIds(grounding: GroundingContext, candidates: Groun
   for (const id of candidates.trackIds || []) {
     if (!grounding.trackIds.has(id)) throw new GroundingError(`Foreign trackId rejected: ${id}`);
   }
+  for (const id of candidates.mapIds || []) {
+    if (!grounding.mapIds.has(id)) throw new GroundingError(`Foreign mapId rejected: ${id}`);
+  }
 }
+
+/** Out-of-corpus topics that should refuse (not grounded). */
+const OUT_OF_CORPUS =
+  /\b(weather|stock market|crypto|write (me )?code|hack|password|ignore (all |previous )?instructions|system prompt)\b/i;
+
+export function isOutOfCorpusQuery(text: string): boolean {
+  return OUT_OF_CORPUS.test(text);
+}
+
+export const REFUSAL_MESSAGE =
+  "I can only help with this event’s schedule, your agenda, rooms/maps, announcements, and the organizer FAQ. Try asking what’s on today, or pick a starter chip.";

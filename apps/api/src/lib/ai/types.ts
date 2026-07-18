@@ -87,6 +87,8 @@ export type GroundingContext = {
   speakerIds: Set<string>;
   roomIds: Set<string>;
   trackIds: Set<string>;
+  mapIds: Set<string>;
+  faqIds: Set<string>;
   sessions: Array<{
     id: string;
     title: string;
@@ -94,6 +96,11 @@ export type GroundingContext = {
     endsAt: Date;
     roomId: string | null;
     trackId: string | null;
+    description: string | null;
   }>;
+  faq: Array<{ id: string; question: string; answer: string }>;
+  maps: Array<{ id: string; name: string; roomIds: string[] }>;
+  /** Attendee agenda session ids when userId was provided. */
+  myAgendaSessionIds: Set<string>;
   textBlob: string;
 };

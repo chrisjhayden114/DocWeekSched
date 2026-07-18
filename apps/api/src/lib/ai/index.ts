@@ -5,7 +5,10 @@ export {
   buildEventGroundingContext,
   assertGroundedIds,
   GroundingError,
+  isOutOfCorpusQuery,
+  REFUSAL_MESSAGE,
 } from "./grounding";
+export * from "./concierge";
 export { writeAuditLog } from "./audit";
 export { notifyAgentAttendeeTouch } from "./notify";
 export {

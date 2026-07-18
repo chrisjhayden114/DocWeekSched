@@ -1381,3 +1381,76 @@ model CfpDecisionEmail {
   @@index([submissionId])
   @@index([sentAt])
 }
+
+/// Organizer-editable FAQ for Concierge grounding (Phase A3).
+model EventFaq {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  question  String
+  answer    String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([eventId, sortOrder])
+}
+
+/// One Concierge chat thread per attendee per event (Phase A3).
+model ConciergeConversation {
+  id        String                   @id @default(cuid())
+  eventId   String
+  event     Event                    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  messages  ConciergeMessage[]
+  pendingActions ConciergePendingAction[]
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@index([eventId, updatedAt])
+}
+
+model ConciergeMessage {
+  id               String                @id @default(cuid())
+  conversationId   String
+  conversation     ConciergeConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role             ConciergeMessageRole
+  body             String
+  aiGenerated      Boolean               @default(false)
+  toolProposals    Json?
+  /// Server-minted ConciergePendingAction ids awaiting confirm — never executable from model output alone.
+  pendingActionIds Json?
+  /// Soft link to AiUsageRecord.id (no FK — usage rows may be retained independently).
+  usageId          String?
+  createdAt        DateTime              @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+/// Propose mints this row; confirm executes only when userId/eventId match the server session.
+model ConciergePendingAction {
+  id             String                        @id @default(cuid())
+  eventId        String
+  event          Event                         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   ConciergeConversation?        @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  tool           String
+  args           Json                          @default("{}")
+  preview        Json                          @default("{}")
+  status         ConciergePendingActionStatus  @default(PENDING)
+  /// App sets ~30 minutes from propose.
+  expiresAt      DateTime
+  confirmedAt    DateTime?
+  createdAt      DateTime                      @default(now())
+
+  @@index([userId, status])
+  @@index([eventId, status])
+  @@index([expiresAt])
+  @@index([conversationId])
+}
