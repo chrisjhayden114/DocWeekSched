@@ -32,9 +32,19 @@ enum EventStatus {
 }
 
 enum PlanTier {
-  STARTER
+  FREE
+  PER_EVENT
   PRO
-  ORG_ANNUAL
+  ENTERPRISE
+  INTERNAL
+}
+
+enum BillingProvider {
+  NONE
+  LEMON_SQUEEZY
+  PADDLE
+  STRIPE
+  INTERNAL
 }
 
 enum PurchaseStatus {
@@ -96,22 +106,29 @@ enum AdminAccessRequestStatus {
 }
 
 model Organization {
-  id                   String               @id @default(cuid())
-  name                 String
-  slug                 String               @unique
-  stripeCustomerId     String?              @unique
-  plan                 PlanTier?
-  subscriptionStatus   SubscriptionStatus   @default(NONE)
-  stripeSubscriptionId String?              @unique
-  eventAllowance       Int                  @default(0)
-  eventsIncludedUsed   Int                  @default(0)
-  subscriptionEndsAt   DateTime?
-  createdAt            DateTime             @default(now())
-  memberships          OrgMembership[]
-  events               Event[]
-  purchases            EventPurchase[]
-  adminAccessRequests  AdminAccessRequest[]
-  eventSeries          EventSeries[]
+  id                        String               @id @default(cuid())
+  name                      String
+  slug                      String               @unique
+  /// MoR / billing backend. INTERNAL = grandfathered / comps (no MoR).
+  billingProvider           BillingProvider      @default(NONE)
+  billingCustomerId         String?              @unique
+  billingSubscriptionId     String?              @unique
+  billingSubscriptionItemId String?
+  plan                      PlanTier?            @default(FREE)
+  subscriptionStatus        SubscriptionStatus   @default(NONE)
+  /// NULL = unlimited active events. limit() must treat NULL as no cap.
+  eventAllowance            Int?
+  eventsIncludedUsed        Int                  @default(0)
+  subscriptionEndsAt        DateTime?
+  /// After payment_failed webhook: now+7d; then org becomes read-only until fixed.
+  gracePeriodEndsAt         DateTime?
+  entitlementsUpdatedAt     DateTime?
+  createdAt                 DateTime             @default(now())
+  memberships               OrgMembership[]
+  events                    Event[]
+  purchases                 EventPurchase[]
+  adminAccessRequests       AdminAccessRequest[]
+  eventSeries               EventSeries[]
 }
 
 model OrgMembership {
@@ -128,15 +145,21 @@ model OrgMembership {
 }
 
 model EventSeries {
-  id               String                     @id @default(cuid())
-  organizationId   String
-  organization     Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name             String
-  slug             String
-  setupChecklist   Json                       @default("[]")
-  createdAt        DateTime                   @default(now())
-  events           Event[]
-  continuityConsents SeriesContinuityConsent[]
+  id                    String                     @id @default(cuid())
+  organizationId        String
+  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                  String
+  slug                  String
+  setupChecklist        Json                       @default("[]")
+  /// Recurring-event price lock — snapshot of plan config at lock time.
+  priceLockPlanKey      String?
+  priceLockAmountCents  Int?
+  priceLockCurrency     String                     @default("usd")
+  priceLockInterval     String?
+  priceLockedAt         DateTime?
+  createdAt             DateTime                   @default(now())
+  events                Event[]
+  continuityConsents    SeriesContinuityConsent[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -171,23 +194,38 @@ model EventMembership {
 }
 
 model EventPurchase {
-  id                      String         @id @default(cuid())
-  organizationId          String
-  organization            Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  eventId                 String?
-  event                   Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  plan                    PlanTier
-  amountCents             Int
-  currency                String         @default("usd")
-  status                  PurchaseStatus @default(PENDING)
-  stripeCheckoutSessionId String?        @unique
-  stripePaymentIntentId   String?
-  attendeeCap             Int
-  createdAt               DateTime       @default(now())
-  paidAt                  DateTime?
+  id                 String         @id @default(cuid())
+  organizationId     String
+  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String?
+  event              Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  plan               PlanTier
+  /// Stable SKU key from plan config (e.g. per_event_500, pro_annual).
+  planKey            String?
+  amountCents        Int
+  currency           String         @default("usd")
+  status             PurchaseStatus @default(PENDING)
+  billingCheckoutId  String?        @unique
+  billingOrderId     String?
+  attendeeCap        Int
+  createdAt          DateTime       @default(now())
+  paidAt             DateTime?
 
   @@index([organizationId])
   @@index([eventId])
+}
+
+model BillingWebhookEvent {
+  id              String          @id @default(cuid())
+  provider        BillingProvider
+  externalEventId String
+  type            String
+  payload         Json            @default("{}")
+  processedAt     DateTime?
+  createdAt       DateTime        @default(now())
+
+  @@unique([provider, externalEventId])
+  @@index([createdAt])
 }
 
 model AdminAccessRequest {
@@ -266,7 +304,7 @@ model Event {
   endDate              DateTime
   status               EventStatus          @default(DRAFT)
   plan                 PlanTier?
-  attendeeCap          Int                  @default(150)
+  attendeeCap          Int                  @default(50)
   trialEndsAt          DateTime?
   activatedAt          DateTime?
   organizationId       String
