@@ -352,6 +352,15 @@ export default function OrganizerEventPage() {
           <Link href={`/organizer/events/${eventId}/cfp`} className="button secondary">
             CFP
           </Link>
+          <Link href={`/organizer/events/${eventId}/analytics`} className="button secondary">
+            Analytics
+          </Link>
+          <Link href={`/organizer/events/${eventId}/sponsors`} className="button secondary">
+            Sponsors
+          </Link>
+          <Link href={`/organizer/events/${eventId}/scanner`} className="button secondary">
+            Check-in scanner
+          </Link>
         </nav>
 
         {tab === "overview" && event ? (
