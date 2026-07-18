@@ -105,6 +105,8 @@ enum NotificationKind {
   SESSION_STARTING_SOON
   DIGEST_ROLLUP
   USER_REPORT
+  /// Agent attendee touches — always DIGEST in app layer (never push).
+  AGENT_ATTENDEE_TOUCH
 }
 
 enum NotificationClass {
@@ -145,6 +147,36 @@ enum PersonalAgendaSource {
   CUSTOM
 }
 
+enum BackgroundJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD
+}
+
+enum AiMeterFeature {
+  AGENDA_INGEST
+  CONCIERGE
+  SETUP_COPILOT
+  MATCHMAKER
+  OPS_DRAFT
+  RECAP
+  OTHER
+}
+
+enum AuditAction {
+  AI_CHAT
+  AI_EXTRACT
+  AI_DRAFT
+  AI_TOOL
+  AI_NOTIFY
+  JOB_ENQUEUE
+  JOB_COMPLETE
+  JOB_FAIL
+  OTHER
+}
+
 enum AdminAccessRequestStatus {
   PENDING
   GRANTED
@@ -175,6 +207,9 @@ model Organization {
   purchases                 EventPurchase[]
   adminAccessRequests       AdminAccessRequest[]
   eventSeries               EventSeries[]
+  aiUsageRecords            AiUsageRecord[]
+  auditLogs                 AuditLog[]
+  backgroundJobs            BackgroundJob[]
 }
 
 model OrgMembership {
@@ -352,6 +387,9 @@ model User {
   reportsResolved             UserReport[]             @relation("UserReportResolver")
   icsFeedTokens               IcsFeedToken[]
   pushSubscriptions           PushSubscription[]
+  aiUsageRecords              AiUsageRecord[]
+  auditLogs                   AuditLog[]               @relation("AuditLogActor")
+  backgroundJobsCreated       BackgroundJob[]          @relation("BackgroundJobCreator")
 }
 
 model Event {
@@ -410,6 +448,9 @@ model Event {
   userBlocks           UserBlock[]
   userReports          UserReport[]
   icsFeedTokens        IcsFeedToken[]
+  aiUsageRecords       AiUsageRecord[]
+  auditLogs            AuditLog[]
+  backgroundJobs       BackgroundJob[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -1017,4 +1058,78 @@ model PushSubscription {
   lastSeenAt DateTime?
 
   @@index([userId])
+}
+
+/// Per-call AI metering (Phase A0). Caps are computed from counts by feature + event.
+model AiUsageRecord {
+  id                String         @id @default(cuid())
+  organizationId    String
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId           String?
+  event             Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  userId            String?
+  user              User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  feature           AiMeterFeature
+  provider          String
+  model             String
+  tokensIn          Int            @default(0)
+  tokensOut         Int            @default(0)
+  costEstimateCents Int            @default(0)
+  latencyMs         Int            @default(0)
+  jobId             String?
+  requestId         String?
+  createdAt         DateTime       @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([eventId, feature, createdAt])
+  @@index([organizationId, feature, createdAt])
+}
+
+/// Agent drafts/actions (+ later Phase 7 sensitive actions).
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  eventId        String?
+  event          Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  actorUserId    String?
+  actor          User?        @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action         AuditAction
+  entityType     String?
+  entityId       String?
+  aiGenerated    Boolean      @default(false)
+  payload        Json         @default("{}")
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([eventId, createdAt])
+  @@index([aiGenerated, createdAt])
+}
+
+/// Progress-polling background jobs (AI ingest, recap, etc.).
+model BackgroundJob {
+  id              String              @id @default(cuid())
+  organizationId  String?
+  organization    Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  eventId         String?
+  event           Event?              @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdById     String?
+  createdBy       User?               @relation("BackgroundJobCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  type            String
+  status          BackgroundJobStatus @default(PENDING)
+  progress        Int                 @default(0)
+  progressMessage String?
+  input           Json                @default("{}")
+  result          Json?
+  error           String?
+  attempts        Int                 @default(0)
+  maxAttempts     Int                 @default(3)
+  scheduledAt     DateTime            @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime            @default(now())
+
+  @@index([status, scheduledAt])
+  @@index([organizationId, createdAt])
+  @@index([eventId, type, createdAt])
 }
