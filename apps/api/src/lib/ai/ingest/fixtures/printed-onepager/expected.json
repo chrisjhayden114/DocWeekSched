@@ -1,0 +1,46 @@
+{
+  "event": {
+    "name": "Westside Meetup",
+    "timezone": "America/Los_Angeles",
+    "startDate": "2027-04-21",
+    "endDate": "2027-04-21"
+  },
+  "sessions": [
+    {
+      "title": "Lightning talks (5×8 min)",
+      "date": "2027-04-21",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "room": "Community Hall",
+      "speakers": ["Jo Reed", "Pat Moss", "Avi Shah"],
+      "items": [
+        { "title": "Tiny Clinics", "authors": ["Jo Reed"], "confidence": { "authors": 0.9 } },
+        { "title": "Chart Hygiene", "authors": ["Pat Moss"], "confidence": { "authors": 0.9 } },
+        { "title": "Night Clinics", "authors": ["Avi Shah"], "confidence": { "authors": 0.9 } }
+      ],
+      "confidence": { "title": 0.82, "startTime": 0.85, "endTime": 0.7 }
+    },
+    {
+      "title": "Networking",
+      "date": "2027-04-21",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "room": "Community Hall",
+      "speakers": [],
+      "confidence": { "title": 0.88, "endTime": 0.75 }
+    }
+  ],
+  "speakers": [
+    { "name": "Jo Reed" },
+    { "name": "Pat Moss" },
+    { "name": "Avi Shah" }
+  ],
+  "assumptions": [
+    {
+      "id": "networking-end",
+      "question": "Networking has no printed end — assumed until 21:00 from the End line.",
+      "defaultAnswer": "21:00",
+      "appliesTo": "Networking"
+    }
+  ]
+}

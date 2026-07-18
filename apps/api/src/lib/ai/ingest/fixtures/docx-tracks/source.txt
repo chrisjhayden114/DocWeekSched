@@ -1,0 +1,22 @@
+RIVERBEND GRADUATE COLLOQUIUM
+Word program with tracks — March 3, 2027 · America/Chicago
+
+Track: Clinical Practice
+09:00–10:30  Clinical Case Conference
+             Room: Auditorium A
+             Papers:
+             - "Cardiac Imaging Follow-Up" authors: Mei Tan; Jordan Blake; Sam Ortiz (presenter: Mei Tan)
+             - "Outpatient Anticoagulation" authors: Priya Nair; Chris Hale
+
+Track: Research Methods
+10:45–12:15  Methods Workshop
+             Room: Seminar 4
+             Speakers: Dr. Leah Kim
+             Papers:
+             - "Bayesian Priors in Small-N Trials" authors: Ravi Patel; Ana Costa; Lee Wong
+             - "Open Data Checklists" authors: Ana Costa; Sam Ortiz
+
+Track: Clinical Practice
+13:30–15:00  Bedside Teaching Roundtable
+             Room: Auditorium A
+             Speakers: Dr. Leah Kim, Mei Tan

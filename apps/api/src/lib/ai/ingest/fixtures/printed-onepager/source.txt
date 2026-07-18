@@ -1,0 +1,14 @@
+[IMAGE STUB — printed one-pager photograph]
+OCR-like text from a phone photo of a posted schedule sheet:
+
+WESTSIDE MEETUP — ONE NIGHT ONLY
+April 21, 2027 · Community Hall · 18:30 doors
+
+19:00  Lightning talks (5×8 min)
+       1. "Tiny Clinics" — Jo Reed
+       2. "Chart Hygiene" — Pat Moss
+       3. "Night Clinics" — Avi Shah
+20:00  Networking
+21:00  End
+
+(Image multimodal path is stubbed in the mock provider; expected extract below.)

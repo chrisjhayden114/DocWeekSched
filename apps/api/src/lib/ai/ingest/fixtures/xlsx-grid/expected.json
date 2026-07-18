@@ -1,0 +1,66 @@
+{
+  "event": {
+    "name": "Spreadsheet Summit",
+    "timezone": "UTC",
+    "startDate": "2027-09-08",
+    "endDate": "2027-09-09"
+  },
+  "sessions": [
+    {
+      "title": "Opening Keynote",
+      "date": "2027-09-08",
+      "startTime": "09:00",
+      "endTime": "09:45",
+      "room": "Hall 1",
+      "track": "Plenary",
+      "speakers": ["Nora Wells"],
+      "confidence": { "title": 0.98, "startTime": 0.98, "endTime": 0.98 }
+    },
+    {
+      "title": "Grid Computing for Clinics",
+      "date": "2027-09-08",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "room": "Hall 2",
+      "track": "Tech",
+      "speakers": ["Omar Diaz", "Kim Cho"],
+      "confidence": { "title": 0.97 }
+    },
+    {
+      "title": "Poster Lightning",
+      "date": "2027-09-08",
+      "startTime": "11:15",
+      "endTime": "12:00",
+      "room": "Foyer",
+      "track": "Posters",
+      "speakers": [],
+      "confidence": { "title": 0.95 }
+    },
+    {
+      "title": "Ethics Roundtable",
+      "date": "2027-09-09",
+      "startTime": "09:30",
+      "endTime": "10:30",
+      "room": "Hall 1",
+      "track": "Plenary",
+      "speakers": ["Nora Wells", "Omar Diaz"],
+      "confidence": { "title": 0.96 }
+    },
+    {
+      "title": "Closing Remarks",
+      "date": "2027-09-09",
+      "startTime": "10:45",
+      "endTime": "11:30",
+      "room": "Hall 1",
+      "track": "Plenary",
+      "speakers": ["Kim Cho"],
+      "confidence": { "title": 0.96 }
+    }
+  ],
+  "speakers": [
+    { "name": "Nora Wells" },
+    { "name": "Omar Diaz" },
+    { "name": "Kim Cho" }
+  ],
+  "assumptions": []
+}

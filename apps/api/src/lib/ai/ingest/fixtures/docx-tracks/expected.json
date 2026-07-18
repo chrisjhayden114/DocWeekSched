@@ -1,0 +1,77 @@
+{
+  "event": {
+    "name": "Riverbend Graduate Colloquium",
+    "timezone": "America/Chicago",
+    "startDate": "2027-03-03",
+    "endDate": "2027-03-03"
+  },
+  "sessions": [
+    {
+      "title": "Clinical Case Conference",
+      "date": "2027-03-03",
+      "startTime": "09:00",
+      "endTime": "10:30",
+      "room": "Auditorium A",
+      "track": "Clinical Practice",
+      "speakers": [],
+      "items": [
+        {
+          "title": "Cardiac Imaging Follow-Up",
+          "authors": ["Mei Tan", "Jordan Blake", "Sam Ortiz"],
+          "presenterIndex": 0,
+          "confidence": { "authors": 0.95, "presenterIndex": 0.9 }
+        },
+        {
+          "title": "Outpatient Anticoagulation",
+          "authors": ["Priya Nair", "Chris Hale"],
+          "confidence": { "authors": 0.94 }
+        }
+      ],
+      "confidence": { "title": 0.96, "track": 0.95 }
+    },
+    {
+      "title": "Methods Workshop",
+      "date": "2027-03-03",
+      "startTime": "10:45",
+      "endTime": "12:15",
+      "room": "Seminar 4",
+      "track": "Research Methods",
+      "speakers": ["Dr. Leah Kim"],
+      "items": [
+        {
+          "title": "Bayesian Priors in Small-N Trials",
+          "authors": ["Ravi Patel", "Ana Costa", "Lee Wong"],
+          "confidence": { "authors": 0.95 }
+        },
+        {
+          "title": "Open Data Checklists",
+          "authors": ["Ana Costa", "Sam Ortiz"],
+          "confidence": { "authors": 0.94 }
+        }
+      ],
+      "confidence": { "title": 0.95, "track": 0.95 }
+    },
+    {
+      "title": "Bedside Teaching Roundtable",
+      "date": "2027-03-03",
+      "startTime": "13:30",
+      "endTime": "15:00",
+      "room": "Auditorium A",
+      "track": "Clinical Practice",
+      "speakers": ["Dr. Leah Kim", "Mei Tan"],
+      "confidence": { "title": 0.94, "track": 0.93 }
+    }
+  ],
+  "speakers": [
+    { "name": "Dr. Leah Kim", "affiliation": "Riverbend University" },
+    { "name": "Mei Tan" },
+    { "name": "Jordan Blake" },
+    { "name": "Sam Ortiz" },
+    { "name": "Priya Nair" },
+    { "name": "Chris Hale" },
+    { "name": "Ravi Patel" },
+    { "name": "Ana Costa" },
+    { "name": "Lee Wong" }
+  ],
+  "assumptions": []
+}
