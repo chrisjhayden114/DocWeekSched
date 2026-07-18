@@ -37,7 +37,8 @@ export type FeatureKey =
   | "session_feedback"
   | "sponsors"
   | "checkin"
-  | "ops_agent";
+  | "ops_agent"
+  | "certificates";
 
 export type FeatureOverrideValue = boolean | "daily" | "weekly" | "interrupts_only";
 
@@ -243,6 +244,13 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     category: "engagement",
     defaultOn: true,
   },
+  {
+    key: "certificates",
+    name: "Certificates",
+    plainDescription: "Post-event certificate download for eligible attendees (organizer templates + batch issue).",
+    category: "engagement",
+    defaultOn: true,
+  },
 ];
 
 export const FEATURE_BY_KEY: Record<FeatureKey, FeatureDefinition> = Object.fromEntries(
@@ -288,6 +296,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       sponsors: true,
       checkin: true,
       ops_agent: true,
+      certificates: true,
     },
   },
   {
@@ -321,6 +330,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       sponsors: false,
       checkin: true,
       ops_agent: false,
+      certificates: false,
     },
   },
   {
@@ -353,6 +363,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       sponsors: true,
       checkin: true,
       ops_agent: true,
+      certificates: true,
     },
   },
 ];

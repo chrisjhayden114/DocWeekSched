@@ -28,7 +28,9 @@ export type PlanFlagKey =
   | "priority_support"
   | "sso"
   | "white_label"
-  | "hide_powered_by_badge";
+  | "hide_powered_by_badge"
+  /** Badge designer / roster PDF — paid tiers only (not an attendee feature key). */
+  | "badges";
 
 export type EntitlementKey = FeatureKey | PlanFlagKey;
 
@@ -79,6 +81,8 @@ const CORE_ATTENDEE_FEATURES: Partial<Record<EntitlementKey, boolean>> = {
   sponsors: false,
   checkin: false,
   ops_agent: false,
+  certificates: false,
+  badges: false,
   ai_ingest: true,
   ai_full_suite: false,
   priority_support: false,
@@ -99,6 +103,8 @@ const BASELINE_ALL: Partial<Record<EntitlementKey, boolean>> = {
   session_feedback: true,
   sponsors: true,
   checkin: true,
+  badges: true,
+  certificates: true,
 };
 
 const PRO_ENTITLEMENTS: Partial<Record<EntitlementKey, boolean>> = {
