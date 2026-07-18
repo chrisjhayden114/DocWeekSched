@@ -1,0 +1,138 @@
+/**
+ * Design tokens — EventPilot / Phase 2.5
+ * Single source for type, color, space, radius, elevation.
+ * Import from globals.css; do not hardcode hex/px in components.
+ */
+
+:root {
+  /* —— Color —— */
+  --ink: #18253f;
+  --ink-secondary: #41506d;
+  --primary-700: #0033a0;
+  --primary-100: #e5ebf7;
+  --navy-900: #1f3864;
+  --gold-400: #e8c547; /* decorative / on-navy ONLY — never text on white */
+  --gold-700: #7a5a00; /* text on light surfaces */
+  --surface: #ffffff;
+  --surface-alt: #f3f6fb;
+  --border: #d9e1ee;
+  --success-700: #1e7a34;
+  --danger-700: #c22f2f;
+
+  /* —— Spacing (4/8/12/16/24/32/48) —— */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* —— Radius —— */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  /* —— Elevation —— */
+  --shadow-1: 0 1px 3px rgba(24, 37, 63, 0.1);
+  --shadow-2: 0 8px 24px rgba(24, 37, 63, 0.14);
+
+  /* —— Type families —— */
+  --font-display: "Merriweather", Georgia, serif;
+  --font-body: "Lato", "Segoe UI", "Helvetica Neue", sans-serif;
+
+  /* —— Type scale —— */
+  --text-display-xl: 700 32px/40px var(--font-display);
+  --text-display-md: 700 22px/30px var(--font-display);
+  --text-display-sm: 700 18px/26px var(--font-display);
+  --text-body-lg: 400 16px/24px var(--font-body);
+  --text-body-md: 400 14px/21px var(--font-body);
+  --text-meta: 400 12px/16px var(--font-body);
+
+  /* —— Legacy aliases (keep existing class rules working) —— */
+  --uk-blue: var(--primary-700);
+  --uk-blue-dark: #001e5c;
+  --navy-950: #0a1628;
+  --navy-800: #152642;
+  --gold: var(--gold-700); /* default “gold text” is now AA-safe on white */
+  --gold-dim: var(--gold-700);
+  --gold-on-navy: var(--gold-400);
+  --ink-900: var(--ink);
+  --ink-700: var(--ink-secondary);
+  --ink-muted: #5f6f8e;
+  --ink-500: #7585a1;
+  --border-strong: rgba(0, 51, 160, 0.28);
+  --bg: var(--surface);
+  --card: var(--surface);
+  --card-solid: var(--surface);
+  --glow: 0 0 0 transparent;
+}
+
+html[data-theme="slate"] {
+  --ink: #0f172a;
+  --ink-secondary: #334155;
+  --primary-700: #475569;
+  --primary-100: #e2e8f0;
+  --navy-900: #1e293b;
+  --gold-400: #eab308;
+  --gold-700: #854d0e;
+  --surface: #ffffff;
+  --surface-alt: #f1f5f9;
+  --border: #cbd5e1;
+  --success-700: #15803d;
+  --danger-700: #b91c1c;
+
+  --uk-blue: var(--primary-700);
+  --uk-blue-dark: #334155;
+  --navy-950: #0f172a;
+  --navy-800: #273548;
+  --gold: var(--gold-700);
+  --gold-dim: var(--gold-700);
+  --gold-on-navy: var(--gold-400);
+  --ink-900: var(--ink);
+  --ink-700: var(--ink-secondary);
+  --ink-muted: #64748b;
+  --ink-500: #94a3b8;
+  --border-strong: rgba(51, 65, 85, 0.35);
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --card-solid: #ffffff;
+}
+
+/* Utility type classes */
+.text-display-xl {
+  font: var(--text-display-xl);
+  color: var(--ink);
+}
+.text-display-md {
+  font: var(--text-display-md);
+  color: var(--ink);
+}
+.text-display-sm {
+  font: var(--text-display-sm);
+  color: var(--ink);
+}
+.text-body-lg {
+  font: var(--text-body-lg);
+  color: var(--ink);
+}
+.text-body-md {
+  font: var(--text-body-md);
+  color: var(--ink);
+}
+.text-meta {
+  font: var(--text-meta);
+  color: var(--ink-secondary);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--primary-100);
+  color: var(--primary-700);
+  font: var(--text-meta);
+  font-weight: 700;
+}
