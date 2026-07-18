@@ -197,7 +197,6 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     category: "engagement",
     defaultOn: true,
     defaultValue: "daily",
-    plannedPhase: "4",
   },
 ];
 
@@ -237,6 +236,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       attendee_directory: true,
       waitlist_visibility: true,
       venue_maps: true,
+      daily_digest: true,
     },
   },
   {
@@ -262,6 +262,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       matchmaker: false,
       waitlist_visibility: true,
       venue_maps: false,
+      daily_digest: "interrupts_only",
     },
   },
   {
@@ -286,6 +287,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       attendee_directory: true,
       waitlist_visibility: true,
       venue_maps: true,
+      daily_digest: true,
     },
   },
 ];

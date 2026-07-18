@@ -813,17 +813,12 @@ export default function Dashboard() {
           <button
             key={tab}
             type="button"
-            className={`${active === tab ? "active" : ""}${tab === "Notifications" && unreadNotifications > 0 ? " nav-tab-unread" : ""}`}
+            className={active === tab ? "active" : ""}
             onClick={() => setActive(tab)}
           >
             <span className="nav-tab-inner">
               <MainNavIcon tab={tab} />
               <span>{tab}</span>
-              {tab === "Notifications" && unreadNotifications > 0 ? (
-                <span className="nav-unread-badge" aria-label={`${unreadNotifications} unread`}>
-                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                </span>
-              ) : null}
             </span>
           </button>
         ))}
@@ -1180,23 +1175,33 @@ export default function Dashboard() {
       {active === "Notifications" && (
         <div className="card" style={{ padding: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <h3 style={{ margin: 0 }}>Notifications</h3>
-            {unreadNotifications > 0 ? (
-              <button
-                type="button"
-                className="button secondary"
-                onClick={async () => {
-                  await apiFetch("/notifications/read-all", withEventHeaders({ method: "POST" }), token!);
-                  setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!));
-                }}
-              >
-                Mark all read
-              </button>
-            ) : null}
+            <h3 style={{ margin: 0 }}>
+              Notifications
+              {unreadNotifications > 0 ? (
+                <span className="help-text" style={{ marginLeft: 10, fontWeight: 600 }}>
+                  {unreadNotifications} unread
+                </span>
+              ) : (
+                <span className="help-text" style={{ marginLeft: 10, fontWeight: 500 }}>
+                  All caught up
+                </span>
+              )}
+            </h3>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={unreadNotifications === 0}
+              onClick={async () => {
+                await apiFetch("/notifications/read-all", withEventHeaders({ method: "POST" }), token!);
+                setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!));
+              }}
+            >
+              Mark all read
+            </button>
           </div>
           <p className="help-text" style={{ marginTop: 8 }}>
-            You get a confirmation when <strong>you</strong> publish to Community; everyone else is notified too (except on meet-ups limited to specific people). Replies, DMs, groups, and admin event-wide messages also appear here.{" "}
-            <strong>Administrator access requested</strong> alerts go to organizers when someone uses Profile → Request administrator access. Open an item to jump to it — opening this tab marks items as read.
+            One inbox for this event — session changes and messages may notify you; quieter community activity rolls into your
+            daily digest. Open an item to jump to it.
           </p>
           {notifications.length === 0 ? (
             <p className="help-text" style={{ marginTop: 16 }}>
