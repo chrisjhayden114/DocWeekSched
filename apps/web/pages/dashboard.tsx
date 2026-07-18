@@ -23,6 +23,7 @@ import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRela
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
 import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
+import { SponsorsStrip } from "../components/SponsorsStrip";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -949,6 +950,10 @@ export default function Dashboard() {
       </div>
 
       {active === "Agenda" && (
+        <>
+          {token && activeEventId ? (
+            <SponsorsStrip token={token} eventId={activeEventId} enabled={featureOn("sponsors")} />
+          ) : null}
         <div className="schedule-layout">
           <div className="card schedule-list">
             <div className="nav agenda-view-toggle" role="tablist" aria-label="Schedule views">
@@ -1200,6 +1205,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        </>
       )}
 
       {active === MAPS_TAB && venueMapsOn && (
@@ -2830,6 +2836,11 @@ function ProfileEditor({
   );
   const [resettingEngagement, setResettingEngagement] = useState(false);
   const [appearanceTheme, setAppearanceTheme] = useState<"blue" | "slate">("blue");
+  const [checkInCode, setCheckInCode] = useState<{
+    qrPayload: string;
+    checkedIn: boolean;
+    checkedInAt: string | null;
+  } | null>(null);
 
   useEffect(() => {
     setPhotoPreview(user.photoUrl || null);
@@ -2852,6 +2863,13 @@ function ProfileEditor({
         setDirectoryOptIn(false);
         setMatchMeEnabled(true);
       });
+    apiFetch<{ qrPayload: string; checkedIn: boolean; checkedInAt: string | null }>(
+      "/checkins/me/code",
+      withEventHeaders(),
+      token,
+    )
+      .then((r) => setCheckInCode({ qrPayload: r.qrPayload, checkedIn: r.checkedIn, checkedInAt: r.checkedInAt }))
+      .catch(() => setCheckInCode(null));
   }, [token, activeEventId, withEventHeaders]);
 
   useEffect(() => {
@@ -2946,6 +2964,37 @@ function ProfileEditor({
   return (
     <form className="card grid" onSubmit={handleSubmit}>
       <h3 style={{ marginTop: 0 }}>My Profile</h3>
+      {checkInCode ? (
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            justifyItems: "start",
+            paddingBottom: 12,
+            borderBottom: "1px solid var(--border, #D9E1EE)",
+            marginBottom: 4,
+          }}
+        >
+          <strong>Event check-in QR</strong>
+          <p className="help-text" style={{ margin: 0 }}>
+            Show this at registration. Staff scanners read your membership check-in code
+            {checkInCode.checkedIn
+              ? ` · already checked in${checkInCode.checkedInAt ? ` ${new Date(checkInCode.checkedInAt).toLocaleString()}` : ""}`
+              : ""}
+            .
+          </p>
+          {/* Same pattern as event slug QR — payload is membership.checkInCode */}
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(checkInCode.qrPayload)}`}
+            alt="Your check-in QR code"
+            width={180}
+            height={180}
+          />
+          <code className="help-text" style={{ wordBreak: "break-all" }}>
+            {checkInCode.qrPayload}
+          </code>
+        </div>
+      ) : null}
       {photoPreview && <img src={photoPreview} alt={user.name} className="avatar avatar-large" />}
       <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
         Profile photo

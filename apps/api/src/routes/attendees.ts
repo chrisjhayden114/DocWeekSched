@@ -113,6 +113,11 @@ async function createAndEmailInvite(
     update: { deletedAt: null, role: EventMemberRole.ATTENDEE },
   });
 
+  const membership = await prisma.eventMembership.findUnique({
+    where: { eventId_userId: { eventId: event.id, userId } },
+    select: { checkInCode: true },
+  });
+
   const minted = await ensureEventJoinToken(event.id);
   const joinPath = minted.raw
     ? `${base}/e/join/${minted.raw}`
@@ -129,6 +134,7 @@ async function createAndEmailInvite(
     inviteUrl,
     permanentEventUrl: joinPath,
     expiresInDays: env.inviteTokenDays,
+    checkInCode: membership?.checkInCode ?? null,
   });
 
   return {

@@ -28,8 +28,15 @@ export async function sendParticipantInviteEmail(opts: {
   inviteUrl: string;
   permanentEventUrl: string;
   expiresInDays: number;
+  /** membership.checkInCode — also shown as in-app QR after setup */
+  checkInCode?: string | null;
 }): Promise<SendEmailResult> {
   const from = buildFromLine(opts.eventName);
+  const checkInBlock = opts.checkInCode
+    ? `<p style="margin-top:16px"><strong>Your check-in code</strong> (also available as a QR in the app under Profile after you finish setup):<br/><code style="font-size:14px">${escapeHtml(opts.checkInCode)}</code></p>
+<p style="color:#555;font-size:13px">Staff will scan your QR at the door — keep this email or open the app.</p>`
+    : `<p style="color:#555;font-size:13px;margin-top:16px">After setup, open <strong>Profile</strong> in the app to show your check-in QR at registration.</p>`;
+
   return getEmailProvider().send({
     to: opts.to,
     from,
@@ -42,7 +49,8 @@ export async function sendParticipantInviteEmail(opts: {
 <p><a href="${opts.inviteUrl.replace(/"/g, "&quot;")}">Set your password and confirm your profile</a></p>
 <p>This setup link expires in ${opts.expiresInDays} days. Your organizer can send a new one if needed.</p>
 <p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.inviteUrl)}</p>
-<p style="color:#555;font-size:13px;margin-top:16px">After you finish setup, return to <strong>${escapeHtml(opts.eventName)}</strong> with this event link:<br/><a href="${opts.permanentEventUrl.replace(/"/g, "&quot;")}">${escapeHtml(opts.permanentEventUrl)}</a></p>`,
+<p style="color:#555;font-size:13px;margin-top:16px">After you finish setup, return to <strong>${escapeHtml(opts.eventName)}</strong> with this event link:<br/><a href="${opts.permanentEventUrl.replace(/"/g, "&quot;")}">${escapeHtml(opts.permanentEventUrl)}</a></p>
+${checkInBlock}`,
   });
 }
 
