@@ -23,6 +23,8 @@ enum EventMemberRole {
   ADMIN
   ATTENDEE
   SPEAKER
+  /// Program-committee volunteer — event-scoped; must not grant manage/billing (app-layer).
+  REVIEWER
 }
 
 enum EventStatus {
@@ -200,6 +202,27 @@ enum AgendaIngestRunStatus {
   CONFIRMED
   FAILED
   CANCELLED
+}
+
+enum CfpFormStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum CfpSubmissionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum CfpDecisionEmailKind {
+  ACCEPT
+  REJECT
 }
 
 enum AdminAccessRequestStatus {
@@ -417,6 +440,9 @@ model User {
   auditLogs                   AuditLog[]               @relation("AuditLogActor")
   backgroundJobsCreated       BackgroundJob[]          @relation("BackgroundJobCreator")
   agendaIngestRuns            AgendaIngestRun[]        @relation("AgendaIngestRunCreator")
+  cfpReviewers                CfpReviewer[]
+  cfpReviews                  CfpReview[]
+  cfpDecisionEmailsCreated    CfpDecisionEmail[]       @relation("CfpDecisionEmailCreator")
 }
 
 model Event {
@@ -479,6 +505,7 @@ model Event {
   auditLogs            AuditLog[]
   backgroundJobs       BackgroundJob[]
   agendaIngestRuns     AgendaIngestRun[]
+  cfpForms             CfpForm[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -569,6 +596,7 @@ model Speaker {
   sessions     SessionSpeaker[]
   itemAuthors  SessionItemAuthor[]
   discussantOn SessionItem[]       @relation("SessionItemDiscussant")
+  cfpConversions CfpSubmission[]   @relation("CfpConvertedSpeaker")
 
   @@index([eventId])
 }
@@ -615,6 +643,7 @@ model Session {
   resources         SessionResource[]
   announcements     Announcement[]
   notifications     UserNotification[]
+  cfpConversions    CfpSubmission[]            @relation("CfpConvertedSession")
 
   @@index([trackId])
   @@index([roomId])
@@ -645,6 +674,7 @@ model SessionItem {
   discussantSpeaker   Speaker?            @relation("SessionItemDiscussant", fields: [discussantSpeakerId], references: [id], onDelete: SetNull)
   createdAt           DateTime            @default(now())
   authors             SessionItemAuthor[]
+  cfpConversions      CfpSubmission[]     @relation("CfpConvertedSessionItem")
 
   @@index([sessionId, sortOrder])
 }
@@ -1203,4 +1233,133 @@ model AgendaIngestRun {
   @@index([organizationId, createdAt])
   @@index([status, createdAt])
   @@index([createdById, createdAt])
+}
+
+/// Call for papers / abstracts (Phase P3).
+model CfpForm {
+  id                      String           @id @default(cuid())
+  eventId                 String
+  event                   Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title                   String
+  description             String?
+  opensAt                 DateTime
+  closesAt                DateTime
+  status                  CfpFormStatus    @default(DRAFT)
+  /// JSON schema: [{ id, type: text|textarea|select|file, label, required?, options? }]
+  customFields            Json             @default("[]")
+  maxSubmissionsPerPerson Int              @default(1)
+  /// Headline capability — default on (double-blind).
+  blindReview             Boolean          @default(true)
+  /// [{ id, criterion, weight }]
+  rubric                  Json             @default("[]")
+  acceptEmailSubject      String?
+  acceptEmailBody         String?
+  rejectEmailSubject      String?
+  rejectEmailBody         String?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  reviewers               CfpReviewer[]
+  submissions             CfpSubmission[]
+
+  @@index([eventId])
+  @@index([eventId, status])
+}
+
+model CfpReviewer {
+  id        String   @id @default(cuid())
+  cfpFormId String
+  cfpForm   CfpForm  @relation(fields: [cfpFormId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([cfpFormId, userId])
+  @@index([userId])
+}
+
+model CfpSubmission {
+  id                     String              @id @default(cuid())
+  cfpFormId              String
+  cfpForm                CfpForm             @relation(fields: [cfpFormId], references: [id], onDelete: Cascade)
+  submitterName          String
+  submitterEmail         String
+  emailVerifiedAt        DateTime?
+  /// Hashed email-verify token (Phase 1 invite pattern) — never store plaintext.
+  verifyTokenHash        String?             @unique
+  /// Hashed submitter access token for “your submission” link — never plaintext.
+  accessTokenHash        String?             @unique
+  title                  String
+  abstract               String
+  answers                Json                @default("{}")
+  status                 CfpSubmissionStatus @default(DRAFT)
+  submittedAt            DateTime?
+  convertedSessionId     String?
+  convertedSession       Session?            @relation("CfpConvertedSession", fields: [convertedSessionId], references: [id], onDelete: SetNull)
+  convertedSessionItemId String?
+  convertedSessionItem   SessionItem?        @relation("CfpConvertedSessionItem", fields: [convertedSessionItemId], references: [id], onDelete: SetNull)
+  convertedSpeakerId     String?
+  convertedSpeaker       Speaker?            @relation("CfpConvertedSpeaker", fields: [convertedSpeakerId], references: [id], onDelete: SetNull)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  attachments            CfpAttachment[]
+  reviews                CfpReview[]
+  decisionEmails         CfpDecisionEmail[]
+
+  @@index([cfpFormId, status])
+  @@index([cfpFormId, submitterEmail])
+  @@index([status])
+  @@index([convertedSessionId])
+  @@index([convertedSessionItemId])
+  @@index([convertedSpeakerId])
+}
+
+model CfpAttachment {
+  id           String        @id @default(cuid())
+  submissionId String
+  submission   CfpSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fileName     String
+  mime         String
+  sizeBytes    Int
+  /// https URL from object storage, or data-URL fallback.
+  url          String
+  storageKey   String?
+  createdAt    DateTime      @default(now())
+
+  @@index([submissionId])
+}
+
+model CfpReview {
+  id             String        @id @default(cuid())
+  submissionId   String
+  submission     CfpSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewerUserId String
+  reviewer       User          @relation(fields: [reviewerUserId], references: [id], onDelete: Cascade)
+  /// { [criterionId]: 1..5 }
+  scores         Json          @default("{}")
+  comment        String?
+  recusedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([submissionId, reviewerUserId])
+  @@index([reviewerUserId])
+  @@index([submissionId])
+}
+
+model CfpDecisionEmail {
+  id          String               @id @default(cuid())
+  submissionId String
+  submission  CfpSubmission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  kind        CfpDecisionEmailKind
+  toEmail     String
+  subject     String
+  body        String
+  sentAt      DateTime?
+  createdById String?
+  createdBy   User?                @relation("CfpDecisionEmailCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([submissionId])
+  @@index([sentAt])
 }
