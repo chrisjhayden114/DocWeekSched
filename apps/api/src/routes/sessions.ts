@@ -194,7 +194,7 @@ sessionsRouter.get(
     });
     const sessionIds = eventSessionIds.map((s) => s.id);
     if (sessionIds.length === 0) {
-      return res.json({ attendance: [], likedSessionIds: [] });
+      return res.json({ attendance: [], likedSessionIds: [], bookmarkedSessionIds: [] });
     }
 
     const saved = await prisma.sessionAttendance.findMany({
@@ -205,7 +205,15 @@ sessionsRouter.get(
       where: { userId: req.user!.id, sessionId: { in: sessionIds } },
       select: { sessionId: true },
     });
-    return res.json({ attendance: saved, likedSessionIds: likes.map((like) => like.sessionId) });
+    const bookmarks = await prisma.sessionBookmark.findMany({
+      where: { userId: req.user!.id, sessionId: { in: sessionIds } },
+      select: { sessionId: true },
+    });
+    return res.json({
+      attendance: saved,
+      likedSessionIds: likes.map((like) => like.sessionId),
+      bookmarkedSessionIds: bookmarks.map((b) => b.sessionId),
+    });
   }),
 );
 
@@ -720,6 +728,39 @@ sessionsRouter.delete(
         userId: req.user!.id,
         sessionId: req.params.id,
       },
+    });
+    return res.json({ ok: true });
+  }),
+);
+
+sessionsRouter.put(
+  "/:id/bookmark",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const sessionRow = await findSessionWithEvent(req.params.id);
+    if (!sessionRow) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, sessionRow.eventId);
+    const userId = req.user!.id;
+    await prisma.sessionBookmark.upsert({
+      where: { userId_sessionId: { userId, sessionId: req.params.id } },
+      create: { userId, sessionId: req.params.id },
+      update: {},
+    });
+    return res.json({ ok: true });
+  }),
+);
+
+sessionsRouter.delete(
+  "/:id/bookmark",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const sessionRow = await findSessionWithEvent(req.params.id);
+    if (!sessionRow) throw new HttpError(404, { error: "Session not found" });
+    await requireEventAccess(req.user!.id, sessionRow.eventId);
+    await prisma.sessionBookmark.deleteMany({
+      where: { userId: req.user!.id, sessionId: req.params.id },
     });
     return res.json({ ok: true });
   }),

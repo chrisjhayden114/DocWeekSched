@@ -48,6 +48,8 @@ export const env = {
   csrfCookieName: process.env.CSRF_COOKIE_NAME || "ep_csrf",
   /** Account-setup invite token lifetime (days). */
   inviteTokenDays: Number(process.env.INVITE_TOKEN_DAYS || 7),
+  /** Public API origin for ICS feed URLs (defaults to localhost API port). */
+  apiPublicUrl: (process.env.API_PUBLIC_URL || "").trim() || `http://localhost:${Number(process.env.PORT || process.env.API_PORT || 4000)}`,
 };
 
 if (env.cookieSameSite === "none" && !env.cookieSecure) {

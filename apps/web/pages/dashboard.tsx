@@ -14,6 +14,7 @@ import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { UploadDropzone } from "../components/UploadDropzone";
 import { VenueMapsAttendee, roomPinIndex } from "../components/VenueMapsAttendee";
 import { apiFetch, clearAuthClientState } from "../lib/api";
+import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -56,7 +57,10 @@ type Session = {
   description?: string;
   location?: string | null;
   roomId?: string | null;
+  trackId?: string | null;
   room?: { id: string; name: string } | null;
+  track?: { id: string; name: string; color?: string } | null;
+  items?: { id: string; title: string; sortOrder?: number; authors?: { name: string; sortOrder?: number }[] }[];
   speakers?: string | null;
   zoomLink?: string | null;
   recordingUrl?: string | null;
@@ -103,7 +107,7 @@ type SessionAttendance = {
   status: "JOINING" | "NOT_JOINING";
   joinMode?: AgendaJoinMode | null;
 };
-type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
+type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[]; bookmarkedSessionIds?: string[] };
 type EventItem = {
   id: string;
   name: string;
@@ -266,6 +270,11 @@ export default function Dashboard() {
   const [agendaTimeMode, setAgendaTimeMode] = useState<"MY" | "EVENT">("MY");
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
+  const [bookmarkedSessionIds, setBookmarkedSessionIds] = useState<string[]>([]);
+  const [agendaFilterTrack, setAgendaFilterTrack] = useState<string>("");
+  const [agendaFilterRoom, setAgendaFilterRoom] = useState<string>("");
+  const [agendaFilterDay, setAgendaFilterDay] = useState<string>("");
+  const [agendaSearch, setAgendaSearch] = useState("");
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [communityChannel, setCommunityChannel] = useState<CommunityChannelFilter>("ALL");
@@ -351,6 +360,7 @@ export default function Dashboard() {
       apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(), token).then((meta) => {
         setMyAttendance(meta.attendance);
         setLikedSessionIds(meta.likedSessionIds);
+        setBookmarkedSessionIds(meta.bookmarkedSessionIds || []);
       }).catch(() => null);
       apiFetch<{ overrides: FeatureOverridesMap }>("/event/features", withEventHeaders(), token)
         .then((res) => setFeatureOverrides(res.overrides || {}))
@@ -548,18 +558,52 @@ export default function Dashboard() {
         : myTimezone,
     [timezoneToggleOn, agendaTimeMode, event?.timezone, myTimezone],
   );
+  const filteredSessions = useMemo(
+    () =>
+      filterSessions(
+        sortedSessions,
+        {
+          trackId: agendaFilterTrack || null,
+          roomId: agendaFilterRoom || null,
+          dayKey: agendaFilterDay || null,
+          query: agendaSearch,
+        },
+        (iso) => zonedDayKey(new Date(iso), agendaDisplayTimezone),
+      ),
+    [sortedSessions, agendaFilterTrack, agendaFilterRoom, agendaFilterDay, agendaSearch, agendaDisplayTimezone],
+  );
+  const agendaNowNext = useMemo(() => nowAndNext(filteredSessions), [filteredSessions]);
+  const trackOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; color?: string }>();
+    for (const s of sessions) {
+      if (s.trackId && s.track) map.set(s.trackId, { id: s.track.id, name: s.track.name, color: s.track.color });
+    }
+    return [...map.values()];
+  }, [sessions]);
+  const roomOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const s of sessions) {
+      if (s.roomId && s.room) map.set(s.roomId, s.room);
+    }
+    return [...map.values()];
+  }, [sessions]);
+  const dayOptions = useMemo(() => {
+    const keys = new Set(sortedSessions.map((s) => zonedDayKey(new Date(s.startsAt), agendaDisplayTimezone)));
+    return [...keys];
+  }, [sortedSessions, agendaDisplayTimezone]);
   const groupedAgenda = useMemo(
-    () => groupSessionsByDayAndTime(sortedSessions, agendaDisplayTimezone),
-    [sortedSessions, agendaDisplayTimezone],
+    () => groupSessionsByDayAndTime(filteredSessions, agendaDisplayTimezone),
+    [filteredSessions, agendaDisplayTimezone],
   );
   const joiningSessionIds = useMemo(
     () => myAttendance.filter((item) => item.status === "JOINING").map((item) => item.sessionId),
     [myAttendance]
   );
   const myScheduledSessions = useMemo(
-    () => sortedSessions.filter((session) => joiningSessionIds.includes(session.id)),
-    [sortedSessions, joiningSessionIds]
+    () => filteredSessions.filter((session) => joiningSessionIds.includes(session.id)),
+    [filteredSessions, joiningSessionIds]
   );
+  const myOverlapIds = useMemo(() => overlappingSessionIds(myScheduledSessions), [myScheduledSessions]);
   const groupedMySchedule = useMemo(
     () => groupSessionsByDayAndTime(myScheduledSessions, agendaDisplayTimezone),
     [myScheduledSessions, agendaDisplayTimezone],
@@ -880,6 +924,104 @@ export default function Dashboard() {
                 ? ` (${agendaTimeMode === "MY" ? "your device setting" : "event setting"}).`
                 : " (event timezone)."}
             </p>
+            <div className="agenda-filters" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              <input
+                className="input"
+                style={{ flex: "1 1 160px", minWidth: 140 }}
+                placeholder="Search sessions, speakers, papers…"
+                value={agendaSearch}
+                onChange={(e) => setAgendaSearch(e.target.value)}
+              />
+              <select className="input" value={agendaFilterDay} onChange={(e) => setAgendaFilterDay(e.target.value)}>
+                <option value="">All days</option>
+                {dayOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+              <select className="input" value={agendaFilterTrack} onChange={(e) => setAgendaFilterTrack(e.target.value)}>
+                <option value="">All tracks</option>
+                {trackOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <select className="input" value={agendaFilterRoom} onChange={(e) => setAgendaFilterRoom(e.target.value)}>
+                <option value="">All rooms</option>
+                {roomOptions.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(agendaNowNext.now.length > 0 || agendaNowNext.next) && (
+              <p className="help-text" style={{ marginTop: 0 }}>
+                {agendaNowNext.now.length > 0 ? (
+                  <>
+                    <strong>Now:</strong> {agendaNowNext.now.map((s) => s.title).join(" · ")}
+                    {agendaNowNext.next ? " · " : ""}
+                  </>
+                ) : null}
+                {agendaNowNext.next ? (
+                  <>
+                    <strong>Next:</strong> {agendaNowNext.next.title}
+                  </>
+                ) : null}
+              </p>
+            )}
+            {agendaView === "My Schedule" && myOverlapIds.size > 0 ? (
+              <p className="help-text" style={{ color: "#b42318", marginTop: 0 }}>
+                {myOverlapIds.size} sessions on your agenda overlap — check times before you go.
+              </p>
+            ) : null}
+            {agendaView === "My Schedule" ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    const lines = [
+                      "BEGIN:VCALENDAR",
+                      "VERSION:2.0",
+                      "PRODID:-//EventPilot//Agenda//EN",
+                      "CALSCALE:GREGORIAN",
+                    ];
+                    for (const s of myScheduledSessions) {
+                      lines.push(
+                        "BEGIN:VEVENT",
+                        `UID:${s.id}@eventpilot`,
+                        `DTSTART:${new Date(s.startsAt).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`,
+                        `DTEND:${new Date(s.endsAt).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`,
+                        `SUMMARY:${(s.title || "").replace(/\n/g, " ")}`,
+                        "END:VEVENT",
+                      );
+                    }
+                    lines.push("END:VCALENDAR");
+                    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = "my-agenda.ics";
+                    a.click();
+                  }}
+                >
+                  Download agenda ICS
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={async () => {
+                    if (!token) return;
+                    const res = await apiFetch<{ url: string }>("/ics/feed", withEventHeaders({ method: "POST" }), token);
+                    window.prompt("Subscribe to this read-only ICS URL in your calendar app:", res.url);
+                  }}
+                >
+                  ICS subscription URL
+                </button>
+              </div>
+            ) : null}
             {agendaView === "Event Schedule" && (
               <ScheduleBoard
                 grouped={groupedAgenda}
