@@ -9,6 +9,7 @@ describe("featureEnabled precedence (resolveFeatureEnabled)", () => {
   it("uses registry defaults when overrides are empty", () => {
     expect(resolveFeatureEnabled("community", {})).toBe(true);
     expect(resolveFeatureEnabled("session_qa", {})).toBe(true);
+    expect(resolveFeatureEnabled("venue_maps", {})).toBe(true);
     expect(resolveFeatureEnabled("matchmaker", {})).toBe(false);
     expect(resolveFeatureEnabled("public_leaderboard", {})).toBe(false);
   });
