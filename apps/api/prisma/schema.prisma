@@ -27,6 +27,18 @@ enum EventMemberRole {
   REVIEWER
 }
 
+enum CheckInMethod {
+  SELF
+  STAFF_SCAN
+  QR_SCAN
+}
+
+enum SessionPollStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
 enum EventStatus {
   DRAFT
   ACTIVE
@@ -335,10 +347,16 @@ model EventMembership {
   /// Matchmaker participation mute. Default ON; one-tap mute stops refreshes.
   /// Still requires directoryOptIn both directions to appear in / receive suggestions.
   matchMeEnabled Boolean         @default(true)
+  /// Opaque per-membership code for QR / offline staff scanner (not a password).
+  /// Client-side default (cuid) so every new membership auto-generates a unique code;
+  /// existing rows were backfilled in the Phase 5 migration. No DB-level default needed.
+  checkInCode    String          @default(cuid())
 
   @@unique([eventId, userId])
+  @@unique([eventId, checkInCode])
   @@index([userId])
   @@index([eventId, deletedAt])
+  @@index([checkInCode])
 }
 
 model EventPurchase {
@@ -426,11 +444,20 @@ model User {
   conversationMembers         ConversationMember[]
   conversationMessages        ConversationMessage[]
   checkIns                    CheckIn[]
+  checkInsScanned             CheckIn[]                @relation("CheckInScanner")
   surveyAnswers               SurveyAnswer[]
   networkThreads              NetworkThread[]
   networkReplies              NetworkReply[]
   sessionDiscussionThreads    SessionDiscussionThread[]
   sessionDiscussionReplies    SessionDiscussionReply[]
+  sessionDiscussionAnswered   SessionDiscussionThread[] @relation("SessionDiscussionAnsweredBy")
+  sessionDiscussionHidden     SessionDiscussionThread[] @relation("SessionDiscussionHiddenBy")
+  sessionDiscussionUpvotes    SessionDiscussionUpvote[]
+  sessionPollsCreated         SessionPoll[]
+  sessionPollVotes            SessionPollVote[]
+  sessionFeedback             SessionFeedback[]
+  sponsorLeadsCaptured        SponsorLead[]            @relation("SponsorLeadCapturedBy")
+  sponsorLeadsAsAttendee      SponsorLead[]            @relation("SponsorLeadAttendee")
   sessionResources            SessionResource[]
   notifications               UserNotification[]
   notificationPreferences     NotificationPreference[]
@@ -531,6 +558,7 @@ model Event {
   conciergeConversations ConciergeConversation[]
   conciergePendingActions ConciergePendingAction[]
   matchSuggestions     MatchSuggestion[]
+  sponsors             Sponsor[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -669,6 +697,8 @@ model Session {
   announcements     Announcement[]
   notifications     UserNotification[]
   cfpConversions    CfpSubmission[]            @relation("CfpConvertedSession")
+  polls             SessionPoll[]
+  feedback          SessionFeedback[]
 
   @@index([trackId])
   @@index([roomId])
@@ -869,14 +899,20 @@ model ConversationMessage {
 }
 
 model CheckIn {
-  id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-  event     Event    @relation(fields: [eventId], references: [id])
-  eventId   String
-  createdAt DateTime @default(now())
+  id               String        @id @default(cuid())
+  user             User          @relation(fields: [userId], references: [id])
+  userId           String
+  event            Event         @relation(fields: [eventId], references: [id])
+  eventId          String
+  method           CheckInMethod @default(SELF)
+  scannedByUserId  String?
+  scannedBy        User?         @relation("CheckInScanner", fields: [scannedByUserId], references: [id], onDelete: SetNull)
+  /// Client-generated id for offline queue sync (partial unique in SQL when set).
+  clientMutationId String?       @unique
+  createdAt        DateTime      @default(now())
 
   @@unique([userId, eventId])
+  @@index([eventId, createdAt])
 }
 
 model NetworkThread {
@@ -945,15 +981,24 @@ model NetworkReply {
 }
 
 model SessionDiscussionThread {
-  id        String                    @id @default(cuid())
-  title     String
-  body      String
-  createdAt DateTime                  @default(now())
-  sessionId String
-  session   Session                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User                      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  replies   SessionDiscussionReply[]
+  id          String                    @id @default(cuid())
+  title       String
+  body        String
+  createdAt   DateTime                  @default(now())
+  sessionId   String
+  session     Session                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User                      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  answeredAt  DateTime?
+  answeredById String?
+  answeredBy  User?                     @relation("SessionDiscussionAnsweredBy", fields: [answeredById], references: [id], onDelete: SetNull)
+  hiddenAt    DateTime?
+  hiddenById  String?
+  hiddenBy    User?                     @relation("SessionDiscussionHiddenBy", fields: [hiddenById], references: [id], onDelete: SetNull)
+  replies     SessionDiscussionReply[]
+  upvotes     SessionDiscussionUpvote[]
+
+  @@index([sessionId, createdAt])
 }
 
 model SessionDiscussionReply {
@@ -964,6 +1009,113 @@ model SessionDiscussionReply {
   thread    SessionDiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   authorId  String
   author    User                    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model SessionDiscussionUpvote {
+  id        String                  @id @default(cuid())
+  threadId  String
+  thread    SessionDiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime                @default(now())
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model SessionPoll {
+  id                     String            @id @default(cuid())
+  sessionId              String
+  session                Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question               String
+  status                 SessionPollStatus @default(DRAFT)
+  showResultsToAttendees Boolean           @default(true)
+  openedAt               DateTime?
+  closedAt               DateTime?
+  createdById            String?
+  createdBy              User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  options                SessionPollOption[]
+  votes                  SessionPollVote[]
+
+  @@index([sessionId, status])
+}
+
+model SessionPollOption {
+  id        String           @id @default(cuid())
+  pollId    String
+  poll      SessionPoll      @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  label     String
+  sortOrder Int              @default(0)
+  votes     SessionPollVote[]
+
+  @@index([pollId, sortOrder])
+}
+
+model SessionPollVote {
+  id        String           @id @default(cuid())
+  pollId    String
+  poll      SessionPoll      @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    SessionPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+
+  @@unique([pollId, userId])
+  @@index([optionId])
+}
+
+model SessionFeedback {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+}
+
+model Sponsor {
+  id          String        @id @default(cuid())
+  eventId     String
+  event       Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  logoUrl     String?
+  url         String?
+  tier        String        @default("Standard")
+  sortOrder   Int           @default(0)
+  boothLabel  String?
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  leads       SponsorLead[]
+
+  @@index([eventId, sortOrder])
+  @@index([eventId, tier])
+}
+
+model SponsorLead {
+  id               String   @id @default(cuid())
+  sponsorId        String
+  sponsor          Sponsor  @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  capturedByUserId String?
+  capturedBy       User?    @relation("SponsorLeadCapturedBy", fields: [capturedByUserId], references: [id], onDelete: SetNull)
+  attendeeUserId   String?
+  attendee         User?    @relation("SponsorLeadAttendee", fields: [attendeeUserId], references: [id], onDelete: SetNull)
+  name             String?
+  email            String?
+  company          String?
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  @@index([sponsorId, createdAt])
 }
 
 model SessionResource {
