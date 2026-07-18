@@ -281,6 +281,18 @@ enum AdminAccessRequestStatus {
   DENIED
 }
 
+enum BadgeSheetSize {
+  SIZE_3X4
+  SIZE_4X6
+  SIZE_A6
+}
+
+enum CertificateEligibilityRule {
+  ANY_CHECKIN
+  MIN_SESSIONS
+  REQUIRED_SESSIONS
+}
+
 model Organization {
   id                        String               @id @default(cuid())
   name                      String
@@ -310,6 +322,9 @@ model Organization {
   backgroundJobs            BackgroundJob[]
   agendaIngestRuns          AgendaIngestRun[]
   opsInboxCards             OpsInboxCard[]
+  badgeTemplates            BadgeTemplate[]
+  certificateTemplates      CertificateTemplate[]
+  issuedCertificates        IssuedCertificate[]
 }
 
 model OrgMembership {
@@ -519,6 +534,8 @@ model User {
   matchSuggestionsAsSuggested MatchSuggestion[]        @relation("MatchSuggestionSuggested")
   opsCardsDismissed           OpsInboxCard[]           @relation("OpsInboxCardDismissedBy")
   opsCardsApplied             OpsInboxCard[]           @relation("OpsInboxCardAppliedBy")
+  issuedCertificates          IssuedCertificate[]
+  certificatesIssuedBy        IssuedCertificate[]      @relation("IssuedCertificateIssuer")
 }
 
 model Event {
@@ -591,6 +608,9 @@ model Event {
   sponsors             Sponsor[]
   sessionScheduleChanges SessionScheduleChange[]
   opsInboxCards        OpsInboxCard[]
+  badgeTemplates       BadgeTemplate[]
+  certificateTemplates CertificateTemplate[]
+  issuedCertificates   IssuedCertificate[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -1755,4 +1775,90 @@ model OpsInboxCard {
   @@index([organizationId, createdAt])
   @@index([dismissedById])
   @@index([appliedById])
+}
+
+/// Avery badge layout picker config — one per event (Phase P4).
+model BadgeTemplate {
+  id                 String         @id @default(cuid())
+  organizationId     String
+  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String         @unique
+  event              Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sheetSize          BadgeSheetSize @default(SIZE_3X4)
+  showLogo           Boolean        @default(true)
+  showName           Boolean        @default(true)
+  showAffiliation    Boolean        @default(true)
+  showRole           Boolean        @default(true)
+  showQr             Boolean        @default(true)
+  showBrandColorBar  Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([organizationId])
+}
+
+/// Certificate merge template + eligibility rule (Phase P4).
+/// Session rules use SessionAttendance JOINING (registration), not door check-in.
+model CertificateTemplate {
+  id                  String                       @id @default(cuid())
+  organizationId      String
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId             String
+  event               Event                        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name                String
+  titleText           String
+  bodyText            String?
+  signatureImageUrl   String?
+  hours               Float?
+  eligibilityRule     CertificateEligibilityRule
+  minSessions         Int?
+  requiredSessionIds  String[]                     @default([])
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  issuedCertificates  IssuedCertificate[]
+
+  @@index([eventId])
+  @@index([organizationId])
+  @@index([eventId, eligibilityRule])
+}
+
+/// Issued certificate PDF + public verify id (Phase P4).
+/// certificateTemplate is Restrict — void (voidedAt) before deleting a template.
+model IssuedCertificate {
+  id                     String              @id @default(cuid())
+  /// 128-bit CSPRNG public id: randomBytes(16).toString("base64url") — never cuid.
+  publicId               String              @unique
+  organizationId         String
+  organization           Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId                String
+  event                  Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  certificateTemplateId  String
+  certificateTemplate    CertificateTemplate @relation(fields: [certificateTemplateId], references: [id], onDelete: Restrict)
+  userId                 String
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendeeNameSnapshot   String
+  eventNameSnapshot      String
+  eventDateSnapshot      DateTime
+  hoursSnapshot          Float?
+  pdfStorageKey          String?
+  /// Set once at first issue — never rewritten on regenerate.
+  issuedAt               DateTime
+  /// Updated on re-issue; null until first regenerate.
+  regeneratedAt          DateTime?
+  /// Reserved for revoke; /verify treats non-null as miss (identical 404).
+  voidedAt               DateTime?
+  issuedByUserId         String?
+  issuedBy               User?               @relation("IssuedCertificateIssuer", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  /// Soft link to BackgroundJob.id (no FK — jobs may be pruned independently).
+  batchJobId             String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@unique([certificateTemplateId, userId])
+  @@index([eventId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([certificateTemplateId])
+  @@index([issuedByUserId])
+  @@index([voidedAt])
 }
