@@ -326,6 +326,7 @@ model Event {
   sessions             Session[]
   tracks               Track[]
   rooms                Room[]
+  venueMaps            VenueMap[]
   speakersRoster       Speaker[]
   announcements        Announcement[]
   surveys              Survey[]
@@ -374,9 +375,44 @@ model Room {
   sortOrder Int       @default(0)
   createdAt DateTime  @default(now())
   sessions  Session[]
+  mapPins   MapPin[]
 
   @@unique([eventId, name])
   @@index([eventId])
+}
+
+model VenueMap {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  /// From getStorageProvider() — https URL or data-URL fallback.
+  imageUrl  String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pins      MapPin[]
+
+  @@index([eventId])
+  @@index([eventId, sortOrder])
+}
+
+model MapPin {
+  id           String   @id @default(cuid())
+  mapId        String
+  map          VenueMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  roomLabel    String
+  /// Percentage of image width (0–100).
+  x            Float
+  /// Percentage of image height (0–100).
+  y            Float
+  linkedRoomId String?
+  linkedRoom   Room?    @relation(fields: [linkedRoomId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([mapId])
+  @@index([linkedRoomId])
 }
 
 model Speaker {
