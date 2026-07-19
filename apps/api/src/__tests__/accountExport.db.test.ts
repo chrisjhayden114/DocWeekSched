@@ -73,7 +73,7 @@ describe("account export (DB)", () => {
         memberships: {
           create: [
             { userId: userA.id, role: OrgRole.OWNER },
-            { userId: userB.id, role: OrgRole.MEMBER },
+            { userId: userB.id, role: OrgRole.STAFF },
           ],
         },
       },

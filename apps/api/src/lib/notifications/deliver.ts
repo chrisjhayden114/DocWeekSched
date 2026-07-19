@@ -62,6 +62,21 @@ export async function deliverNotification(
   input: DeliverInput,
   now = new Date(),
 ): Promise<DeliverResult> {
+  const account = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { deactivatedAt: true },
+  });
+  if (account?.deactivatedAt) {
+    return {
+      notificationId: "",
+      class: classForKind(input.kind),
+      delivery: NotificationDelivery.SUPPRESSED,
+      budgetCharged: false,
+      degradedToDigest: false,
+      suppressed: true,
+    };
+  }
+
   if (input.pushDedupKey) {
     const existing = await prisma.userNotification.findFirst({
       where: { pushDedupKey: input.pushDedupKey },

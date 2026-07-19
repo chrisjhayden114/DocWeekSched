@@ -180,7 +180,7 @@ export async function exportAccountForUser(userId: string): Promise<AccountExpor
   if (!payload) return null;
   await writeAuditLog({
     actorUserId: userId,
-    action: "OTHER",
+    action: "DATA_EXPORT",
     entityType: "account_export",
     entityId: userId,
     payload: {

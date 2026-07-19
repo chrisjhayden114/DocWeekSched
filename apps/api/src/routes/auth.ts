@@ -230,6 +230,19 @@ authRouter.post(
       });
     }
 
+    // Pending deletion (7-day grace): successful login cancels deletion and reactivates.
+    // Deactivated without a PENDING request → block (should not happen in normal flow).
+    if (user.deactivatedAt) {
+      const { cancelPendingDeletionIfAny } = await import("../lib/accountDeletion");
+      const cancelled = await cancelPendingDeletionIfAny(user.id);
+      if (!cancelled) {
+        return res.status(403).json({
+          error: "This account is deactivated.",
+          code: "ACCOUNT_DEACTIVATED",
+        });
+      }
+    }
+
     const { csrfToken } = setSessionCookies(res, { userId: user.id, role: user.role });
     clearAuthFailures(req);
     return res.json({

@@ -8,6 +8,7 @@ import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { featureKeyForNetworkChannel, requireFeature, featureEnabled } from "../lib/features";
+import { authorOrDeleted } from "../lib/authorDisplay";
 
 export const networkRouter = Router();
 
@@ -77,7 +78,13 @@ networkRouter.get(
         },
       },
     });
-    return res.json(threads);
+    return res.json(
+      threads.map((t) => ({
+        ...t,
+        author: authorOrDeleted(t.author),
+        replies: t.replies.map((r) => ({ ...r, author: authorOrDeleted(r.author) })),
+      })),
+    );
   }),
 );
 
@@ -174,7 +181,7 @@ networkRouter.post(
 
     await awardEngagementPoints(userId, POINTS.NETWORK_THREAD);
 
-    const authorName = thread.author.name;
+    const authorName = thread.author?.name ?? "Deleted participant";
     try {
       await notifyNewCommunityThread({
         eventId: event.id,
@@ -190,7 +197,11 @@ networkRouter.post(
       console.error("notifyNewCommunityThread failed:", err);
     }
 
-    return res.json(thread);
+    return res.json({
+      ...thread,
+      author: authorOrDeleted(thread.author),
+      replies: thread.replies.map((r) => ({ ...r, author: authorOrDeleted(r.author) })),
+    });
   }),
 );
 
@@ -229,7 +240,9 @@ networkRouter.post(
 
     await awardEngagementPoints(userId, POINTS.NETWORK_REPLY);
 
-    const priorReplierIds = Array.from(new Set(thread.replies.map((r) => r.authorId)));
+    const priorReplierIds = Array.from(
+      new Set(thread.replies.map((r) => r.authorId).filter((id): id is string => Boolean(id))),
+    );
     const fullThread = await prisma.networkThread.findUnique({
       where: { id: thread.id },
       select: { title: true, authorId: true },
@@ -240,9 +253,9 @@ networkRouter.post(
           eventId: event.id,
           threadId: thread.id,
           threadTitle: fullThread.title,
-          threadAuthorId: fullThread.authorId,
+          threadAuthorId: fullThread.authorId ?? "",
           replierId: userId,
-          replierName: reply.author.name,
+          replierName: reply.author?.name ?? "Deleted participant",
           replyPreview: parsed.data.body,
           priorReplierIds,
         });
@@ -251,7 +264,7 @@ networkRouter.post(
       }
     }
 
-    return res.json(reply);
+    return res.json({ ...reply, author: authorOrDeleted(reply.author) });
   }),
 );
 

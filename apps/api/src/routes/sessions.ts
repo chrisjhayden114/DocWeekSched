@@ -10,6 +10,7 @@ import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
 import { sessionVisibilityWhere, isSessionAttendeeVisible } from "../lib/ai/ingest/visibility";
 import { recordSessionScheduleChange } from "../lib/ai/ops/scheduleChange";
+import { authorOrDeleted } from "../lib/authorDisplay";
 
 export const sessionsRouter = Router();
 
@@ -829,6 +830,8 @@ sessionsRouter.get(
 
     const mapped = threads.map((t) => ({
       ...t,
+      author: authorOrDeleted(t.author),
+      replies: t.replies.map((r) => ({ ...r, author: authorOrDeleted(r.author) })),
       upvoteCount: t._count.upvotes,
       upvotedByMe: t.upvotes.some((u) => u.userId === req.user!.id),
       upvotes: undefined,

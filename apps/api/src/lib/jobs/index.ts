@@ -25,6 +25,8 @@ export async function enqueueJob(input: {
   createdById?: string | null;
   payload?: Prisma.InputJsonValue;
   maxAttempts?: number;
+  /** When the job becomes eligible (defaults to now). */
+  scheduledAt?: Date;
 }): Promise<{ id: string }> {
   const row = await prisma.backgroundJob.create({
     data: {
@@ -35,6 +37,7 @@ export async function enqueueJob(input: {
       input: input.payload ?? {},
       maxAttempts: input.maxAttempts ?? 3,
       status: BackgroundJobStatus.PENDING,
+      ...(input.scheduledAt ? { scheduledAt: input.scheduledAt } : {}),
     },
   });
   await writeAuditLog({

@@ -2,7 +2,7 @@ import { brand, icsProductId } from "@event-app/config";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue } from "@event-app/shared";
+import { DELETED_PARTICIPANT_LABEL, resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue } from "@event-app/shared";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { ConciergeChat } from "../../components/ConciergeChat";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
@@ -1038,7 +1038,8 @@ export default function SessionPage() {
                       {thread.title}
                     </strong>
                     <span className="help-text">
-                      {thread.upvoteCount ?? 0} votes · {thread.author.name} · {thread.replies.length} replies
+                      {thread.upvoteCount ?? 0} votes · {thread.author?.name ?? DELETED_PARTICIPANT_LABEL} ·{" "}
+                      {thread.replies.length} replies
                     </span>
                   </button>
                 ))}
@@ -1049,15 +1050,19 @@ export default function SessionPage() {
                   <div className="session-thread-detail">
                     <div className="session-message-row">
                       <div className="session-message-author">
-                        {openThread.author.photoUrl ? (
+                        {openThread.author?.photoUrl ? (
                           <img src={openThread.author.photoUrl} alt="" className="session-message-avatar" />
                         ) : (
-                          <div className="session-message-avatar session-message-avatar-ph">{openThread.author.name.charAt(0)}</div>
+                          <div className="session-message-avatar session-message-avatar-ph">
+                            {(openThread.author?.name ?? DELETED_PARTICIPANT_LABEL).charAt(0)}
+                          </div>
                         )}
                         <div>
                           <strong>{openThread.title}</strong>
                           <div className="help-text">
-                            {openThread.author.name} · {openThread.author.role} · {new Date(openThread.createdAt).toLocaleString()}
+                            {openThread.author?.name ?? DELETED_PARTICIPANT_LABEL}
+                            {openThread.author?.role ? ` · ${openThread.author.role}` : ""} ·{" "}
+                            {new Date(openThread.createdAt).toLocaleString()}
                             {openThread.isAnswered ? " · Answered" : ""}
                           </div>
                         </div>
@@ -1093,14 +1098,19 @@ export default function SessionPage() {
                     {openThread.replies.map((reply) => (
                       <div key={reply.id} className="session-message-row">
                         <div className="session-message-author">
-                          {reply.author.photoUrl ? (
+                          {reply.author?.photoUrl ? (
                             <img src={reply.author.photoUrl} alt="" className="session-message-avatar" />
                           ) : (
-                            <div className="session-message-avatar session-message-avatar-ph">{reply.author.name.charAt(0)}</div>
+                            <div className="session-message-avatar session-message-avatar-ph">
+                              {(reply.author?.name ?? DELETED_PARTICIPANT_LABEL).charAt(0)}
+                            </div>
                           )}
                           <div>
-                            <strong>{reply.author.name}</strong>
-                            <span className="help-text"> · {reply.author.role} · {new Date(reply.createdAt).toLocaleString()}</span>
+                            <strong>{reply.author?.name ?? DELETED_PARTICIPANT_LABEL}</strong>
+                            <span className="help-text">
+                              {" "}
+                              · {reply.author?.role ?? "—"} · {new Date(reply.createdAt).toLocaleString()}
+                            </span>
                           </div>
                         </div>
                         <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{reply.body}</p>

@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { verifyToken } from "./auth";
 import { env } from "./env";
 import { tokensEqual } from "./auth";
+import { prisma } from "./db";
 
 export type AuthedRequest = Request & {
   user?: { id: string; role: "ADMIN" | "ATTENDEE" | "SPEAKER" };
@@ -19,19 +20,42 @@ function readSessionToken(req: Request): string | null {
   return null;
 }
 
+function isDeletionCancelOrStatus(req: Request): boolean {
+  const url = req.originalUrl || req.url || "";
+  if (req.method === "GET" && /\/account\/deletion\/?(\?|$)/.test(url)) return true;
+  if (req.method === "POST" && /\/account\/deletion\/cancel\/?(\?|$)/.test(url)) return true;
+  return false;
+}
+
 export const requireAuth = (req: AuthedRequest, res: Response, next: NextFunction) => {
   const token = readSessionToken(req);
   if (!token) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  try {
-    const payload = verifyToken(token);
-    req.user = { id: payload.userId, role: payload.role };
-    return next();
-  } catch {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  void (async () => {
+    try {
+      const payload = verifyToken(token);
+      const row = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: { deactivatedAt: true, role: true },
+      });
+      if (!row) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      if (row.deactivatedAt && !isDeletionCancelOrStatus(req)) {
+        return res.status(403).json({
+          error:
+            "Account is scheduled for deletion. Sign in again to cancel, or POST /account/deletion/cancel.",
+          code: "ACCOUNT_DEACTIVATED",
+        });
+      }
+      req.user = { id: payload.userId, role: row.role };
+      return next();
+    } catch {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+  })();
 };
 
 /**

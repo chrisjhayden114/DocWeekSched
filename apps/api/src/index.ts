@@ -48,6 +48,7 @@ import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
 import { OPS_DETECT_SWEEP_JOB, registerOpsJobs } from "./lib/ai/ops";
 import { registerRecapJobs } from "./lib/ai/recap";
 import { registerCertificateJobs } from "./lib/certificates";
+import { registerAccountDeletionJobs } from "./lib/accountDeletion";
 import { enqueueJob, startJobPoller } from "./lib/jobs";
 const app = express();
 
@@ -190,5 +191,6 @@ app.listen(env.apiPort, () => {
   registerOpsJobs();
   registerCertificateJobs();
   registerRecapJobs();
+  registerAccountDeletionJobs();
   startJobPoller();
 });

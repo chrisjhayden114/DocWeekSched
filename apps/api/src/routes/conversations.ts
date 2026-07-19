@@ -9,6 +9,7 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
 import { assertMutuallyVisible } from "../lib/visibility";
+import { authorOrDeleted } from "../lib/authorDisplay";
 
 export const conversationsRouter = Router();
 
@@ -189,7 +190,12 @@ conversationsRouter.get(
       include: { user: { select: { id: true, name: true, role: true } } },
     });
 
-    return res.json(messages);
+    return res.json(
+      messages.map((m) => ({
+        ...m,
+        user: authorOrDeleted(m.user),
+      })),
+    );
   }),
 );
 
@@ -245,10 +251,10 @@ conversationsRouter.post(
           eventId: conversation.eventId,
           conversationId: conversation.id,
           senderId: userId,
-          senderName: message.user.name,
+          senderName: message.user?.name ?? "Deleted participant",
           preview: parsed.data.body,
           memberUserIds,
-          title: `Event-wide · ${message.user.name}`,
+          title: `Event-wide · ${message.user?.name ?? "Deleted participant"}`,
         });
       } else if (conversation.type === "DIRECT" || conversation.type === "GROUP") {
         const memberUserIds = conversation.members.map((m) => m.userId);
@@ -256,7 +262,7 @@ conversationsRouter.post(
           eventId: conversation.eventId,
           conversationId: conversation.id,
           senderId: userId,
-          senderName: message.user.name,
+          senderName: message.user?.name ?? "Deleted participant",
           preview: parsed.data.body,
           memberUserIds,
         });

@@ -2,6 +2,7 @@ import { brand, icsProductId } from "@event-app/config";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
+  DELETED_PARTICIPANT_LABEL,
   resolveFeatureEnabled,
   type FeatureKey,
   type FeatureOverrideValue,
@@ -112,7 +113,12 @@ type Conversation = {
   members: ConversationMember[];
   messages: { id: string; body: string; createdAt: string; user: { id: string; name: string } }[];
 };
-type Message = { id: string; body: string; createdAt: string; user: { id: string; name: string; role: string } };
+type Message = {
+  id: string;
+  body: string;
+  createdAt: string;
+  user: { id: string | null; name: string; role: string | null; deleted?: boolean };
+};
 type SessionAttendance = {
   sessionId: string;
   status: "JOINING" | "NOT_JOINING";
@@ -186,7 +192,13 @@ function timezoneOptionLabel(timezone: string) {
   return map[timezone] || timezone;
 }
 
-type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
+type NetworkAuthor = {
+  id: string | null;
+  name: string;
+  role: string | null;
+  photoUrl?: string | null;
+  deleted?: boolean;
+};
 type NetworkReply = { id: string; body: string; createdAt: string; author: NetworkAuthor };
 type NetworkThread = {
   id: string;
@@ -1717,10 +1729,12 @@ export default function Dashboard() {
                   <div key={m.id} style={{ borderBottom: "1px solid var(--border)", padding: "10px 0" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
                       <div>
-                        <strong>{m.user.name}</strong>{" "}
-                        <span style={{ color: "var(--ink-500)" }}>({m.user.role})</span>
+                        <strong>{m.user?.name ?? DELETED_PARTICIPANT_LABEL}</strong>{" "}
+                        <span style={{ color: "var(--ink-500)" }}>
+                          ({m.user?.role ?? "—"})
+                        </span>
                       </div>
-                      {(isAdmin || m.user.id === user.id) && (
+                      {(isAdmin || (m.user?.id != null && m.user.id === user.id)) && (
                         <KebabMenu
                           label={`Message actions`}
                           items={[
@@ -4445,7 +4459,7 @@ function CommunityBoard({
                     <div className="network-replies">
                       {t.replies?.map((r) => (
                         <div key={r.id} className="network-reply">
-                          <strong>{r.author.name}</strong>
+                          <strong>{r.author?.name ?? DELETED_PARTICIPANT_LABEL}</strong>
                           <span className="help-text"> · {formatEventDateTime(r.createdAt)}</span>
                           <p>{r.body}</p>
                           {isAdmin && (
