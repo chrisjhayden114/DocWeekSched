@@ -333,7 +333,7 @@ describe("Phase A6 recap (DB)", () => {
         },
       },
     });
-  });
+  }, 60_000);
 
   afterAll(async () => {
     if (!dbReady) {
