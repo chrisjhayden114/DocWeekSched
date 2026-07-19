@@ -2,6 +2,12 @@ import type { CookieOptions, Response } from "express";
 import { env } from "./env";
 import { generateOpaqueToken, signToken, type AuthToken } from "./auth";
 
+/**
+ * Cookie consent (Phase 6 / Chunk B):
+ * We set ONLY essential auth cookies here (HttpOnly session JWT + readable CSRF token).
+ * brand.cookieConsentRequired is false — no consent banner — because there are no non-essential
+ * analytics/marketing cookies today. Revisit when S3 adds third-party analytics cookies.
+ */
 export function sessionCookieOptions(): CookieOptions {
   const opts: CookieOptions = {
     httpOnly: true,

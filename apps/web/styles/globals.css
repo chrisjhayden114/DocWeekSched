@@ -3089,3 +3089,13 @@ html[data-theme="slate"] .schedule-session-location {
     display: none;
   }
 }
+
+.mkt-legal h2 {
+  margin-top: var(--space-6);
+}
+.mkt-legal ul {
+  padding-left: 1.25rem;
+}
+.mkt-legal li {
+  margin-bottom: var(--space-2);
+}
