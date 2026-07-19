@@ -951,7 +951,7 @@ export default function Dashboard() {
       {isAdmin ? (
         <OnboardingPanel
           onSampleCreated={(eventId) => {
-            writeClientStorage("linkedEventContext", eventId);
+            writeClientStorage(window.localStorage, "linkedEventContext", eventId);
             window.location.reload();
           }}
         />

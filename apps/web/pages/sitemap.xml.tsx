@@ -1,8 +1,9 @@
 import { brand } from "@event-app/config";
 import type { GetServerSideProps } from "next";
+import { helpArticlePaths } from "../lib/help/articles";
 
 /**
- * Sitemap lists marketing pages + demo event only.
+ * Sitemap lists marketing pages + demo event + /help articles only.
  * Customer event slugs are NOT enumerated (opt-in indexing comes later).
  */
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
@@ -14,6 +15,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     "/privacy",
     "/security",
     "/help",
+    ...helpArticlePaths(),
     `/e/${brand.demoEventSlug}`,
   ];
   const urls = paths
