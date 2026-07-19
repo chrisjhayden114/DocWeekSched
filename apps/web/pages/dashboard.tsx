@@ -948,14 +948,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {isAdmin ? (
-        <OnboardingPanel
-          onSampleCreated={(eventId) => {
-            writeClientStorage(window.localStorage, "linkedEventContext", eventId);
-            window.location.reload();
-          }}
-        />
-      ) : null}
+      <OnboardingPanel
+        onSampleCreated={(eventId) => {
+          writeClientStorage(window.localStorage, "linkedEventContext", eventId);
+          window.location.reload();
+        }}
+      />
 
       <div className="nav dashboard-tabs" style={{ marginBottom: 20 }}>
         {availableTabs.map((tab) => (

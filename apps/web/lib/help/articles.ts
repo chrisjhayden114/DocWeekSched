@@ -19,7 +19,7 @@ export type HelpArticle = HelpArticleMeta & {
   bodyMarkdown: string;
 };
 
-const CONTENT_DIR = path.join(process.cwd(), "content", "help");
+const CONTENT_DIR = path.join(__dirname, "../../content/help");
 
 function parseFrontMatter(raw: string): { meta: Record<string, string>; body: string } {
   if (!raw.startsWith("---")) {

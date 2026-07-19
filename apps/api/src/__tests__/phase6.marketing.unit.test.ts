@@ -74,6 +74,7 @@ describe("forbidden brand literals", () => {
   it("brand config exposes Colloquium working name and demo slug", () => {
     expect(brand.productName).toBe("Colloquium");
     expect(brand.demoEventSlug).toBe("demo");
+    expect(brand.internalOrgSlug).toBe("colloquium-internal");
     expect(brand.domain).toBeTruthy();
     expect(brand.primaryUrl).toContain(brand.domain);
   });
