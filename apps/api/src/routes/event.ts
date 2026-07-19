@@ -12,6 +12,8 @@ import {
   regenerateSlug,
 } from "../lib/inviteTokens";
 import { isPubliclyJoinable, uiEventStatus } from "../lib/eventStatus";
+import { getPublicEventBySlug } from "../lib/publicEvent";
+import { publicRateLimit } from "../lib/rateLimit";
 import { ensureUniqueEventSlug, slugifyEventBase } from "../lib/slug";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
@@ -56,7 +58,24 @@ const publicEventSelect = {
   status: true,
 } as const;
 
-/** Public: slug only (never raw event CUID). Enforces ACTIVE + slug invite controls. */
+/**
+ * Side-effect-free public schedule for SSR / link unfurls.
+ * ACTIVE + slug-linkable only; published sessions/items/speakers/sponsors; no attendee PII;
+ * does NOT bump slugInviteUseCount.
+ */
+eventRouter.get(
+  "/public/:slug",
+  publicRateLimit(),
+  asyncHandler(async (req, res) => {
+    const payload = await getPublicEventBySlug(String(req.params.slug || ""));
+    if (!payload) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    return res.json(payload);
+  }),
+);
+
+/** Public: slug only (never raw event CUID). Enforces ACTIVE + slug invite controls. Bumps use count. */
 eventRouter.get(
   "/slug/:slug",
   asyncHandler(async (req, res) => {

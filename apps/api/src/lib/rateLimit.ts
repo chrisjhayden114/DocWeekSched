@@ -64,6 +64,11 @@ export function clearAuthFailures(req: Request): void {
   }
 }
 
+/** Public read rate limit: 60 / minute / IP (SSR + crawlers). */
+export function publicRateLimit(opts?: { windowMs?: number; max?: number }) {
+  return authRateLimit({ windowMs: opts?.windowMs ?? 60_000, max: opts?.max ?? 60 });
+}
+
 /** Test helper */
 export function _resetRateLimitBucketsForTests(): void {
   buckets.clear();
