@@ -106,7 +106,7 @@ export default function OrganizerDashboard() {
 
         {error ? (
           <p style={{ color: "#b42318", marginTop: 16 }}>
-            {error}. <Link href="/">Sign in</Link>
+            {error}. <Link href="/login">Sign in</Link>
           </p>
         ) : null}
 

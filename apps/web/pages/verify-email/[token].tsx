@@ -39,7 +39,7 @@ export default function VerifyEmailPage() {
           <h1>{brand.productName}</h1>
           <p>{message}</p>
           {ok && (
-            <a className="button" href="/">
+            <a className="button" href="/login">
               Sign in
             </a>
           )}

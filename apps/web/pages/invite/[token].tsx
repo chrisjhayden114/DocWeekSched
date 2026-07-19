@@ -37,7 +37,7 @@ export default function InviteSetupPage() {
           if (/invalid|expired/i.test(message)) {
             setRedirectingToLogin(true);
             window.setTimeout(() => {
-              window.location.href = "/";
+              window.location.href = "/login";
             }, 1800);
           }
         }
@@ -93,7 +93,7 @@ export default function InviteSetupPage() {
                 : "If you've already set your password, please log in from the home page."}
             </p>
             {!redirectingToLogin && (
-              <button type="button" className="button secondary" onClick={() => { window.location.href = "/"; }}>
+              <button type="button" className="button secondary" onClick={() => { window.location.href = "/login"; }}>
                 Go to login
               </button>
             )}
