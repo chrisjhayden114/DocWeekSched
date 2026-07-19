@@ -4,3 +4,4 @@ export * from "./maps";
 export * from "./ai";
 export * from "./setupCopilot";
 export * from "./concierge";
+export * from "./entryRedirects";
