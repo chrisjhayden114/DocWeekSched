@@ -105,9 +105,12 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     return null;
   }
 
-  const [hideBadge, sponsorsOn, sessions, speakers, sponsors] = await Promise.all([
+  const [hideBadge, sponsorsOn] = await Promise.all([
     can(event.organizationId, "hide_powered_by_badge"),
     featureEnabled(event.id, "sponsors"),
+  ]);
+
+  const [sessions, speakers, sponsors] = await Promise.all([
     prisma.session.findMany({
       where: { eventId: event.id, publishStatus: SessionPublishStatus.PUBLISHED },
       orderBy: { startsAt: "asc" },
