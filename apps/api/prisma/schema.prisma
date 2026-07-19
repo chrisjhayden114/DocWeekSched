@@ -293,6 +293,37 @@ enum CertificateEligibilityRule {
   REQUIRED_SESSIONS
 }
 
+enum RecapStatus {
+  PENDING
+  GENERATING
+  READY
+  FAILED
+}
+
+enum RecapSectionKind {
+  REPORT
+  FEEDBACK_SYNTHESIS
+  CERTIFICATES
+  SPONSOR_ONE_PAGER
+}
+
+enum RecapSectionStatus {
+  DRAFT
+  SUPERSEDED
+}
+
+enum RecapEmailKind {
+  CERTIFICATE_AVAILABILITY
+  THANK_YOU_ATTENDEE
+  THANK_YOU_SPEAKER
+}
+
+enum RecapEmailStatus {
+  DRAFT
+  SENT
+  SUPERSEDED
+}
+
 model Organization {
   id                        String               @id @default(cuid())
   name                      String
@@ -325,6 +356,7 @@ model Organization {
   badgeTemplates            BadgeTemplate[]
   certificateTemplates      CertificateTemplate[]
   issuedCertificates        IssuedCertificate[]
+  eventRecaps               EventRecap[]
 }
 
 model OrgMembership {
@@ -611,6 +643,7 @@ model Event {
   badgeTemplates       BadgeTemplate[]
   certificateTemplates CertificateTemplate[]
   issuedCertificates   IssuedCertificate[]
+  eventRecap           EventRecap?
 
   @@index([organizationId])
   @@index([seriesId])
@@ -1151,6 +1184,7 @@ model Sponsor {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   leads       SponsorLead[]
+  recapSections EventRecapSection[]
 
   @@index([eventId, sortOrder])
   @@index([eventId, tier])
@@ -1861,4 +1895,82 @@ model IssuedCertificate {
   @@index([certificateTemplateId])
   @@index([issuedByUserId])
   @@index([voidedAt])
+}
+
+/// Post-event recap workspace — one per event (Phase A6).
+/// metricsSnapshot is the only source of narrative numbers (placeholder substitution).
+model EventRecap {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String              @unique
+  event              Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status             RecapStatus         @default(PENDING)
+  /// Frozen verified figures from SQL — LLM never owns these values.
+  metricsSnapshot    Json                @default("{}")
+  /// Anonymized quote bank; synthesis may only cite quoteIds from here.
+  feedbackQuoteBank  Json                @default("[]")
+  /// Structured "fix next year" items merged into EventSeries.setupChecklist.
+  fixNextYear        Json                @default("[]")
+  generatedAt        DateTime?
+  regeneratedAt      DateTime?
+  /// Soft link to BackgroundJob.id (no FK — jobs may be pruned independently).
+  lastJobId          String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  sections           EventRecapSection[]
+  emails             EventRecapEmail[]
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+}
+
+/// Draftable recap section (report / feedback / certificates / sponsor one-pager).
+/// Live uniqueness (status <> SUPERSEDED) is enforced by partial unique indexes in SQL —
+/// not expressible as Prisma @@unique.
+model EventRecapSection {
+  id          String             @id @default(cuid())
+  recapId     String
+  recap       EventRecap         @relation(fields: [recapId], references: [id], onDelete: Cascade)
+  kind        RecapSectionKind
+  status      RecapSectionStatus @default(DRAFT)
+  /// Required for SPONSOR_ONE_PAGER; null for other kinds. Real FK.
+  sponsorId   String?
+  sponsor     Sponsor?           @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  title       String
+  /// Stored after placeholder substitution from metricsSnapshot — never raw LLM digits.
+  bodyMarkdown String            @default("")
+  structured  Json               @default("{}")
+  aiGenerated Boolean            @default(true)
+  metered     Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([recapId, kind])
+  @@index([recapId, status, createdAt])
+  @@index([sponsorId])
+}
+
+/// Draftable recap emails (certificate availability + thank-yous).
+/// Live uniqueness (status <> SUPERSEDED) is a partial unique index in SQL.
+/// SENT rows are never replaced by regeneration.
+model EventRecapEmail {
+  id                     String           @id @default(cuid())
+  recapId                String
+  recap                  EventRecap       @relation(fields: [recapId], references: [id], onDelete: Cascade)
+  kind                   RecapEmailKind
+  status                 RecapEmailStatus @default(DRAFT)
+  audienceRole           String?
+  subject                String
+  body                   String
+  sentAt                 DateTime?
+  /// Soft link to Announcement.id (no FK — announcements may be pruned independently).
+  sentViaAnnouncementId  String?
+  aiGenerated            Boolean          @default(true)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@index([recapId, kind])
+  @@index([recapId, status, createdAt])
+  @@index([sentAt])
 }
