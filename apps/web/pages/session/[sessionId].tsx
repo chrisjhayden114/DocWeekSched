@@ -1,3 +1,4 @@
+import { brand, icsProductId } from "@event-app/config";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -162,9 +163,9 @@ function downloadSessionIcs(session: Session, eventName: string) {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//EventPilot//EN",
+    `PRODID:${icsProductId()}`,
     "BEGIN:VEVENT",
-    `UID:${session.id}@eventpilot`,
+    `UID:${session.id}@${brand.domain}`,
     `DTSTAMP:${toGoogleCalendarUtc(new Date().toISOString())}`,
     `DTSTART:${toGoogleCalendarUtc(session.startsAt)}`,
     `DTEND:${toGoogleCalendarUtc(session.endsAt)}`,
@@ -306,7 +307,7 @@ export default function SessionPage() {
       } catch {
         if (!cancelled) {
           clearAuthClientState();
-          window.location.href = "/";
+          window.location.href = "/login";
         }
       }
     })();
@@ -625,7 +626,7 @@ export default function SessionPage() {
           className="button secondary"
           onClick={() => {
             clearAuthClientState();
-            window.location.href = "/";
+            window.location.href = "/login";
           }}
         >
           Logout

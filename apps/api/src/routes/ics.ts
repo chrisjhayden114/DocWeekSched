@@ -1,3 +1,4 @@
+import { brand, icsProductId } from "@event-app/config";
 import { createHash, randomBytes } from "crypto";
 import { Router } from "express";
 import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
@@ -29,7 +30,7 @@ function buildAgendaIcs(params: {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//EventPilot//Agenda//EN",
+    `PRODID:${icsProductId("Agenda")}`,
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeIcs(params.eventName)}`,
@@ -37,7 +38,7 @@ function buildAgendaIcs(params: {
   for (const s of params.sessions) {
     lines.push(
       "BEGIN:VEVENT",
-      `UID:session-${s.id}@eventpilot`,
+      `UID:session-${s.id}@${brand.domain}`,
       `DTSTAMP:${toIcsUtc(new Date())}`,
       `DTSTART:${toIcsUtc(s.startsAt)}`,
       `DTEND:${toIcsUtc(s.endsAt)}`,
@@ -50,7 +51,7 @@ function buildAgendaIcs(params: {
   for (const b of params.blocks) {
     lines.push(
       "BEGIN:VEVENT",
-      `UID:block-${b.id}@eventpilot`,
+      `UID:block-${b.id}@${brand.domain}`,
       `DTSTAMP:${toIcsUtc(new Date())}`,
       `DTSTART:${toIcsUtc(b.startsAt)}`,
       `DTEND:${toIcsUtc(b.endsAt)}`,

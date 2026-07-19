@@ -1,4 +1,4 @@
-/** Register the EventPilot service worker (idempotent). */
+/** Register the app service worker (idempotent). */
 export function registerServiceWorker(): void {
   if (typeof window === "undefined") return;
   if (!("serviceWorker" in navigator)) return;

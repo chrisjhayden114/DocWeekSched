@@ -263,7 +263,7 @@ export default function AgendaIngestPage() {
     <>
       <Head>
         <title>
-          Agenda ingest · {brand.name}
+          Agenda ingest · {brand.productName}
         </title>
       </Head>
       <main className="page" style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px 64px" }}>

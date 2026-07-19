@@ -1,7 +1,7 @@
 import { brand } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
-import { EventPilotLogo } from "../components/EventPilotLogo";
+import { BrandLogo } from "./BrandLogo";
 
 type Props = {
   statusCode: 404 | 500;
@@ -20,7 +20,7 @@ export function BrandedErrorPage({ statusCode, title, message }: Props) {
       <div className="container branded-error-page">
         <div className="card branded-error-card">
           <div className="login-brand" style={{ marginBottom: "var(--space-4)" }}>
-            <EventPilotLogo size={48} />
+            <BrandLogo size={48} />
             <div>
               <p className="text-meta" style={{ margin: 0 }}>
                 {brand.productName}
@@ -37,7 +37,7 @@ export function BrandedErrorPage({ statusCode, title, message }: Props) {
             <Link href="/dashboard" className="button" style={{ display: "inline-flex", alignItems: "center" }}>
               Back to my event
             </Link>
-            <Link href="/" className="button secondary" style={{ display: "inline-flex", alignItems: "center" }}>
+            <Link href="/login" className="button secondary" style={{ display: "inline-flex", alignItems: "center" }}>
               Sign in
             </Link>
           </div>

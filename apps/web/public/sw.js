@@ -1,6 +1,6 @@
-/* EventPilot service worker — cache agenda / My Agenda / session / maps once visited. */
-const CACHE = "eventpilot-shell-v1";
-const PRECACHE = ["/", "/dashboard", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+/* App service worker — cache agenda / My Agenda / session / maps once visited. */
+const CACHE = "app-shell-v2";
+const PRECACHE = ["/login", "/dashboard", "/api/manifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -19,7 +19,7 @@ self.addEventListener("activate", (event) => {
 function shouldCachePath(pathname) {
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard?")) return true;
   if (pathname.startsWith("/session/")) return true;
-  if (pathname === "/manifest.webmanifest") return true;
+  if (pathname === "/api/manifest" || pathname === "/manifest.webmanifest") return true;
   if (pathname.startsWith("/icons/")) return true;
   return false;
 }
@@ -44,7 +44,6 @@ self.addEventListener("fetch", (event) => {
           const copy = network.clone();
           const cache = await caches.open(CACHE);
           if (isNav) {
-            // Cache dashboard + session navigations (includes Maps tab query on dashboard).
             if (url.pathname === "/dashboard" || url.pathname.startsWith("/session/")) {
               await cache.put(req, copy);
             }
@@ -70,7 +69,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let title = "EventPilot";
+  let title = "Notification";
   let body = "";
   let url = "/dashboard?tab=Notifications";
   try {
@@ -79,14 +78,14 @@ self.addEventListener("push", (event) => {
     body = data.body || "";
     if (data.url) url = data.url;
   } catch {
-    body = event.data ? event.data.text() : "";
+    /* ignore */
   }
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
+      data: { url },
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      data: { url },
     }),
   );
 });
@@ -95,15 +94,14 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = (event.notification.data && event.notification.data.url) || "/dashboard";
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if ("focus" in client) {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client && client.url.includes(self.location.origin)) {
           client.navigate(target);
           return client.focus();
         }
       }
       if (self.clients.openWindow) return self.clients.openWindow(target);
-      return undefined;
     }),
   );
 });

@@ -1,3 +1,4 @@
+import { brand, icsProductId } from "@event-app/config";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
@@ -18,6 +19,7 @@ import { VenueMapsAttendee, roomPinIndex } from "../components/VenueMapsAttendee
 import { MeetingRequestModal, MeetingRequestsPanel } from "../components/MeetingRequestsPanel";
 import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
 import { apiFetch, clearAuthClientState } from "../lib/api";
+import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
@@ -381,7 +383,7 @@ export default function Dashboard() {
       } catch {
         if (!cancelled) {
           clearAuthClientState();
-          window.location.href = "/";
+          window.location.href = "/login";
         }
       }
     })();
@@ -725,7 +727,7 @@ export default function Dashboard() {
       /* ignore */
     }
     clearAuthClientState();
-    window.location.href = "/";
+    window.location.href = "/login";
   };
 
   const isOrganizer = Boolean(user?.isEventAdmin || user?.role === "ADMIN");
@@ -1068,13 +1070,13 @@ export default function Dashboard() {
                     const lines = [
                       "BEGIN:VCALENDAR",
                       "VERSION:2.0",
-                      "PRODID:-//EventPilot//Agenda//EN",
+                      `PRODID:${icsProductId('Agenda')}`,
                       "CALSCALE:GREGORIAN",
                     ];
                     for (const s of myScheduledSessions) {
                       lines.push(
                         "BEGIN:VEVENT",
-                        `UID:${s.id}@eventpilot`,
+                        `UID:${s.id}@${brand.domain}`,
                         `DTSTART:${new Date(s.startsAt).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`,
                         `DTEND:${new Date(s.endsAt).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`,
                         `SUMMARY:${(s.title || "").replace(/\n/g, " ")}`,
@@ -1953,7 +1955,7 @@ export default function Dashboard() {
 
       {event?.showPoweredByBadge ? (
         <p className="text-meta" style={{ textAlign: "center", marginTop: 28, opacity: 0.75 }}>
-          Powered by EventPilot
+          Powered by {brand.productName}
         </p>
       ) : null}
 
@@ -2387,7 +2389,7 @@ function ScheduleBoard({
           >
             <h4 id="calendar-modal-title">Add to your personal calendar</h4>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Your session is on your EventPilot agenda. Choose your personal calendar:
+              Your session is on your {brand.productName} agenda. Choose your personal calendar:
             </p>
             <div className="agenda-add-modal-actions">
               <button
@@ -2874,7 +2876,7 @@ function ProfileEditor({
 
   useEffect(() => {
     try {
-      const t = window.localStorage.getItem("eventPilotTheme");
+      const t = readClientStorage(window.localStorage, "theme");
       if (t === "slate" || t === "blue") setAppearanceTheme(t);
     } catch {
       /* ignore */
@@ -3167,7 +3169,7 @@ function ProfileEditor({
               onClick={() => {
                 setAppearanceTheme("blue");
                 try {
-                  window.localStorage.setItem("eventPilotTheme", "blue");
+                  writeClientStorage(window.localStorage, "theme", "blue");
                   document.documentElement.setAttribute("data-theme", "blue");
                 } catch {
                   /* ignore */
@@ -3182,7 +3184,7 @@ function ProfileEditor({
               onClick={() => {
                 setAppearanceTheme("slate");
                 try {
-                  window.localStorage.setItem("eventPilotTheme", "slate");
+                  writeClientStorage(window.localStorage, "theme", "slate");
                   document.documentElement.setAttribute("data-theme", "slate");
                 } catch {
                   /* ignore */
@@ -4840,11 +4842,11 @@ function downloadSessionIcs(session: Session, eventName: string, eventTimezone: 
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//EventPilot//Conference Session//EN",
+    `PRODID:${icsProductId('Conference Session')}`,
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
-    `UID:${session.id}@eventpilot`,
+    `UID:${session.id}@${brand.domain}`,
     `DTSTAMP:${toGoogleCalendarUtc(new Date().toISOString())}`,
     `DTSTART:${toGoogleCalendarUtc(session.startsAt)}`,
     `DTEND:${toGoogleCalendarUtc(session.endsAt)}`,
