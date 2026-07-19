@@ -302,6 +302,8 @@ attendeesRouter.post(
       }
       return res.status(409).json({ error: result.error });
     }
+    const { markEventChecklistDone } = await import("../lib/onboarding/checklist");
+    await markEventChecklistDone(event.id, "invite_attendees").catch(() => undefined);
     return res.json({
       ok: true,
       inviteUrl: result.inviteUrl,
@@ -397,6 +399,10 @@ attendeesRouter.post(
     }
 
     const anyUndelivered = sent.some((s) => !s.emailDelivered);
+    if (sent.length > 0) {
+      const { markEventChecklistDone } = await import("../lib/onboarding/checklist");
+      await markEventChecklistDone(event.id, "invite_attendees").catch(() => undefined);
+    }
     return res.json({
       ok: true,
       sentCount: sent.length,

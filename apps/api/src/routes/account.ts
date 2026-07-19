@@ -10,6 +10,10 @@ import { authRateLimit } from "../lib/rateLimit";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { clearSessionCookies } from "../lib/cookies";
 import { prisma } from "../lib/db";
+import { createSampleEventForOrg } from "../lib/demoEvent";
+import { assertCanCreateEvent } from "../lib/billing/entitlements";
+import { getPrimaryChecklistForUser } from "../lib/onboarding/checklist";
+import { OrgRole } from "@prisma/client";
 
 export const accountRouter = Router();
 
@@ -110,5 +114,133 @@ accountRouter.post(
       }
       throw err;
     }
+  }),
+);
+
+/**
+ * First-run onboarding state for organizers.
+ */
+accountRouter.get(
+  "/onboarding",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        onboardingDismissedAt: true,
+        sampleEventOfferedAt: true,
+        orgMemberships: {
+          where: { role: { in: [OrgRole.OWNER, OrgRole.ADMIN] } },
+          select: { organizationId: true, role: true },
+          take: 5,
+        },
+      },
+    });
+    if (!user) return res.status(404).json({ error: "Account not found" });
+
+    const isOrganizer = user.orgMemberships.length > 0;
+    const primary = await getPrimaryChecklistForUser(req.user!.id);
+    const dismissed = Boolean(user.onboardingDismissedAt);
+    const sampleOffered = Boolean(user.sampleEventOfferedAt);
+
+    return res.json({
+      isOrganizer,
+      dismissed,
+      sampleEventOffered: sampleOffered,
+      showSamplePrompt: isOrganizer && !sampleOffered && !dismissed,
+      showChecklist: isOrganizer && !dismissed,
+      organizationId: user.orgMemberships[0]?.organizationId ?? null,
+      seriesId: primary.seriesId,
+      eventId: primary.eventId,
+      checklist: primary.checklist,
+    });
+  }),
+);
+
+accountRouter.post(
+  "/onboarding/dismiss",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        onboardingDismissedAt: new Date(),
+        sampleEventOfferedAt: new Date(),
+      },
+    });
+    return res.json({ ok: true, dismissed: true });
+  }),
+);
+
+/** Decline the sample-event prompt without dismissing the whole checklist. */
+accountRouter.post(
+  "/onboarding/decline-sample",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { sampleEventOfferedAt: new Date() },
+    });
+    return res.json({ ok: true, sampleEventOffered: true });
+  }),
+);
+
+const sampleEventSchema = z.object({
+  organizationId: z.string().min(1),
+});
+
+/**
+ * Optional "create a sample event" — DRAFT in the org from the shared fixture.
+ * Goes through assertCanCreateEvent (402 + upgrade when at cap; never silent).
+ */
+accountRouter.post(
+  "/onboarding/sample-event",
+  requireAuth,
+  requireCsrf,
+  authRateLimit({ windowMs: 60_000, max: 5 }),
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = sampleEventSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+
+    const membership = await prisma.orgMembership.findFirst({
+      where: {
+        userId: req.user!.id,
+        organizationId: parsed.data.organizationId,
+        role: { in: [OrgRole.OWNER, OrgRole.ADMIN] },
+      },
+    });
+    if (!membership) {
+      return res.status(403).json({ error: "Not an organizer for this organization" });
+    }
+
+    try {
+      await assertCanCreateEvent(parsed.data.organizationId);
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return res.status(err.status).json(err.body);
+      }
+      throw err;
+    }
+
+    const created = await createSampleEventForOrg({
+      organizationId: parsed.data.organizationId,
+      actorUserId: req.user!.id,
+    });
+
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { sampleEventOfferedAt: new Date() },
+    });
+
+    return res.status(201).json({
+      ok: true,
+      eventId: created.eventId,
+      slug: created.slug,
+      message: "Sample draft event created. Complete the checklist or open Setup Copilot to refine it.",
+    });
   }),
 );

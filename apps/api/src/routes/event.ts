@@ -342,6 +342,8 @@ eventRouter.post(
       where: { id: event.id },
       data: { status: EventStatus.ACTIVE, activatedAt: event.activatedAt ?? new Date() },
     });
+    const { markEventChecklistDone } = await import("../lib/onboarding/checklist");
+    await markEventChecklistDone(event.id, "publish").catch(() => undefined);
     return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
   }),
 );

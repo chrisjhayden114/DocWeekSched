@@ -27,6 +27,7 @@ import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
 import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
 import { SponsorsStrip } from "../components/SponsorsStrip";
+import { OnboardingPanel } from "../components/OnboardingPanel";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -946,6 +947,15 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {isAdmin ? (
+        <OnboardingPanel
+          onSampleCreated={(eventId) => {
+            writeClientStorage("linkedEventContext", eventId);
+            window.location.reload();
+          }}
+        />
+      ) : null}
 
       <div className="nav dashboard-tabs" style={{ marginBottom: 20 }}>
         {availableTabs.map((tab) => (
