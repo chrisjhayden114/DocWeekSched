@@ -27,4 +27,5 @@ export {
   CERTIFICATES_BATCH_ISSUE_JOB,
   enqueueCertificateBatchIssue,
   registerCertificateJobs,
+  mapPool,
 } from "./jobs";

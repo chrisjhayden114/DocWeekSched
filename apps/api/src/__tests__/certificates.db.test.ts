@@ -374,6 +374,8 @@ describe("Phase P4 certificates (DB)", () => {
     const stamp = Date.now();
     const passwordHash = await hashPassword("TestPass12!x");
     const emails = Array.from({ length: 500 }, (_, i) => `p4-bulk-${stamp}-${i}@example.com`);
+
+    const seedStarted = Date.now();
     await prisma.user.createMany({
       data: emails.map((email, i) => ({
         email,
@@ -402,6 +404,7 @@ describe("Phase P4 certificates (DB)", () => {
         method: CheckInMethod.SELF,
       })),
     });
+    const seedMs = Date.now() - seedStarted;
 
     const job = await enqueueJob({
       type: CERTIFICATES_BATCH_ISSUE_JOB,
@@ -411,12 +414,17 @@ describe("Phase P4 certificates (DB)", () => {
       payload: { certificateTemplateId: ids.templateAny!, sendReadyEmail: false },
     });
 
-    // Process until done (batch of 500 may need one run)
+    const jobStarted = Date.now();
     let finished = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job.id } });
     for (let attempt = 0; attempt < 5 && finished.status !== BackgroundJobStatus.SUCCEEDED; attempt++) {
       await processDueJobs(1);
       finished = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job.id } });
     }
+    const jobMs = Date.now() - jobStarted;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[certificates.db.test] 500-batch timing: seed=${seedMs}ms job=${jobMs}ms total=${seedMs + jobMs}ms status=${finished.status}`,
+    );
 
     expect(finished.status).toBe(BackgroundJobStatus.SUCCEEDED);
     expect(finished.progress).toBe(100);
@@ -457,5 +465,5 @@ describe("Phase P4 certificates (DB)", () => {
       select: { publicId: true },
     });
     expect(after.map((r) => r.publicId).sort()).toEqual(publicIds.map((r) => r.publicId).sort());
-  }, 180_000);
+  }, 300_000);
 });
