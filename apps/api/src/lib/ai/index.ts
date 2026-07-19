@@ -1,6 +1,7 @@
 export { gatewayChat, gatewayExtract, gatewayEmbed, AI_GENERATED_CHIP_LABEL } from "./gateway";
 export * from "./matchmaker";
 export * from "./ops";
+export * from "./recap";
 export { assertAiCap } from "./caps";
 export { recordAiUsage, countAiUsage, summarizeAiUsage, estimateCostCents } from "./metering";
 export {
