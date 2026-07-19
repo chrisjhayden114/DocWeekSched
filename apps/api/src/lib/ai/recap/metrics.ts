@@ -51,6 +51,11 @@ export function compareTopSessions(
 }
 
 export async function computeRecapMetrics(eventId: string): Promise<RecapMetricsSnapshot> {
+  const event = await prisma.event.findUniqueOrThrow({
+    where: { id: eventId },
+    select: { id: true, name: true },
+  });
+
   const memberships = await prisma.eventMembership.findMany({
     where: { eventId, deletedAt: null },
     select: {
@@ -185,7 +190,8 @@ export async function computeRecapMetrics(eventId: string): Promise<RecapMetrics
   }));
 
   return {
-    eventId,
+    eventId: event.id,
+    event: { id: event.id, name: event.name },
     computedAt: new Date().toISOString(),
     headline: {
       registrants,

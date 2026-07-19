@@ -1,5 +1,6 @@
 /**
  * Draft certificate-availability + thank-you emails (never send from generate).
+ * Event names and numbers enter subject/body only via metricsSnapshot placeholders.
  */
 
 import { z } from "zod";
@@ -25,39 +26,46 @@ export type RecapEmailDraft = {
   metered: boolean;
 };
 
-function fallbackEmail(
-  kind: RecapEmailDraft["kind"],
-  eventName: string,
-): { subject: string; body: string; citations: string[] } {
+/** Fallback copy — {{event.name}} and metric paths only; zero literal digits. */
+function fallbackEmail(kind: RecapEmailDraft["kind"]): {
+  subject: string;
+  body: string;
+  citations: string[];
+} {
   if (kind === "CERTIFICATE_AVAILABILITY") {
     return {
-      subject: `Your certificate from ${eventName}`,
+      subject: `Your certificate from {{event.name}}`,
       body:
-        `Thank you for attending ${eventName}.\n\n` +
+        `Thank you for attending {{event.name}}.\n\n` +
         `Your certificate of participation is ready to download from your event profile.\n\n` +
         `Event check-ins recorded: {{headline.checkIns}} of {{headline.registrants}} registrants.`,
-      citations: ["headline.checkIns", "headline.registrants"],
+      citations: ["event.name", "headline.checkIns", "headline.registrants"],
     };
   }
   if (kind === "THANK_YOU_ATTENDEE") {
     return {
-      subject: `Thank you for joining ${eventName}`,
+      subject: `Thank you for joining {{event.name}}`,
       body:
-        `Thank you for being part of ${eventName}.\n\n` +
+        `Thank you for being part of {{event.name}}.\n\n` +
         `Together we saw {{headline.adoptionCount}} active attendees ` +
         `(adoption {{headline.adoptionRate}}) and {{engagement.qaThreads}} Q&A threads.\n\n` +
         `We hope to see you at the next edition.`,
-      citations: ["headline.adoptionCount", "headline.adoptionRate", "engagement.qaThreads"],
+      citations: [
+        "event.name",
+        "headline.adoptionCount",
+        "headline.adoptionRate",
+        "engagement.qaThreads",
+      ],
     };
   }
   return {
-    subject: `Thank you for speaking at ${eventName}`,
+    subject: `Thank you for speaking at {{event.name}}`,
     body:
-      `Thank you for sharing your work at ${eventName}.\n\n` +
+      `Thank you for sharing your work at {{event.name}}.\n\n` +
       `Attendees engaged with {{engagement.pollVotes}} poll votes and ` +
       `{{engagement.communityThreads}} community threads across the program.\n\n` +
       `We appreciate your contribution.`,
-    citations: ["engagement.pollVotes", "engagement.communityThreads"],
+    citations: ["event.name", "engagement.pollVotes", "engagement.communityThreads"],
   };
 }
 
@@ -66,11 +74,10 @@ async function draftOne(input: {
   eventId: string;
   userId?: string | null;
   jobId?: string | null;
-  eventName: string;
   snapshot: RecapMetricsSnapshot;
   kind: RecapEmailDraft["kind"];
 }): Promise<RecapEmailDraft> {
-  const fb = fallbackEmail(input.kind, input.eventName);
+  const fb = fallbackEmail(input.kind);
   const mockPayload = JSON.stringify({
     subject: fb.subject,
     body: fb.body,
@@ -82,13 +89,17 @@ async function draftOne(input: {
       role: "system",
       content:
         "You draft a short post-event email. Return JSON {subject, body, citations?}. " +
-        "Numbers must use {{metric.path}} placeholders only — never invent digits. Drafting only; never send.",
+        "Every number and the event name must use {{metric.path}} placeholders " +
+        "(e.g. {{event.name}}, {{headline.checkIns}}) — never invent digits or inline the event name. " +
+        "Drafting only; never send.",
     },
     {
       role: "user",
       content:
-        `Kind: ${input.kind}\nEvent: ${input.eventName}\n` +
+        `Kind: ${input.kind}\n` +
+        `(Use {{event.name}} for the event name — do not copy a literal name.)\n` +
         `verifiedFigures:\n${JSON.stringify({
+          event: input.snapshot.event,
           headline: input.snapshot.headline,
           engagement: input.snapshot.engagement,
         })}\n\n` +
@@ -109,7 +120,13 @@ async function draftOne(input: {
     );
   }
 
+  assertNoLiteralNumbersOutsidePlaceholders(extract.data.subject);
   assertNoLiteralNumbersOutsidePlaceholders(extract.data.body);
+  const subject = substituteMetricPlaceholders(
+    extract.data.subject.trim(),
+    input.snapshot,
+    extract.data.citations,
+  );
   const body = substituteMetricPlaceholders(
     extract.data.body.trim(),
     input.snapshot,
@@ -126,7 +143,7 @@ async function draftOne(input: {
   return {
     kind: input.kind,
     audienceRole,
-    subject: extract.data.subject.trim(),
+    subject,
     body,
     metered: true,
   };
@@ -147,7 +164,16 @@ export async function draftRecapEmails(input: {
   ];
   const out: RecapEmailDraft[] = [];
   for (const kind of kinds) {
-    out.push(await draftOne({ ...input, kind }));
+    out.push(
+      await draftOne({
+        organizationId: input.organizationId,
+        eventId: input.eventId,
+        userId: input.userId,
+        jobId: input.jobId,
+        snapshot: input.snapshot,
+        kind,
+      }),
+    );
   }
   return out;
 }

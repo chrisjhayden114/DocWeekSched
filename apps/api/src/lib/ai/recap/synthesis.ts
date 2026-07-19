@@ -134,8 +134,8 @@ export async function draftFeedbackSynthesis(input: {
         ];
   const fallbackFix =
     input.quoteBank.length === 0
-      ? [{ label: "Review session feedback before next edition" }]
-      : [{ label: "Address themes raised in session feedback" }];
+      ? [{ key: "review_feedback", label: "Review session feedback before next edition" }]
+      : [{ key: "address_feedback_themes", label: "Address themes raised in session feedback" }];
 
   const mockPayload = JSON.stringify({
     themes: fallbackThemes,
@@ -153,7 +153,7 @@ export async function draftFeedbackSynthesis(input: {
     {
       role: "user",
       content:
-        `Event: ${input.eventName}\n` +
+        `Event id provided separately — use quoteIds from the bank only.\n` +
         `quoteBank:\n${JSON.stringify(bankForModel)}\n\n` +
         `__MOCK_JSON__:${mockPayload}`,
     },

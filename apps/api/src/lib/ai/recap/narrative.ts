@@ -33,9 +33,13 @@ export function finalizeReportNarrative(
   return substituteMetricPlaceholders(narrativeMarkdown, snapshot, citations);
 }
 
+/**
+ * Mock / fallback report — every name, title, and number is a {{path}} placeholder.
+ * Free text must contain zero literal digits.
+ */
 function defaultNarrative(snapshot: RecapMetricsSnapshot): string {
   const lines = [
-    `# Event recap`,
+    `# {{event.name}}`,
     ``,
     `Registrants: {{headline.registrants}}. Event check-ins: {{headline.checkIns}} (rate {{headline.checkInRate}}).`,
     `Adoption: {{headline.adoptionCount}} attendees ({{headline.adoptionRate}}).`,
@@ -48,7 +52,10 @@ function defaultNarrative(snapshot: RecapMetricsSnapshot): string {
   ];
   if (snapshot.topSessions[0]) {
     const id = snapshot.topSessions[0].sessionId;
-    lines.push(``, `Top session joins: {{sessions.${id}.joinedTotal}}.`);
+    lines.push(
+      ``,
+      `Top session {{topSessions.0.title}} ({{sessions.${id}.title}}) joins: {{sessions.${id}.joinedTotal}}.`,
+    );
   }
   return lines.join("\n");
 }
@@ -62,25 +69,31 @@ export async function draftReportNarrative(input: {
   snapshot: RecapMetricsSnapshot;
 }): Promise<ReportDraftResult> {
   const fallback = defaultNarrative(input.snapshot);
+  const citations = [
+    "event.name",
+    "headline.registrants",
+    "headline.checkIns",
+    "headline.checkInRate",
+    "headline.adoptionCount",
+    "headline.adoptionRate",
+    "engagement.qaThreads",
+    "engagement.qaUpvotes",
+    "engagement.pollVotes",
+    "engagement.communityThreads",
+    "engagement.communityReplies",
+    "engagement.engagementPoints",
+    ...(input.snapshot.topSessions[0]
+      ? [
+          "topSessions.0.title",
+          `sessions.${input.snapshot.topSessions[0].sessionId}.title`,
+          `sessions.${input.snapshot.topSessions[0].sessionId}.joinedTotal`,
+        ]
+      : []),
+  ];
   const mockPayload = JSON.stringify({
-    title: `${input.eventName} — Recap report`,
+    title: "{{event.name}} — Recap report",
     narrativeMarkdown: fallback,
-    citations: [
-      "headline.registrants",
-      "headline.checkIns",
-      "headline.checkInRate",
-      "headline.adoptionCount",
-      "headline.adoptionRate",
-      "engagement.qaThreads",
-      "engagement.qaUpvotes",
-      "engagement.pollVotes",
-      "engagement.communityThreads",
-      "engagement.communityReplies",
-      "engagement.engagementPoints",
-      ...(input.snapshot.topSessions[0]
-        ? [`sessions.${input.snapshot.topSessions[0].sessionId}.joinedTotal`]
-        : []),
-    ],
+    citations,
   });
 
   const extract = await gatewayExtract(reportSchema, [
@@ -89,13 +102,15 @@ export async function draftReportNarrative(input: {
       content:
         "You write a post-event recap REPORT narrative. Return JSON " +
         "{title?, narrativeMarkdown, citations?}. " +
-        "EVERY number must be a {{metric.path}} placeholder from verifiedFigures — never invent or compute digits. " +
-        "No free-text numbers. Drafting only; never send.",
+        "EVERY number AND every event/session name or title must be a {{metric.path}} placeholder " +
+        "from verifiedFigures (e.g. {{event.name}}, {{sessions.<id>.title}}, {{topSessions.0.title}}, {{headline.registrants}}). " +
+        "Never inline names, titles, or digits in free text. No free-text numbers. Drafting only; never send.",
     },
     {
       role: "user",
       content:
-        `Event: ${input.eventName}\n` +
+        `Event id: ${input.eventId}\n` +
+        `(Use {{event.name}} for the event name — do not copy a literal name into the narrative.)\n` +
         `verifiedFigures:\n${JSON.stringify(input.snapshot)}\n\n` +
         `__MOCK_JSON__:${mockPayload}`,
     },
@@ -117,8 +132,12 @@ export async function draftReportNarrative(input: {
   const narrative = extract.data.narrativeMarkdown.trim();
   const bodyMarkdown = finalizeReportNarrative(narrative, input.snapshot, extract.data.citations);
 
+  const rawTitle = (extract.data.title ?? "{{event.name}} — Recap report").trim();
+  assertNoLiteralNumbersOutsidePlaceholders(rawTitle);
+  const title = substituteMetricPlaceholders(rawTitle, input.snapshot, ["event.name"]);
+
   return {
-    title: (extract.data.title ?? `${input.eventName} — Recap report`).trim(),
+    title,
     bodyMarkdown,
     metered: true,
     usageId: extract.usageId,

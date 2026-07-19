@@ -16,6 +16,7 @@ import { RecapSectionError, type RecapMetricsSnapshot, type FeedbackQuote } from
 
 const sampleSnapshot: RecapMetricsSnapshot = {
   eventId: "evt_1",
+  event: { id: "evt_1", name: "Demo Event" },
   computedAt: "2026-07-18T00:00:00.000Z",
   headline: {
     registrants: 10,
@@ -98,6 +99,22 @@ describe("recap placeholders", () => {
   it("getMetricPathValue reads nested session modes", () => {
     expect(getMetricPathValue(sampleSnapshot, "sessions.sess_a.checkedInAttributedByMode.IN_PERSON")).toBe(3);
     expect(getMetricPathValue(sampleSnapshot, "labels.checkedInAttributedByMode")).toMatch(/not a per-session door scan/);
+  });
+
+  it("resolves event.name and session titles via placeholders", () => {
+    expect(getMetricPathValue(sampleSnapshot, "event.name")).toBe("Demo Event");
+    expect(getMetricPathValue(sampleSnapshot, "sessions.sess_a.title")).toBe("Alpha");
+    expect(getMetricPathValue(sampleSnapshot, "topSessions.0.title")).toBe("Alpha");
+    const out = substituteMetricPlaceholders(
+      "{{event.name}} / {{sessions.sess_a.title}} / {{topSessions.0.title}}",
+      sampleSnapshot,
+    );
+    expect(out).toBe("Demo Event / Alpha / Alpha");
+    expect(() =>
+      assertNoLiteralNumbersOutsidePlaceholders(
+        "Welcome to {{event.name}} — top talk {{topSessions.0.title}}",
+      ),
+    ).not.toThrow();
   });
 });
 

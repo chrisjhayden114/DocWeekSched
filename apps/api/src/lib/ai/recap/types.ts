@@ -30,6 +30,11 @@ export type RecapSessionMetrics = {
 
 export type RecapMetricsSnapshot = {
   eventId: string;
+  /** Event identity for narrative placeholders ({{event.name}}, {{event.id}}). */
+  event: {
+    id: string;
+    name: string;
+  };
   computedAt: string;
   headline: {
     registrants: number;
