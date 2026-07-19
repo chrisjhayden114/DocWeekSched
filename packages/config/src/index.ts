@@ -14,6 +14,9 @@ export const brand = {
   logoAlt: "Product logo",
   /** Reserved public demo event slug (seeded in Phase 6 Chunk C). */
   demoEventSlug: "demo",
+  /** Internal/founder org that owns the public demo (plan INTERNAL — not customer limits). */
+  internalOrgSlug: "colloquium-internal",
+  internalOrgName: "Colloquium Internal",
   /** Honest support hours — used by ToS / security / help. */
   supportHours: "Weekdays 9:00–17:00 US Pacific. Event-day coverage is best-effort.",
   /**

@@ -49,6 +49,11 @@ import { OPS_DETECT_SWEEP_JOB, registerOpsJobs } from "./lib/ai/ops";
 import { registerRecapJobs } from "./lib/ai/recap";
 import { registerCertificateJobs } from "./lib/certificates";
 import { registerAccountDeletionJobs } from "./lib/accountDeletion";
+import {
+  ensureNightlyDemoResetScheduled,
+  registerDemoEventJobs,
+  rejectDemoMutations,
+} from "./lib/demoEvent";
 import { enqueueJob, startJobPoller } from "./lib/jobs";
 const app = express();
 
@@ -104,6 +109,9 @@ app.post(
 app.use(express.json({ limit: "25mb" }));
 app.use(cookieParser());
 app.use(requireCsrf);
+app.use((req, res, next) => {
+  void rejectDemoMutations(req, res, next);
+});
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
@@ -192,5 +200,9 @@ app.listen(env.apiPort, () => {
   registerCertificateJobs();
   registerRecapJobs();
   registerAccountDeletionJobs();
+  registerDemoEventJobs();
+  void ensureNightlyDemoResetScheduled().catch((err) =>
+    console.error("[demo] schedule nightly reset", err),
+  );
   startJobPoller();
 });

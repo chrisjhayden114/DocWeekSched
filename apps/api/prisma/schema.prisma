@@ -519,6 +519,10 @@ model User {
   passwordResetTokenExpiresAt DateTime?
   /// Set while an AccountDeletionRequest is PENDING (7-day grace). Cleared on cancel.
   deactivatedAt               DateTime?
+  /// Phase 6 Chunk C — organizer dismissed the first-run onboarding checklist panel.
+  onboardingDismissedAt       DateTime?
+  /// Phase 6 Chunk C — sample-event prompt was shown or accepted (do not re-offer).
+  sampleEventOfferedAt        DateTime?
   createdAt                   DateTime                 @default(now())
   accountDeletionRequest      AccountDeletionRequest?
   sessionBookmarks            SessionBookmark[]
