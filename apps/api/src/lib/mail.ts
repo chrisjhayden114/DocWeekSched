@@ -100,6 +100,30 @@ export async function sendEmailVerificationEmail(opts: {
   });
 }
 
+/** Optional post-issue notice — digest-class, never push. Caller enforces idempotency. */
+export async function sendCertificateReadyEmail(opts: {
+  to: string;
+  name: string;
+  eventName: string;
+  certificateId: string;
+}): Promise<SendEmailResult> {
+  const from = buildFromLine(opts.eventName);
+  const base = (process.env.WEB_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
+  const verifyUrl = `${base}/verify/${encodeURIComponent(opts.certificateId)}`;
+  return getEmailProvider().send({
+    to: opts.to,
+    from,
+    subject: `Your certificate for ${opts.eventName} is ready`,
+    logLabel: "certificate-ready",
+    copyUrl: verifyUrl,
+    html: `<p>Hi ${escapeHtml(opts.name)},</p>
+<p>Your certificate for <strong>${escapeHtml(opts.eventName)}</strong> is ready.</p>
+<p><a href="${verifyUrl.replace(/"/g, "&quot;")}">View verification page</a></p>
+<p style="color:#555;font-size:13px">Certificate ID: <code>${escapeHtml(opts.certificateId)}</code></p>
+<p style="color:#555;font-size:13px">You can also download it from your event profile after the event.</p>`,
+  });
+}
+
 export async function sendWaitlistPromotedEmail(opts: {
   to: string;
   name: string;
