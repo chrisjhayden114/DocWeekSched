@@ -40,6 +40,7 @@ import { analyticsRouter } from "./routes/analytics";
 import { sponsorsRouter } from "./routes/sponsors";
 import { badgesRouter } from "./routes/badges";
 import { certificatesRouter, verifyRouter } from "./routes/certificates";
+import { accountRouter } from "./routes/account";
 import { asyncHandler } from "./lib/authorization";
 import { flushQueuedPushes, notifySessionStartingSoon } from "./lib/notifications";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
@@ -106,6 +107,7 @@ app.use(requireCsrf);
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/auth", authRouter);
+app.use("/account", accountRouter);
 app.use("/event", eventRouter);
 app.use("/event/maps", mapsRouter);
 app.use("/organizations", organizationsRouter);

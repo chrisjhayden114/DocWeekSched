@@ -2966,6 +2966,9 @@ function ProfileEditor({
   return (
     <form className="card grid" onSubmit={handleSubmit}>
       <h3 style={{ marginTop: 0 }}>My Profile</h3>
+      <p className="help-text" style={{ marginTop: 0 }}>
+        <a href="/account">Account &amp; data export</a>
+      </p>
       {checkInCode ? (
         <div
           style={{
