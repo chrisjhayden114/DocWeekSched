@@ -60,6 +60,7 @@ import {
 } from "./lib/demoEvent";
 import { evaluateReadiness } from "./lib/health";
 import { enqueueJob, getJobPollerHeartbeatAgeMs, startJobPoller } from "./lib/jobs";
+import { jsonBodyParser } from "./lib/bodyLimit";
 
 initSentry();
 
@@ -114,7 +115,8 @@ app.post(
   asyncHandler(handleBillingWebhook),
 );
 
-app.use(express.json({ limit: "25mb" }));
+// Path-aware JSON limits: 1mb default; larger only on upload/ingest routes (see lib/bodyLimit).
+app.use(jsonBodyParser);
 app.use(cookieParser());
 app.use(requireCsrf);
 app.use((req, res, next) => {
@@ -196,6 +198,15 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   const requestId = getRequestId(req);
   if (err instanceof Error && err.message.startsWith("CORS blocked")) {
     return res.status(403).json({ error: "Origin not allowed", requestId });
+  }
+  // express.json / raw body-parser PayloadTooLargeError
+  const payloadErr = err as { type?: string; status?: number; statusCode?: number };
+  if (
+    payloadErr?.type === "entity.too.large" ||
+    payloadErr?.status === 413 ||
+    payloadErr?.statusCode === 413
+  ) {
+    return res.status(413).json({ error: "Payload too large", code: "PAYLOAD_TOO_LARGE", requestId });
   }
   if (err && typeof err === "object" && "status" in err && "body" in err) {
     const httpErr = err as { status: number; body: Record<string, unknown> };
