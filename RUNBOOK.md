@@ -56,6 +56,10 @@ An untested backup doesn't count. Procedure:
 
 ## 4. Deploy
 
+- **CI first:** `.github/workflows/ci.yml` runs lint + typecheck + unit tests, plus the
+  full suite against a service Postgres, on every push. Wire deploys to green builds:
+  Render → "Wait for CI to pass before deploying"; Netlify → branch protection requiring
+  the `checks` and `db-tests` jobs (details in the workflow header comment).
 - **Web:** push to the deploy branch → Netlify builds `apps/web` via the Next.js plugin.
 - **API:** push → Render builds per `render.yaml` (`prisma generate && tsc`, starts `node dist/index.js`).
 - **Migrations:** run `npm run prisma:deploy` (i.e. `prisma migrate deploy`) against production
