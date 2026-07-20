@@ -1,8 +1,19 @@
 import { prisma } from "./db";
 import { ensureUniqueEventSlug, slugifyEventBase } from "./slug";
+import { HttpError } from "./authorization";
 
-export async function getOrCreateEvent() {
-  const existing = await prisma.event.findFirst();
+async function resolveOrganizationId(organizationId?: string): Promise<string> {
+  if (organizationId) return organizationId;
+  const org = await prisma.organization.findFirst({ where: { slug: "default" } });
+  if (!org) {
+    throw new HttpError(503, { error: "Default organization not configured" });
+  }
+  return org.id;
+}
+
+export async function getOrCreateEvent(organizationId?: string) {
+  const orgId = await resolveOrganizationId(organizationId);
+  const existing = await prisma.event.findFirst({ where: { organizationId: orgId } });
   if (existing) return existing;
 
   const name = "My Event";
@@ -14,29 +25,12 @@ export async function getOrCreateEvent() {
       timezone: "America/New_York",
       startDate: new Date(),
       endDate: new Date(),
+      organizationId: orgId,
     },
   });
 }
 
-/**
- * When the client does not send `x-event-id` (e.g. user opened the root site instead of `/e/{slug}`),
- * avoid `findFirst()` (arbitrary row order). Prefer the event with the most sessions (usually the live
- * conference), then the newest `startDate` as a tiebreaker.
- */
-export async function getDefaultEventWhenUnspecified() {
-  const events = await prisma.event.findMany({
-    orderBy: { startDate: "desc" },
-    include: { _count: { select: { sessions: true } } },
-  });
-  if (events.length === 0) {
-    return getOrCreateEvent();
-  }
-  const ranked = [...events].sort((a, b) => {
-    const diff = b._count.sessions - a._count.sessions;
-    if (diff !== 0) return diff;
-    return b.startDate.getTime() - a.startDate.getTime();
-  });
-  const best = ranked[0];
-  const full = await prisma.event.findUnique({ where: { id: best.id } });
-  return full ?? getOrCreateEvent();
+/** @deprecated Use resolveEventFromRequest — throws 404 instead of silent fallback. */
+export async function getDefaultEventWhenUnspecified(): Promise<never> {
+  throw new HttpError(404, { error: "Event not found" });
 }

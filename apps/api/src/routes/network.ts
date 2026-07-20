@@ -1,11 +1,15 @@
 import { NetworkChannel } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
+import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { notifyNewCommunityThread, notifyCommunityReply } from "../lib/notifications";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
-import { AuthedRequest, requireAuth, requireRole } from "../lib/middleware";
+import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { featureKeyForNetworkChannel, requireFeature, featureEnabled } from "../lib/features";
+import { authorOrDeleted } from "../lib/authorDisplay";
+import { validationErrorBody } from "../lib/errors";
 
 export const networkRouter = Router();
 
@@ -28,220 +32,327 @@ const replySchema = z.object({
   body: z.string().min(1).max(8000),
 });
 
-networkRouter.get("/threads", requireAuth, async (req, res) => {
-  const event = await resolveEventFromRequest(req);
-  const rawChannel = typeof req.query.channel === "string" ? req.query.channel : undefined;
-  const allowed: NetworkChannel[] = ["GENERAL", "MEETUP", "MOMENTS", "LOCAL", "ICEBREAKER"];
-  const channel =
-    rawChannel && (allowed as string[]).includes(rawChannel) ? (rawChannel as NetworkChannel) : undefined;
-  const threads = await prisma.networkThread.findMany({
-    where: channel ? { eventId: event.id, channel } : { eventId: event.id },
-    orderBy: { createdAt: "desc" },
-    include: {
-      author: { select: { id: true, name: true, role: true, photoUrl: true } },
-      replies: {
-        orderBy: { createdAt: "asc" },
-        include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
-      },
-    },
+async function assertEventMembers(eventId: string, userIds: string[]) {
+  if (userIds.length === 0) return;
+  const count = await prisma.eventMembership.count({
+    where: { eventId, userId: { in: userIds } },
   });
-  return res.json(threads);
-});
-
-networkRouter.post("/threads", requireAuth, async (req: AuthedRequest, res) => {
-  const parsed = threadSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
+  if (count !== userIds.length) {
+    throw new HttpError(400, { error: "One or more participants are not event members." });
   }
+}
 
-  const event = await resolveEventFromRequest(req);
-  const userId = req.user?.id || "";
-  const channel = parsed.data.channel ?? NetworkChannel.GENERAL;
+networkRouter.get(
+  "/threads",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+    await requireFeature(event.id, "community");
 
-  let meetupInviteEveryone = false;
-  let meetupParticipantIds: string[] = [];
-  let taggedUserIds: string[] = [];
+    const rawChannel = typeof req.query.channel === "string" ? req.query.channel : undefined;
+    const allowed: NetworkChannel[] = ["GENERAL", "MEETUP", "MOMENTS", "LOCAL", "ICEBREAKER"];
+    const channel =
+      rawChannel && (allowed as string[]).includes(rawChannel) ? (rawChannel as NetworkChannel) : undefined;
 
-  let meetupMeetingUrl: string | null = null;
-
-  if (channel === NetworkChannel.MEETUP) {
-    meetupInviteEveryone = parsed.data.meetupInviteEveryone === true;
-    meetupParticipantIds = Array.from(new Set(parsed.data.meetupParticipantIds ?? []));
-    if (!meetupInviteEveryone && meetupParticipantIds.length === 0) {
-      return res.status(400).json({ error: "Add participants or choose Invite everyone." });
+    if (channel) {
+      const channelKey = featureKeyForNetworkChannel(channel);
+      if (channelKey) await requireFeature(event.id, channelKey);
     }
-    if (meetupInviteEveryone) {
-      meetupParticipantIds = [];
-    }
-    if (meetupParticipantIds.length) {
-      const n = await prisma.user.count({ where: { id: { in: meetupParticipantIds } } });
-      if (n !== meetupParticipantIds.length) {
-        return res.status(400).json({ error: "One or more participants are invalid." });
-      }
-    }
-    const mode = parsed.data.meetupMode ?? null;
-    if (mode === "VIRTUAL") {
-      const raw = parsed.data.meetupMeetingUrl?.trim() ?? "";
-      if (!raw) {
-        return res.status(400).json({
-          error: "Virtual meet-ups need a video link (Zoom, Google Meet, Microsoft Teams, etc.).",
-        });
-      }
-      meetupMeetingUrl = raw.slice(0, 4000);
-    }
-  }
 
-  if (channel === NetworkChannel.MOMENTS) {
-    taggedUserIds = Array.from(new Set(parsed.data.taggedUserIds ?? []));
-    if (taggedUserIds.length) {
-      const n = await prisma.user.count({ where: { id: { in: taggedUserIds } } });
-      if (n !== taggedUserIds.length) {
-        return res.status(400).json({ error: "One or more tagged people are invalid." });
-      }
+    const enabledChannels: NetworkChannel[] = [];
+    for (const ch of allowed) {
+      const key = featureKeyForNetworkChannel(ch);
+      if (key && (await featureEnabled(event.id, key))) enabledChannels.push(ch);
     }
-  }
 
-  let imageUrls = (parsed.data.imageUrls ?? []).filter((u) => u && u.trim());
-  const single = parsed.data.imageUrl?.trim();
-  if (single && imageUrls.length === 0) {
-    imageUrls = [single];
-  }
-  imageUrls = imageUrls.slice(0, 12);
-  const imageUrl = imageUrls[0] ?? null;
-  const mapsUrl =
-    channel === NetworkChannel.LOCAL ? (parsed.data.mapsUrl?.trim().slice(0, 4000) || null) : null;
-
-  const thread = await prisma.networkThread.create({
-    data: {
-      eventId: event.id,
-      authorId: userId,
-      title: parsed.data.title,
-      body: parsed.data.body,
-      channel,
-      meetupMode: parsed.data.meetupMode ?? null,
-      meetupStartsAt: parsed.data.meetupStartsAt ? new Date(parsed.data.meetupStartsAt) : null,
-      meetupMeetingUrl,
-      meetupInviteEveryone,
-      meetupParticipantIds,
-      taggedUserIds,
-      imageUrl,
-      imageUrls,
-      mapsUrl,
-    },
-    include: {
-      author: { select: { id: true, name: true, role: true, photoUrl: true } },
-      replies: {
-        include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
+    const threads = await prisma.networkThread.findMany({
+      where: channel
+        ? { eventId: event.id, channel }
+        : { eventId: event.id, channel: { in: enabledChannels } },
+      orderBy: { createdAt: "desc" },
+      include: {
+        author: { select: { id: true, name: true, role: true, photoUrl: true } },
+        replies: {
+          orderBy: { createdAt: "asc" },
+          include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
+        },
       },
-    },
-  });
-
-  await awardEngagementPoints(userId, POINTS.NETWORK_THREAD);
-
-  const authorName = thread.author.name;
-  try {
-    await notifyNewCommunityThread({
-      eventId: event.id,
-      threadId: thread.id,
-      channel,
-      title: thread.title,
-      authorId: userId,
-      authorName,
-      meetupInviteEveryone,
-      meetupParticipantIds,
     });
-  } catch (err) {
-    console.error("notifyNewCommunityThread failed:", err);
-  }
+    return res.json(
+      threads.map((t) => ({
+        ...t,
+        author: authorOrDeleted(t.author),
+        replies: t.replies.map((r) => ({ ...r, author: authorOrDeleted(r.author) })),
+      })),
+    );
+  }),
+);
 
-  return res.json(thread);
-});
+networkRouter.post(
+  "/threads",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = threadSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
 
-networkRouter.post("/threads/:id/replies", requireAuth, async (req: AuthedRequest, res) => {
-  const parsed = replySchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
-  }
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+    await requireFeature(event.id, "community");
 
-  const event = await resolveEventFromRequest(req);
-  const thread = await prisma.networkThread.findFirst({
-    where: { id: req.params.id, eventId: event.id },
-    include: {
-      replies: { select: { authorId: true } },
-    },
-  });
-  if (!thread) {
-    return res.status(404).json({ error: "Thread not found" });
-  }
+    const userId = req.user!.id;
+    const channel = parsed.data.channel ?? NetworkChannel.GENERAL;
+    const channelKey = featureKeyForNetworkChannel(channel);
+    if (channelKey) await requireFeature(event.id, channelKey);
 
-  const userId = req.user?.id || "";
-  const reply = await prisma.networkReply.create({
-    data: {
-      threadId: thread.id,
-      authorId: userId,
-      body: parsed.data.body,
-    },
-    include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
-  });
+    let meetupInviteEveryone = false;
+    let meetupParticipantIds: string[] = [];
+    let taggedUserIds: string[] = [];
 
-  await awardEngagementPoints(userId, POINTS.NETWORK_REPLY);
+    let meetupMeetingUrl: string | null = null;
 
-  const priorReplierIds = Array.from(new Set(thread.replies.map((r) => r.authorId)));
-  const fullThread = await prisma.networkThread.findUnique({
-    where: { id: thread.id },
-    select: { title: true, authorId: true },
-  });
-  if (fullThread) {
+    if (channel === NetworkChannel.MEETUP) {
+      meetupInviteEveryone = parsed.data.meetupInviteEveryone === true;
+      meetupParticipantIds = Array.from(new Set(parsed.data.meetupParticipantIds ?? []));
+      if (!meetupInviteEveryone && meetupParticipantIds.length === 0) {
+        return res.status(400).json({ error: "Add participants or choose Invite everyone." });
+      }
+      if (meetupInviteEveryone) {
+        meetupParticipantIds = [];
+      }
+      if (meetupParticipantIds.length) {
+        await assertEventMembers(event.id, meetupParticipantIds);
+      }
+      const mode = parsed.data.meetupMode ?? null;
+      if (mode === "VIRTUAL") {
+        const raw = parsed.data.meetupMeetingUrl?.trim() ?? "";
+        if (!raw) {
+          return res.status(400).json({
+            error: "Virtual meet-ups need a video link (Zoom, Google Meet, Microsoft Teams, etc.).",
+          });
+        }
+        meetupMeetingUrl = raw.slice(0, 4000);
+      }
+    }
+
+    if (channel === NetworkChannel.MOMENTS) {
+      taggedUserIds = Array.from(new Set(parsed.data.taggedUserIds ?? []));
+      if (taggedUserIds.length) {
+        await assertEventMembers(event.id, taggedUserIds);
+      }
+    }
+
+    let imageUrls = (parsed.data.imageUrls ?? []).filter((u) => u && u.trim());
+    const single = parsed.data.imageUrl?.trim();
+    if (single && imageUrls.length === 0) {
+      imageUrls = [single];
+    }
+    imageUrls = imageUrls.slice(0, 12);
+    const imageUrl = imageUrls[0] ?? null;
+    const mapsUrl =
+      channel === NetworkChannel.LOCAL ? (parsed.data.mapsUrl?.trim().slice(0, 4000) || null) : null;
+
+    const thread = await prisma.networkThread.create({
+      data: {
+        eventId: event.id,
+        authorId: userId,
+        title: parsed.data.title,
+        body: parsed.data.body,
+        channel,
+        meetupMode: parsed.data.meetupMode ?? null,
+        meetupStartsAt: parsed.data.meetupStartsAt ? new Date(parsed.data.meetupStartsAt) : null,
+        meetupMeetingUrl,
+        meetupInviteEveryone,
+        meetupParticipantIds,
+        taggedUserIds,
+        imageUrl,
+        imageUrls,
+        mapsUrl,
+      },
+      include: {
+        author: { select: { id: true, name: true, role: true, photoUrl: true } },
+        replies: {
+          include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
+        },
+      },
+    });
+
+    await awardEngagementPoints(userId, POINTS.NETWORK_THREAD);
+
+    const authorName = thread.author?.name ?? "Deleted participant";
     try {
-      await notifyCommunityReply({
+      await notifyNewCommunityThread({
         eventId: event.id,
         threadId: thread.id,
-        threadTitle: fullThread.title,
-        threadAuthorId: fullThread.authorId,
-        replierId: userId,
-        replierName: reply.author.name,
-        replyPreview: parsed.data.body,
-        priorReplierIds,
+        channel,
+        title: thread.title,
+        authorId: userId,
+        authorName,
+        meetupInviteEveryone,
+        meetupParticipantIds,
       });
     } catch (err) {
-      console.error("notifyCommunityReply failed:", err);
+      console.error("notifyNewCommunityThread failed:", err);
     }
-  }
 
-  return res.json(reply);
+    return res.json({
+      ...thread,
+      author: authorOrDeleted(thread.author),
+      replies: thread.replies.map((r) => ({ ...r, author: authorOrDeleted(r.author) })),
+    });
+  }),
+);
+
+networkRouter.post(
+  "/threads/:id/replies",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = replySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
+
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+
+    const thread = await prisma.networkThread.findFirst({
+      where: { id: req.params.id, eventId: event.id },
+      include: {
+        replies: { select: { authorId: true } },
+      },
+    });
+    if (!thread) {
+      throw new HttpError(404, { error: "Thread not found" });
+    }
+
+    const userId = req.user!.id;
+    const reply = await prisma.networkReply.create({
+      data: {
+        threadId: thread.id,
+        authorId: userId,
+        body: parsed.data.body,
+      },
+      include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
+    });
+
+    await awardEngagementPoints(userId, POINTS.NETWORK_REPLY);
+
+    const priorReplierIds = Array.from(
+      new Set(thread.replies.map((r) => r.authorId).filter((id): id is string => Boolean(id))),
+    );
+    const fullThread = await prisma.networkThread.findUnique({
+      where: { id: thread.id },
+      select: { title: true, authorId: true },
+    });
+    if (fullThread) {
+      try {
+        await notifyCommunityReply({
+          eventId: event.id,
+          threadId: thread.id,
+          threadTitle: fullThread.title,
+          threadAuthorId: fullThread.authorId ?? "",
+          replierId: userId,
+          replierName: reply.author?.name ?? "Deleted participant",
+          replyPreview: parsed.data.body,
+          priorReplierIds,
+        });
+      } catch (err) {
+        console.error("notifyCommunityReply failed:", err);
+      }
+    }
+
+    return res.json({ ...reply, author: authorOrDeleted(reply.author) });
+  }),
+);
+
+networkRouter.delete(
+  "/threads/:id/replies/:replyId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+
+    const thread = await prisma.networkThread.findFirst({
+      where: { id: req.params.id, eventId: event.id },
+      select: { id: true },
+    });
+    if (!thread) {
+      throw new HttpError(404, { error: "Thread not found" });
+    }
+
+    const reply = await prisma.networkReply.findFirst({
+      where: { id: req.params.replyId, threadId: thread.id },
+      select: { id: true },
+    });
+    if (!reply) {
+      throw new HttpError(404, { error: "Reply not found" });
+    }
+
+    await prisma.networkReply.delete({ where: { id: reply.id } });
+    return res.json({ ok: true });
+  }),
+);
+
+networkRouter.delete(
+  "/threads/:id",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+
+    const thread = await prisma.networkThread.findFirst({
+      where: { id: req.params.id, eventId: event.id },
+    });
+    if (!thread) {
+      throw new HttpError(404, { error: "Thread not found" });
+    }
+
+    await prisma.networkThread.delete({ where: { id: thread.id } });
+    return res.json({ ok: true });
+  }),
+);
+
+const threadEditSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  body: z.string().min(1).max(20_000).optional(),
 });
 
-networkRouter.delete("/threads/:id/replies/:replyId", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
-  const event = await resolveEventFromRequest(req);
-  const thread = await prisma.networkThread.findFirst({
-    where: { id: req.params.id, eventId: event.id },
-    select: { id: true },
-  });
-  if (!thread) {
-    return res.status(404).json({ error: "Thread not found" });
-  }
+networkRouter.patch(
+  "/threads/:id",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = threadEditSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
 
-  const reply = await prisma.networkReply.findFirst({
-    where: { id: req.params.replyId, threadId: thread.id },
-    select: { id: true },
-  });
-  if (!reply) {
-    return res.status(404).json({ error: "Reply not found" });
-  }
+    const thread = await prisma.networkThread.findFirst({
+      where: { id: req.params.id, eventId: event.id },
+    });
+    if (!thread) throw new HttpError(404, { error: "Thread not found" });
 
-  await prisma.networkReply.delete({ where: { id: reply.id } });
-  return res.json({ ok: true });
-});
+    const updated = await prisma.networkThread.update({
+      where: { id: thread.id },
+      data: {
+        ...(parsed.data.title !== undefined ? { title: parsed.data.title.trim() } : {}),
+        ...(parsed.data.body !== undefined ? { body: parsed.data.body.trim() } : {}),
+      },
+      include: {
+        author: { select: { id: true, name: true, role: true, photoUrl: true } },
+        replies: {
+          orderBy: { createdAt: "asc" },
+          include: { author: { select: { id: true, name: true, role: true, photoUrl: true } } },
+        },
+      },
+    });
+    return res.json(updated);
+  }),
+);
 
-networkRouter.delete("/threads/:id", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
-  const event = await resolveEventFromRequest(req);
-  const thread = await prisma.networkThread.findFirst({
-    where: { id: req.params.id, eventId: event.id },
-  });
-  if (!thread) {
-    return res.status(404).json({ error: "Thread not found" });
-  }
-
-  await prisma.networkThread.delete({ where: { id: thread.id } });
-  return res.json({ ok: true });
-});

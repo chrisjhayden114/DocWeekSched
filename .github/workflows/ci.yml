@@ -1,0 +1,90 @@
+# CI — lint + typecheck + unit tests on every push; DB tests against a
+# disposable service Postgres.
+#
+# Deploy gating (do this once in the provider dashboards):
+#   Render (API):   Service → Settings → Build & Deploy → enable
+#     "Wait for CI to pass before deploying" (a.k.a. Auto-Deploy: After CI
+#     Checks Pass) so a push only deploys when this workflow is green.
+#   Netlify (web):  Site → Configuration → Build & deploy → turn OFF
+#     "Auto deploy" branch builds OR keep them but add this repo's CI as a
+#     required GitHub branch-protection check on the deploy branch
+#     (Settings → Branches → require "checks" + "db-tests" to pass) so red
+#     commits can't land on the branch Netlify deploys from.
+#
+# The DB job sets ALLOW_DESTRUCTIVE_DB=1 with a localhost DATABASE_URL so the
+# destructive-DB guard (RUNBOOK.md §6) permits the *.db.test.ts files against
+# the throwaway container. Never copy those two env lines to anything that can
+# reach a real database.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    env:
+      # env.ts requires these at import even for unit tests; values are inert.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/unused
+      JWT_SECRET: ci-only-secret-not-used-anywhere
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Prisma generate (API types)
+        run: npm run prisma:generate --workspace @event-app/api
+      - name: Lint API
+        run: npm run lint --workspace @event-app/api
+      - name: Typecheck API
+        run: npx tsc -p apps/api/tsconfig.json --noEmit
+      - name: Typecheck web
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
+      - name: Unit tests
+        working-directory: apps/api
+        run: npx vitest run unit.test
+      - name: Web security-header tests
+        run: npm test --workspace @event-app/web
+
+  db-tests:
+    name: Full suite vs service Postgres
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: event_app_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/event_app_test
+      JWT_SECRET: ci-only-secret-not-used-anywhere
+      # Guard override is safe ONLY because DATABASE_URL above is the
+      # job-scoped throwaway container.
+      ALLOW_DESTRUCTIVE_DB: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Prisma generate + migrate
+        run: |
+          npm run prisma:generate --workspace @event-app/api
+          npm run prisma:deploy --workspace @event-app/api
+      - name: Full test suite (unit + db)
+        working-directory: apps/api
+        run: npx vitest run

@@ -1,8 +1,35 @@
+import { brand, icsProductId } from "@event-app/config";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  DELETED_PARTICIPANT_LABEL,
+  resolveFeatureEnabled,
+  type FeatureKey,
+  type FeatureOverrideValue,
+} from "@event-app/shared";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DateTimePicker } from "../components/DateTimePicker";
+import { EventSettingsModal } from "../components/EventSettingsModal";
+import { ConciergeChat } from "../components/ConciergeChat";
+import { MatchmakerPanel } from "../components/MatchmakerPanel";
+import { KebabMenu } from "../components/KebabMenu";
 import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
-import { apiFetch } from "../lib/api";
+import { UploadDropzone } from "../components/UploadDropzone";
+import { VenueMapsAttendee, roomPinIndex } from "../components/VenueMapsAttendee";
+import { MeetingRequestModal, MeetingRequestsPanel } from "../components/MeetingRequestsPanel";
+import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
+import { apiFetch, apiFetchAll, clearAuthClientState } from "../lib/api";
+import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
+import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
+import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
+import { offerPushAfterFirstAgendaSave } from "../lib/push";
+import { AutolinkText } from "../components/AutolinkText";
+import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
+import { SponsorsStrip } from "../components/SponsorsStrip";
+import { OnboardingPanel } from "../components/OnboardingPanel";
+
+type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
 type User = {
   id: string;
@@ -11,10 +38,16 @@ type User = {
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
   photoUrl?: string | null;
   researchInterests?: string | null;
+  title?: string | null;
+  affiliation?: string | null;
+  bio?: string | null;
   participantType?: "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | null;
   engagementPoints?: number;
   inviteStatus?: "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED";
   inviteExpiresAt?: string | null;
+  isEventAdmin?: boolean;
+  orgRole?: "OWNER" | "ADMIN" | "STAFF" | null;
+  eventRole?: string | null;
 };
 
 type Event = {
@@ -26,6 +59,7 @@ type Event = {
   timezone: string;
   startDate: string;
   endDate: string;
+  showPoweredByBadge?: boolean;
 };
 
 type AgendaJoinMode = "VIRTUAL" | "IN_PERSON" | "ASYNC";
@@ -35,6 +69,11 @@ type Session = {
   title: string;
   description?: string;
   location?: string | null;
+  roomId?: string | null;
+  trackId?: string | null;
+  room?: { id: string; name: string } | null;
+  track?: { id: string; name: string; color?: string } | null;
+  items?: { id: string; title: string; sortOrder?: number; authors?: { name: string; sortOrder?: number }[] }[];
   speakers?: string | null;
   zoomLink?: string | null;
   recordingUrl?: string | null;
@@ -44,6 +83,8 @@ type Session = {
   startsAt: string;
   endsAt: string;
   allowVirtualJoin?: boolean | null;
+  inPersonCapacity?: number | null;
+  virtualCapacity?: number | null;
   speaker?: { name: string };
   speakerId?: string | null;
   bookmarks?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
@@ -51,6 +92,15 @@ type Session = {
     userId: string;
     status: "JOINING" | "NOT_JOINING";
     joinMode?: AgendaJoinMode | null;
+    user: Pick<User, "id" | "name" | "email" | "photoUrl">;
+  }[];
+  waitlistEntries?: {
+    id: string;
+    userId: string;
+    mode: AgendaJoinMode;
+    position: number;
+    promotedAt?: string | null;
+    holdExpiresAt?: string | null;
     user: Pick<User, "id" | "name" | "email" | "photoUrl">;
   }[];
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
@@ -64,13 +114,18 @@ type Conversation = {
   members: ConversationMember[];
   messages: { id: string; body: string; createdAt: string; user: { id: string; name: string } }[];
 };
-type Message = { id: string; body: string; createdAt: string; user: { id: string; name: string; role: string } };
+type Message = {
+  id: string;
+  body: string;
+  createdAt: string;
+  user: { id: string | null; name: string; role: string | null; deleted?: boolean };
+};
 type SessionAttendance = {
   sessionId: string;
   status: "JOINING" | "NOT_JOINING";
   joinMode?: AgendaJoinMode | null;
 };
-type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[] };
+type MySessionMeta = { attendance: SessionAttendance[]; likedSessionIds: string[]; bookmarkedSessionIds?: string[] };
 type EventItem = {
   id: string;
   name: string;
@@ -138,7 +193,13 @@ function timezoneOptionLabel(timezone: string) {
   return map[timezone] || timezone;
 }
 
-type NetworkAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
+type NetworkAuthor = {
+  id: string | null;
+  name: string;
+  role: string | null;
+  photoUrl?: string | null;
+  deleted?: boolean;
+};
 type NetworkReply = { id: string; body: string; createdAt: string; author: NetworkAuthor };
 type NetworkThread = {
   id: string;
@@ -161,27 +222,56 @@ type NetworkThread = {
 
 type UserNotificationRow = {
   id: string;
-  kind: "COMMUNITY_THREAD" | "COMMUNITY_REPLY" | "MESSAGE" | "ADMIN_REQUEST";
+  kind:
+    | "COMMUNITY_THREAD"
+    | "COMMUNITY_REPLY"
+    | "MESSAGE"
+    | "ADMIN_REQUEST"
+    | "WAITLIST_PROMOTED"
+    | "ANNOUNCEMENT"
+    | "MEETING_REQUEST"
+    | "MEETING_ACCEPTED"
+    | "SESSION_CHANGED"
+    | "SESSION_STARTING_SOON"
+    | "DIGEST_ROLLUP"
+    | "USER_REPORT"
+    | "AGENT_ATTENDEE_TOUCH";
   title: string;
   body: string | null;
   threadId: string | null;
   conversationId: string | null;
+  sessionId?: string | null;
+  meetingRequestId?: string | null;
+  announcementId?: string | null;
   readAt: string | null;
   createdAt: string;
 };
 
 const COMMUNITY_TAB = "Community" as const;
 const PARTICIPANTS_INVITES_TAB = "Participants and Invites" as const;
+const MAPS_TAB = "Maps" as const;
+const MATCHMAKER_TAB = "Meet" as const;
 const adminTabs = [
   "Agenda",
   "Attendees",
+  MATCHMAKER_TAB,
   PARTICIPANTS_INVITES_TAB,
   COMMUNITY_TAB,
+  MAPS_TAB,
   "Messages",
   "Notifications",
   "Profile",
 ] as const;
-const participantTabs = ["Agenda", "Attendees", COMMUNITY_TAB, "Messages", "Notifications", "Profile"] as const;
+const participantTabs = [
+  "Agenda",
+  "Attendees",
+  MATCHMAKER_TAB,
+  COMMUNITY_TAB,
+  MAPS_TAB,
+  "Messages",
+  "Notifications",
+  "Profile",
+] as const;
 type Tab = (typeof adminTabs)[number];
 
 type CommunityChannelFilter = "ALL" | "GENERAL" | "MEETUP" | "MOMENTS" | "LOCAL" | "ICEBREAKER";
@@ -222,15 +312,23 @@ export default function Dashboard() {
   const [event, setEvent] = useState<Event | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attendees, setAttendees] = useState<User[]>([]);
+  const [attendeesLoading, setAttendeesLoading] = useState(false);
   const [networkThreads, setNetworkThreads] = useState<NetworkThread[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [messagePrefill, setMessagePrefill] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [newChatMode, setNewChatMode] = useState<null | "direct" | "group">(null);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
   const [agendaTimeMode, setAgendaTimeMode] = useState<"MY" | "EVENT">("MY");
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
+  const [bookmarkedSessionIds, setBookmarkedSessionIds] = useState<string[]>([]);
+  const [agendaFilterTrack, setAgendaFilterTrack] = useState<string>("");
+  const [agendaFilterRoom, setAgendaFilterRoom] = useState<string>("");
+  const [agendaFilterDay, setAgendaFilterDay] = useState<string>("");
+  const [agendaSearch, setAgendaSearch] = useState("");
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [communityChannel, setCommunityChannel] = useState<CommunityChannelFilter>("ALL");
@@ -239,9 +337,26 @@ export default function Dashboard() {
   const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
   const [eventSettingsOpen, setEventSettingsOpen] = useState(false);
   const [eventSettingsError, setEventSettingsError] = useState<string | null>(null);
+  const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
+  const [rosterConfirm, setRosterConfirm] = useState<null | {
+    kind: "make-admin" | "remove-admin" | "delete";
+    user: User;
+  }>(null);
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const [messageConfirmId, setMessageConfirmId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageBody, setEditingMessageBody] = useState("");
   const [notifications, setNotifications] = useState<UserNotificationRow[]>([]);
   const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
   const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
+  const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
+  const [roomPins, setRoomPins] = useState<Record<string, { mapId: string; pinId: string }>>({});
+  const [mapsFocus, setMapsFocus] = useState<{ mapId: string | null; pinId: string | null }>({
+    mapId: null,
+    pinId: null,
+  });
+  const [meetingTarget, setMeetingTarget] = useState<{ id: string; name: string } | null>(null);
+  const [meetingsRefreshKey, setMeetingsRefreshKey] = useState(0);
   const myTimezone = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -249,6 +364,11 @@ export default function Dashboard() {
       return "UTC";
     }
   }, []);
+
+  const featureOn = useCallback(
+    (key: FeatureKey) => resolveFeatureEnabled(key, featureOverrides),
+    [featureOverrides],
+  );
 
   const withEventHeaders = (extra: RequestInit = {}): RequestInit => {
     if (!activeEventId) return extra;
@@ -264,27 +384,44 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const storedToken = window.localStorage.getItem("token");
-    const storedUser = window.localStorage.getItem("user");
-    if (!storedToken || !storedUser) {
-      window.location.href = "/";
-      return;
-    }
-    setToken(storedToken);
-    setUser(JSON.parse(storedUser));
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await apiFetch<User>("/auth/me", withEventHeaders());
+        if (cancelled) return;
+        setUser(fresh);
+        window.localStorage.setItem("user", JSON.stringify(fresh));
+        window.localStorage.removeItem("token");
+        setToken("session");
+      } catch {
+        if (!cancelled) {
+          clearAuthClientState();
+          window.location.href = "/login";
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!token) return;
     apiFetch<Event>("/event", withEventHeaders(), token).then(setEvent).catch(() => null);
-    apiFetch<User>("/auth/me", {}, token).then((freshUser) => {
+    apiFetch<User>("/auth/me", withEventHeaders(), token).then((freshUser) => {
       setUser(freshUser);
       window.localStorage.setItem("user", JSON.stringify(freshUser));
     }).catch(() => null);
-    apiFetch<MySessionMeta>("/sessions/me", {}, token).then((meta) => {
-      setMyAttendance(meta.attendance);
-      setLikedSessionIds(meta.likedSessionIds);
-    }).catch(() => null);
+    if (activeEventId) {
+      apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(), token).then((meta) => {
+        setMyAttendance(meta.attendance);
+        setLikedSessionIds(meta.likedSessionIds);
+        setBookmarkedSessionIds(meta.bookmarkedSessionIds || []);
+      }).catch(() => null);
+      apiFetch<{ overrides: FeatureOverridesMap }>("/event/features", withEventHeaders(), token)
+        .then((res) => setFeatureOverrides(res.overrides || {}))
+        .catch(() => setFeatureOverrides({}));
+    }
   }, [token, activeEventId]);
 
   useEffect(() => {
@@ -308,18 +445,23 @@ export default function Dashboard() {
     const load = async () => {
       if (active === "Agenda") {
         setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
-        if (user?.role === "ADMIN" && attendees.length === 0) {
-          setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+        if (isAdmin && attendees.length === 0) {
+          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
         }
       }
       if (active === "Attendees" || active === PARTICIPANTS_INVITES_TAB) {
-        setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+        setAttendeesLoading(true);
+        try {
+          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
+        } finally {
+          setAttendeesLoading(false);
+        }
       }
       if (active === COMMUNITY_TAB) {
         const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
         setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token));
         if (attendees.length === 0) {
-          setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
         }
       }
       if (active === "Notifications") {
@@ -334,10 +476,10 @@ export default function Dashboard() {
           setActiveConversationId(preferred.id);
         }
         if (attendees.length === 0) {
-          setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+          setAttendees(await apiFetchAll<User>("/attendees", {}, token));
         }
       }
-      if (user?.role === "ADMIN") {
+      if (isAdmin) {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
         setAdminEvents(mergeAdminEvents(myEvents, event));
       }
@@ -354,7 +496,7 @@ export default function Dashboard() {
     if (!token || active !== "Messages" || !activeConversationId) return;
     setMessages([]);
     let cancelled = false;
-    apiFetch<Message[]>(`/conversations/${activeConversationId}/messages`, withEventHeaders(), token)
+    apiFetchAll<Message>(`/conversations/${activeConversationId}/messages`, withEventHeaders(), token)
       .then((rows) => {
         if (!cancelled) setMessages(rows);
       })
@@ -406,39 +548,144 @@ export default function Dashboard() {
     }
   }, [active, conversations, activeConversationId]);
 
-  const isAdmin = useMemo(() => user?.role === "ADMIN", [user]);
-  const availableTabs = useMemo(() => (isAdmin ? adminTabs : participantTabs), [isAdmin]);
+  const isAdmin = useMemo(() => Boolean(user?.isEventAdmin || user?.role === "ADMIN"), [user]);
+  const messagingEnabled =
+    featureOn("messaging_dms") || featureOn("messaging_groups") || featureOn("messaging_event_chat");
+  const availableTabs = useMemo(() => {
+    const base = isAdmin ? adminTabs : participantTabs;
+    return base.filter((tab) => {
+      if (tab === "Attendees") return featureOn("attendee_directory");
+      if (tab === MATCHMAKER_TAB) return featureOn("matchmaker");
+      if (tab === COMMUNITY_TAB) return featureOn("community");
+      if (tab === "Messages") return messagingEnabled;
+      if (tab === MAPS_TAB) return featureOn("venue_maps");
+      return true;
+    });
+  }, [isAdmin, featureOn, messagingEnabled]);
   const unreadNotifications = useMemo(
     () => notifications.filter((row) => !row.readAt).length,
     [notifications],
   );
+  const unreadConversationIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const n of notifications) {
+      if (n.kind === "MESSAGE" && !n.readAt && n.conversationId) ids.add(n.conversationId);
+    }
+    return ids;
+  }, [notifications]);
+  const notificationsByDay = useMemo(() => {
+    const groups: { heading: string; items: UserNotificationRow[] }[] = [];
+    let current = "";
+    for (const n of notifications) {
+      const heading = formatDayHeading(n.createdAt);
+      if (heading !== current) {
+        current = heading;
+        groups.push({ heading, items: [] });
+      }
+      groups[groups.length - 1]!.items.push(n);
+    }
+    return groups;
+  }, [notifications]);
   const rosterAdminCount = useMemo(() => attendees.filter((a) => a.role === "ADMIN").length, [attendees]);
+  const timezoneToggleOn = featureOn("timezone_toggle");
+  const sessionLikesOn = featureOn("session_likes");
+  const engagementPointsOn = featureOn("engagement_points");
+  const venueMapsOn = featureOn("venue_maps");
+
+  useEffect(() => {
+    if (!token || !activeEventId || !venueMapsOn) {
+      setRoomPins({});
+      return;
+    }
+    apiFetch<Array<{ id: string; pins: Array<{ id: string; linkedRoomId?: string | null }> }>>(
+      "/event/maps/",
+      withEventHeaders(),
+      token,
+    )
+      .then((list) => setRoomPins(roomPinIndex(list as never)))
+      .catch(() => setRoomPins({}));
+  }, [token, activeEventId, venueMapsOn]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const mapId = typeof router.query.mapId === "string" ? router.query.mapId : null;
+    const pinId = typeof router.query.pinId === "string" ? router.query.pinId : null;
+    const tabQ = typeof router.query.tab === "string" ? router.query.tab : null;
+    if (tabQ === "Maps" || mapId || pinId) {
+      setActive(MAPS_TAB);
+      setMapsFocus({ mapId, pinId });
+    }
+  }, [router.isReady, router.query.mapId, router.query.pinId, router.query.tab]);
 
   useEffect(() => {
     if (!availableTabs.some((tab) => tab === active)) {
       setActive("Agenda");
     }
   }, [availableTabs, active]);
+
+  useEffect(() => {
+    if (!timezoneToggleOn && agendaTimeMode !== "EVENT") {
+      setAgendaTimeMode("EVENT");
+    }
+  }, [timezoneToggleOn, agendaTimeMode]);
+
   const sortedSessions = useMemo(
     () => [...sessions].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
     [sessions]
   );
   const agendaDisplayTimezone = useMemo(
-    () => (agendaTimeMode === "EVENT" ? event?.timezone || myTimezone : myTimezone),
-    [agendaTimeMode, event?.timezone, myTimezone],
+    () =>
+      !timezoneToggleOn || agendaTimeMode === "EVENT"
+        ? event?.timezone || myTimezone
+        : myTimezone,
+    [timezoneToggleOn, agendaTimeMode, event?.timezone, myTimezone],
   );
+  const filteredSessions = useMemo(
+    () =>
+      filterSessions(
+        sortedSessions,
+        {
+          trackId: agendaFilterTrack || null,
+          roomId: agendaFilterRoom || null,
+          dayKey: agendaFilterDay || null,
+          query: agendaSearch,
+        },
+        (iso) => zonedDayKey(new Date(iso), agendaDisplayTimezone),
+      ),
+    [sortedSessions, agendaFilterTrack, agendaFilterRoom, agendaFilterDay, agendaSearch, agendaDisplayTimezone],
+  );
+  const agendaNowNext = useMemo(() => nowAndNext(filteredSessions), [filteredSessions]);
+  const trackOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; color?: string }>();
+    for (const s of sessions) {
+      if (s.trackId && s.track) map.set(s.trackId, { id: s.track.id, name: s.track.name, color: s.track.color });
+    }
+    return [...map.values()];
+  }, [sessions]);
+  const roomOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const s of sessions) {
+      if (s.roomId && s.room) map.set(s.roomId, s.room);
+    }
+    return [...map.values()];
+  }, [sessions]);
+  const dayOptions = useMemo(() => {
+    const keys = new Set(sortedSessions.map((s) => zonedDayKey(new Date(s.startsAt), agendaDisplayTimezone)));
+    return [...keys];
+  }, [sortedSessions, agendaDisplayTimezone]);
   const groupedAgenda = useMemo(
-    () => groupSessionsByDayAndTime(sortedSessions, agendaDisplayTimezone),
-    [sortedSessions, agendaDisplayTimezone],
+    () => groupSessionsByDayAndTime(filteredSessions, agendaDisplayTimezone),
+    [filteredSessions, agendaDisplayTimezone],
   );
   const joiningSessionIds = useMemo(
     () => myAttendance.filter((item) => item.status === "JOINING").map((item) => item.sessionId),
     [myAttendance]
   );
   const myScheduledSessions = useMemo(
-    () => sortedSessions.filter((session) => joiningSessionIds.includes(session.id)),
-    [sortedSessions, joiningSessionIds]
+    () => filteredSessions.filter((session) => joiningSessionIds.includes(session.id)),
+    [filteredSessions, joiningSessionIds]
   );
+  const myOverlapIds = useMemo(() => overlappingSessionIds(myScheduledSessions), [myScheduledSessions]);
   const groupedMySchedule = useMemo(
     () => groupSessionsByDayAndTime(myScheduledSessions, agendaDisplayTimezone),
     [myScheduledSessions, agendaDisplayTimezone],
@@ -471,17 +718,6 @@ export default function Dashboard() {
     [messagingConversationsOrdered],
   );
 
-  const filteredMessageAttendees = useMemo(() => {
-    const uid = user?.id;
-    if (!uid) return [];
-    return attendees.filter((a) => {
-      if (a.id === uid) return false;
-      if (!messageSearchLower) return true;
-      const hay = `${a.name} ${a.email || ""} ${a.researchInterests || ""}`.toLowerCase();
-      return hay.includes(messageSearchLower);
-    });
-  }, [attendees, messageSearchLower, user?.id]);
-
   const filteredDirectAndGroup = useMemo(() => {
     if (!user) return [];
     if (!messageSearchLower) return directAndGroupConversations;
@@ -497,11 +733,17 @@ export default function Dashboard() {
     return conversations.find((c) => c.id === activeConversationId) ?? null;
   }, [conversations, activeConversationId]);
 
-  const handleLogout = () => {
-    window.localStorage.removeItem("token");
-    window.localStorage.removeItem("user");
-    window.location.href = "/";
+  const handleLogout = async () => {
+    try {
+      await apiFetch("/auth/logout", { method: "POST" }, token || undefined);
+    } catch {
+      /* ignore */
+    }
+    clearAuthClientState();
+    window.location.href = "/login";
   };
+
+  const isOrganizer = Boolean(user?.isEventAdmin || user?.role === "ADMIN");
 
   const patchSessionAttendance = async (
     sessionId: string,
@@ -531,14 +773,34 @@ export default function Dashboard() {
       setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
       if (body.status === "JOINING") {
         void refreshUser();
+        void offerPushAfterFirstAgendaSave(token);
       }
-    } catch {
+    } catch (err) {
       setMyAttendance(prevAttendance);
+      const msg = err instanceof Error ? err.message : "Could not update attendance";
+      if (/waitlist|full/i.test(msg)) {
+        window.alert(msg);
+        setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token).catch(() => sessions));
+        const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token).catch(() => null);
+        if (meta) setMyAttendance(meta.attendance);
+      }
     }
   };
 
   const goToSessionPage = (sessionId: string) => {
     router.push(`/session/${sessionId}`);
+  };
+
+  const goToRoomOnMap = (roomId: string) => {
+    const pin = roomPins[roomId];
+    if (!pin) return;
+    setMapsFocus({ mapId: pin.mapId, pinId: pin.pinId });
+    setActive(MAPS_TAB);
+    void router.replace(
+      { pathname: "/dashboard", query: { tab: "Maps", mapId: pin.mapId, pinId: pin.pinId } },
+      undefined,
+      { shallow: true },
+    );
   };
 
   const toggleSessionLike = async (sessionId: string) => {
@@ -561,6 +823,27 @@ export default function Dashboard() {
       void refreshUser();
     } catch {
       setLikedSessionIds(prevLikes);
+    }
+  };
+
+  const toggleSessionBookmark = async (sessionId: string) => {
+    if (!token) return;
+    const starred = bookmarkedSessionIds.includes(sessionId);
+    const prev = bookmarkedSessionIds;
+    if (starred) {
+      setBookmarkedSessionIds((ids) => ids.filter((id) => id !== sessionId));
+      try {
+        await apiFetch(`/sessions/${sessionId}/bookmark`, { method: "DELETE" }, token);
+      } catch {
+        setBookmarkedSessionIds(prev);
+      }
+      return;
+    }
+    setBookmarkedSessionIds((ids) => [...ids, sessionId]);
+    try {
+      await apiFetch(`/sessions/${sessionId}/bookmark`, { method: "PUT" }, token);
+    } catch {
+      setBookmarkedSessionIds(prev);
     }
   };
 
@@ -631,7 +914,7 @@ export default function Dashboard() {
           </div>
           <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)" }}>
             {user.name} · {user.role}
-            {typeof user.engagementPoints === "number" && (
+            {engagementPointsOn && typeof user.engagementPoints === "number" && (
               <>
                 {" · "}
                 <span
@@ -648,166 +931,51 @@ export default function Dashboard() {
         </div>
         <div className="app-shell-actions">
           {isAdmin && event && (
-            <div className="event-settings-wrap">
-              <button
-                className="button secondary event-settings-trigger"
-                type="button"
-                onClick={() => {
-                  setEventSettingsError(null);
-                  setEventSettingsOpen((open) => !open);
-                }}
-              >
-                {eventSettingsOpen ? "Close Event Settings" : "Edit Event Settings"}
-              </button>
-              {eventSettingsOpen && (
-                <div className="card event-settings-panel">
-                  <div className="event-settings-title">Edit This Event</div>
-                  <p className="help-text" style={{ marginTop: 0 }}>
-                    Update the title, header logo, banner, slug, and dates for the active event.
-                  </p>
-                  <form
-                    className="grid"
-                    style={{ marginTop: 10 }}
-                    onSubmit={async (eventForm) => {
-                      eventForm.preventDefault();
-                      const form = new FormData(eventForm.currentTarget);
-                      await updateCurrentEvent({
-                        name: String(form.get("name") || ""),
-                        slug: String(form.get("slug") || "").trim() || undefined,
-                        bannerUrl: String(form.get("bannerUrl") || ""),
-                        logoUrl: String(form.get("logoUrl") || "").trim() || undefined,
-                        timezone: String(form.get("timezone") || "UTC"),
-                        startDate: zonedDateTimeLocalToIso(
-                          String(form.get("startDate") || ""),
-                          String(form.get("timezone") || event.timezone || "UTC"),
-                        ),
-                        endDate: zonedDateTimeLocalToIso(
-                          String(form.get("endDate") || ""),
-                          String(form.get("timezone") || event.timezone || "UTC"),
-                        ),
-                      });
-                    }}
-                  >
-                    <input className="input" name="name" defaultValue={event.name} required />
-                    <label className="help-text" style={{ margin: 0, display: "grid", gap: 8 }}>
-                      <span>
-                        <strong>Permanent join link</strong> (does not change — use this for email, programs, and
-                        long-term access):{" "}
-                        <strong>
-                          {typeof window !== "undefined"
-                            ? `${window.location.origin}/e/${event.id}`
-                            : `/e/${event.id}`}
-                        </strong>
-                      </span>
-                      <span>
-                        Optional readable link (changes if you edit the slug below):{" "}
-                        <strong>
-                          {typeof window !== "undefined"
-                            ? `${window.location.origin}/e/${event.slug}`
-                            : `/e/${event.slug}`}
-                        </strong>
-                      </span>
-                    </label>
-                    <input
-                      className="input"
-                      name="slug"
-                      defaultValue={event.slug}
-                      pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                      title="Lowercase letters, numbers, and single hyphens"
-                    />
-                    <label className="help-text" style={{ margin: 0 }}>
-                      Header logo (square PNG/JPG; appears next to the event title)
-                    </label>
-                    <input className="input" name="logoUrl" defaultValue={event.logoUrl || ""} placeholder="Logo URL or upload below" />
-                    <input
-                      className="input"
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const data = await fileToDataUrl(file, { maxWidth: 512, maxHeight: 512, quality: 0.88 });
-                        const el = e.currentTarget.form?.elements.namedItem("logoUrl");
-                        if (el instanceof HTMLInputElement) el.value = data;
-                      }}
-                    />
-                    <input className="input" name="bannerUrl" defaultValue={event.bannerUrl || ""} placeholder="Banner image URL or upload below" />
-                    <input
-                      className="input"
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const data = await fileToDataUrl(file, { maxWidth: 1920, maxHeight: 720, quality: 0.82 });
-                        const el = e.currentTarget.form?.elements.namedItem("bannerUrl");
-                        if (el instanceof HTMLInputElement) el.value = data;
-                      }}
-                    />
-                    {eventSettingsError ? (
-                      <p className="help-text" style={{ color: "#b42318", margin: 0 }}>
-                        {eventSettingsError}
-                      </p>
-                    ) : null}
-                    <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-                      Event timezone
-                      <select className="select" name="timezone" defaultValue={event.timezone} required>
-                        {!EVENT_TIMEZONE_OPTIONS.includes(event.timezone) && (
-                          <option value={event.timezone}>{timezoneOptionLabel(event.timezone)}</option>
-                        )}
-                        {EVENT_TIMEZONE_OPTIONS.map((tz) => (
-                          <option key={tz} value={tz}>{timezoneOptionLabel(tz)}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      name="startDate"
-                      defaultValue={toLocalInputValueInTimeZone(event.startDate, event.timezone)}
-                      required
-                    />
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      name="endDate"
-                      defaultValue={toLocalInputValueInTimeZone(event.endDate, event.timezone)}
-                      required
-                    />
-                    <button className="button" type="submit" disabled={updatingEvent}>
-                      {updatingEvent ? "Saving..." : "Save Event"}
-                    </button>
-                  </form>
-                </div>
-              )}
-            </div>
+            <button
+              className="button secondary event-settings-trigger"
+              type="button"
+              onClick={() => {
+                setEventSettingsError(null);
+                setEventSettingsOpen(true);
+              }}
+            >
+              Event settings
+            </button>
           )}
-          <button className="button secondary" onClick={handleLogout}>Logout</button>
+          <button className="button secondary" onClick={handleLogout}>
+            Logout
+          </button>
         </div>
       </div>
+
+      <OnboardingPanel
+        onSampleCreated={(eventId) => {
+          writeClientStorage(window.localStorage, "linkedEventContext", eventId);
+          window.location.reload();
+        }}
+      />
 
       <div className="nav dashboard-tabs" style={{ marginBottom: 20 }}>
         {availableTabs.map((tab) => (
           <button
             key={tab}
             type="button"
-            className={`${active === tab ? "active" : ""}${tab === "Notifications" && unreadNotifications > 0 ? " nav-tab-unread" : ""}`}
+            className={active === tab ? "active" : ""}
             onClick={() => setActive(tab)}
           >
             <span className="nav-tab-inner">
               <MainNavIcon tab={tab} />
               <span>{tab}</span>
-              {tab === "Notifications" && unreadNotifications > 0 ? (
-                <span className="nav-unread-badge" aria-label={`${unreadNotifications} unread`}>
-                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                </span>
-              ) : null}
             </span>
           </button>
         ))}
       </div>
 
       {active === "Agenda" && (
+        <>
+          {token && activeEventId ? (
+            <SponsorsStrip token={token} eventId={activeEventId} enabled={featureOn("sponsors")} />
+          ) : null}
         <div className="schedule-layout">
           <div className="card schedule-list">
             <div className="nav agenda-view-toggle" role="tablist" aria-label="Schedule views">
@@ -831,31 +999,133 @@ export default function Dashboard() {
                 My Schedule
               </button>
             </div>
-            <div className="nav agenda-timezone-toggle" role="tablist" aria-label="Time display mode">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={agendaTimeMode === "MY"}
-                className={agendaTimeMode === "MY" ? "active" : ""}
-                onClick={() => setAgendaTimeMode("MY")}
-              >
-                My timezone
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={agendaTimeMode === "EVENT"}
-                className={agendaTimeMode === "EVENT" ? "active" : ""}
-                onClick={() => setAgendaTimeMode("EVENT")}
-              >
-                Event timezone
-              </button>
-            </div>
+            {timezoneToggleOn ? (
+              <div className="nav agenda-timezone-toggle" role="tablist" aria-label="Time display mode">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={agendaTimeMode === "MY"}
+                  className={agendaTimeMode === "MY" ? "active" : ""}
+                  onClick={() => setAgendaTimeMode("MY")}
+                >
+                  My timezone
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={agendaTimeMode === "EVENT"}
+                  className={agendaTimeMode === "EVENT" ? "active" : ""}
+                  onClick={() => setAgendaTimeMode("EVENT")}
+                >
+                  Event timezone
+                </button>
+              </div>
+            ) : null}
             <p className="help-text" style={{ margin: "8px 0 12px" }}>
               Times shown in{" "}
-              <strong>{agendaDisplayTimezone}</strong>{" "}
-              ({agendaTimeMode === "MY" ? "your device setting" : "event setting"}).
+              <strong>{agendaDisplayTimezone}</strong>
+              {timezoneToggleOn
+                ? ` (${agendaTimeMode === "MY" ? "your device setting" : "event setting"}).`
+                : " (event timezone)."}
             </p>
+            <div className="agenda-filters" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              <input
+                className="input"
+                style={{ flex: "1 1 160px", minWidth: 140 }}
+                placeholder="Search sessions, speakers, papers…"
+                value={agendaSearch}
+                onChange={(e) => setAgendaSearch(e.target.value)}
+              />
+              <select className="input" value={agendaFilterDay} onChange={(e) => setAgendaFilterDay(e.target.value)}>
+                <option value="">All days</option>
+                {dayOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+              <select className="input" value={agendaFilterTrack} onChange={(e) => setAgendaFilterTrack(e.target.value)}>
+                <option value="">All tracks</option>
+                {trackOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <select className="input" value={agendaFilterRoom} onChange={(e) => setAgendaFilterRoom(e.target.value)}>
+                <option value="">All rooms</option>
+                {roomOptions.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(agendaNowNext.now.length > 0 || agendaNowNext.next) && (
+              <p className="help-text" style={{ marginTop: 0 }}>
+                {agendaNowNext.now.length > 0 ? (
+                  <>
+                    <strong>Now:</strong> {agendaNowNext.now.map((s) => s.title).join(" · ")}
+                    {agendaNowNext.next ? " · " : ""}
+                  </>
+                ) : null}
+                {agendaNowNext.next ? (
+                  <>
+                    <strong>Next:</strong> {agendaNowNext.next.title}
+                  </>
+                ) : null}
+              </p>
+            )}
+            {agendaView === "My Schedule" && myOverlapIds.size > 0 ? (
+              <p className="help-text" style={{ color: "#b42318", marginTop: 0 }}>
+                {myOverlapIds.size} sessions on your agenda overlap — check times before you go.
+              </p>
+            ) : null}
+            {agendaView === "My Schedule" ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    const lines = [
+                      "BEGIN:VCALENDAR",
+                      "VERSION:2.0",
+                      `PRODID:${icsProductId('Agenda')}`,
+                      "CALSCALE:GREGORIAN",
+                    ];
+                    for (const s of myScheduledSessions) {
+                      lines.push(
+                        "BEGIN:VEVENT",
+                        `UID:${s.id}@${brand.domain}`,
+                        `DTSTART:${new Date(s.startsAt).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`,
+                        `DTEND:${new Date(s.endsAt).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`,
+                        `SUMMARY:${(s.title || "").replace(/\n/g, " ")}`,
+                        "END:VEVENT",
+                      );
+                    }
+                    lines.push("END:VCALENDAR");
+                    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = "my-agenda.ics";
+                    a.click();
+                  }}
+                >
+                  Download agenda ICS
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={async () => {
+                    if (!token) return;
+                    const res = await apiFetch<{ url: string }>("/ics/feed", withEventHeaders({ method: "POST" }), token);
+                    window.prompt("Subscribe to this read-only ICS URL in your calendar app:", res.url);
+                  }}
+                >
+                  ICS subscription URL
+                </button>
+              </div>
+            ) : null}
             {agendaView === "Event Schedule" && (
               <ScheduleBoard
                 grouped={groupedAgenda}
@@ -864,10 +1134,20 @@ export default function Dashboard() {
                 displayTimezone={agendaDisplayTimezone}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
-                likedSessionIds={likedSessionIds}
+                likedSessionIds={sessionLikesOn ? likedSessionIds : []}
+                bookmarkedSessionIds={bookmarkedSessionIds}
                 onPatchAttendance={patchSessionAttendance}
-                onToggleLike={toggleSessionLike}
-                onEditSession={(session) => setEditingSession(session)}
+                onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
+                onToggleBookmark={toggleSessionBookmark}
+                likesEnabled={sessionLikesOn}
+                qaEnabled={featureOn("session_qa")}
+                roomPins={venueMapsOn ? roomPins : {}}
+                onViewOnMap={venueMapsOn ? goToRoomOnMap : undefined}
+                onEditSession={(session) => {
+                  setEditingSession(session);
+                  setSessionFormKey((k) => k + 1);
+                  setSessionDrawerOpen(true);
+                }}
                 onGoToSession={goToSessionPage}
               />
             )}
@@ -879,32 +1159,87 @@ export default function Dashboard() {
                 displayTimezone={agendaDisplayTimezone}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
-                likedSessionIds={likedSessionIds}
+                likedSessionIds={sessionLikesOn ? likedSessionIds : []}
+                bookmarkedSessionIds={bookmarkedSessionIds}
                 onPatchAttendance={patchSessionAttendance}
-                onToggleLike={toggleSessionLike}
-                onEditSession={(session) => setEditingSession(session)}
+                onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
+                onToggleBookmark={toggleSessionBookmark}
+                likesEnabled={sessionLikesOn}
+                qaEnabled={featureOn("session_qa")}
+                roomPins={venueMapsOn ? roomPins : {}}
+                onViewOnMap={venueMapsOn ? goToRoomOnMap : undefined}
+                onEditSession={(session) => {
+                  setEditingSession(session);
+                  setSessionFormKey((k) => k + 1);
+                  setSessionDrawerOpen(true);
+                }}
                 onGoToSession={goToSessionPage}
               />
             )}
           </div>
           {isAdmin && (
-            <SessionForm
-              key={sessionFormKey}
-              token={token!}
-              eventTimezone={event?.timezone || "UTC"}
-              eventHeaders={withEventHeaders}
-              attendees={attendees}
-              editing={editingSession}
-              onSaved={async () => {
-                setEditingSession(null);
-                setActive("Agenda");
-                setSessionFormKey((k) => k + 1);
-                setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token!));
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              onCancel={() => setEditingSession(null)}
-            />
+            <div className="schedule-admin-rail">
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setEditingSession(null);
+                  setSessionFormKey((k) => k + 1);
+                  setSessionDrawerOpen(true);
+                }}
+              >
+                + New session
+              </button>
+              {sessionDrawerOpen || editingSession ? (
+                <>
+                  <div
+                    className="drawer-backdrop"
+                    role="presentation"
+                    onClick={() => {
+                      setSessionDrawerOpen(false);
+                      setEditingSession(null);
+                    }}
+                  />
+                  <div className="drawer-panel" role="dialog" aria-modal="true" aria-label="Session editor">
+                    <SessionForm
+                      key={sessionFormKey}
+                      token={token!}
+                      eventTimezone={event?.timezone || "UTC"}
+                      eventHeaders={withEventHeaders}
+                      attendees={attendees}
+                      editing={editingSession}
+                      onSaved={async () => {
+                        setEditingSession(null);
+                        setSessionDrawerOpen(false);
+                        setActive("Agenda");
+                        setSessionFormKey((k) => k + 1);
+                        setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token!));
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      onCancel={() => {
+                        setEditingSession(null);
+                        setSessionDrawerOpen(false);
+                      }}
+                    />
+                  </div>
+                </>
+              ) : null}
+            </div>
           )}
+        </div>
+        </>
+      )}
+
+      {active === MAPS_TAB && venueMapsOn && (
+        <div className="card">
+          <VenueMapsAttendee
+            eventId={activeEventId}
+            token={token}
+            withEventHeaders={withEventHeaders}
+            focusMapId={mapsFocus.mapId}
+            focusPinId={mapsFocus.pinId}
+            displayTimezone={agendaDisplayTimezone}
+          />
         </div>
       )}
 
@@ -913,13 +1248,57 @@ export default function Dashboard() {
           <AttendeeDirectory
             attendees={attendees}
             currentUserId={user.id}
+            loading={attendeesLoading}
             onMessage={startDirectMessage}
+            onRequestMeeting={(a) => setMeetingTarget({ id: a.id, name: a.name })}
+          />
+          {token ? (
+            <MeetingRequestsPanel
+              key={meetingsRefreshKey}
+              token={token}
+              withEventHeaders={withEventHeaders}
+              currentUserId={user.id}
+            />
+          ) : null}
+          <MeetingRequestModal
+            open={Boolean(meetingTarget)}
+            toUser={meetingTarget}
+            token={token!}
+            withEventHeaders={withEventHeaders}
+            onClose={() => setMeetingTarget(null)}
+            onSent={() => setMeetingsRefreshKey((k) => k + 1)}
           />
         </>
       )}
 
+      {active === MATCHMAKER_TAB && token && activeEventId && featureOn("matchmaker") ? (
+        <MatchmakerPanel
+          eventId={activeEventId}
+          token={token}
+          withEventHeaders={withEventHeaders}
+          onViewProfile={(userId) => {
+            setActive("Attendees");
+            // Directory shows all opted-in; focus via hash for accessibility
+            if (typeof window !== "undefined") {
+              window.location.hash = `attendee-${userId}`;
+            }
+          }}
+          onDraftIntro={({ conversationId, prefillBody }) => {
+            if (!conversations.some((c) => c.id === conversationId)) {
+              apiFetch<Conversation[]>("/conversations", withEventHeaders(), token)
+                .then(setConversations)
+                .catch(() => null);
+            }
+            setActiveConversationId(conversationId);
+            setMessagePrefill(prefillBody);
+            setActive("Messages");
+          }}
+        />
+      ) : null}
+
       {active === PARTICIPANTS_INVITES_TAB && isAdmin && (
         <div className="grid" style={{ gap: 16 }}>
+          <ModerationReportsPanel token={token!} withEventHeaders={withEventHeaders} />
           <div className="card" style={{ padding: 18 }}>
             <h3 style={{ marginTop: 0 }}>Add participants</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
@@ -960,7 +1339,7 @@ export default function Dashboard() {
               activeEventId={activeEventId}
               eventSlug={event?.slug ?? null}
               onInvited={async () => {
-                const list = await apiFetch<User[]>("/attendees", {}, token!);
+                const list = await apiFetchAll<User>("/attendees", withEventHeaders(), token!);
                 setAttendees(list);
               }}
             />
@@ -969,7 +1348,7 @@ export default function Dashboard() {
               withEventHeaders={withEventHeaders}
               activeEventId={activeEventId}
               onDone={async () => {
-                const list = await apiFetch<User[]>("/attendees", {}, token!);
+                const list = await apiFetchAll<User>("/attendees", withEventHeaders(), token!);
                 setAttendees(list);
               }}
             />
@@ -1014,88 +1393,42 @@ export default function Dashboard() {
                             : "—"}
                       </td>
                       <td data-label="Actions" className="invite-actions-cell">
-                        {a.role === "ADMIN" ? (
-                          <div className="invite-roster-actions invite-roster-actions--admin">
-                            {a.id === user.id ? (
-                              <p className="roster-admin-note">
-                                <strong>You</strong> — signed in as an administrator for this workspace.
-                              </p>
-                            ) : (
-                              <>
-                                <p className="roster-admin-note">
-                                  <strong>{a.name}</strong> has <strong>administrator</strong> access (events, invites,
-                                  sessions).
-                                </p>
-                                <button
-                                  type="button"
-                                  className="button secondary invite-roster-btn"
-                                  disabled={rosterAdminCount <= 1}
-                                  title={
-                                    rosterAdminCount <= 1
-                                      ? "There must be at least one administrator"
-                                      : "Demote to attendee"
-                                  }
-                                  onClick={async () => {
-                                    const ok = window.confirm(
-                                      `Remove administrator access for ${a.name}? They will become a regular attendee.`,
-                                    );
-                                    if (!ok) return;
-                                    try {
-                                      await apiFetch(`/attendees/${a.id}/remove-admin`, { method: "POST" }, token!);
-                                      setAttendees(
-                                        await apiFetch<User[]>("/attendees", withEventHeaders(), token!),
-                                      );
-                                    } catch (err) {
-                                      window.alert(err instanceof Error ? err.message : "Could not update role.");
-                                    }
-                                  }}
-                                >
-                                  Remove admin access
-                                </button>
-                              </>
-                            )}
-                          </div>
+                        {a.id === user.id ? (
+                          <p className="roster-admin-note text-meta" style={{ margin: 0 }}>
+                            You
+                          </p>
                         ) : (
-                          <div className="invite-roster-actions">
-                            <button
-                              type="button"
-                              className="button secondary invite-roster-btn"
-                              onClick={async () => {
-                                const ok = window.confirm(
-                                  `Make ${a.name} (${a.email}) an administrator? They will be able to manage events, invites, and sessions.`,
-                                );
-                                if (!ok) return;
-                                try {
-                                  await apiFetch(`/attendees/${a.id}/make-admin`, { method: "POST" }, token!);
-                                  setAttendees(
-                                    await apiFetch<User[]>("/attendees", withEventHeaders(), token!),
-                                  );
-                                } catch (err) {
-                                  window.alert(err instanceof Error ? err.message : "Could not promote participant.");
-                                }
-                              }}
-                            >
-                              Make admin
-                            </button>
-                            <button
-                              type="button"
-                              className="button secondary invite-roster-btn"
-                              onClick={async () => {
-                                const ok = window.confirm(
-                                  `Delete ${a.name} (${a.email}) and remove their posts, replies, likes, and participation data?`,
-                                );
-                                if (!ok) return;
-                                try {
-                                  await apiFetch(`/attendees/${a.id}`, { method: "DELETE" }, token!);
-                                  setAttendees((prev) => prev.filter((row) => row.id !== a.id));
-                                } catch (err) {
-                                  window.alert(err instanceof Error ? err.message : "Could not delete participant.");
-                                }
-                              }}
-                            >
-                              Delete participant
-                            </button>
-                          </div>
+                          <KebabMenu
+                            label={`Actions for ${a.name}`}
+                            items={[
+                              ...(a.role === "ADMIN"
+                                ? [
+                                    {
+                                      id: "remove-admin",
+                                      label: "Remove admin access",
+                                      disabled: rosterAdminCount <= 1,
+                                      title:
+                                        rosterAdminCount <= 1
+                                          ? "There must be at least one administrator"
+                                          : undefined,
+                                      onSelect: () => setRosterConfirm({ kind: "remove-admin", user: a }),
+                                    },
+                                  ]
+                                : [
+                                    {
+                                      id: "make-admin",
+                                      label: "Make admin",
+                                      onSelect: () => setRosterConfirm({ kind: "make-admin", user: a }),
+                                    },
+                                  ]),
+                              {
+                                id: "delete",
+                                label: "Remove from event",
+                                tone: "danger" as const,
+                                onSelect: () => setRosterConfirm({ kind: "delete", user: a }),
+                              },
+                            ]}
+                          />
                         )}
                       </td>
                     </tr>
@@ -1119,6 +1452,13 @@ export default function Dashboard() {
           onFocusThreadConsumed={clearCommunityFocus}
           token={token!}
           withEventHeaders={withEventHeaders}
+          enabledChannels={{
+            MEETUP: featureOn("community_meetups"),
+            MOMENTS: featureOn("community_moments"),
+            LOCAL: featureOn("community_local"),
+            ICEBREAKER: featureOn("community_icebreakers"),
+            GENERAL: featureOn("community_general"),
+          }}
           onThreadsUpdated={async () => {
             const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
             setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token!));
@@ -1133,79 +1473,112 @@ export default function Dashboard() {
       {active === "Notifications" && (
         <div className="card" style={{ padding: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <h3 style={{ margin: 0 }}>Notifications</h3>
-            {unreadNotifications > 0 ? (
-              <button
-                type="button"
-                className="button secondary"
-                onClick={async () => {
-                  await apiFetch("/notifications/read-all", withEventHeaders({ method: "POST" }), token!);
-                  setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!));
-                }}
-              >
-                Mark all read
-              </button>
-            ) : null}
+            <h3 style={{ margin: 0 }}>
+              Notifications
+              {unreadNotifications > 0 ? (
+                <span className="help-text" style={{ marginLeft: 10, fontWeight: 600 }}>
+                  {unreadNotifications} unread
+                </span>
+              ) : (
+                <span className="help-text" style={{ marginLeft: 10, fontWeight: 500 }}>
+                  All caught up
+                </span>
+              )}
+            </h3>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={unreadNotifications === 0}
+              onClick={async () => {
+                await apiFetch("/notifications/read-all", withEventHeaders({ method: "POST" }), token!);
+                setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!));
+              }}
+            >
+              Mark all read
+            </button>
           </div>
           <p className="help-text" style={{ marginTop: 8 }}>
-            You get a confirmation when <strong>you</strong> publish to Community; everyone else is notified too (except on meet-ups limited to specific people). Replies, DMs, groups, and admin event-wide messages also appear here.{" "}
-            <strong>Administrator access requested</strong> alerts go to organizers when someone uses Profile → Request administrator access. Open an item to jump to it — opening this tab marks items as read.
+            One inbox for this event — session changes and messages may notify you; quieter community activity rolls into your
+            daily digest. Open an item to jump to it.
           </p>
           {notifications.length === 0 ? (
             <p className="help-text" style={{ marginTop: 16 }}>
               You&apos;re all caught up.
             </p>
           ) : (
-            <ul className="notification-list" style={{ listStyle: "none", padding: 0, margin: "16px 0 0" }}>
-              {notifications.map((n) => (
-                <li key={n.id} style={{ borderBottom: "1px solid var(--border)", padding: "12px 0" }}>
-                  <button
-                    type="button"
-                    className={`notification-row${n.readAt ? "" : " is-unread"}`}
-                    onClick={async () => {
-                      if (!n.readAt) {
-                        await apiFetch(`/notifications/${n.id}/read`, withEventHeaders({ method: "PATCH" }), token!);
-                        setNotifications((prev) =>
-                          prev.map((row) => (row.id === n.id ? { ...row, readAt: new Date().toISOString() } : row)),
-                        );
-                      }
-                      if (n.kind === "ADMIN_REQUEST") {
-                        setActive(PARTICIPANTS_INVITES_TAB);
-                      } else if (n.threadId) {
-                        setCommunityChannel("ALL");
-                        setCommunityFocusThreadId(n.threadId);
-                        setActive(COMMUNITY_TAB);
-                      } else if (n.conversationId) {
-                        setActive("Messages");
-                        setActiveConversationId(n.conversationId);
-                        apiFetch<Conversation[]>("/conversations", withEventHeaders(), token!)
-                          .then(setConversations)
-                          .catch(() => null);
-                      }
-                    }}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      cursor: "pointer",
-                      font: "inherit",
-                    }}
-                  >
-                    <strong style={{ display: "block" }}>{n.title}</strong>
-                    {n.body ? (
-                      <span className="help-text" style={{ display: "block", marginTop: 4 }}>
-                        {n.body}
-                      </span>
-                    ) : null}
-                    <span className="help-text" style={{ display: "block", marginTop: 6, fontSize: 12 }}>
-                      {new Date(n.createdAt).toLocaleString()}
-                    </span>
-                  </button>
-                </li>
+            <div style={{ marginTop: 16 }}>
+              {notificationsByDay.map((group) => (
+                <div key={group.heading} style={{ marginBottom: 18 }}>
+                  <h4 className="help-text" style={{ margin: "0 0 8px", fontWeight: 700, letterSpacing: "0.02em" }}>
+                    {group.heading}
+                  </h4>
+                  <ul className="notification-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                    {group.items.map((n) => (
+                      <li key={n.id} style={{ borderBottom: "1px solid var(--border)", padding: "12px 0" }}>
+                        <button
+                          type="button"
+                          className={`notification-row${n.readAt ? "" : " is-unread"}`}
+                          onClick={async () => {
+                            if (!n.readAt) {
+                              await apiFetch(`/notifications/${n.id}/read`, withEventHeaders({ method: "PATCH" }), token!);
+                              setNotifications((prev) =>
+                                prev.map((row) => (row.id === n.id ? { ...row, readAt: new Date().toISOString() } : row)),
+                              );
+                            }
+                            if (n.kind === "ADMIN_REQUEST" || n.kind === "USER_REPORT") {
+                              setActive(PARTICIPANTS_INVITES_TAB);
+                            } else if (n.kind === "AGENT_ATTENDEE_TOUCH") {
+                              setActive(MATCHMAKER_TAB);
+                            } else if (n.kind === "MEETING_REQUEST" || n.kind === "MEETING_ACCEPTED" || n.meetingRequestId) {
+                              setActive("Attendees");
+                            } else if (n.sessionId) {
+                              router.push(`/session/${n.sessionId}`);
+                            } else if (n.threadId) {
+                              setCommunityChannel("ALL");
+                              setCommunityFocusThreadId(n.threadId);
+                              setActive(COMMUNITY_TAB);
+                            } else if (n.conversationId) {
+                              setActive("Messages");
+                              setActiveConversationId(n.conversationId);
+                              apiFetch<Conversation[]>("/conversations", withEventHeaders(), token!)
+                                .then(setConversations)
+                                .catch(() => null);
+                            }
+                          }}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                            font: "inherit",
+                            display: "flex",
+                            gap: 10,
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <span className="notification-kind-icon" aria-hidden>
+                            {notificationKindIcon(n.kind)}
+                          </span>
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <strong style={{ display: "block" }}>{n.title}</strong>
+                            {n.body ? (
+                              <span className="help-text" style={{ display: "block", marginTop: 4 }}>
+                                {n.body}
+                              </span>
+                            ) : null}
+                            <span className="help-text" style={{ display: "block", marginTop: 6, fontSize: 12 }}>
+                              {formatEventDateTime(n.createdAt)}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       )}
@@ -1213,43 +1586,76 @@ export default function Dashboard() {
       {active === "Messages" && (
         <div className="grid two messages-layout">
           <div className="card message-sidebar-card">
-            <h3 style={{ marginTop: 0 }}>Messages</h3>
-            <p className="help-text" style={{ marginTop: 0 }}>
-              <strong>Direct:</strong> pick someone below and click <strong>Start chat</strong>, then select their name under &quot;Your chats&quot;.{" "}
-              <strong>Everyone — event chat</strong> reaches all attendees; admins can broadcast there. Session Q&amp;A stays on each session page.
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h3 style={{ margin: 0 }}>Messages</h3>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setNewChatMode((prev) => (prev ? null : "direct"))}
+              >
+                {newChatMode ? "Close" : "+ New"}
+              </button>
+            </div>
+            <p className="help-text" style={{ marginTop: 8 }}>
+              Your chats are listed below. Use <strong>+ New</strong> for a direct or group conversation.{" "}
+              <strong>Everyone — event chat</strong> reaches all attendees; session Q&amp;A stays on each session page.
             </p>
-            <DirectChatForm
-              attendees={filteredMessageAttendees}
-              currentUserId={user.id}
-              token={token!}
-              withEventHeaders={withEventHeaders}
-              onCreated={(c) => {
-                setConversations([c, ...conversations]);
-                setActiveConversationId(c.id);
-              }}
-            />
-            <GroupChatForm
-              attendees={filteredMessageAttendees}
-              currentUserId={user.id}
-              token={token!}
-              withEventHeaders={withEventHeaders}
-              onCreated={(c) => {
-                setConversations([c, ...conversations]);
-                setActiveConversationId(c.id);
-              }}
-            />
-            <hr style={{ margin: "18px 0", border: 0, borderTop: "1px solid var(--border)" }} />
+            {newChatMode ? (
+              <div className="new-chat-panel" style={{ marginBottom: 14, padding: 12, border: "1px solid var(--border)", borderRadius: 10 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <button
+                    type="button"
+                    className={newChatMode === "direct" ? "button" : "button secondary"}
+                    onClick={() => setNewChatMode("direct")}
+                  >
+                    Direct
+                  </button>
+                  <button
+                    type="button"
+                    className={newChatMode === "group" ? "button" : "button secondary"}
+                    onClick={() => setNewChatMode("group")}
+                  >
+                    Group
+                  </button>
+                </div>
+                {newChatMode === "direct" ? (
+                  <DirectChatForm
+                    attendees={attendees}
+                    currentUserId={user.id}
+                    token={token!}
+                    withEventHeaders={withEventHeaders}
+                    onCreated={(c) => {
+                      setConversations([c, ...conversations]);
+                      setActiveConversationId(c.id);
+                      setNewChatMode(null);
+                    }}
+                  />
+                ) : (
+                  <GroupChatForm
+                    attendees={attendees}
+                    currentUserId={user.id}
+                    token={token!}
+                    withEventHeaders={withEventHeaders}
+                    onCreated={(c) => {
+                      setConversations([c, ...conversations]);
+                      setActiveConversationId(c.id);
+                      setNewChatMode(null);
+                    }}
+                  />
+                )}
+              </div>
+            ) : null}
             <label className="help-text" htmlFor="message-directory-search" style={{ display: "block", marginBottom: 6 }}>
-              Filter people and chat names
+              Filter chats
             </label>
             <input
               id="message-directory-search"
               className="input"
               type="search"
-              placeholder="Type a name, email, or topic…"
+              placeholder="Type a name or chat topic…"
               value={messageDirectoryQuery}
               onChange={(e) => setMessageDirectoryQuery(e.target.value)}
-              aria-label="Search people and conversations"
+              aria-label="Search conversations"
             />
             <h4 style={{ margin: "16px 0 8px" }}>Your chats</h4>
             <div className="grid" style={{ gap: 8 }}>
@@ -1258,8 +1664,14 @@ export default function Dashboard() {
                   type="button"
                   className={activeConversationId === eventWideConversation.id ? "button" : "button secondary"}
                   onClick={() => setActiveConversationId(eventWideConversation.id)}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
                 >
-                  {formatConversationName(eventWideConversation, user)}
+                  <span>{formatConversationName(eventWideConversation, user)}</span>
+                  {unreadConversationIds.has(eventWideConversation.id) ? (
+                    <span className="help-text" style={{ fontWeight: 700, fontSize: 12 }}>
+                      New
+                    </span>
+                  ) : null}
                 </button>
               ) : null}
               {filteredDirectAndGroup.map((c) => (
@@ -1268,8 +1680,14 @@ export default function Dashboard() {
                   className={activeConversationId === c.id ? "button" : "button secondary"}
                   onClick={() => setActiveConversationId(c.id)}
                   type="button"
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
                 >
-                  {formatConversationName(c, user)}
+                  <span>{formatConversationName(c, user)}</span>
+                  {unreadConversationIds.has(c.id) ? (
+                    <span className="help-text" style={{ fontWeight: 700, fontSize: 12 }}>
+                      New
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -1291,7 +1709,7 @@ export default function Dashboard() {
                     ? "Only people in this group see these messages."
                     : activeConversation
                       ? "Only you and this person are in this thread."
-                      : "Select a chat on the left, or start one by choosing a participant."}
+                      : "Select a chat from the list, or start one with + New."}
               </p>
             </div>
             <div
@@ -1317,9 +1735,84 @@ export default function Dashboard() {
               ) : (
                 messages.map((m) => (
                   <div key={m.id} style={{ borderBottom: "1px solid var(--border)", padding: "10px 0" }}>
-                    <strong>{m.user.name}</strong> <span style={{ color: "var(--ink-500)" }}>({m.user.role})</span>
-                    <p style={{ margin: "4px 0" }}>{m.body}</p>
-                    <small style={{ color: "var(--ink-500)" }}>{new Date(m.createdAt).toLocaleString()}</small>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+                      <div>
+                        <strong>{m.user?.name ?? DELETED_PARTICIPANT_LABEL}</strong>{" "}
+                        <span style={{ color: "var(--ink-500)" }}>
+                          ({m.user?.role ?? "—"})
+                        </span>
+                      </div>
+                      {(isAdmin || (m.user?.id != null && m.user.id === user.id)) && (
+                        <KebabMenu
+                          label={`Message actions`}
+                          items={[
+                            {
+                              id: "edit",
+                              label: "Edit",
+                              onSelect: () => {
+                                setEditingMessageId(m.id);
+                                setEditingMessageBody(m.body);
+                              },
+                            },
+                            {
+                              id: "delete",
+                              label: "Delete",
+                              tone: "danger",
+                              onSelect: () => setMessageConfirmId(m.id),
+                            },
+                          ]}
+                        />
+                      )}
+                    </div>
+                    {editingMessageId === m.id ? (
+                      <form
+                        className="grid"
+                        style={{ gap: 8, marginTop: 8 }}
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (!activeConversationId || !token) return;
+                          try {
+                            const updated = await apiFetch<Message>(
+                              `/conversations/${activeConversationId}/messages/${m.id}`,
+                              withEventHeaders({
+                                method: "PATCH",
+                                body: JSON.stringify({ body: editingMessageBody }),
+                              }),
+                              token,
+                            );
+                            setMessages((prev) => prev.map((row) => (row.id === m.id ? updated : row)));
+                            setEditingMessageId(null);
+                          } catch (err) {
+                            window.alert(err instanceof Error ? err.message : "Could not save message");
+                          }
+                        }}
+                      >
+                        <textarea
+                          className="textarea"
+                          value={editingMessageBody}
+                          onChange={(e) => setEditingMessageBody(e.target.value)}
+                          rows={3}
+                          required
+                        />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button className="button" type="submit">
+                            Save
+                          </button>
+                          <button
+                            className="button secondary"
+                            type="button"
+                            onClick={() => setEditingMessageId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p style={{ margin: "4px 0" }}>
+                        <AutolinkText text={m.body} />
+                      </p>
+                    )}
+                    <small style={{ color: "var(--ink-500)" }}>{formatEventDateTime(m.createdAt)}</small>
                   </div>
                 ))
               )}
@@ -1328,8 +1821,11 @@ export default function Dashboard() {
               token={token!}
               conversationId={activeConversationId}
               withEventHeaders={withEventHeaders}
+              initialBody={messagePrefill}
+              onInitialBodyConsumed={() => setMessagePrefill(null)}
               onSent={async (m) => {
                 setMessages([...messages, m]);
+                setMessagePrefill(null);
                 await refreshUser();
                 apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!)
                   .then(setNotifications)
@@ -1373,6 +1869,130 @@ export default function Dashboard() {
         />
       )}
 
+      {event ? (
+        <EventSettingsModal
+          open={eventSettingsOpen}
+          eventId={event.id}
+          slugUrlPreview={
+            typeof window !== "undefined" ? `${window.location.origin}/e/${event.slug}` : `/e/${event.slug}`
+          }
+          timezoneOptions={EVENT_TIMEZONE_OPTIONS}
+          timezoneLabel={timezoneOptionLabel}
+          initial={{
+            name: event.name,
+            slug: event.slug,
+            logoUrl: event.logoUrl || "",
+            bannerUrl: event.bannerUrl || "",
+            timezone: event.timezone,
+            startDate: toLocalInputValueInTimeZone(event.startDate, event.timezone),
+            endDate: toLocalInputValueInTimeZone(event.endDate, event.timezone),
+          }}
+          saving={updatingEvent}
+          error={eventSettingsError}
+          onClose={() => setEventSettingsOpen(false)}
+          fileToDataUrl={fileToDataUrl}
+          onSave={async (values) => {
+            await updateCurrentEvent({
+              name: values.name,
+              slug: values.slug.trim() || undefined,
+              logoUrl: values.logoUrl.trim() || undefined,
+              bannerUrl: values.bannerUrl,
+              timezone: values.timezone,
+              startDate: zonedDateTimeLocalToIso(values.startDate, values.timezone),
+              endDate: zonedDateTimeLocalToIso(values.endDate, values.timezone),
+            });
+          }}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        open={Boolean(rosterConfirm)}
+        title={
+          rosterConfirm?.kind === "delete"
+            ? `Remove ${rosterConfirm.user.name}?`
+            : rosterConfirm?.kind === "make-admin"
+              ? `Make ${rosterConfirm.user.name} an admin?`
+              : `Remove admin access?`
+        }
+        body={
+          rosterConfirm?.kind === "delete"
+            ? `${rosterConfirm.user.name} (${rosterConfirm.user.email}) will be removed from this event roster. Their account and posts are kept for 30 days in case you need to restore access.`
+            : rosterConfirm?.kind === "make-admin"
+              ? `${rosterConfirm.user.name} (${rosterConfirm.user.email}) will be able to manage events, invites, and sessions.`
+              : `${rosterConfirm?.user.name} will become a regular attendee.`
+        }
+        confirmLabel={
+          rosterConfirm?.kind === "delete"
+            ? "Remove from event"
+            : rosterConfirm?.kind === "make-admin"
+              ? "Make admin"
+              : "Remove admin"
+        }
+        busy={rosterBusy}
+        onCancel={() => setRosterConfirm(null)}
+        onConfirm={async () => {
+          if (!rosterConfirm || !token) return;
+          setRosterBusy(true);
+          try {
+            if (rosterConfirm.kind === "delete") {
+              await apiFetch(`/attendees/${rosterConfirm.user.id}`, { method: "DELETE" }, token);
+              setAttendees((prev) => prev.filter((row) => row.id !== rosterConfirm.user.id));
+            } else if (rosterConfirm.kind === "make-admin") {
+              await apiFetch(`/attendees/${rosterConfirm.user.id}/make-admin`, { method: "POST" }, token);
+              setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
+            } else {
+              await apiFetch(`/attendees/${rosterConfirm.user.id}/remove-admin`, { method: "POST" }, token);
+              setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
+            }
+            setRosterConfirm(null);
+          } catch (err) {
+            window.alert(err instanceof Error ? err.message : "Action failed");
+          } finally {
+            setRosterBusy(false);
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(messageConfirmId && activeConversationId)}
+        title="Delete message?"
+        body="This removes the message from the conversation for everyone. This cannot be undone."
+        confirmLabel="Delete message"
+        onCancel={() => setMessageConfirmId(null)}
+        onConfirm={async () => {
+          if (!messageConfirmId || !activeConversationId || !token) return;
+          try {
+            await apiFetch(
+              `/conversations/${activeConversationId}/messages/${messageConfirmId}`,
+              withEventHeaders({ method: "DELETE" }),
+              token,
+            );
+            setMessages((prev) => prev.filter((m) => m.id !== messageConfirmId));
+            setMessageConfirmId(null);
+          } catch (err) {
+            window.alert(err instanceof Error ? err.message : "Could not delete message");
+          }
+        }}
+      />
+
+      {event?.showPoweredByBadge ? (
+        <p className="text-meta" style={{ textAlign: "center", marginTop: 28, opacity: 0.75 }}>
+          Powered by {brand.productName}
+        </p>
+      ) : null}
+
+      {activeEventId && featureOn("concierge") ? (
+        <ConciergeChat
+          eventId={activeEventId}
+          enabled
+          onMapHint={(hint) => {
+            if (hint.mapId && featureOn("venue_maps")) {
+              setActive(MAPS_TAB);
+            }
+          }}
+        />
+      ) : null}
+
     </div>
   );
 }
@@ -1385,8 +2005,14 @@ function ScheduleBoard({
   isAdmin,
   myAttendance,
   likedSessionIds,
+  bookmarkedSessionIds = [],
   onPatchAttendance,
   onToggleLike,
+  onToggleBookmark,
+  likesEnabled = true,
+  qaEnabled = true,
+  roomPins = {},
+  onViewOnMap,
   onEditSession,
   onGoToSession,
 }: {
@@ -1397,11 +2023,17 @@ function ScheduleBoard({
   isAdmin: boolean;
   myAttendance: SessionAttendance[];
   likedSessionIds: string[];
+  bookmarkedSessionIds?: string[];
   onPatchAttendance: (
     sessionId: string,
     body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode },
   ) => void | Promise<void>;
-  onToggleLike: (sessionId: string) => void;
+  onToggleLike?: (sessionId: string) => void;
+  onToggleBookmark?: (sessionId: string) => void;
+  likesEnabled?: boolean;
+  qaEnabled?: boolean;
+  roomPins?: Record<string, { mapId: string; pinId: string }>;
+  onViewOnMap?: (roomId: string) => void;
   onEditSession: (session: Session) => void;
   onGoToSession: (sessionId: string) => void;
 }) {
@@ -1468,10 +2100,15 @@ function ScheduleBoard({
                   const asyncJoining = joiningList.filter((a) => a.joinMode === "ASYNC").length;
                   const inPersonJoining = joinedCount - virtualJoining - asyncJoining;
                   const liked = likedSessionIds.includes(s.id);
+                  const starred = bookmarkedSessionIds.includes(s.id);
                   const likeCount = (s.likes || []).length;
                   const joining = myStatus === "JOINING";
                   const myMode = myRow?.joinMode ?? "IN_PERSON";
                   const sessionAllowsVirtual = s.allowVirtualJoin !== false;
+                  const inPersonFull =
+                    s.inPersonCapacity != null && inPersonJoining >= s.inPersonCapacity;
+                  const virtualFull =
+                    s.virtualCapacity != null && virtualJoining >= s.virtualCapacity;
                   const joinModeShort =
                     myMode === "VIRTUAL" ? "Virtual" : myMode === "ASYNC" ? "Async" : "In person";
                   return (
@@ -1490,6 +2127,11 @@ function ScheduleBoard({
                           {slot.sessions.length > 1 && (
                             <span className="schedule-option-chip">Option {optionIndex + 1}</span>
                           )}
+                          {inPersonFull || virtualFull ? (
+                            <span className="schedule-option-chip" style={{ marginLeft: 6 }}>
+                              Full — waitlist
+                            </span>
+                          ) : null}
                         </h4>
                       </div>
                       {(s.speakers || s.speaker?.name || s.location) && (
@@ -1513,12 +2155,57 @@ function ScheduleBoard({
                         {s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Recording</a>}
                         {s.fileLink && <a href={s.fileLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Resources</a>}
                         {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Uploaded File</a>}
+                        {s.roomId && onViewOnMap && roomPins[s.roomId] ? (
+                          <button
+                            type="button"
+                            className="linkish"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onViewOnMap(s.roomId!);
+                            }}
+                          >
+                            View on map
+                          </button>
+                        ) : null}
                       </div>
                       <div className="schedule-event-footer">
                         <div className="schedule-meta-line">
-                          {formatTimeRange(s.startsAt, s.endsAt, displayTimezone)}
-                          {" · "}
-                          {inPersonJoining} in-person · {virtualJoining} virtual · {asyncJoining} async · {likeCount} likes
+                          <span className="schedule-meta-time">
+                            {formatEventTimeRange(s.startsAt, s.endsAt, displayTimezone)}
+                          </span>
+                          {joining ? (
+                            <span className="schedule-meta-my-mode"> · MY: {joinModeShort}</span>
+                          ) : null}
+                        </div>
+                        <div
+                          className="schedule-meta-detail"
+                          title={`${inPersonJoining}${s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person · ${virtualJoining}${s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual · ${asyncJoining} async${likeCount ? ` · ${likeCount} likes` : ""}${(s.waitlistEntries?.length || 0) > 0 ? ` · ${s.waitlistEntries!.length} waitlisted` : ""}`}
+                        >
+                          {isAdmin || likeCount > 0 || (s.waitlistEntries?.length || 0) > 0 ? (
+                            <span className="schedule-meta-detail-text text-meta">
+                              {isAdmin ? (
+                                <>
+                                  {inPersonJoining}
+                                  {s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person ·{" "}
+                                  {virtualJoining}
+                                  {s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual · {asyncJoining}{" "}
+                                  async
+                                  {likeCount > 0 ? ` · ${likeCount} likes` : ""}
+                                  {(s.waitlistEntries?.length || 0) > 0
+                                    ? ` · ${s.waitlistEntries!.length} waitlisted`
+                                    : ""}
+                                </>
+                              ) : (
+                                <>
+                                  {likeCount > 0 ? `${likeCount} likes` : null}
+                                  {likeCount > 0 && (s.waitlistEntries?.length || 0) > 0 ? " · " : null}
+                                  {(s.waitlistEntries?.length || 0) > 0
+                                    ? `${s.waitlistEntries!.length} waitlisted`
+                                    : null}
+                                </>
+                              )}
+                            </span>
+                          ) : null}
                         </div>
                         <div className="schedule-actions schedule-actions-toolbar schedule-actions-with-attendance">
                           <div onClick={(event) => event.stopPropagation()} role="group" aria-label="My agenda">
@@ -1588,28 +2275,47 @@ function ScheduleBoard({
                               </div>
                             )}
                           </div>
-                          <button
-                            className="button secondary schedule-toolbar-btn"
-                            type="button"
-                            title="Session Q&A"
-                            aria-label="Session Q&A"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onGoToSession(s.id);
-                            }}
-                          >
-                            Q&amp;A
-                          </button>
-                          <button
-                            className={`button schedule-toolbar-btn ${liked ? "" : "secondary"}`}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onToggleLike(s.id);
-                            }}
-                          >
-                            Like
-                          </button>
+                          {qaEnabled ? (
+                            <button
+                              className="button secondary schedule-toolbar-btn"
+                              type="button"
+                              title="Session Q&A"
+                              aria-label="Session Q&A"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onGoToSession(s.id);
+                              }}
+                            >
+                              Q&amp;A
+                            </button>
+                          ) : null}
+                          {likesEnabled && onToggleLike ? (
+                            <button
+                              className={`button schedule-toolbar-btn ${liked ? "" : "secondary"}`}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onToggleLike(s.id);
+                              }}
+                            >
+                              Like
+                            </button>
+                          ) : null}
+                          {onToggleBookmark ? (
+                            <button
+                              className={`button schedule-toolbar-btn ${starred ? "" : "secondary"}`}
+                              type="button"
+                              title={starred ? "Remove star (session starting soon alerts)" : "Star for reminders"}
+                              aria-label={starred ? "Unstar session" : "Star session"}
+                              aria-pressed={starred}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onToggleBookmark(s.id);
+                              }}
+                            >
+                              {starred ? "★" : "☆"}
+                            </button>
+                          ) : null}
                           {isAdmin && (
                             <button
                               className="button secondary schedule-toolbar-btn"
@@ -1705,7 +2411,7 @@ function ScheduleBoard({
           >
             <h4 id="calendar-modal-title">Add to your personal calendar</h4>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Your session is on your EventPilot agenda. Choose your personal calendar:
+              Your session is on your {brand.productName} agenda. Choose your personal calendar:
             </p>
             <div className="agenda-add-modal-actions">
               <button
@@ -1819,8 +2525,8 @@ function AdminParticipantInviteCard({
         </p>
       ) : null}
       <p className="help-text" style={{ marginTop: 0 }}>
-        Add name, email, photo, and description. We create their account and email a setup link (configure{" "}
-        <code>RESEND_API_KEY</code> on the API). If email isn&apos;t configured, copy the invite URL from the success message or server logs.
+        Add name, email, photo, and description. We create their account and email a setup link. If email delivery
+        isn&apos;t set up, copy the invite link from the success message instead.
       </p>
       {activeEventId ? (
         <div className="help-text" style={{ margin: "0 0 8px", display: "grid", gap: 6 }}>
@@ -2134,6 +2840,7 @@ function ProfileEditor({
   onEventCreated: (event: EventItem) => void;
   onAdminRequestSent?: () => void | Promise<void>;
 }) {
+  const isOrganizer = Boolean(user.isEventAdmin || user.role === "ADMIN");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -2141,6 +2848,11 @@ function ProfileEditor({
   const [photoPreview, setPhotoPreview] = useState<string | null>(user.photoUrl || null);
   const [name, setName] = useState(user.name);
   const [researchInterests, setResearchInterests] = useState(user.researchInterests || "");
+  const [title, setTitle] = useState(user.title || "");
+  const [affiliation, setAffiliation] = useState(user.affiliation || "");
+  const [bio, setBio] = useState(user.bio || "");
+  const [directoryOptIn, setDirectoryOptIn] = useState(false);
+  const [matchMeEnabled, setMatchMeEnabled] = useState(true);
   const [participantType, setParticipantType] = useState<
     "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | ""
   >(
@@ -2148,17 +2860,45 @@ function ProfileEditor({
   );
   const [resettingEngagement, setResettingEngagement] = useState(false);
   const [appearanceTheme, setAppearanceTheme] = useState<"blue" | "slate">("blue");
+  const [checkInCode, setCheckInCode] = useState<{
+    qrPayload: string;
+    checkedIn: boolean;
+    checkedInAt: string | null;
+  } | null>(null);
 
   useEffect(() => {
     setPhotoPreview(user.photoUrl || null);
     setName(user.name);
     setResearchInterests(user.researchInterests || "");
+    setTitle(user.title || "");
+    setAffiliation(user.affiliation || "");
+    setBio(user.bio || "");
     setParticipantType(user.participantType || "");
   }, [user]);
 
   useEffect(() => {
+    if (!token || !activeEventId) return;
+    apiFetch<{ directoryOptIn: boolean; matchMeEnabled?: boolean }>("/attendees/me", withEventHeaders(), token)
+      .then((r) => {
+        setDirectoryOptIn(r.directoryOptIn);
+        setMatchMeEnabled(r.matchMeEnabled !== false);
+      })
+      .catch(() => {
+        setDirectoryOptIn(false);
+        setMatchMeEnabled(true);
+      });
+    apiFetch<{ qrPayload: string; checkedIn: boolean; checkedInAt: string | null }>(
+      "/checkins/me/code",
+      withEventHeaders(),
+      token,
+    )
+      .then((r) => setCheckInCode({ qrPayload: r.qrPayload, checkedIn: r.checkedIn, checkedInAt: r.checkedInAt }))
+      .catch(() => setCheckInCode(null));
+  }, [token, activeEventId, withEventHeaders]);
+
+  useEffect(() => {
     try {
-      const t = window.localStorage.getItem("eventPilotTheme");
+      const t = readClientStorage(window.localStorage, "theme");
       if (t === "slate" || t === "blue") setAppearanceTheme(t);
     } catch {
       /* ignore */
@@ -2182,6 +2922,9 @@ function ProfileEditor({
     const payload = {
       name: name.trim(),
       researchInterests,
+      title: title.trim() || null,
+      affiliation: affiliation.trim() || null,
+      bio: bio.trim() || null,
       photoUrl: photoPreview || undefined,
       participantType: participantType || null,
     };
@@ -2193,6 +2936,20 @@ function ProfileEditor({
         method: "PUT",
         body: JSON.stringify(payload),
       }, token);
+      if (activeEventId) {
+        await apiFetch("/attendees/me/directory", withEventHeaders({
+          method: "PUT",
+          body: JSON.stringify({ directoryOptIn }),
+        }), token);
+        try {
+          await apiFetch("/attendees/me/match-me", withEventHeaders({
+            method: "PUT",
+            body: JSON.stringify({ matchMeEnabled }),
+          }), token);
+        } catch {
+          /* ignore */
+        }
+      }
       onSaved(updated);
       setSaveSuccess("Profile saved.");
     } catch (error) {
@@ -2231,6 +2988,40 @@ function ProfileEditor({
   return (
     <form className="card grid" onSubmit={handleSubmit}>
       <h3 style={{ marginTop: 0 }}>My Profile</h3>
+      <p className="help-text" style={{ marginTop: 0 }}>
+        <a href="/account">Account &amp; data export</a>
+      </p>
+      {checkInCode ? (
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            justifyItems: "start",
+            paddingBottom: 12,
+            borderBottom: "1px solid var(--border, #D9E1EE)",
+            marginBottom: 4,
+          }}
+        >
+          <strong>Event check-in QR</strong>
+          <p className="help-text" style={{ margin: 0 }}>
+            Show this at registration. Staff scanners read your membership check-in code
+            {checkInCode.checkedIn
+              ? ` · already checked in${checkInCode.checkedInAt ? ` ${new Date(checkInCode.checkedInAt).toLocaleString()}` : ""}`
+              : ""}
+            .
+          </p>
+          {/* Same pattern as event slug QR — payload is membership.checkInCode */}
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(checkInCode.qrPayload)}`}
+            alt="Your check-in QR code"
+            width={180}
+            height={180}
+          />
+          <code className="help-text" style={{ wordBreak: "break-all" }}>
+            {checkInCode.qrPayload}
+          </code>
+        </div>
+      ) : null}
       {photoPreview && <img src={photoPreview} alt={user.name} className="avatar avatar-large" />}
       <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
         Profile photo
@@ -2248,6 +3039,20 @@ function ProfileEditor({
         />
       </label>
       <input className="input" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <input
+        className="input"
+        name="title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title (e.g. PhD Candidate)"
+      />
+      <input
+        className="input"
+        name="affiliation"
+        value={affiliation}
+        onChange={(e) => setAffiliation(e.target.value)}
+        placeholder="Affiliation / organization"
+      />
       <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
         Participant type
         <select
@@ -2266,12 +3071,41 @@ function ProfileEditor({
       </label>
       <textarea
         className="textarea"
+        name="bio"
+        value={bio}
+        onChange={(e) => setBio(e.target.value)}
+        placeholder="Short bio"
+        rows={3}
+      />
+      <textarea
+        className="textarea"
         name="researchInterests"
         value={researchInterests}
         onChange={(e) => setResearchInterests(e.target.value)}
         placeholder="Research interests, projects, and topics you care about"
-        rows={5}
+        rows={4}
       />
+      {activeEventId ? (
+        <>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={directoryOptIn}
+              onChange={(e) => setDirectoryOptIn(e.target.checked)}
+            />
+            Show me in this event&apos;s attendee directory (opt-in; required for DMs)
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={matchMeEnabled}
+              disabled={!directoryOptIn}
+              onChange={(e) => setMatchMeEnabled(e.target.checked)}
+            />
+            Match me — suggest people with shared interests (one-tap mute when off)
+          </label>
+        </>
+      ) : null}
       {saveError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{saveError}</p>}
       {saveSuccess && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{saveSuccess}</p>}
       <button className="button" type="submit" disabled={saving}>
@@ -2316,7 +3150,7 @@ function ProfileEditor({
           )}
         </div>
       )}
-      {user.role === "ADMIN" && (
+      {isOrganizer && (
         <div className="card" style={{ marginTop: 12, padding: 16 }}>
           <h4 style={{ marginTop: 0 }}>Engagement points</h4>
           <p className="help-text" style={{ marginTop: 0 }}>
@@ -2347,7 +3181,7 @@ function ProfileEditor({
           </button>
         </div>
       )}
-      {user.role === "ADMIN" && (
+      {isOrganizer && (
         <div className="card" style={{ marginTop: 12, padding: 16 }}>
           <h4 style={{ marginTop: 0 }}>Appearance</h4>
           <p className="help-text" style={{ marginTop: 0 }}>
@@ -2360,7 +3194,7 @@ function ProfileEditor({
               onClick={() => {
                 setAppearanceTheme("blue");
                 try {
-                  window.localStorage.setItem("eventPilotTheme", "blue");
+                  writeClientStorage(window.localStorage, "theme", "blue");
                   document.documentElement.setAttribute("data-theme", "blue");
                 } catch {
                   /* ignore */
@@ -2375,7 +3209,7 @@ function ProfileEditor({
               onClick={() => {
                 setAppearanceTheme("slate");
                 try {
-                  window.localStorage.setItem("eventPilotTheme", "slate");
+                  writeClientStorage(window.localStorage, "theme", "slate");
                   document.documentElement.setAttribute("data-theme", "slate");
                 } catch {
                   /* ignore */
@@ -2387,9 +3221,16 @@ function ProfileEditor({
           </div>
         </div>
       )}
-      {user.role === "ADMIN" && (
+      {isOrganizer && (
         <div className="card" style={{ marginTop: 12 }}>
           <h4 style={{ marginTop: 0 }}>My Events</h4>
+          <p className="help-text" style={{ marginTop: 0 }}>
+            Prefer the new{" "}
+            <a href="/organizer">
+              organizer workspace
+            </a>{" "}
+            for drafts, publishing, tracks/rooms/speakers, papers, and CSV dry-run invites.
+          </p>
           <div className="grid" style={{ gap: 8, marginBottom: 12 }}>
             {adminEvents.map((eventItem) => (
               <button
@@ -2466,6 +3307,29 @@ function SessionForm({
   onCancel: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [imageUrl, setImageUrl] = useState(editing?.imageUrl || "");
+  const [recordingUrl, setRecordingUrl] = useState(editing?.recordingUrl || "");
+  const [fileUrl, setFileUrl] = useState(editing?.fileUrl || "");
+  const [waitlist, setWaitlist] = useState(editing?.waitlistEntries || []);
+
+  useEffect(() => {
+    setWaitlist(editing?.waitlistEntries || []);
+  }, [editing?.id, editing?.waitlistEntries]);
+
+  async function refreshWaitlist() {
+    if (!editing) return;
+    try {
+      const res = await apiFetch<{ entries: NonNullable<Session["waitlistEntries"]> }>(
+        `/sessions/${editing.id}/waitlist`,
+        eventHeaders(),
+        token,
+      );
+      setWaitlist(res.entries as NonNullable<Session["waitlistEntries"]>);
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2478,12 +3342,24 @@ function SessionForm({
         description: String(form.get("description") || ""),
         location: String(form.get("location") || ""),
         speakers: String(form.get("speakers") || ""),
-        imageUrl: String(form.get("imageUrl") || ""),
+        imageUrl: imageUrl || String(form.get("imageUrl") || ""),
         zoomLink: String(form.get("zoomLink") || ""),
-        recordingUrl: String(form.get("recordingUrl") || ""),
+        recordingUrl: recordingUrl || String(form.get("recordingUrl") || ""),
         fileLink: String(form.get("fileLink") || ""),
-        fileUrl: String(form.get("fileUrl") || ""),
+        fileUrl: fileUrl || String(form.get("fileUrl") || ""),
         allowVirtualJoin: form.get("allowVirtualJoin") === "on",
+        inPersonCapacity: (() => {
+          const raw = String(form.get("inPersonCapacity") || "").trim();
+          if (!raw) return null;
+          const n = Number(raw);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })(),
+        virtualCapacity: (() => {
+          const raw = String(form.get("virtualCapacity") || "").trim();
+          if (!raw) return null;
+          const n = Number(raw);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })(),
         startsAt: zonedDateTimeLocalToIso(String(form.get("startsAt") || ""), eventTimezone),
         endsAt: zonedDateTimeLocalToIso(String(form.get("endsAt") || ""), eventTimezone),
         speakerId: String(form.get("speakerId") || "") || undefined,
@@ -2504,114 +3380,240 @@ function SessionForm({
 
   const defaultStart = editing?.startsAt ? toLocalInputValueInTimeZone(editing.startsAt, eventTimezone) : "";
   const defaultEnd = editing?.endsAt ? toLocalInputValueInTimeZone(editing.endsAt, eventTimezone) : "";
-  const removeSession = async () => {
-    if (!editing) return;
-    if (!window.confirm("Delete this session? This cannot be undone.")) return;
-    try {
-      await apiFetch(`/sessions/${editing.id}`, eventHeaders({ method: "DELETE" }), token);
-      onSaved();
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Could not delete session.");
-    }
-  };
 
   return (
-    <form className="card grid" onSubmit={handleSubmit}>
-      <h3>{editing ? "Edit session" : "New session"}</h3>
-      <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
-      <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
-      <input className="input" name="location" placeholder="Location" defaultValue={editing?.location || ""} />
-      <label className="help-text" style={{ margin: 0 }}>
-        Session image or icon (URL or upload)
-      </label>
-      <input className="input" name="imageUrl" placeholder="Image URL" defaultValue={editing?.imageUrl || ""} />
-      <input
-        className="input"
-        type="file"
-        accept="image/*"
-        onChange={async (ev) => {
-          const file = ev.target.files?.[0];
-          if (!file) return;
-          const data = await fileToDataUrl(file);
-          const target = ev.currentTarget.form?.elements.namedItem("imageUrl");
-          if (target instanceof HTMLInputElement) target.value = data;
-        }}
-      />
-      <label className="help-text" style={{ margin: 0 }}>
-        Speaker names (free text — use for guests who are not in the directory)
-      </label>
-      <input className="input" name="speakers" placeholder="e.g. Dr. Jane Smith, keynote panel…" defaultValue={editing?.speakers || ""} />
-      <label className="help-text" style={{ margin: 0 }}>
-        Or link a registered participant as primary speaker
-      </label>
-      <select className="select" name="speakerId" defaultValue={editing?.speakerId || ""}>
-        <option value="">No linked directory speaker</option>
-        {attendees.map((a) => (
-          <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
-        ))}
-      </select>
-      <input
-        className="input"
-        name="zoomLink"
-        placeholder="Online meeting link (Zoom, Google Meet, Teams, etc.)"
-        defaultValue={editing?.zoomLink || ""}
-      />
-      <label className="help-text" style={{ margin: 0 }}>Recording (URL or upload)</label>
-      <input className="input" name="recordingUrl" placeholder="Recording URL" defaultValue={editing?.recordingUrl || ""} />
-      <input
-        className="input"
-        type="file"
-        accept="audio/*,video/*"
-        onChange={async (ev) => {
-          const file = ev.target.files?.[0];
-          if (!file) return;
-          const data = await fileToDataUrl(file);
-          const target = ev.currentTarget.form?.elements.namedItem("recordingUrl");
-          if (target instanceof HTMLInputElement) target.value = data;
-        }}
-      />
-      <input className="input" name="fileLink" placeholder="Presentation or resource link" defaultValue={editing?.fileLink || ""} />
-      <textarea className="textarea" name="fileUrl" placeholder="Optional materials upload (filled automatically)" defaultValue={editing?.fileUrl || ""} />
-      <input
-        className="input"
-        type="file"
-        accept="audio/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,image/*"
-        onChange={async (event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          const data = await fileToDataUrl(file);
-          const target = event.currentTarget.form?.elements.namedItem("fileUrl");
-          if (target instanceof HTMLTextAreaElement) {
-            target.value = data;
+    <>
+      <form className="grid" onSubmit={handleSubmit}>
+        <h3 className="panel-heading">{editing ? "Edit session" : "New session"}</h3>
+
+        <section className="session-form-section">
+          <h4>Basics</h4>
+          <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
+          <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
+          <input className="input" name="location" placeholder="Location / room" defaultValue={editing?.location || ""} />
+        </section>
+
+        <section className="session-form-section">
+          <h4>Schedule</h4>
+          <DateTimePicker name="startsAt" label="Starts" required defaultValue={defaultStart} />
+          <DateTimePicker name="endsAt" label="Ends" required defaultValue={defaultEnd} />
+          <label className="help-text" style={{ margin: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <input
+              type="checkbox"
+              name="allowVirtualJoin"
+              value="on"
+              defaultChecked={editing?.allowVirtualJoin !== false}
+              style={{ marginTop: 3 }}
+            />
+            <span>Allow participants to join virtually</span>
+          </label>
+          <label>
+            In-person capacity
+            <input
+              className="input"
+              name="inPersonCapacity"
+              type="number"
+              min={1}
+              placeholder="Unlimited"
+              defaultValue={editing?.inPersonCapacity ?? ""}
+            />
+          </label>
+          <label>
+            Virtual capacity
+            <input
+              className="input"
+              name="virtualCapacity"
+              type="number"
+              min={1}
+              placeholder="Unlimited"
+              defaultValue={editing?.virtualCapacity ?? ""}
+            />
+          </label>
+          <p className="text-meta" style={{ margin: 0 }}>
+            Leave blank for unlimited. When full, attendees can join a waitlist for that mode.
+          </p>
+        </section>
+
+        <section className="session-form-section">
+          <h4>Speakers</h4>
+          <input
+            className="input"
+            name="speakers"
+            placeholder="Free-text speaker names"
+            defaultValue={editing?.speakers || ""}
+          />
+          <select className="select" name="speakerId" defaultValue={editing?.speakerId || ""}>
+            <option value="">No linked directory speaker</option>
+            {attendees.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} ({a.role})
+              </option>
+            ))}
+          </select>
+        </section>
+
+        <section className="session-form-section">
+          <h4>Media</h4>
+          <input
+            className="input"
+            name="imageUrl"
+            placeholder="Image URL"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+          />
+          <UploadDropzone
+            label="Session image"
+            accept="image/*"
+            onFile={async (file) => setImageUrl(await fileToDataUrl(file))}
+          />
+        </section>
+
+        <section className="session-form-section">
+          <h4>Links</h4>
+          <input
+            className="input"
+            name="zoomLink"
+            placeholder="Online meeting link"
+            defaultValue={editing?.zoomLink || ""}
+          />
+          <input
+            className="input"
+            name="recordingUrl"
+            placeholder="Recording URL"
+            value={recordingUrl}
+            onChange={(e) => setRecordingUrl(e.target.value)}
+          />
+          <UploadDropzone
+            label="Recording file"
+            accept="audio/*,video/*"
+            onFile={async (file) => setRecordingUrl(await fileToDataUrl(file))}
+          />
+          <input className="input" name="fileLink" placeholder="Presentation or resource link" defaultValue={editing?.fileLink || ""} />
+          <textarea
+            className="textarea"
+            name="fileUrl"
+            placeholder="Materials (filled by upload)"
+            value={fileUrl}
+            onChange={(e) => setFileUrl(e.target.value)}
+            rows={2}
+          />
+          <UploadDropzone
+            label="Materials upload"
+            accept="audio/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,image/*"
+            onFile={async (file) => setFileUrl(await fileToDataUrl(file))}
+          />
+        </section>
+
+        {editing ? (
+          <section className="session-form-section">
+            <h4>Roster & waitlist</h4>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              In-person:{" "}
+              {(editing.attendances || []).filter((a) => a.status === "JOINING" && a.joinMode === "IN_PERSON").length}
+              {editing.inPersonCapacity != null ? ` / ${editing.inPersonCapacity}` : " (unlimited)"}
+              {" · "}
+              Virtual:{" "}
+              {(editing.attendances || []).filter((a) => a.status === "JOINING" && a.joinMode === "VIRTUAL").length}
+              {editing.virtualCapacity != null ? ` / ${editing.virtualCapacity}` : " (unlimited)"}
+            </p>
+            {waitlist.length === 0 ? (
+              <p className="text-meta">No one on the waitlist.</p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+                {waitlist.map((w) => (
+                  <li
+                    key={w.id}
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
+                      padding: "8px 10px",
+                    }}
+                  >
+                    <span>
+                      #{w.position} {w.user.name} · {w.mode === "VIRTUAL" ? "virtual" : "in person"}
+                      {w.promotedAt ? " · seat offered" : ""}
+                    </span>
+                    <span style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => {
+                          void (async () => {
+                            await apiFetch(
+                              `/sessions/${editing.id}/waitlist/${w.id}/promote`,
+                              eventHeaders({ method: "POST", body: "{}" }),
+                              token,
+                            );
+                            await refreshWaitlist();
+                          })().catch((err) =>
+                            window.alert(err instanceof Error ? err.message : "Promote failed"),
+                          );
+                        }}
+                      >
+                        Promote
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => {
+                          void (async () => {
+                            await apiFetch(
+                              `/sessions/${editing.id}/waitlist/${w.id}`,
+                              eventHeaders({ method: "DELETE" }),
+                              token,
+                            );
+                            await refreshWaitlist();
+                          })().catch((err) =>
+                            window.alert(err instanceof Error ? err.message : "Remove failed"),
+                          );
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button className="button" type="submit" disabled={submitting}>
+            {submitting ? "Saving…" : editing ? "Save changes" : "Create session"}
+          </button>
+          <button className="button secondary" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          {editing ? (
+            <button className="button button-danger" type="button" onClick={() => setConfirmDelete(true)}>
+              Delete session
+            </button>
+          ) : null}
+        </div>
+      </form>
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this session?"
+        body="This removes the session from the agenda. Attendance and discussion for it will be cleared. This cannot be undone."
+        confirmLabel="Delete session"
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={async () => {
+          if (!editing) return;
+          try {
+            await apiFetch(`/sessions/${editing.id}`, eventHeaders({ method: "DELETE" }), token);
+            setConfirmDelete(false);
+            onSaved();
+          } catch (err) {
+            window.alert(err instanceof Error ? err.message : "Could not delete session.");
           }
         }}
       />
-      <input className="input" type="datetime-local" name="startsAt" required defaultValue={defaultStart} />
-      <input className="input" type="datetime-local" name="endsAt" required defaultValue={defaultEnd} />
-      <label className="help-text" style={{ margin: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <input
-          type="checkbox"
-          name="allowVirtualJoin"
-          value="on"
-          defaultChecked={editing?.allowVirtualJoin !== false}
-          style={{ marginTop: 3 }}
-        />
-        <span>
-          Allow participants to join virtually (turn off for in-person-only sessions such as dinners at someone’s home).
-        </span>
-      </label>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button className="button" type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : editing ? "Save changes" : "Create session"}
-        </button>
-        {editing && (
-          <>
-            <button className="button secondary" type="button" onClick={onCancel}>Cancel</button>
-            <button className="button secondary" type="button" onClick={removeSession}>Delete Session</button>
-          </>
-        )}
-      </div>
-    </form>
+    </>
   );
 }
 
@@ -2634,32 +3636,100 @@ function AttendeeAvatar({ photoUrl, name }: { photoUrl?: string | null; name: st
   );
 }
 
+function lastNameOf(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1]! : name;
+}
+
+function splitInterestTokens(raw: string) {
+  return raw
+    .split(/[,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function notificationKindIcon(kind: UserNotificationRow["kind"] | string) {
+  switch (kind) {
+    case "MESSAGE":
+      return "✉";
+    case "COMMUNITY_THREAD":
+    case "COMMUNITY_REPLY":
+      return "💬";
+    case "ANNOUNCEMENT":
+      return "📣";
+    case "MEETING_REQUEST":
+    case "MEETING_ACCEPTED":
+      return "🤝";
+    case "SESSION_CHANGED":
+    case "SESSION_STARTING_SOON":
+      return "📅";
+    case "ADMIN_REQUEST":
+      return "🔑";
+    case "WAITLIST_PROMOTED":
+      return "🎫";
+    case "USER_REPORT":
+      return "🚩";
+    case "AGENT_ATTENDEE_TOUCH":
+    case "DIGEST_ROLLUP":
+      return "✦";
+    default:
+      return "•";
+  }
+}
+
 function AttendeeDirectory({
   attendees,
   currentUserId,
   onMessage,
+  onRequestMeeting,
+  loading = false,
 }: {
   attendees: User[];
   currentUserId: string;
   onMessage: (userId: string) => void;
+  onRequestMeeting?: (user: User) => void;
+  loading?: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [interestFilter, setInterestFilter] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const q = query.trim().toLowerCase();
+  const interestLower = interestFilter?.trim().toLowerCase() || "";
+
   const filtered = useMemo(() => {
-    const list = [...attendees].sort((a, b) => a.name.localeCompare(b.name));
-    if (!q) return list;
+    const list = [...attendees].sort((a, b) => {
+      const lastCmp = lastNameOf(a.name).localeCompare(lastNameOf(b.name), undefined, { sensitivity: "base" });
+      if (lastCmp !== 0) return lastCmp;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
     return list.filter((a) => {
-      const hay = `${a.name} ${a.email} ${a.researchInterests || ""}`.toLowerCase();
+      if (interestLower) {
+        const interests = splitInterestTokens(a.researchInterests || "").map((t) => t.toLowerCase());
+        if (!interests.some((t) => t === interestLower)) return false;
+      }
+      if (!q) return true;
+      const hay = `${a.name} ${a.email} ${a.researchInterests || ""} ${a.title || ""} ${a.affiliation || ""} ${a.bio || ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [attendees, q]);
+  }, [attendees, q, interestLower]);
 
   let lastLetter = "";
   const rows = filtered.map((a) => {
-    const initial = (a.name.trim()[0] || "#").toUpperCase();
-    const letter = /[A-Z]/.test(initial) ? initial : "#";
+    const lastInitial = (lastNameOf(a.name).trim()[0] || "#").toUpperCase();
+    const letter = /[A-Z]/.test(lastInitial) ? lastInitial : "#";
     const isNewLetter = letter !== lastLetter;
     if (isNewLetter) lastLetter = letter;
+    const expanded = Boolean(expandedIds[a.id]);
+    const interests = splitInterestTokens(a.researchInterests || "");
+    const clampStyle = expanded
+      ? undefined
+      : ({
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        } as CSSProperties);
+    const hasClampable = Boolean(a.bio?.trim()) || interests.length > 0;
     return (
       <div
         className="attendee-row"
@@ -2673,19 +3743,75 @@ function AttendeeDirectory({
         <div className="attendee-body">
           <div className="attendee-name">{a.name}</div>
           <div className="attendee-meta">{a.email}</div>
+          {(a.title || a.affiliation) && (
+            <div className="attendee-meta">
+              {[a.title, a.affiliation].filter(Boolean).join(" · ")}
+            </div>
+          )}
           {a.participantType && (
             <div className="attendee-meta attendee-role-note">
               {participantTypeLabel(a.participantType)}
             </div>
           )}
-          {a.researchInterests && (
-            <div className="attendee-meta attendee-research">{a.researchInterests}</div>
-          )}
+          {a.bio?.trim() ? (
+            <div className={`attendee-meta bio-clamp${expanded ? " is-expanded" : ""}`} style={clampStyle}>
+              {a.bio}
+            </div>
+          ) : null}
+          {interests.length > 0 ? (
+            <div
+              className={`attendee-meta attendee-research bio-clamp${expanded ? " is-expanded" : ""}`}
+              style={{
+                ...clampStyle,
+                display: expanded ? "flex" : clampStyle ? "-webkit-box" : "flex",
+                flexWrap: expanded ? "wrap" : undefined,
+                gap: 6,
+              }}
+            >
+              {interests.map((interest) => {
+                const active = interestLower === interest.toLowerCase();
+                return (
+                  <button
+                    key={`${a.id}-${interest}`}
+                    type="button"
+                    className={`chip interest-chip${active ? " is-active" : ""}`}
+                    onClick={() =>
+                      setInterestFilter((prev) => (prev?.toLowerCase() === interest.toLowerCase() ? null : interest))
+                    }
+                    style={{
+                      cursor: "pointer",
+                      border: active ? "1px solid var(--uk-blue)" : "none",
+                      background: active ? "rgba(0, 51, 160, 0.16)" : undefined,
+                    }}
+                  >
+                    {interest}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {hasClampable ? (
+            <button
+              type="button"
+              className="button secondary"
+              style={{ marginTop: 6, padding: "2px 8px", minHeight: 28, fontSize: 12, alignSelf: "flex-start" }}
+              onClick={() => setExpandedIds((prev) => ({ ...prev, [a.id]: !prev[a.id] }))}
+            >
+              {expanded ? "Less" : "More"}
+            </button>
+          ) : null}
         </div>
         {a.id !== currentUserId ? (
-          <button className="button attendee-msg-btn" type="button" onClick={() => onMessage(a.id)}>
-            Message
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+            <button className="button attendee-msg-btn" type="button" onClick={() => onMessage(a.id)}>
+              Message
+            </button>
+            {onRequestMeeting ? (
+              <button className="button secondary attendee-msg-btn" type="button" onClick={() => onRequestMeeting(a)}>
+                Request meeting
+              </button>
+            ) : null}
+          </div>
         ) : (
           <span className="help-text">You</span>
         )}
@@ -2694,6 +3820,7 @@ function AttendeeDirectory({
   });
 
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const showSkeleton = loading && attendees.length === 0;
   return (
     <div className="attendee-directory card">
       <div className="attendee-directory-toolbar">
@@ -2718,7 +3845,37 @@ function AttendeeDirectory({
           ))}
         </div>
       </div>
-      <div className="attendee-rows">{rows}</div>
+      {interestFilter ? (
+        <div style={{ padding: "8px 16px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="help-text">Filtering by interest:</span>
+          <button
+            type="button"
+            className="chip interest-chip is-active"
+            onClick={() => setInterestFilter(null)}
+            style={{ cursor: "pointer", border: "1px solid var(--uk-blue)" }}
+          >
+            {interestFilter} ×
+          </button>
+        </div>
+      ) : null}
+      <div className="attendee-rows">
+        {showSkeleton ? (
+          Array.from({ length: 6 }, (_, i) => <div key={i} className="skeleton-row list-skeleton-row" style={{ margin: "12px 16px" }} />)
+        ) : rows.length > 0 ? (
+          rows
+        ) : (
+          <p className="list-empty text-body-md" style={{ margin: "var(--space-4) 0" }}>
+            {q || interestFilter ? (
+              <>
+                No attendees match{q ? ` '${query.trim()}'` : ""}
+                {interestFilter ? ` with interest “${interestFilter}”` : ""}.
+              </>
+            ) : (
+              <>No attendees yet.</>
+            )}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -2757,6 +3914,7 @@ function CommunityBoard({
   token,
   withEventHeaders,
   onThreadsUpdated,
+  enabledChannels,
 }: {
   threads: NetworkThread[];
   channelFilter: CommunityChannelFilter;
@@ -2769,6 +3927,7 @@ function CommunityBoard({
   token: string;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onThreadsUpdated: () => Promise<void>;
+  enabledChannels: Record<Exclude<CommunityChannelFilter, "ALL">, boolean>;
 }) {
   const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
   const [composeChannel, setComposeChannel] = useState<Exclude<CommunityChannelFilter, "ALL">>("GENERAL");
@@ -2779,16 +3938,32 @@ function CommunityBoard({
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
   const [postingThread, setPostingThread] = useState(false);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [confirmDeleteThreadId, setConfirmDeleteThreadId] = useState<string | null>(null);
+  const [confirmDeleteReply, setConfirmDeleteReply] = useState<null | { threadId: string; replyId: string }>(null);
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
 
   const nameById = useMemo(() => Object.fromEntries(attendees.map((a) => [a.id, a.name])), [attendees]);
 
+  const composeChannels = useMemo(
+    () =>
+      (["GENERAL", "MEETUP", "MOMENTS", "LOCAL", "ICEBREAKER"] as const).filter((k) => enabledChannels[k]),
+    [enabledChannels],
+  );
+
   useEffect(() => {
-    if (channelFilter === "ALL") {
-      setComposeChannel("GENERAL");
-    } else {
-      setComposeChannel(channelFilter);
+    if (channelFilter !== "ALL" && !enabledChannels[channelFilter]) {
+      onChannelChange("ALL");
+      return;
     }
-  }, [channelFilter]);
+    if (channelFilter !== "ALL") {
+      setComposeChannel(channelFilter);
+      return;
+    }
+    const preferred = composeChannels.includes("GENERAL") ? "GENERAL" : composeChannels[0];
+    if (preferred) setComposeChannel(preferred);
+  }, [channelFilter, enabledChannels, composeChannels, onChannelChange]);
 
   useEffect(() => {
     if (!focusThreadId) return;
@@ -2882,14 +4057,16 @@ function CommunityBoard({
     await onThreadsUpdated();
   }
 
-  const pills: { key: CommunityChannelFilter; label: string }[] = [
-    { key: "ALL", label: "All" },
-    { key: "MEETUP", label: "Meet-ups" },
-    { key: "MOMENTS", label: "Share your moments" },
-    { key: "LOCAL", label: "Local recommendations" },
-    { key: "ICEBREAKER", label: "Break the ice" },
-    { key: "GENERAL", label: "General" },
-  ];
+  const pills: { key: CommunityChannelFilter; label: string }[] = (
+    [
+      { key: "ALL", label: "All" },
+      { key: "MEETUP", label: "Meet-ups" },
+      { key: "MOMENTS", label: "Share your moments" },
+      { key: "LOCAL", label: "Local recommendations" },
+      { key: "ICEBREAKER", label: "Break the ice" },
+      { key: "GENERAL", label: "General" },
+    ] as { key: CommunityChannelFilter; label: string }[]
+  ).filter((p) => p.key === "ALL" || enabledChannels[p.key]);
 
   const composeHint =
     composeChannel === "MEETUP"
@@ -2946,7 +4123,7 @@ function CommunityBoard({
         </div>
       </div>
 
-      <form className="card grid" onSubmit={createThread}>
+      <form className="card grid community-compose-card" onSubmit={createThread}>
         <h4 style={{ margin: 0 }}>New post</h4>
         <p className="help-text" style={{ margin: 0 }}>
           {composeHint}
@@ -2959,23 +4136,40 @@ function CommunityBoard({
               value={composeChannel}
               onChange={(e) => setComposeChannel(e.target.value as typeof composeChannel)}
             >
-              <option value="GENERAL">General discussion</option>
-              <option value="MEETUP">Meet-up</option>
-              <option value="MOMENTS">Share your moments</option>
-              <option value="LOCAL">Local recommendations</option>
-              <option value="ICEBREAKER">Break the ice</option>
+              {composeChannels.includes("GENERAL") ? (
+                <option value="GENERAL">General discussion</option>
+              ) : null}
+              {composeChannels.includes("MEETUP") ? <option value="MEETUP">Meet-up</option> : null}
+              {composeChannels.includes("MOMENTS") ? (
+                <option value="MOMENTS">Share your moments</option>
+              ) : null}
+              {composeChannels.includes("LOCAL") ? (
+                <option value="LOCAL">Local recommendations</option>
+              ) : null}
+              {composeChannels.includes("ICEBREAKER") ? (
+                <option value="ICEBREAKER">Break the ice</option>
+              ) : null}
             </select>
           </label>
         )}
-        <input className="input" name="title" placeholder="Title" required />
-        <textarea className="textarea" name="body" placeholder="Description or message" required rows={4} />
+        <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+          Title
+          <input className="input" name="title" placeholder="Title" required />
+        </label>
+        <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+          Message
+          <textarea className="textarea" name="body" placeholder="Description or message" required rows={4} />
+        </label>
         {composeChannel === "LOCAL" && (
           <>
-            <input
-              className="input"
-              name="mapsUrl"
-              placeholder="Google Maps link (Share → Copy link from the Maps app or website)"
-            />
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Maps link
+              <input
+                className="input"
+                name="mapsUrl"
+                placeholder="Google Maps link (Share → Copy link from the Maps app or website)"
+              />
+            </label>
             <button
               type="button"
               className="button secondary"
@@ -3042,7 +4236,10 @@ function CommunityBoard({
                 </p>
               </>
             )}
-            <input className="input" type="datetime-local" name="meetupStartsAt" />
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Starts at
+              <input className="input" type="datetime-local" name="meetupStartsAt" />
+            </label>
             <label className="help-text" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="checkbox"
@@ -3055,73 +4252,49 @@ function CommunityBoard({
               Invite everyone at this event
             </label>
             {!meetupInviteEveryone && (
-              <fieldset className="community-attendee-picks">
-                <legend className="help-text">Participants (required if not inviting everyone)</legend>
-                <div className="community-attendee-pick-grid">
-                  {attendees
-                    .filter((a) => a.id !== currentUserId)
-                    .map((a) => (
-                      <label key={a.id} className="community-attendee-pick">
-                        <input
-                          type="checkbox"
-                          checked={meetupParticipantIds.includes(a.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setMeetupParticipantIds((prev) => [...prev, a.id]);
-                            } else {
-                              setMeetupParticipantIds((prev) => prev.filter((id) => id !== a.id));
-                            }
-                          }}
-                        />
-                        {a.name}
-                      </label>
-                    ))}
-                </div>
-              </fieldset>
+              <SearchableMultiSelect
+                label="Participants (required if not inviting everyone)"
+                people={attendees}
+                selectedIds={meetupParticipantIds}
+                excludeIds={[currentUserId]}
+                placeholder="Search participants…"
+                onChange={setMeetupParticipantIds}
+              />
             )}
           </>
         )}
         {composeChannel === "MOMENTS" && (
           <>
-            <fieldset className="community-attendee-picks">
-              <legend className="help-text">Tag people (optional)</legend>
-              <div className="community-attendee-pick-grid">
-                {attendees
-                  .filter((a) => a.id !== currentUserId)
-                  .map((a) => (
-                    <label key={a.id} className="community-attendee-pick">
-                      <input
-                        type="checkbox"
-                        checked={taggedUserIds.includes(a.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setTaggedUserIds((prev) => [...prev, a.id]);
-                          } else {
-                            setTaggedUserIds((prev) => prev.filter((id) => id !== a.id));
-                          }
-                        }}
-                      />
-                      {a.name}
-                    </label>
-                  ))}
-              </div>
-            </fieldset>
-            <input className="input" name="imageUrl" placeholder="Image URL (optional, in addition to uploads)" />
-            <input
-              className="input"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={async (ev) => {
-                const files = [...(ev.target.files || [])].slice(0, 12);
-                const next: string[] = [];
-                for (const file of files) {
-                  next.push(await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 }));
-                }
-                setMomentImageUrls((prev) => [...prev, ...next].slice(0, 12));
-                ev.target.value = "";
-              }}
+            <SearchableMultiSelect
+              label="Tag people (optional)"
+              people={attendees}
+              selectedIds={taggedUserIds}
+              excludeIds={[currentUserId]}
+              placeholder="Search people to tag…"
+              onChange={setTaggedUserIds}
             />
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Image URL
+              <input className="input" name="imageUrl" placeholder="Image URL (optional, in addition to uploads)" />
+            </label>
+            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+              Upload photos
+              <input
+                className="input"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={async (ev) => {
+                  const files = [...(ev.target.files || [])].slice(0, 12);
+                  const next: string[] = [];
+                  for (const file of files) {
+                    next.push(await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 }));
+                  }
+                  setMomentImageUrls((prev) => [...prev, ...next].slice(0, 12));
+                  ev.target.value = "";
+                }}
+              />
+            </label>
             {momentImageUrls.length > 0 && (
               <div className="moment-thumb-strip moment-thumb-strip--composer">
                 {momentImageUrls.map((url, idx) => (
@@ -3159,7 +4332,7 @@ function CommunityBoard({
             const open = openId === t.id;
             const ch = t.channel || "GENERAL";
             const channelIconKey = networkThreadChannelKey(ch);
-            const lastReply = t.replies[t.replies.length - 1];
+            const lastReply = t.replies?.[t.replies.length - 1];
             const gallery = threadImageGallery(t);
             const taggedNames = (t.taggedUserIds ?? []).map((id) => nameById[id]).filter(Boolean);
             const meetupNames = (t.meetupParticipantIds ?? []).map((id) => nameById[id]).filter(Boolean);
@@ -3178,8 +4351,8 @@ function CommunityBoard({
                   <div style={{ minWidth: 0 }}>
                     <div className="community-thread-meta">
                       {lastReply
-                        ? `Last reply ${new Date(lastReply.createdAt).toLocaleString()}`
-                        : `Started ${new Date(t.createdAt).toLocaleString()}`}
+                        ? `Last reply ${formatRelativeTime(lastReply.createdAt)}`
+                        : `Started ${formatRelativeTime(t.createdAt)}`}
                     </div>
                     <h4 className="community-thread-title">{t.title}</h4>
                     <p className="community-thread-desc">{t.body}</p>
@@ -3193,7 +4366,7 @@ function CommunityBoard({
                         {t.meetupMode
                           ? ` · ${t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"}`
                           : ""}
-                        {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
+                        {t.meetupStartsAt ? ` · ${formatEventDateTime(t.meetupStartsAt)}` : ""}
                       </div>
                     )}
                     {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
@@ -3214,10 +4387,10 @@ function CommunityBoard({
                     {t.meetupMode && ch !== "MEETUP" && (
                       <div className="community-thread-foot">
                         {t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"} meet-up
-                        {t.meetupStartsAt ? ` · ${new Date(t.meetupStartsAt).toLocaleString()}` : ""}
+                        {t.meetupStartsAt ? ` · ${formatEventDateTime(t.meetupStartsAt)}` : ""}
                       </div>
                     )}
-                    <div className="community-thread-foot">{t.replies.length} replies</div>
+                    <div className="community-thread-foot">{t.replies?.length ?? 0} replies</div>
                   </div>
                   <button type="button" className="button secondary community-open-btn" onClick={() => setOpenId(open ? null : t.id)}>
                     {open ? "Close" : "Open"}
@@ -3232,30 +4405,76 @@ function CommunityBoard({
                         ))}
                       </div>
                     )}
-                    <p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p>
+                    {editingThreadId === t.id ? (
+                      <form
+                        className="grid"
+                        style={{ gap: 8, marginBottom: 12 }}
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          await apiFetch(
+                            `/network/threads/${t.id}`,
+                            withEventHeaders({
+                              method: "PATCH",
+                              body: JSON.stringify({ title: editTitle, body: editBody }),
+                            }),
+                            token,
+                          );
+                          setEditingThreadId(null);
+                          await onThreadsUpdated();
+                        }}
+                      >
+                        <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+                        <textarea className="textarea" rows={4} value={editBody} onChange={(e) => setEditBody(e.target.value)} required />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button className="button" type="submit">
+                            Save post
+                          </button>
+                          <button className="button secondary" type="button" onClick={() => setEditingThreadId(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p>
+                    )}
                     {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
                       <p style={{ margin: "12px 0" }}>
                         <OnlineMeetingLink href={ensureHttpUrl(t.meetupMeetingUrl)} />
                       </p>
                     ) : null}
                     {isAdmin && (
-                      <div style={{ marginBottom: 10 }}>
-                        <button className="button secondary" type="button" onClick={() => deleteThread(t.id)}>
+                      <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={() => {
+                            setEditingThreadId(t.id);
+                            setEditTitle(t.title);
+                            setEditBody(t.body);
+                          }}
+                        >
+                          Edit post
+                        </button>
+                        <button
+                          className="button button-danger"
+                          type="button"
+                          onClick={() => setConfirmDeleteThreadId(t.id)}
+                        >
                           Delete thread
                         </button>
                       </div>
                     )}
                     <div className="network-replies">
-                      {t.replies.map((r) => (
+                      {t.replies?.map((r) => (
                         <div key={r.id} className="network-reply">
-                          <strong>{r.author.name}</strong>
-                          <span className="help-text"> · {new Date(r.createdAt).toLocaleString()}</span>
+                          <strong>{r.author?.name ?? DELETED_PARTICIPANT_LABEL}</strong>
+                          <span className="help-text"> · {formatEventDateTime(r.createdAt)}</span>
                           <p>{r.body}</p>
                           {isAdmin && (
                             <button
                               type="button"
                               className="button secondary"
-                              onClick={() => deleteThreadReply(t.id, r.id)}
+                              onClick={() => setConfirmDeleteReply({ threadId: t.id, replyId: r.id })}
                               style={{ marginTop: 6 }}
                             >
                               Delete reply
@@ -3293,6 +4512,30 @@ function CommunityBoard({
           })}
         </div>
       </div>
+      <ConfirmDialog
+        open={Boolean(confirmDeleteThreadId)}
+        title="Delete this community post?"
+        body="The post and its replies will be removed for everyone. This cannot be undone."
+        confirmLabel="Delete post"
+        onCancel={() => setConfirmDeleteThreadId(null)}
+        onConfirm={async () => {
+          if (!confirmDeleteThreadId) return;
+          await deleteThread(confirmDeleteThreadId);
+          setConfirmDeleteThreadId(null);
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(confirmDeleteReply)}
+        title="Delete this reply?"
+        body="The reply will be removed for everyone. This cannot be undone."
+        confirmLabel="Delete reply"
+        onCancel={() => setConfirmDeleteReply(null)}
+        onConfirm={async () => {
+          if (!confirmDeleteReply) return;
+          await deleteThreadReply(confirmDeleteReply.threadId, confirmDeleteReply.replyId);
+          setConfirmDeleteReply(null);
+        }}
+      />
     </div>
     </>
   );
@@ -3303,27 +4546,39 @@ function MessageComposer({
   conversationId,
   withEventHeaders,
   onSent,
+  initialBody,
+  onInitialBodyConsumed,
 }: {
   token: string;
   conversationId: string | null;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onSent: (m: Message) => void | Promise<void>;
+  initialBody?: string | null;
+  onInitialBodyConsumed?: () => void;
 }) {
   const [sending, setSending] = useState(false);
+  const [body, setBody] = useState("");
+
+  useEffect(() => {
+    if (initialBody == null) return;
+    setBody(initialBody);
+    onInitialBodyConsumed?.();
+  }, [initialBody, conversationId, onInitialBodyConsumed]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!conversationId || sending) return;
-    const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    const trimmed = body.trim();
+    if (!trimmed) return;
     setSending(true);
     try {
       const message = await apiFetch<Message>(
         `/conversations/${conversationId}/messages`,
-        withEventHeaders({ method: "POST", body: JSON.stringify(payload) }),
+        withEventHeaders({ method: "POST", body: JSON.stringify({ body: trimmed }) }),
         token,
       );
       await onSent(message);
+      setBody("");
       event.currentTarget.reset();
     } finally {
       setSending(false);
@@ -3334,6 +4589,9 @@ function MessageComposer({
     <form className="message-composer-form grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
       <label className="help-text" style={{ margin: 0 }} htmlFor="message-composer-body">
         Your message
+        {body.trim() ? (
+          <span className="help-text"> · Edit before sending</span>
+        ) : null}
       </label>
       <textarea
         id="message-composer-body"
@@ -3342,8 +4600,10 @@ function MessageComposer({
         placeholder="Write something…"
         required
         disabled={sending}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
       />
-      <button className="button" disabled={!conversationId || sending}>
+      <button className="button" disabled={!conversationId || sending || !body.trim()}>
         {sending ? "Sending…" : "Send"}
       </button>
     </form>
@@ -3363,10 +4623,11 @@ function DirectChatForm({
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onCreated: (c: Conversation) => void;
 }) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const userId = String(form.get("userId") || "");
+    const userId = selectedIds[0];
     if (!userId) return;
     const conversation = await apiFetch<Conversation>(
       "/conversations/direct",
@@ -3374,28 +4635,24 @@ function DirectChatForm({
       token,
     );
     onCreated(conversation);
+    setSelectedIds([]);
   }
 
   return (
-    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8, marginBottom: 12 }}>
+    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
       <h4 style={{ margin: 0 }}>Message someone one-on-one</h4>
       <p className="help-text" style={{ margin: 0 }}>
-        Choose a participant, then <strong>Start chat</strong>. The thread appears under &quot;Your chats&quot;.
+        Search and pick one participant, then <strong>Start chat</strong>.
       </p>
-      <label className="help-text" style={{ margin: 0 }} htmlFor="direct-chat-participant">
-        Participant
-      </label>
-      <select id="direct-chat-participant" className="select" name="userId" required defaultValue="">
-        <option value="" disabled>
-          Choose a participant…
-        </option>
-        {attendees.filter((a) => a.id !== currentUserId).map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name} ({a.role})
-          </option>
-        ))}
-      </select>
-      <button className="button secondary" type="submit">
+      <SearchableMultiSelect
+        label="Participant"
+        people={attendees}
+        selectedIds={selectedIds}
+        excludeIds={[currentUserId]}
+        placeholder="Search people…"
+        onChange={(ids) => setSelectedIds(ids.length <= 1 ? ids : [ids[ids.length - 1]!])}
+      />
+      <button className="button secondary" type="submit" disabled={selectedIds.length !== 1}>
         Start chat
       </button>
     </form>
@@ -3415,34 +4672,48 @@ function GroupChatForm({
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onCreated: (c: Conversation) => void;
 }) {
+  const [name, setName] = useState("");
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const name = String(form.get("name") || "");
-    const memberIds = form.getAll("memberIds").map((id) => String(id)).filter((id) => id && id !== currentUserId);
-    if (!name || memberIds.length === 0) return;
+    const cleaned = memberIds.filter((id) => id && id !== currentUserId);
+    if (!name.trim() || cleaned.length === 0) return;
     const conversation = await apiFetch<Conversation>(
       "/conversations/group",
-      withEventHeaders({ method: "POST", body: JSON.stringify({ name, memberIds }) }),
+      withEventHeaders({ method: "POST", body: JSON.stringify({ name: name.trim(), memberIds: cleaned }) }),
       token,
     );
     onCreated(conversation);
-    event.currentTarget.reset();
+    setName("");
+    setMemberIds([]);
   }
 
   return (
     <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
       <h4 style={{ margin: 0 }}>Create a group chat</h4>
       <p className="help-text" style={{ margin: 0 }}>
-        Name the group and select at least one other person (hold Ctrl/Cmd to pick multiple).
+        Name the group and select at least one other person.
       </p>
-      <input className="input" name="name" placeholder="Group name" required />
-      <select className="select" name="memberIds" multiple size={4} required>
-        {attendees.filter((a) => a.id !== currentUserId).map((a) => (
-          <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
-        ))}
-      </select>
-      <button className="button secondary" type="submit">Create</button>
+      <input
+        className="input"
+        name="name"
+        placeholder="Group name"
+        required
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <SearchableMultiSelect
+        label="Members"
+        people={attendees}
+        selectedIds={memberIds}
+        excludeIds={[currentUserId]}
+        placeholder="Search people…"
+        onChange={setMemberIds}
+      />
+      <button className="button secondary" type="submit" disabled={!name.trim() || memberIds.length === 0}>
+        Create
+      </button>
     </form>
   );
 }
@@ -3596,11 +4867,11 @@ function downloadSessionIcs(session: Session, eventName: string, eventTimezone: 
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//EventPilot//Conference Session//EN",
+    `PRODID:${icsProductId('Conference Session')}`,
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
-    `UID:${session.id}@eventpilot`,
+    `UID:${session.id}@${brand.domain}`,
     `DTSTAMP:${toGoogleCalendarUtc(new Date().toISOString())}`,
     `DTSTART:${toGoogleCalendarUtc(session.startsAt)}`,
     `DTEND:${toGoogleCalendarUtc(session.endsAt)}`,

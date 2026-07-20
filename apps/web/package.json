@@ -5,16 +5,20 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@event-app/config": "*",
     "@event-app/shared": "*",
+    "@sentry/nextjs": "^10.66.0",
     "next": "^14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5.15.9",
-    "@types/react": "19.2.14"
+    "@types/react": "19.2.14",
+    "vitest": "^4.1.10"
   }
 }

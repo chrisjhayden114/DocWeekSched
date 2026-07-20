@@ -1,0 +1,51 @@
+{
+  "event": {
+    "name": "Harbor Health Day",
+    "timezone": "America/New_York",
+    "startDate": "2027-05-05",
+    "endDate": "2027-05-05"
+  },
+  "sessions": [
+    {
+      "title": "Check-in",
+      "date": "2027-05-05",
+      "startTime": "08:00",
+      "endTime": "08:45",
+      "room": "Lobby",
+      "speakers": [],
+      "confidence": { "title": 0.95 }
+    },
+    {
+      "title": "Morning Briefing",
+      "date": "2027-05-05",
+      "startTime": "08:45",
+      "endTime": "09:30",
+      "room": "Pavilion A",
+      "speakers": ["Dr. Camille Orth"],
+      "confidence": { "title": 0.96, "speakers": 0.94 }
+    },
+    {
+      "title": "Breakout: Care Pathways",
+      "date": "2027-05-05",
+      "startTime": "09:45",
+      "endTime": "11:00",
+      "room": "Room 12",
+      "speakers": ["Dr. Camille Orth", "Ben Ruiz"],
+      "confidence": { "title": 0.95 }
+    },
+    {
+      "title": "Town Hall",
+      "date": "2027-05-05",
+      "startTime": "11:15",
+      "endTime": "12:00",
+      "room": "Pavilion A",
+      "speakers": ["Ben Ruiz"],
+      "confidence": { "title": 0.95 }
+    }
+  ],
+  "speakers": [
+    { "name": "Dr. Camille Orth" },
+    { "name": "Ben Ruiz" }
+  ],
+  "assumptions": []
+}

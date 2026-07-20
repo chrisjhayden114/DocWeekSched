@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
+import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
-import { getDefaultEventWhenUnspecified } from "../lib/event";
-import { requireAuth, requireRole, AuthedRequest } from "../lib/middleware";
+import { resolveEventFromRequest } from "../lib/requestEvent";
+import { requireAuth, requireCsrf, AuthedRequest } from "../lib/middleware";
+import { validationErrorBody } from "../lib/errors";
 
 export const surveysRouter = Router();
 
@@ -17,73 +19,101 @@ const surveySchema = z.object({
   questions: z.array(questionSchema).min(1),
 });
 
-surveysRouter.get("/", requireAuth, async (_req, res) => {
-  const event = await getDefaultEventWhenUnspecified();
-  const surveys = await prisma.survey.findMany({
-    where: { eventId: event.id },
-    include: { questions: true },
-  });
-  return res.json(surveys);
-});
+surveysRouter.get(
+  "/",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
 
-surveysRouter.post("/", requireAuth, requireRole(["ADMIN"]), async (req, res) => {
-  const parsed = surveySchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
-  }
+    const surveys = await prisma.survey.findMany({
+      where: { eventId: event.id },
+      include: { questions: true },
+    });
+    return res.json(surveys);
+  }),
+);
 
-  const event = await getDefaultEventWhenUnspecified();
-  const survey = await prisma.survey.create({
-    data: {
-      title: parsed.data.title,
-      eventId: event.id,
-      questions: {
-        create: parsed.data.questions.map((q) => ({
-          prompt: q.prompt,
-          type: q.type,
-          options: q.options || [],
-        })),
+surveysRouter.post(
+  "/",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = surveySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
+
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+
+    const survey = await prisma.survey.create({
+      data: {
+        title: parsed.data.title,
+        eventId: event.id,
+        questions: {
+          create: parsed.data.questions.map((q) => ({
+            prompt: q.prompt,
+            type: q.type,
+            options: q.options || [],
+          })),
+        },
       },
-    },
-    include: { questions: true },
-  });
+      include: { questions: true },
+    });
 
-  return res.json(survey);
-});
+    return res.json(survey);
+  }),
+);
 
 const answerSchema = z.object({
   answers: z.array(
     z.object({
       questionId: z.string().min(1),
       answer: z.string().min(1),
-    })
+    }),
   ),
 });
 
-surveysRouter.post("/:id/answers", requireAuth, async (req: AuthedRequest, res) => {
-  const parsed = answerSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
-  }
+surveysRouter.post(
+  "/:id/answers",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = answerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
 
-  const survey = await prisma.survey.findUnique({
-    where: { id: req.params.id },
-    include: { questions: true },
-  });
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
 
-  if (!survey) {
-    return res.status(404).json({ error: "Survey not found" });
-  }
+    const survey = await prisma.survey.findFirst({
+      where: { id: req.params.id, eventId: event.id },
+      include: { questions: true },
+    });
 
-  const answerCreates = parsed.data.answers.map((a) => ({
-    questionId: a.questionId,
-    userId: req.user?.id || "",
-    answer: a.answer,
-  }));
+    if (!survey) {
+      throw new HttpError(404, { error: "Survey not found" });
+    }
 
-  await prisma.surveyAnswer.createMany({
-    data: answerCreates,
-  });
+    const validQuestionIds = new Set(survey.questions.map((q) => q.id));
+    for (const a of parsed.data.answers) {
+      if (!validQuestionIds.has(a.questionId)) {
+        throw new HttpError(400, { error: "Invalid question for this survey" });
+      }
+    }
 
-  return res.json({ status: "ok" });
-});
+    const answerCreates = parsed.data.answers.map((a) => ({
+      questionId: a.questionId,
+      userId: req.user!.id,
+      answer: a.answer,
+    }));
+
+    await prisma.surveyAnswer.createMany({
+      data: answerCreates,
+    });
+
+    return res.json({ status: "ok" });
+  }),
+);

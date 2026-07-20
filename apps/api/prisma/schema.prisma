@@ -13,6 +13,69 @@ enum Role {
   SPEAKER
 }
 
+enum OrgRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum EventMemberRole {
+  ADMIN
+  ATTENDEE
+  SPEAKER
+  /// Program-committee volunteer — event-scoped; must not grant manage/billing (app-layer).
+  REVIEWER
+}
+
+enum CheckInMethod {
+  SELF
+  STAFF_SCAN
+  QR_SCAN
+}
+
+enum SessionPollStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum EventStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum PlanTier {
+  FREE
+  PER_EVENT
+  PRO
+  ENTERPRISE
+  INTERNAL
+}
+
+enum BillingProvider {
+  NONE
+  LEMON_SQUEEZY
+  PADDLE
+  STRIPE
+  INTERNAL
+}
+
+enum PurchaseStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  NONE
+}
+
 enum QuestionType {
   SINGLE
   MULTI
@@ -28,14 +91,6 @@ enum SessionJoinMode {
   VIRTUAL
   IN_PERSON
   ASYNC
-}
-
-enum ParticipantType {
-  GRAD_STUDENT
-  EDD_STUDENT
-  PHD_STUDENT
-  EDL_ALUMNI
-  PROFESSOR
 }
 
 enum SessionResourceKind {
@@ -56,88 +111,769 @@ enum NotificationKind {
   COMMUNITY_REPLY
   MESSAGE
   ADMIN_REQUEST
+  WAITLIST_PROMOTED
+  ANNOUNCEMENT
+  MEETING_REQUEST
+  MEETING_ACCEPTED
+  SESSION_CHANGED
+  SESSION_STARTING_SOON
+  DIGEST_ROLLUP
+  USER_REPORT
+  /// Agent attendee touches — always DIGEST in app layer (never push).
+  AGENT_ATTENDEE_TOUCH
+}
+
+enum NotificationClass {
+  INTERRUPT
+  DIGEST
+}
+
+enum NotificationDelivery {
+  INBOX
+  QUEUED_PUSH
+  PUSHED
+  DIGESTED
+  SUPPRESSED
+}
+
+enum AnnouncementAudience {
+  EVERYONE
+  ROLE
+  SESSION_JOINERS
+  ATTENDANCE_MODE
+}
+
+enum MeetingRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum ModerationReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+
+enum PersonalAgendaSource {
+  MEETING
+  CUSTOM
+}
+
+enum BackgroundJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD
+}
+
+enum AiMeterFeature {
+  AGENDA_INGEST
+  CONCIERGE
+  SETUP_COPILOT
+  MATCHMAKER
+  OPS_DRAFT
+  RECAP
+  OTHER
+}
+
+enum AuditAction {
+  AI_CHAT
+  AI_EXTRACT
+  AI_DRAFT
+  AI_TOOL
+  AI_NOTIFY
+  JOB_ENQUEUE
+  JOB_COMPLETE
+  JOB_FAIL
+  OTHER
+  DATA_EXPORT
+  ACCOUNT_DELETE_REQUEST
+  ACCOUNT_DELETE_COMPLETE
+  ACCOUNT_DELETE_CANCELLED
+}
+
+enum AccountDeletionStatus {
+  PENDING
+  COMPLETE
+  CANCELLED
+}
+
+enum SessionPublishStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum AgendaIngestSourceKind {
+  PASTE
+  PDF
+  DOCX
+  XLSX
+  CSV
+  IMAGE
+  URL
+}
+
+enum AgendaIngestRunStatus {
+  PENDING
+  EXTRACTING
+  READY_FOR_REVIEW
+  CONFIRMING
+  CONFIRMED
+  FAILED
+  CANCELLED
+}
+
+enum CfpFormStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum CfpSubmissionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum CfpDecisionEmailKind {
+  ACCEPT
+  REJECT
+}
+
+enum ConciergeMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum ConciergePendingActionStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum OpsDetectorKind {
+  SESSION_CHANGED
+  QA_STALE
+  LOW_CHECKIN
+  CAPACITY_PRESSURE
+  MODERATION
+  DAILY_DIGEST
+}
+
+enum OpsCardStatus {
+  OPEN
+  APPLIED
+  DISMISSED
+}
+
+enum OpsDraftActionType {
+  ANNOUNCEMENT
+  DM
+  SPEAKER_NUDGE
+  ROOM_MOVE
+  OPEN_VIRTUAL
+  MODERATION_REVIEW
+  DIGEST_NOTE
+}
+
+enum AdminAccessRequestStatus {
+  PENDING
+  GRANTED
+  DENIED
+}
+
+enum BadgeSheetSize {
+  SIZE_3X4
+  SIZE_4X6
+  SIZE_A6
+}
+
+enum CertificateEligibilityRule {
+  ANY_CHECKIN
+  MIN_SESSIONS
+  REQUIRED_SESSIONS
+}
+
+enum RecapStatus {
+  PENDING
+  GENERATING
+  READY
+  FAILED
+}
+
+enum RecapSectionKind {
+  REPORT
+  FEEDBACK_SYNTHESIS
+  CERTIFICATES
+  SPONSOR_ONE_PAGER
+}
+
+enum RecapSectionStatus {
+  DRAFT
+  SUPERSEDED
+}
+
+enum RecapEmailKind {
+  CERTIFICATE_AVAILABILITY
+  THANK_YOU_ATTENDEE
+  THANK_YOU_SPEAKER
+}
+
+enum RecapEmailStatus {
+  DRAFT
+  SENT
+  SUPERSEDED
+}
+
+model Organization {
+  id                        String               @id @default(cuid())
+  name                      String
+  slug                      String               @unique
+  /// MoR / billing backend. INTERNAL = grandfathered / comps (no MoR).
+  billingProvider           BillingProvider      @default(NONE)
+  billingCustomerId         String?              @unique
+  billingSubscriptionId     String?              @unique
+  billingSubscriptionItemId String?
+  plan                      PlanTier?            @default(FREE)
+  subscriptionStatus        SubscriptionStatus   @default(NONE)
+  /// NULL = unlimited active events. limit() must treat NULL as no cap.
+  eventAllowance            Int?
+  eventsIncludedUsed        Int                  @default(0)
+  subscriptionEndsAt        DateTime?
+  /// After payment_failed webhook: now+7d; then org becomes read-only until fixed.
+  gracePeriodEndsAt         DateTime?
+  entitlementsUpdatedAt     DateTime?
+  createdAt                 DateTime             @default(now())
+  memberships               OrgMembership[]
+  events                    Event[]
+  purchases                 EventPurchase[]
+  adminAccessRequests       AdminAccessRequest[]
+  eventSeries               EventSeries[]
+  aiUsageRecords            AiUsageRecord[]
+  auditLogs                 AuditLog[]
+  backgroundJobs            BackgroundJob[]
+  agendaIngestRuns          AgendaIngestRun[]
+  opsInboxCards             OpsInboxCard[]
+  badgeTemplates            BadgeTemplate[]
+  certificateTemplates      CertificateTemplate[]
+  issuedCertificates        IssuedCertificate[]
+  eventRecaps               EventRecap[]
+}
+
+model OrgMembership {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrgRole      @default(STAFF)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model EventSeries {
+  id                    String                     @id @default(cuid())
+  organizationId        String
+  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                  String
+  slug                  String
+  setupChecklist        Json                       @default("[]")
+  /// Recurring-event price lock — snapshot of plan config at lock time.
+  priceLockPlanKey      String?
+  priceLockAmountCents  Int?
+  priceLockCurrency     String                     @default("usd")
+  priceLockInterval     String?
+  priceLockedAt         DateTime?
+  createdAt             DateTime                   @default(now())
+  events                Event[]
+  continuityConsents    SeriesContinuityConsent[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model SeriesContinuityConsent {
+  id          String      @id @default(cuid())
+  seriesId    String
+  series      EventSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consentedAt DateTime    @default(now())
+
+  @@unique([seriesId, userId])
+  @@index([userId])
+}
+
+model EventMembership {
+  id             String          @id @default(cuid())
+  eventId        String
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           EventMemberRole @default(ATTENDEE)
+  createdAt      DateTime        @default(now())
+  /// Soft-remove from roster; purged after ~30 days. Null = active.
+  deletedAt      DateTime?
+  /// Per-event directory visibility. Default hidden (privacy-first).
+  directoryOptIn Boolean         @default(false)
+  /// Matchmaker participation mute. Default ON; one-tap mute stops refreshes.
+  /// Still requires directoryOptIn both directions to appear in / receive suggestions.
+  matchMeEnabled Boolean         @default(true)
+  /// Opaque per-membership code for QR / offline staff scanner (not a password).
+  /// Client-side default (cuid) so every membership-create path auto-populates it;
+  /// column is NOT NULL in the DB with existing rows backfilled. Do NOT remove this default.
+  checkInCode    String          @default(cuid())
+
+  @@unique([eventId, userId])
+  @@unique([eventId, checkInCode])
+  @@index([userId])
+  @@index([eventId, deletedAt])
+  @@index([checkInCode])
+}
+
+model EventPurchase {
+  id                 String         @id @default(cuid())
+  organizationId     String
+  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String?
+  event              Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  plan               PlanTier
+  /// Stable SKU key from plan config (e.g. per_event_500, pro_annual).
+  planKey            String?
+  amountCents        Int
+  currency           String         @default("usd")
+  status             PurchaseStatus @default(PENDING)
+  billingCheckoutId  String?        @unique
+  billingOrderId     String?
+  attendeeCap        Int
+  createdAt          DateTime       @default(now())
+  paidAt             DateTime?
+
+  @@index([organizationId])
+  @@index([eventId])
+}
+
+model BillingWebhookEvent {
+  id              String          @id @default(cuid())
+  provider        BillingProvider
+  externalEventId String
+  type            String
+  payload         Json            @default("{}")
+  processedAt     DateTime?
+  createdAt       DateTime        @default(now())
+
+  @@unique([provider, externalEventId])
+  @@index([createdAt])
+}
+
+model AdminAccessRequest {
+  id             String                    @id @default(cuid())
+  organizationId String
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event                     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                      @relation("AdminAccessRequester", fields: [userId], references: [id], onDelete: Cascade)
+  status         AdminAccessRequestStatus  @default(PENDING)
+  createdAt      DateTime                  @default(now())
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolvedBy     User?                     @relation("AdminAccessResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([eventId, status])
+  @@index([userId])
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  role         Role
-  photoUrl     String?
-  researchInterests String?
-  participantType ParticipantType?
-  passwordHash String
-  engagementPoints Int @default(0)
-  profileSetupToken String?   @unique
-  profileSetupTokenExpiresAt DateTime?
-  passwordResetToken String? @unique
+  id                          String                   @id @default(cuid())
+  email                       String                   @unique
+  name                        String
+  role                        Role
+  photoUrl                    String?
+  researchInterests           String?
+  title                       String?
+  affiliation                 String?
+  bio                         String?
+  /// Free-text participant category (e.g. Student, Faculty, Industry). Legacy academic codes may still appear.
+  participantType             String?
+  passwordHash                String
+  engagementPoints            Int                      @default(0)
+  emailVerifiedAt             DateTime?
+  emailVerifyTokenHash        String?                  @unique
+  emailVerifyTokenExpiresAt   DateTime?
+  profileSetupTokenHash       String?                  @unique
+  profileSetupTokenExpiresAt  DateTime?
+  passwordResetTokenHash      String?                  @unique
   passwordResetTokenExpiresAt DateTime?
-  createdAt    DateTime @default(now())
-  sessionBookmarks SessionBookmark[]
-  sessionAttendances SessionAttendance[]
-  sessionLikes SessionLike[]
-  eventsCreated Event[] @relation("EventCreator")
-  sessionsAsSpeaker Session[] @relation("SessionSpeaker")
-  conversationMembers ConversationMember[]
-  conversationMessages ConversationMessage[]
-  checkIns     CheckIn[]
-  surveyAnswers SurveyAnswer[]
-  networkThreads NetworkThread[]
-  networkReplies NetworkReply[]
-  sessionDiscussionThreads SessionDiscussionThread[]
-  sessionDiscussionReplies SessionDiscussionReply[]
-  sessionResources SessionResource[]
-  notifications UserNotification[]
+  /// Set while an AccountDeletionRequest is PENDING (7-day grace). Cleared on cancel.
+  deactivatedAt               DateTime?
+  /// Phase 6 Chunk C — organizer dismissed the first-run onboarding checklist panel.
+  onboardingDismissedAt       DateTime?
+  /// Phase 6 Chunk C — sample-event prompt was shown or accepted (do not re-offer).
+  sampleEventOfferedAt        DateTime?
+  createdAt                   DateTime                 @default(now())
+  accountDeletionRequest      AccountDeletionRequest?
+  sessionBookmarks            SessionBookmark[]
+  sessionAttendances          SessionAttendance[]
+  waitlistEntries             WaitlistEntry[]
+  sessionLikes                SessionLike[]
+  eventsCreated               Event[]                  @relation("EventCreator")
+  sessionsAsSpeaker           Session[]                @relation("SessionLinkedUser")
+  conversationMembers         ConversationMember[]
+  conversationMessages        ConversationMessage[]
+  checkIns                    CheckIn[]
+  checkInsScanned             CheckIn[]                @relation("CheckInScanner")
+  surveyAnswers               SurveyAnswer[]
+  networkThreads              NetworkThread[]
+  networkReplies              NetworkReply[]
+  sessionDiscussionThreads    SessionDiscussionThread[]
+  sessionDiscussionReplies    SessionDiscussionReply[]
+  sessionDiscussionAnswered   SessionDiscussionThread[] @relation("SessionDiscussionAnsweredBy")
+  sessionDiscussionHidden     SessionDiscussionThread[] @relation("SessionDiscussionHiddenBy")
+  sessionDiscussionUpvotes    SessionDiscussionUpvote[]
+  sessionPollsCreated         SessionPoll[]
+  sessionPollVotes            SessionPollVote[]
+  sessionFeedback             SessionFeedback[]
+  sponsorLeadsCaptured        SponsorLead[]            @relation("SponsorLeadCapturedBy")
+  sponsorLeadsAsAttendee      SponsorLead[]            @relation("SponsorLeadAttendee")
+  sessionResources            SessionResource[]
+  notifications               UserNotification[]
+  notificationPreferences     NotificationPreference[]
+  notificationPushDays        NotificationPushDay[]
+  orgMemberships              OrgMembership[]
+  eventMemberships            EventMembership[]
+  adminAccessRequests         AdminAccessRequest[]     @relation("AdminAccessRequester")
+  adminAccessResolutions      AdminAccessRequest[]     @relation("AdminAccessResolver")
+  seriesContinuityConsents    SeriesContinuityConsent[]
+  announcementsCreated        Announcement[]           @relation("AnnouncementCreator")
+  announcementAuditLogs       AnnouncementAuditLog[]
+  meetingRequestsFrom         MeetingRequest[]         @relation("MeetingRequestFrom")
+  meetingRequestsTo           MeetingRequest[]         @relation("MeetingRequestTo")
+  personalAgendaBlocks        PersonalAgendaBlock[]
+  blocksCreated               UserBlock[]              @relation("UserBlockBlocker")
+  blocksReceived              UserBlock[]              @relation("UserBlockBlocked")
+  reportsFiled                UserReport[]             @relation("UserReportReporter")
+  reportsReceived             UserReport[]             @relation("UserReportReported")
+  reportsResolved             UserReport[]             @relation("UserReportResolver")
+  icsFeedTokens               IcsFeedToken[]
+  pushSubscriptions           PushSubscription[]
+  aiUsageRecords              AiUsageRecord[]
+  auditLogs                   AuditLog[]               @relation("AuditLogActor")
+  backgroundJobsCreated       BackgroundJob[]          @relation("BackgroundJobCreator")
+  agendaIngestRuns            AgendaIngestRun[]        @relation("AgendaIngestRunCreator")
+  cfpReviewers                CfpReviewer[]
+  cfpReviews                  CfpReview[]
+  cfpDecisionEmailsCreated    CfpDecisionEmail[]       @relation("CfpDecisionEmailCreator")
+  conciergeConversations      ConciergeConversation[]
+  conciergePendingActions     ConciergePendingAction[]
+  matchProfileEmbedding       MatchProfileEmbedding?
+  matchSuggestionsFor         MatchSuggestion[]        @relation("MatchSuggestionFor")
+  matchSuggestionsAsSuggested MatchSuggestion[]        @relation("MatchSuggestionSuggested")
+  opsCardsDismissed           OpsInboxCard[]           @relation("OpsInboxCardDismissedBy")
+  opsCardsApplied             OpsInboxCard[]           @relation("OpsInboxCardAppliedBy")
+  issuedCertificates          IssuedCertificate[]
+  certificatesIssuedBy        IssuedCertificate[]      @relation("IssuedCertificateIssuer")
+}
+
+/// GDPR account deletion request with 7-day grace (Phase 6 Chunk B).
+model AccountDeletionRequest {
+  id             String                @id @default(cuid())
+  userId         String                @unique
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status         AccountDeletionStatus @default(PENDING)
+  requestedAt    DateTime              @default(now())
+  scheduledFor   DateTime
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  blockedReason  String?
+  /// Snapshot for restore on cancel (e.g. membership directory/match flags) + job id.
+  payload        Json                  @default("{}")
+  hardDeleteJobId String?
+
+  @@index([status, scheduledFor])
 }
 
 model Event {
+  id                   String               @id @default(cuid())
+  name                 String
+  slug                 String               @unique
+  description          String?
+  venueName            String?
+  venueAddress         String?
+  onlineUrl            String?
+  brandColor           String?
+  bannerUrl            String?
+  logoUrl              String?
+  timezone             String
+  startDate            DateTime
+  endDate              DateTime
+  status               EventStatus          @default(DRAFT)
+  plan                 PlanTier?
+  attendeeCap          Int                  @default(50)
+  trialEndsAt          DateTime?
+  activatedAt          DateTime?
+  organizationId       String
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  seriesId             String?
+  series               EventSeries?         @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  /// Opaque permanent join token (hashed at rest). Public link uses the raw token, never the event id.
+  joinTokenHash        String?              @unique
+  joinTokenExpiresAt   DateTime?
+  joinTokenCapacity    Int?
+  joinTokenUseCount    Int                  @default(0)
+  joinTokenRevokedAt   DateTime?
+  slugInviteEnabled    Boolean              @default(true)
+  slugInviteExpiresAt  DateTime?
+  slugInviteCapacity   Int?
+  slugInviteUseCount   Int                  @default(0)
+  /// Keyword list for ops moderation detector (Phase A5). Empty = off.
+  communityBlocklist   Json                 @default("[]")
+  sessions             Session[]
+  tracks               Track[]
+  rooms                Room[]
+  venueMaps            VenueMap[]
+  speakersRoster       Speaker[]
+  announcements        Announcement[]
+  announcementAuditLogs AnnouncementAuditLog[]
+  surveys              Survey[]
+  conversations        Conversation[]
+  checkIns             CheckIn[]
+  networkThreads       NetworkThread[]
+  memberships          EventMembership[]
+  purchases            EventPurchase[]
+  adminAccessRequests  AdminAccessRequest[]
+  createdBy            User?                @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById          String?
+  featureConfig        EventFeatureConfig?
+  notificationPreferences NotificationPreference[]
+  meetingRequests      MeetingRequest[]
+  personalAgendaBlocks PersonalAgendaBlock[]
+  userBlocks           UserBlock[]
+  userReports          UserReport[]
+  icsFeedTokens        IcsFeedToken[]
+  aiUsageRecords       AiUsageRecord[]
+  auditLogs            AuditLog[]
+  backgroundJobs       BackgroundJob[]
+  agendaIngestRuns     AgendaIngestRun[]
+  cfpForms             CfpForm[]
+  eventFaqs            EventFaq[]
+  conciergeConversations ConciergeConversation[]
+  conciergePendingActions ConciergePendingAction[]
+  matchSuggestions     MatchSuggestion[]
+  sponsors             Sponsor[]
+  sessionScheduleChanges SessionScheduleChange[]
+  opsInboxCards        OpsInboxCard[]
+  badgeTemplates       BadgeTemplate[]
+  certificateTemplates CertificateTemplate[]
+  issuedCertificates   IssuedCertificate[]
+  eventRecap           EventRecap?
+
+  @@index([organizationId])
+  @@index([seriesId])
+}
+
+model EventFeatureConfig {
   id        String   @id @default(cuid())
+  eventId   String   @unique
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  overrides Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Track {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name      String
-  slug      String   @unique
-  bannerUrl String?
-  logoUrl   String?
-  timezone  String
-  startDate DateTime
-  endDate   DateTime
+  color     String
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
   sessions  Session[]
-  announcements Announcement[]
-  surveys   Survey[]
-  conversations Conversation[]
-  checkIns  CheckIn[]
-  networkThreads NetworkThread[]
-  createdBy   User?   @relation("EventCreator", fields: [createdById], references: [id])
-  createdById String?
+
+  @@unique([eventId, name])
+  @@index([eventId])
+}
+
+model Room {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  /// NULL = unknown capacity (ops room-move will not rank as "larger").
+  capacity  Int?
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  sessions  Session[]
+  mapPins   MapPin[]
+
+  @@unique([eventId, name])
+  @@index([eventId])
+}
+
+model VenueMap {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  /// From getStorageProvider() — https URL or data-URL fallback.
+  imageUrl  String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pins      MapPin[]
+
+  @@index([eventId])
+  @@index([eventId, sortOrder])
+}
+
+model MapPin {
+  id           String   @id @default(cuid())
+  mapId        String
+  map          VenueMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  roomLabel    String
+  /// Percentage of image width (0–100).
+  x            Float
+  /// Percentage of image height (0–100).
+  y            Float
+  linkedRoomId String?
+  linkedRoom   Room?    @relation(fields: [linkedRoomId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([mapId])
+  @@index([linkedRoomId])
+}
+
+model Speaker {
+  id           String              @id @default(cuid())
+  eventId      String
+  event        Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name         String
+  title        String?
+  affiliation  String?
+  bio          String?
+  photoUrl     String?
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  sessions     SessionSpeaker[]
+  itemAuthors  SessionItemAuthor[]
+  discussantOn SessionItem[]       @relation("SessionItemDiscussant")
+  cfpConversions CfpSubmission[]   @relation("CfpConvertedSpeaker")
+
+  @@index([eventId])
 }
 
 model Session {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  location    String?
-  speakers    String?
-  imageUrl    String?
-  zoomLink    String?
-  recordingUrl String?
-  fileUrl     String?
-  fileLink    String?
-  allowVirtualJoin Boolean @default(true)
-  startsAt    DateTime
-  endsAt      DateTime
-  event       Event    @relation(fields: [eventId], references: [id])
-  eventId     String
-  speaker     User?    @relation("SessionSpeaker", fields: [speakerId], references: [id])
-  speakerId   String?
-  bookmarks   SessionBookmark[]
-  attendances SessionAttendance[]
-  likes       SessionLike[]
-  conversations Conversation[]
+  id                String                     @id @default(cuid())
+  title             String
+  description       String?
+  /// Legacy free-text location — kept after Room backfill (Phase 2).
+  location          String?
+  /// Legacy free-text speakers — kept alongside Speaker roster (Phase 2).
+  speakers          String?
+  imageUrl          String?
+  zoomLink          String?
+  recordingUrl      String?
+  fileUrl           String?
+  fileLink          String?
+  allowVirtualJoin  Boolean                    @default(true)
+  /// NULL = unlimited in-person JOINING seats.
+  inPersonCapacity  Int?
+  /// NULL = unlimited virtual JOINING seats.
+  virtualCapacity   Int?
+  /// DRAFT = organizer-only (ingest confirm); PUBLISHED = attendee-visible when event is ACTIVE.
+  publishStatus     SessionPublishStatus       @default(PUBLISHED)
+  startsAt          DateTime
+  endsAt            DateTime
+  event             Event                      @relation(fields: [eventId], references: [id])
+  eventId           String
+  trackId           String?
+  track             Track?                     @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  roomId            String?
+  room              Room?                      @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  /// Legacy optional link to a User account as speaker (backward compat).
+  speaker           User?                      @relation("SessionLinkedUser", fields: [speakerId], references: [id], onDelete: SetNull)
+  speakerId         String?
+  sessionSpeakers   SessionSpeaker[]
+  items             SessionItem[]
+  bookmarks         SessionBookmark[]
+  attendances       SessionAttendance[]
+  waitlistEntries   WaitlistEntry[]
+  likes             SessionLike[]
+  conversations     Conversation[]
   discussionThreads SessionDiscussionThread[]
-  resources SessionResource[]
+  resources         SessionResource[]
+  announcements     Announcement[]
+  notifications     UserNotification[]
+  cfpConversions    CfpSubmission[]            @relation("CfpConvertedSession")
+  polls             SessionPoll[]
+  feedback          SessionFeedback[]
+  scheduleChanges   SessionScheduleChange[]
+
+  @@index([trackId])
+  @@index([roomId])
+  @@index([eventId, publishStatus])
+}
+
+model SessionSpeaker {
+  id        String  @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  speakerId String
+  speaker   Speaker @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  sortOrder Int     @default(0)
+
+  @@unique([sessionId, speakerId])
+  @@index([speakerId])
+}
+
+model SessionItem {
+  id                  String              @id @default(cuid())
+  sessionId           String
+  session             Session             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  title               String
+  abstract            String?
+  sortOrder           Int                 @default(0)
+  discussantName      String?
+  discussantSpeakerId String?
+  discussantSpeaker   Speaker?            @relation("SessionItemDiscussant", fields: [discussantSpeakerId], references: [id], onDelete: SetNull)
+  createdAt           DateTime            @default(now())
+  authors             SessionItemAuthor[]
+  cfpConversions      CfpSubmission[]     @relation("CfpConvertedSessionItem")
+
+  @@index([sessionId, sortOrder])
+}
+
+model SessionItemAuthor {
+  id            String      @id @default(cuid())
+  sessionItemId String
+  sessionItem   SessionItem @relation(fields: [sessionItemId], references: [id], onDelete: Cascade)
+  speakerId     String?
+  speaker       Speaker?    @relation(fields: [speakerId], references: [id], onDelete: SetNull)
+  name          String
+  isPresenter   Boolean     @default(false)
+  sortOrder     Int         @default(0)
+
+  @@index([sessionItemId, sortOrder])
+  @@index([speakerId])
 }
 
 model SessionBookmark {
   id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   session   Session  @relation(fields: [sessionId], references: [id])
   sessionId String
@@ -147,22 +883,41 @@ model SessionBookmark {
 }
 
 model SessionAttendance {
-  id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
+  id        String                  @id @default(cuid())
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
-  session   Session  @relation(fields: [sessionId], references: [id])
+  session   Session                 @relation(fields: [sessionId], references: [id])
   sessionId String
   status    SessionAttendanceStatus
   joinMode  SessionJoinMode?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
 
   @@unique([userId, sessionId])
 }
 
+/// Ordered waitlist for a full in-person or virtual capacity bucket.
+model WaitlistEntry {
+  id             String          @id @default(cuid())
+  sessionId      String
+  session        Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode           SessionJoinMode
+  position       Int
+  createdAt      DateTime        @default(now())
+  promotedAt     DateTime?
+  /// After promote: confirm seat before this instant or pass to next.
+  holdExpiresAt  DateTime?
+
+  @@unique([sessionId, userId])
+  @@index([sessionId, mode, position])
+  @@index([holdExpiresAt])
+}
+
 model SessionLike {
   id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   session   Session  @relation(fields: [sessionId], references: [id])
   sessionId String
@@ -172,40 +927,58 @@ model SessionLike {
 }
 
 model Announcement {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  createdAt DateTime @default(now())
-  event     Event    @relation(fields: [eventId], references: [id])
-  eventId   String
+  id             String                 @id @default(cuid())
+  title          String
+  body           String
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  event          Event                  @relation(fields: [eventId], references: [id])
+  eventId        String
+  createdById    String?
+  createdBy      User?                  @relation("AnnouncementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  audience       AnnouncementAudience   @default(EVERYONE)
+  audienceRole   EventMemberRole?
+  sessionId      String?
+  session        Session?               @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  attendanceMode SessionJoinMode?
+  sendEmail      Boolean                @default(false)
+  isEmergency    Boolean                @default(false)
+  isPreview      Boolean                @default(false)
+  publishedAt    DateTime?
+  auditLogs      AnnouncementAuditLog[]
+  notifications  UserNotification[]
+
+  @@index([eventId, createdAt])
+  @@index([sessionId])
+  @@index([createdById])
 }
 
 model Survey {
-  id        String   @id @default(cuid())
+  id        String           @id @default(cuid())
   title     String
-  event     Event    @relation(fields: [eventId], references: [id])
+  event     Event            @relation(fields: [eventId], references: [id])
   eventId   String
   questions SurveyQuestion[]
 }
 
 model SurveyQuestion {
-  id        String   @id @default(cuid())
-  prompt    String
-  type      QuestionType
-  options   String[]
-  survey    Survey   @relation(fields: [surveyId], references: [id])
-  surveyId  String
-  answers   SurveyAnswer[]
+  id      String         @id @default(cuid())
+  prompt  String
+  type    QuestionType
+  options String[]
+  survey  Survey         @relation(fields: [surveyId], references: [id])
+  surveyId String
+  answers SurveyAnswer[]
 }
 
 model SurveyAnswer {
-  id         String   @id @default(cuid())
+  id         String         @id @default(cuid())
   question   SurveyQuestion @relation(fields: [questionId], references: [id])
   questionId String
-  user       User     @relation(fields: [userId], references: [id])
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String
   answer     String
-  createdAt  DateTime @default(now())
+  createdAt  DateTime       @default(now())
 }
 
 enum ConversationType {
@@ -216,127 +989,1024 @@ enum ConversationType {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
+  id        String               @id @default(cuid())
   name      String?
   type      ConversationType
-  createdAt DateTime @default(now())
-  event     Event    @relation(fields: [eventId], references: [id])
+  createdAt DateTime             @default(now())
+  event     Event                @relation(fields: [eventId], references: [id])
   eventId   String
-  session   Session? @relation(fields: [sessionId], references: [id])
-  sessionId String?  @unique
+  session   Session?             @relation(fields: [sessionId], references: [id])
+  sessionId String?              @unique
   members   ConversationMember[]
   messages  ConversationMessage[]
 }
 
 model ConversationMember {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   conversationId String
-  user           User @relation(fields: [userId], references: [id])
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId         String
 
   @@unique([conversationId, userId])
 }
 
 model ConversationMessage {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   body           String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   conversationId String
-  user           User     @relation(fields: [userId], references: [id])
-  userId         String
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId         String?
 }
 
 model CheckIn {
-  id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-  event     Event    @relation(fields: [eventId], references: [id])
-  eventId   String
-  createdAt DateTime @default(now())
+  id               String        @id @default(cuid())
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  event            Event         @relation(fields: [eventId], references: [id])
+  eventId          String
+  method           CheckInMethod @default(SELF)
+  scannedByUserId  String?
+  scannedBy        User?         @relation("CheckInScanner", fields: [scannedByUserId], references: [id], onDelete: SetNull)
+  /// Client-generated id for offline queue sync (partial unique in SQL when set).
+  clientMutationId String?       @unique
+  createdAt        DateTime      @default(now())
 
   @@unique([userId, eventId])
+  @@index([eventId, createdAt])
 }
 
 model NetworkThread {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  channel   NetworkChannel @default(GENERAL)
-  meetupMode SessionJoinMode?
-  meetupStartsAt DateTime?
-  meetupMeetingUrl String?
-  meetupInviteEveryone Boolean @default(false)
-  meetupParticipantIds String[] @default([])
-  taggedUserIds String[] @default([])
-  imageUrl  String?
-  imageUrls String[] @default([])
-  mapsUrl   String?
-  createdAt DateTime @default(now())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  replies   NetworkReply[]
+  id                     String            @id @default(cuid())
+  title                  String
+  body                   String
+  channel                NetworkChannel    @default(GENERAL)
+  meetupMode             SessionJoinMode?
+  meetupStartsAt         DateTime?
+  meetupMeetingUrl       String?
+  meetupInviteEveryone   Boolean           @default(false)
+  meetupParticipantIds   String[]          @default([])
+  taggedUserIds          String[]          @default([])
+  imageUrl               String?
+  imageUrls              String[]          @default([])
+  mapsUrl                String?
+  createdAt              DateTime          @default(now())
+  eventId                String
+  event                  Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  authorId               String?
+  author                 User?             @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  replies                NetworkReply[]
 }
 
 model UserNotification {
-  id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  eventId        String?
-  kind           NotificationKind
-  title          String
-  body           String?
-  threadId       String?
-  conversationId String?
-  readAt         DateTime?
-  createdAt      DateTime @default(now())
+  id               String               @id @default(cuid())
+  userId           String
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId          String?
+  kind             NotificationKind
+  class            NotificationClass    @default(DIGEST)
+  delivery         NotificationDelivery @default(INBOX)
+  title            String
+  body             String?
+  threadId         String?
+  conversationId   String?
+  announcementId   String?
+  announcement     Announcement?        @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  meetingRequestId String?
+  meetingRequest   MeetingRequest?      @relation(fields: [meetingRequestId], references: [id], onDelete: SetNull)
+  sessionId        String?
+  session          Session?             @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  queuedUntil      DateTime?
+  pushDedupKey     String?
+  budgetCharged    Boolean              @default(false)
+  readAt           DateTime?
+  createdAt        DateTime             @default(now())
 
   @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([delivery, queuedUntil])
+  @@index([userId, class, createdAt])
+  @@index([announcementId])
+  @@index([meetingRequestId])
+  @@index([sessionId])
 }
 
 model NetworkReply {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   body      String
-  createdAt DateTime @default(now())
+  createdAt DateTime      @default(now())
   threadId  String
   thread    NetworkThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
 }
 
 model SessionDiscussionThread {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  createdAt DateTime @default(now())
-  sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  replies   SessionDiscussionReply[]
+  id          String                    @id @default(cuid())
+  title       String
+  body        String
+  createdAt   DateTime                  @default(now())
+  sessionId   String
+  session     Session                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  authorId    String?
+  author      User?                     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  answeredAt  DateTime?
+  answeredById String?
+  answeredBy  User?                     @relation("SessionDiscussionAnsweredBy", fields: [answeredById], references: [id], onDelete: SetNull)
+  hiddenAt    DateTime?
+  hiddenById  String?
+  hiddenBy    User?                     @relation("SessionDiscussionHiddenBy", fields: [hiddenById], references: [id], onDelete: SetNull)
+  replies     SessionDiscussionReply[]
+  upvotes     SessionDiscussionUpvote[]
+
+  @@index([sessionId, createdAt])
 }
 
 model SessionDiscussionReply {
-  id        String   @id @default(cuid())
+  id        String                  @id @default(cuid())
   body      String
-  createdAt DateTime @default(now())
+  createdAt DateTime                @default(now())
   threadId  String
   thread    SessionDiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?                   @relation(fields: [authorId], references: [id], onDelete: SetNull)
 }
 
-model SessionResource {
+model SessionDiscussionUpvote {
+  id        String                  @id @default(cuid())
+  threadId  String
+  thread    SessionDiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime                @default(now())
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model SessionPoll {
+  id                     String            @id @default(cuid())
+  sessionId              String
+  session                Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question               String
+  status                 SessionPollStatus @default(DRAFT)
+  showResultsToAttendees Boolean           @default(true)
+  openedAt               DateTime?
+  closedAt               DateTime?
+  createdById            String?
+  createdBy              User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  options                SessionPollOption[]
+  votes                  SessionPollVote[]
+
+  @@index([sessionId, status])
+}
+
+model SessionPollOption {
+  id        String           @id @default(cuid())
+  pollId    String
+  poll      SessionPoll      @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  label     String
+  sortOrder Int              @default(0)
+  votes     SessionPollVote[]
+
+  @@index([pollId, sortOrder])
+}
+
+model SessionPollVote {
+  id        String           @id @default(cuid())
+  pollId    String
+  poll      SessionPoll      @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    SessionPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+
+  @@unique([pollId, userId])
+  @@index([optionId])
+}
+
+model SessionFeedback {
   id        String   @id @default(cuid())
-  title     String
-  kind      SessionResourceKind
-  url       String
-  createdAt DateTime @default(now())
   sessionId String
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+}
+
+model Sponsor {
+  id          String        @id @default(cuid())
+  eventId     String
+  event       Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  logoUrl     String?
+  url         String?
+  tier        String        @default("Standard")
+  sortOrder   Int           @default(0)
+  boothLabel  String?
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  leads       SponsorLead[]
+  recapSections EventRecapSection[]
+
+  @@index([eventId, sortOrder])
+  @@index([eventId, tier])
+}
+
+model SponsorLead {
+  id               String   @id @default(cuid())
+  sponsorId        String
+  sponsor          Sponsor  @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  capturedByUserId String?
+  capturedBy       User?    @relation("SponsorLeadCapturedBy", fields: [capturedByUserId], references: [id], onDelete: SetNull)
+  attendeeUserId   String?
+  attendee         User?    @relation("SponsorLeadAttendee", fields: [attendeeUserId], references: [id], onDelete: SetNull)
+  name             String?
+  email            String?
+  company          String?
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  @@index([sponsorId, createdAt])
+}
+
+model SessionResource {
+  id         String              @id @default(cuid())
+  title      String
+  kind       SessionResourceKind
+  url        String
+  storageKey String?
+  createdAt  DateTime            @default(now())
+  sessionId  String
+  session    Session             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  /// Uploader — SetNull on account delete so shared session materials survive.
+  userId     String?
+  user       User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+/// Quiet hours / digest / mute categories. Partial unique indexes in migration:
+/// one global row per user (eventId IS NULL) + one per (userId, eventId).
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId         String?
+  event           Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  quietHoursStart String   @default("22:00")
+  quietHoursEnd   String   @default("07:00")
+  digestLocalTime String   @default("07:30")
+  digestEmail     Boolean  @default(false)
+  mutedCategories String[] @default([])
+  timezone        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([eventId])
+}
+
+model NotificationPushDay {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Attendee-local calendar day `YYYY-MM-DD`.
+  dayKey    String
+  pushCount Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dayKey])
+  @@index([userId])
+}
+
+model MeetingRequest {
+  id             String               @id @default(cuid())
+  eventId        String
+  event          Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fromUserId     String
+  fromUser       User                 @relation("MeetingRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId       String
+  toUser         User                 @relation("MeetingRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  status         MeetingRequestStatus @default(PENDING)
+  message        String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  respondedAt    DateTime?
+  slots          MeetingSlot[]
+  agendaBlocks   PersonalAgendaBlock[]
+  notifications  UserNotification[]
+
+  @@index([eventId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([eventId, status])
+}
+
+model MeetingSlot {
+  id               String         @id @default(cuid())
+  meetingRequestId String
+  meetingRequest   MeetingRequest @relation(fields: [meetingRequestId], references: [id], onDelete: Cascade)
+  startsAt         DateTime
+  endsAt           DateTime
+  sortOrder        Int            @default(0)
+
+  @@index([meetingRequestId])
+}
+
+model PersonalAgendaBlock {
+  id               String               @id @default(cuid())
+  userId           String
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId          String
+  event            Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title            String
+  startsAt         DateTime
+  endsAt           DateTime
+  source           PersonalAgendaSource @default(MEETING)
+  meetingRequestId String?
+  meetingRequest   MeetingRequest?      @relation(fields: [meetingRequestId], references: [id], onDelete: SetNull)
+  createdAt        DateTime             @default(now())
+
+  @@index([userId, eventId])
+  @@index([eventId, startsAt])
+  @@index([meetingRequestId])
+}
+
+model AnnouncementAuditLog {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action         String
+  payload        Json         @default("{}")
+  createdAt      DateTime     @default(now())
+
+  @@index([announcementId])
+  @@index([eventId, createdAt])
+  @@index([actorId])
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   User     @relation("UserBlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("UserBlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId, eventId])
+  @@index([eventId])
+  @@index([blockedId])
+}
+
+model UserReport {
+  id             String                 @id @default(cuid())
+  reporterId     String
+  reporter       User                   @relation("UserReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String
+  reportedUser   User                   @relation("UserReportReported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reason         String
+  details        String?
+  status         ModerationReportStatus @default(OPEN)
+  createdAt      DateTime               @default(now())
+  resolvedAt     DateTime?
+  resolverId     String?
+  resolver       User?                  @relation("UserReportResolver", fields: [resolverId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status])
+  @@index([reporterId])
+  @@index([reportedUserId])
+}
+
+model IcsFeedToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId, eventId])
+}
+
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime?
+
+  @@index([userId])
+}
+
+/// Per-call AI metering (Phase A0). Caps are computed from counts by feature + event.
+model AiUsageRecord {
+  id                String         @id @default(cuid())
+  organizationId    String
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId           String?
+  event             Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  userId            String?
+  user              User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  feature           AiMeterFeature
+  provider          String
+  model             String
+  tokensIn          Int            @default(0)
+  tokensOut         Int            @default(0)
+  costEstimateCents Int            @default(0)
+  latencyMs         Int            @default(0)
+  jobId             String?
+  requestId         String?
+  createdAt         DateTime       @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([eventId, feature, createdAt])
+  @@index([organizationId, feature, createdAt])
+}
+
+/// Agent drafts/actions (+ later Phase 7 sensitive actions).
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  eventId        String?
+  event          Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  actorUserId    String?
+  actor          User?        @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action         AuditAction
+  entityType     String?
+  entityId       String?
+  aiGenerated    Boolean      @default(false)
+  payload        Json         @default("{}")
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([eventId, createdAt])
+  @@index([aiGenerated, createdAt])
+}
+
+/// Progress-polling background jobs (AI ingest, recap, etc.).
+model BackgroundJob {
+  id              String              @id @default(cuid())
+  organizationId  String?
+  organization    Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  eventId         String?
+  event           Event?              @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdById     String?
+  createdBy       User?               @relation("BackgroundJobCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  type            String
+  status          BackgroundJobStatus @default(PENDING)
+  progress        Int                 @default(0)
+  progressMessage String?
+  input           Json                @default("{}")
+  result          Json?
+  error           String?
+  attempts        Int                 @default(0)
+  maxAttempts     Int                 @default(3)
+  scheduledAt     DateTime            @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime            @default(now())
+
+  @@index([status, scheduledAt])
+  @@index([organizationId, createdAt])
+  @@index([eventId, type, createdAt])
+}
+
+/// Agenda ingest history + raw source link (Phase A1).
+model AgendaIngestRun {
+  id                String                 @id @default(cuid())
+  organizationId    String
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId           String
+  event             Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdById       String?
+  createdBy         User?                  @relation("AgendaIngestRunCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  sourceKind        AgendaIngestSourceKind
+  sourceFileName    String?
+  sourceMime        String?
+  sourceBytes       Int?
+  sourceUrl         String?
+  sourceStorageKey  String?
+  sourceTextPreview String?
+  status            AgendaIngestRunStatus  @default(PENDING)
+  /// Soft link to BackgroundJob.id (no FK — jobs may be pruned independently).
+  jobId             String?
+  extraction        Json?
+  assumptions       Json                   @default("[]")
+  changeset         Json?
+  reviewState       Json?
+  error             String?
+  createdCount      Int                    @default(0)
+  updatedCount      Int                    @default(0)
+  deletedCount      Int                    @default(0)
+  speakerCount      Int                    @default(0)
+  itemCount         Int                    @default(0)
+  aiGenerated       Boolean                @default(true)
+  confirmedAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([eventId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdById, createdAt])
+}
+
+/// Call for papers / abstracts (Phase P3).
+model CfpForm {
+  id                      String           @id @default(cuid())
+  eventId                 String
+  event                   Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title                   String
+  description             String?
+  opensAt                 DateTime
+  closesAt                DateTime
+  status                  CfpFormStatus    @default(DRAFT)
+  /// JSON schema: [{ id, type: text|textarea|select|file, label, required?, options? }]
+  customFields            Json             @default("[]")
+  maxSubmissionsPerPerson Int              @default(1)
+  /// Headline capability — default on (double-blind).
+  blindReview             Boolean          @default(true)
+  /// [{ id, criterion, weight }]
+  rubric                  Json             @default("[]")
+  acceptEmailSubject      String?
+  acceptEmailBody         String?
+  rejectEmailSubject      String?
+  rejectEmailBody         String?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  reviewers               CfpReviewer[]
+  submissions             CfpSubmission[]
+
+  @@index([eventId])
+  @@index([eventId, status])
+}
+
+model CfpReviewer {
+  id        String   @id @default(cuid())
+  cfpFormId String
+  cfpForm   CfpForm  @relation(fields: [cfpFormId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([cfpFormId, userId])
+  @@index([userId])
+}
+
+model CfpSubmission {
+  id                     String              @id @default(cuid())
+  cfpFormId              String
+  cfpForm                CfpForm             @relation(fields: [cfpFormId], references: [id], onDelete: Cascade)
+  submitterName          String
+  submitterEmail         String
+  emailVerifiedAt        DateTime?
+  /// Hashed email-verify token (Phase 1 invite pattern) — never store plaintext.
+  verifyTokenHash        String?             @unique
+  /// Hashed submitter access token for “your submission” link — never plaintext.
+  accessTokenHash        String?             @unique
+  title                  String
+  abstract               String
+  answers                Json                @default("{}")
+  status                 CfpSubmissionStatus @default(DRAFT)
+  submittedAt            DateTime?
+  convertedSessionId     String?
+  convertedSession       Session?            @relation("CfpConvertedSession", fields: [convertedSessionId], references: [id], onDelete: SetNull)
+  convertedSessionItemId String?
+  convertedSessionItem   SessionItem?        @relation("CfpConvertedSessionItem", fields: [convertedSessionItemId], references: [id], onDelete: SetNull)
+  convertedSpeakerId     String?
+  convertedSpeaker       Speaker?            @relation("CfpConvertedSpeaker", fields: [convertedSpeakerId], references: [id], onDelete: SetNull)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  attachments            CfpAttachment[]
+  reviews                CfpReview[]
+  decisionEmails         CfpDecisionEmail[]
+
+  @@index([cfpFormId, status])
+  @@index([cfpFormId, submitterEmail])
+  @@index([status])
+  @@index([convertedSessionId])
+  @@index([convertedSessionItemId])
+  @@index([convertedSpeakerId])
+}
+
+model CfpAttachment {
+  id           String        @id @default(cuid())
+  submissionId String
+  submission   CfpSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fileName     String
+  mime         String
+  sizeBytes    Int
+  /// https URL from object storage, or data-URL fallback.
+  url          String
+  storageKey   String?
+  createdAt    DateTime      @default(now())
+
+  @@index([submissionId])
+}
+
+model CfpReview {
+  id             String        @id @default(cuid())
+  submissionId   String
+  submission     CfpSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewerUserId String?
+  reviewer       User?         @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  /// { [criterionId]: 1..5 }
+  scores         Json          @default("{}")
+  comment        String?
+  recusedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([submissionId, reviewerUserId])
+  @@index([reviewerUserId])
+  @@index([submissionId])
+}
+
+model CfpDecisionEmail {
+  id          String               @id @default(cuid())
+  submissionId String
+  submission  CfpSubmission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  kind        CfpDecisionEmailKind
+  toEmail     String
+  subject     String
+  body        String
+  sentAt      DateTime?
+  createdById String?
+  createdBy   User?                @relation("CfpDecisionEmailCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([submissionId])
+  @@index([sentAt])
+}
+
+/// Organizer-editable FAQ for Concierge grounding (Phase A3).
+model EventFaq {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  question  String
+  answer    String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([eventId, sortOrder])
+}
+
+/// One Concierge chat thread per attendee per event (Phase A3).
+model ConciergeConversation {
+  id        String                   @id @default(cuid())
+  eventId   String
+  event     Event                    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  messages  ConciergeMessage[]
+  pendingActions ConciergePendingAction[]
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@index([eventId, updatedAt])
+}
+
+model ConciergeMessage {
+  id               String                @id @default(cuid())
+  conversationId   String
+  conversation     ConciergeConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role             ConciergeMessageRole
+  body             String
+  aiGenerated      Boolean               @default(false)
+  toolProposals    Json?
+  /// Server-minted ConciergePendingAction ids awaiting confirm — never executable from model output alone.
+  pendingActionIds Json?
+  /// Soft link to AiUsageRecord.id (no FK — usage rows may be retained independently).
+  usageId          String?
+  createdAt        DateTime              @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+/// Propose mints this row; confirm executes only when userId/eventId match the server session.
+model ConciergePendingAction {
+  id             String                        @id @default(cuid())
+  eventId        String
+  event          Event                         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   ConciergeConversation?        @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  tool           String
+  args           Json                          @default("{}")
+  preview        Json                          @default("{}")
+  status         ConciergePendingActionStatus  @default(PENDING)
+  /// App sets ~30 minutes from propose.
+  expiresAt      DateTime
+  confirmedAt    DateTime?
+  createdAt      DateTime                      @default(now())
+
+  @@index([userId, status])
+  @@index([eventId, status])
+  @@index([expiresAt])
+  @@index([conversationId])
+}
+
+/// Cached profile embedding for Matchmaker (Phase A4). Recompute on profile edit when sourceHash changes.
+model MatchProfileEmbedding {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceText String
+  sourceHash String
+  /// Float vector as JSON number[] (app-layer cosine; no pgvector required).
+  embedding  Json
+  dimensions Int
+  model      String
+  provider   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([sourceHash])
+}
+
+/// Ranked "People you should meet" suggestion (DIGEST delivery; draftIntro never auto-sent).
+model MatchSuggestion {
+  id              String   @id @default(cuid())
+  eventId         String
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  forUserId       String
+  forUser         User     @relation("MatchSuggestionFor", fields: [forUserId], references: [id], onDelete: Cascade)
+  suggestedUserId String
+  suggestedUser   User     @relation("MatchSuggestionSuggested", fields: [suggestedUserId], references: [id], onDelete: Cascade)
+  /// 1..5 within the batch.
+  rank            Int
+  whyLine         String
+  /// Editable ice-breaker pre-fill for the DM composer — attendee must press send.
+  draftIntro      String
+  /// Optional 0–2 mutually-free meeting slots: [{ startsAt, endsAt }].
+  proposedSlots   Json?
+  /// Idempotency key: "join" | "week:YYYY-Www".
+  batchKey        String
+  aiGenerated     Boolean  @default(true)
+  /// Soft link to AiUsageRecord.id (no FK).
+  usageId         String?
+  createdAt       DateTime @default(now())
+
+  @@unique([eventId, forUserId, suggestedUserId, batchKey])
+  @@index([eventId, forUserId, batchKey])
+  @@index([forUserId])
+  @@index([suggestedUserId])
+  @@index([eventId, createdAt])
+}
+
+/// Published session time/room change feed for ops SESSION_CHANGED detector (Phase A5).
+model SessionScheduleChange {
+  id                    String    @id @default(cuid())
+  eventId               String
+  event                 Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sessionId             String
+  session               Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  previousStartsAt      DateTime
+  newStartsAt           DateTime
+  /// Snapshot only — no FK (room may later be deleted).
+  previousRoomId        String?
+  newRoomId             String?
+  publishStatusAtChange String
+  createdAt             DateTime  @default(now())
+  consumedAt            DateTime?
+  /// Soft link to OpsInboxCard.id (no FK — cards may be pruned independently).
+  opsCardId             String?
+
+  @@index([eventId, consumedAt])
+  @@index([sessionId, createdAt])
+}
+
+/// Organizer Ops Inbox card — draft only until explicit Apply/Send (Phase A5).
+model OpsInboxCard {
+  id                 String             @id @default(cuid())
+  organizationId     String
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String
+  event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  detectorKind       OpsDetectorKind
+  /// Sticky dismiss + idempotent create: unique per event.
+  triggerInstanceKey String
+  status             OpsCardStatus      @default(OPEN)
+  triggerSummary     String
+  evidence           Json               @default("{}")
+  /// Frozen on Apply/Send for audit.
+  evidenceSnapshot   Json               @default("{}")
+  draftActionType    OpsDraftActionType
+  draftTitle         String
+  draftBody          String
+  draftPayload       Json               @default("{}")
+  draftMetered       Boolean            @default(false)
+  dismissedAt        DateTime?
+  dismissedById      String?
+  dismissedBy        User?              @relation("OpsInboxCardDismissedBy", fields: [dismissedById], references: [id], onDelete: SetNull)
+  appliedAt          DateTime?
+  appliedById        String?
+  appliedBy          User?              @relation("OpsInboxCardAppliedBy", fields: [appliedById], references: [id], onDelete: SetNull)
+  appliedChannelRef  String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([eventId, triggerInstanceKey])
+  @@index([eventId, status, createdAt])
+  @@index([eventId, detectorKind, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([dismissedById])
+  @@index([appliedById])
+}
+
+/// Avery badge layout picker config — one per event (Phase P4).
+model BadgeTemplate {
+  id                 String         @id @default(cuid())
+  organizationId     String
+  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String         @unique
+  event              Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sheetSize          BadgeSheetSize @default(SIZE_3X4)
+  showLogo           Boolean        @default(true)
+  showName           Boolean        @default(true)
+  showAffiliation    Boolean        @default(true)
+  showRole           Boolean        @default(true)
+  showQr             Boolean        @default(true)
+  showBrandColorBar  Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([organizationId])
+}
+
+/// Certificate merge template + eligibility rule (Phase P4).
+/// Session rules use SessionAttendance JOINING (registration), not door check-in.
+model CertificateTemplate {
+  id                  String                       @id @default(cuid())
+  organizationId      String
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId             String
+  event               Event                        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name                String
+  titleText           String
+  bodyText            String?
+  signatureImageUrl   String?
+  hours               Float?
+  eligibilityRule     CertificateEligibilityRule
+  minSessions         Int?
+  requiredSessionIds  String[]                     @default([])
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  issuedCertificates  IssuedCertificate[]
+
+  @@index([eventId])
+  @@index([organizationId])
+  @@index([eventId, eligibilityRule])
+}
+
+/// Issued certificate PDF + public verify id (Phase P4).
+/// certificateTemplate is Restrict — void (voidedAt) before deleting a template.
+model IssuedCertificate {
+  id                     String              @id @default(cuid())
+  /// 128-bit CSPRNG public id: randomBytes(16).toString("base64url") — never cuid.
+  publicId               String              @unique
+  organizationId         String
+  organization           Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId                String
+  event                  Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  certificateTemplateId  String
+  certificateTemplate    CertificateTemplate @relation(fields: [certificateTemplateId], references: [id], onDelete: Restrict)
+  userId                 String
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendeeNameSnapshot   String
+  eventNameSnapshot      String
+  eventDateSnapshot      DateTime
+  hoursSnapshot          Float?
+  pdfStorageKey          String?
+  /// Set once at first issue — never rewritten on regenerate.
+  issuedAt               DateTime
+  /// Updated on re-issue; null until first regenerate.
+  regeneratedAt          DateTime?
+  /// Reserved for revoke; /verify treats non-null as miss (identical 404).
+  voidedAt               DateTime?
+  issuedByUserId         String?
+  issuedBy               User?               @relation("IssuedCertificateIssuer", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  /// Soft link to BackgroundJob.id (no FK — jobs may be pruned independently).
+  batchJobId             String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@unique([certificateTemplateId, userId])
+  @@index([eventId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([certificateTemplateId])
+  @@index([issuedByUserId])
+  @@index([voidedAt])
+}
+
+/// Post-event recap workspace — one per event (Phase A6).
+/// metricsSnapshot is the only source of narrative numbers (placeholder substitution).
+model EventRecap {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String              @unique
+  event              Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status             RecapStatus         @default(PENDING)
+  /// Frozen verified figures from SQL — LLM never owns these values.
+  metricsSnapshot    Json                @default("{}")
+  /// Anonymized quote bank; synthesis may only cite quoteIds from here.
+  feedbackQuoteBank  Json                @default("[]")
+  /// Structured "fix next year" items merged into EventSeries.setupChecklist.
+  fixNextYear        Json                @default("[]")
+  generatedAt        DateTime?
+  regeneratedAt      DateTime?
+  /// Soft link to BackgroundJob.id (no FK — jobs may be pruned independently).
+  lastJobId          String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  sections           EventRecapSection[]
+  emails             EventRecapEmail[]
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+}
+
+/// Draftable recap section (report / feedback / certificates / sponsor one-pager).
+/// Live uniqueness (status <> SUPERSEDED) is enforced by partial unique indexes in SQL —
+/// not expressible as Prisma @@unique.
+model EventRecapSection {
+  id          String             @id @default(cuid())
+  recapId     String
+  recap       EventRecap         @relation(fields: [recapId], references: [id], onDelete: Cascade)
+  kind        RecapSectionKind
+  status      RecapSectionStatus @default(DRAFT)
+  /// Required for SPONSOR_ONE_PAGER; null for other kinds. Real FK.
+  sponsorId   String?
+  sponsor     Sponsor?           @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  title       String
+  /// Stored after placeholder substitution from metricsSnapshot — never raw LLM digits.
+  bodyMarkdown String            @default("")
+  structured  Json               @default("{}")
+  aiGenerated Boolean            @default(true)
+  metered     Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([recapId, kind])
+  @@index([recapId, status, createdAt])
+  @@index([sponsorId])
+}
+
+/// Draftable recap emails (certificate availability + thank-yous).
+/// Live uniqueness (status <> SUPERSEDED) is a partial unique index in SQL.
+/// SENT rows are never replaced by regeneration.
+model EventRecapEmail {
+  id                     String           @id @default(cuid())
+  recapId                String
+  recap                  EventRecap       @relation(fields: [recapId], references: [id], onDelete: Cascade)
+  kind                   RecapEmailKind
+  status                 RecapEmailStatus @default(DRAFT)
+  audienceRole           String?
+  subject                String
+  body                   String
+  sentAt                 DateTime?
+  /// Soft link to Announcement.id (no FK — announcements may be pruned independently).
+  sentViaAnnouncementId  String?
+  aiGenerated            Boolean          @default(true)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@index([recapId, kind])
+  @@index([recapId, status, createdAt])
+  @@index([sentAt])
 }

@@ -1,259 +1,157 @@
+import { brand } from "@event-app/config";
 import Head from "next/head";
-import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
-import { EventPilotLogo } from "../components/EventPilotLogo";
-import { apiFetch, AuthResponse } from "../lib/api";
+import type { GetServerSideProps } from "next";
+import { SiteFooter } from "../components/marketing/SiteFooter";
+import { SiteHeader } from "../components/marketing/SiteHeader";
+import { HeroIngestDemo } from "../components/marketing/HeroIngestDemo";
+import { homeEventQueryRedirect } from "../lib/entryRedirects";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+type Props = Record<string, never>;
 
-const LINKED_EVENT_STORAGE_KEY = "eventPilotLinkedContext";
-
-type LinkedEventPayload = { id: string; name: string };
-
-export default function Home() {
-  const router = useRouter();
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [registerType, setRegisterType] = useState<"participant" | "admin">("participant");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [forgotOpen, setForgotOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotSending, setForgotSending] = useState(false);
-  const [forgotMessage, setForgotMessage] = useState<string | null>(null);
-  const [forgotError, setForgotError] = useState<string | null>(null);
-  const [linkedEventName, setLinkedEventName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = window.localStorage.getItem("token");
-    if (token) {
-      window.location.href = "/dashboard";
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!router.isReady) return;
-    const token = typeof router.query.event === "string" ? router.query.event.trim() : "";
-    if (!token) {
-      try {
-        const raw = window.sessionStorage.getItem(LINKED_EVENT_STORAGE_KEY);
-        const activeId = window.localStorage.getItem("activeEventId");
-        if (raw && activeId) {
-          const parsed = JSON.parse(raw) as LinkedEventPayload;
-          if (parsed.id === activeId && typeof parsed.name === "string" && parsed.name.trim()) {
-            setLinkedEventName(parsed.name.trim());
-            return;
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-      setLinkedEventName(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_URL}/event/slug/${encodeURIComponent(token)}`);
-        const data = (await res.json().catch(() => ({}))) as { id?: string; name?: string };
-        if (!res.ok || cancelled || !data.id) {
-          if (!cancelled) setLinkedEventName(null);
-          return;
-        }
-        window.localStorage.setItem("activeEventId", data.id);
-        const name = typeof data.name === "string" && data.name.trim() ? data.name.trim() : null;
-        if (name) {
-          try {
-            window.sessionStorage.setItem(
-              LINKED_EVENT_STORAGE_KEY,
-              JSON.stringify({ id: data.id, name } satisfies LinkedEventPayload),
-            );
-          } catch {
-            /* ignore */
-          }
-          if (!cancelled) setLinkedEventName(name);
-        } else if (!cancelled) {
-          setLinkedEventName(null);
-        }
-      } catch {
-        if (!cancelled) setLinkedEventName(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  const target = homeEventQueryRedirect(ctx.query.event);
+  if (target) {
+    return {
+      redirect: {
+        destination: target,
+        permanent: false, // 302 — temporary
+      },
     };
-  }, [router.isReady, router.query.event]);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
-
-    try {
-      const endpoint = mode === "login" ? "/auth/login" : registerType === "admin" ? "/auth/register-admin" : "/auth/register";
-      const data = await apiFetch<AuthResponse>(endpoint, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      window.localStorage.setItem("token", data.token);
-      window.localStorage.setItem("user", JSON.stringify(data.user));
-      try {
-        window.sessionStorage.removeItem(LINKED_EVENT_STORAGE_KEY);
-      } catch {
-        /* ignore */
-      }
-      window.location.href = "/dashboard";
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
   }
+  return { props: {} };
+};
 
-  async function sendForgotPassword() {
-    if (!forgotEmail || forgotSending) return;
-    setForgotSending(true);
-    setForgotError(null);
-    setForgotMessage(null);
-    try {
-      let eventRef = typeof router.query.event === "string" ? router.query.event.trim() : undefined;
-      if (!eventRef && typeof window !== "undefined") {
-        eventRef = window.localStorage.getItem("activeEventId")?.trim() || undefined;
-      }
-      await apiFetch<{ ok: true }>("/auth/forgot-password", {
-        method: "POST",
-        body: JSON.stringify({ email: forgotEmail, ...(eventRef ? { eventSlug: eventRef } : {}) }),
-      });
-      setForgotMessage("If that email is in our system, a reset link has been sent.");
-    } catch (err) {
-      setForgotError(err instanceof Error ? err.message : "Could not send reset email.");
-    } finally {
-      setForgotSending(false);
-    }
-  }
+const FEATURES = [
+  {
+    title: "Paste your program. Your event is live.",
+    body: "Upload a PDF or paste a schedule — Agenda Ingest drafts sessions and papers for you to review before anything goes public.",
+  },
+  {
+    title: "Your attendees will thank you.",
+    body: "Calm by design: digest-first notifications, quiet hours, and no engagement bait. Attendees get a useful agenda without the noise.",
+  },
+  {
+    title: "Built for events that happen every year.",
+    body: "Event Series remembers structure across editions, and the recurring-event price lock keeps next year’s rate predictable.",
+  },
+  {
+    title: "Academic-grade where it counts.",
+    body: "Paper-level session items, author ordering, CFP with blind review, certificates, and async as a first-class attendance mode.",
+  },
+  {
+    title: "Honest pricing, honest uptime.",
+    body: "Public plan matrix, published support hours, and a status page you can actually check at 3 a.m.",
+  },
+] as const;
+
+const FAQ = [
+  {
+    q: "Do attendees need to download an app?",
+    a: "No. The web app installs as a PWA when they want offline access — no app-store gate.",
+  },
+  {
+    q: "Can I try it without signing up?",
+    a: `Yes — open the public demo at /e/${brand.demoEventSlug}.`,
+  },
+  {
+    q: "What counts as an attendee?",
+    a: "Anyone invited or joined for an event counts toward your plan’s attendee cap for that event.",
+  },
+] as const;
+
+export default function LandingPage() {
+  const title = `${brand.productName} — Paste your program. Your event is live.`;
+  const description =
+    "Calm, AI-native event workspace for recurring conferences and academic programs. Agenda ingest, quiet notifications, and honest pricing.";
+  const ogImage = `${brand.primaryUrl}/icons/icon-512.png`;
 
   return (
     <>
       <Head>
-        <title>{linkedEventName ? `${linkedEventName} — EventPilot` : "EventPilot — Sign in"}</title>
+        <title>{title}</title>
+        <meta name="description" content={description} />
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={brand.primaryUrl} />
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:site_name" content={brand.productName} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={title} />
+        <meta name="twitter:description" content={description} />
+        <link rel="canonical" href={brand.primaryUrl} />
       </Head>
-      <div className="container">
-        <div className="header header--login">
-          <div className="login-brand">
-            <EventPilotLogo size={56} className="login-brand-logo" />
-            <div className="login-brand-text">
-              <h1>EventPilot</h1>
-              {linkedEventName ? (
-                <p className="login-guest-event-name" style={{ margin: "6px 0 0" }}>
-                  {linkedEventName}
-                </p>
-              ) : null}
-              <p style={{ color: "var(--ink-700)", margin: linkedEventName ? "8px 0 0" : 0 }}>
-                {linkedEventName
-                  ? "Sign in or register below to open this conference."
-                  : "A professional event workspace for schedules, networking, and collaboration."}
+
+      <div className="mkt-page">
+        <SiteHeader />
+        <main>
+          <section className="mkt-hero" aria-labelledby="mkt-hero-brand">
+            <div className="mkt-hero-inner">
+              <p id="mkt-hero-brand" className="mkt-hero-brand">
+                {brand.productName}
               </p>
-              {!linkedEventName ? (
-                <p className="help-text" style={{ margin: "10px 0 0", lineHeight: 1.45 }}>
-                  Joining a specific conference? Use your organizer&apos;s event link (it looks like{" "}
-                  <strong>/e/…</strong> with a stable ID, or a short slug), or add{" "}
-                  <strong>?event=</strong> followed by that same token to this page&apos;s URL before you sign in so the
-                  correct schedule loads.
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={{ maxWidth: 520 }}>
-          <div className="nav" style={{ marginBottom: 16 }}>
-            <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>
-              Login
-            </button>
-            <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>
-              Register
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="grid" style={{ gap: 12 }}>
-            {mode === "register" && (
-              <>
-                <div className="nav">
-                  <button
-                    type="button"
-                    className={registerType === "participant" ? "active" : ""}
-                    onClick={() => setRegisterType("participant")}
-                  >
-                    Participant Join Link
-                  </button>
-                  <button
-                    type="button"
-                    className={registerType === "admin" ? "active" : ""}
-                    onClick={() => setRegisterType("admin")}
-                  >
-                    Admin Join Link
-                  </button>
-                </div>
-                <input className="input" name="name" placeholder="Full name" required />
-                {registerType === "participant" && (
-                  <select className="select" name="role" defaultValue="ATTENDEE">
-                    <option value="ATTENDEE">Attendee</option>
-                    <option value="SPEAKER">Speaker</option>
-                  </select>
-                )}
-                <textarea
-                  className="textarea"
-                  name="researchInterests"
-                  placeholder="Research interests (optional)"
-                  rows={3}
-                />
-                {registerType === "admin" && (
-                  <input className="input" name="inviteCode" placeholder="Admin invite code" required />
-                )}
-              </>
-            )}
-            <input className="input" name="email" type="email" placeholder="Email" required />
-            <input className="input" name="password" type="password" placeholder="Password (min 8)" required />
-            {mode === "login" && (
-              <div style={{ display: "grid", gap: 8 }}>
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={() => {
-                    setForgotOpen((v) => !v);
-                    setForgotError(null);
-                    setForgotMessage(null);
-                  }}
-                >
-                  {forgotOpen ? "Hide forgot password" : "Forgot password?"}
-                </button>
-                {forgotOpen && (
-                  <div className="grid" style={{ gap: 8 }}>
-                    <input
-                      className="input"
-                      type="email"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="Enter your email for password reset"
-                      required
-                    />
-                    {forgotError && <div style={{ color: "crimson" }}>{forgotError}</div>}
-                    {forgotMessage && <div style={{ color: "var(--ink-700)" }}>{forgotMessage}</div>}
-                    <button className="button secondary" type="button" disabled={forgotSending} onClick={sendForgotPassword}>
-                      {forgotSending ? "Sending…" : "Send reset link"}
-                    </button>
-                  </div>
-                )}
+              <h1 className="mkt-hero-headline">Paste your program. Your event is live.</h1>
+              <p className="mkt-hero-sub">
+                Turn an uploaded agenda into a calm, publishable event in minutes — without notification spam or sales-call pricing.
+              </p>
+              <div className="mkt-hero-cta">
+                <a className="button" href="/login">
+                  Start free
+                </a>
+                <a className="button secondary" href={`/e/${brand.demoEventSlug}`}>
+                  Try the demo
+                </a>
               </div>
-            )}
-            {error && <div style={{ color: "crimson" }}>{error}</div>}
-            <button className="button" disabled={loading}>
-              {loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}
-            </button>
-          </form>
-        </div>
+              <HeroIngestDemo />
+            </div>
+          </section>
+
+          {FEATURES.map((f) => (
+            <section key={f.title} className="mkt-section">
+              <div className="mkt-section-inner">
+                <h2 className="text-display-md" style={{ marginTop: 0 }}>
+                  {f.title}
+                </h2>
+                <p className="text-body-lg" style={{ color: "var(--ink-secondary)", maxWidth: 560, marginBottom: 0 }}>
+                  {f.body}
+                </p>
+              </div>
+            </section>
+          ))}
+
+          <section className="mkt-section mkt-section--alt" id="pricing-teaser">
+            <div className="mkt-section-inner">
+              <h2 className="text-display-md" style={{ marginTop: 0 }}>
+                Honest pricing
+              </h2>
+              <p className="text-body-lg" style={{ color: "var(--ink-secondary)", maxWidth: 520 }}>
+                Transparent plan matrix, recurring-event price lock, no sales-call gate.
+              </p>
+              <a className="button" href="/pricing">
+                See plans
+              </a>
+            </div>
+          </section>
+
+          <section className="mkt-section" id="faq">
+            <div className="mkt-section-inner">
+              <h2 className="text-display-md" style={{ marginTop: 0 }}>
+                FAQ
+              </h2>
+              <dl className="mkt-faq">
+                {FAQ.map((item) => (
+                  <div key={item.q}>
+                    <dt className="text-display-sm">{item.q}</dt>
+                    <dd className="text-body-md" style={{ color: "var(--ink-secondary)", marginLeft: 0 }}>
+                      {item.a}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </section>
+        </main>
+        <SiteFooter />
       </div>
     </>
   );

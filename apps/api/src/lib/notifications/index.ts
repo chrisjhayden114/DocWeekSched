@@ -1,5 +1,6 @@
-import { NotificationKind, Prisma } from "@prisma/client";
-import { prisma } from "./db";
+import { NotificationKind } from "@prisma/client";
+import { prisma } from "../db";
+import { notifyMany } from "./deliver";
 
 const CHANNEL_LABEL: Record<string, string> = {
   GENERAL: "General",
@@ -13,17 +14,33 @@ export function communityChannelLabel(channel: string): string {
   return CHANNEL_LABEL[channel] ?? "Community";
 }
 
-export async function allAttendeeUserIds(): Promise<string[]> {
-  const rows = await prisma.user.findMany({ select: { id: true } });
-  return rows.map((r) => r.id);
+/** Event participants only — never all users in the database. */
+export async function allAttendeeUserIds(eventId: string): Promise<string[]> {
+  const rows = await prisma.eventMembership.findMany({
+    where: { eventId, deletedAt: null },
+    select: { userId: true },
+  });
+  return rows.map((r) => r.userId);
 }
 
-export async function notifyMany(
-  rows: Prisma.UserNotificationCreateManyInput[],
-): Promise<void> {
-  if (rows.length === 0) return;
-  await prisma.userNotification.createMany({ data: rows });
-}
+export { notifyMany, deliverNotification, flushQueuedPushes } from "./deliver";
+export type { NotifyManyRow } from "./deliver";
+export { getPushBudgetStatus, minRemainingPushBudget, tryChargePushBudget } from "./budget";
+export { rollupMorningDigest } from "./digest";
+export { dailyPushBudgetCeiling, classForKind } from "./types";
+export type { DeliverInput, DeliverResult } from "./types";
+export {
+  isInQuietHours,
+  localDayKey,
+  nextQuietHoursEnd,
+  localMinutesSinceMidnight,
+  zonedWallTimeToUtc,
+  parseHm,
+} from "./timezone";
+export {
+  notifySessionStartingSoon,
+  sessionStartingSoonWindow,
+} from "./sessionStartingSoon";
 
 export async function notifyNewCommunityThread(params: {
   eventId: string;
@@ -43,7 +60,7 @@ export async function notifyNewCommunityThread(params: {
   if (params.channel === "MEETUP" && !params.meetupInviteEveryone) {
     recipientIds = Array.from(new Set(params.meetupParticipantIds)).filter((id) => id !== params.authorId);
   } else {
-    const all = await allAttendeeUserIds();
+    const all = await allAttendeeUserIds(params.eventId);
     recipientIds = all.filter((id) => id !== params.authorId);
   }
 
@@ -116,7 +133,6 @@ export async function notifyNewMessage(params: {
   senderName: string;
   preview: string;
   memberUserIds: string[];
-  /** When set (e.g. event-wide organizer broadcast), used instead of "Message from …". */
   title?: string;
 }): Promise<void> {
   const recipients = params.memberUserIds.filter((id) => id !== params.senderId);
