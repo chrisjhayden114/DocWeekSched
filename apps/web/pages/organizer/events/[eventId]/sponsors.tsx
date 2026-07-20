@@ -6,6 +6,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { brand } from "@event-app/config";
+import { ListEmpty } from "../../../../components/ListState";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 
@@ -134,20 +135,38 @@ export default function EventSponsorsPage() {
         {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
         <form
-          className="grid"
-          style={{ gap: 10, marginBottom: 24 }}
+          className="console-form console-panel"
           onSubmit={(e) => {
             e.preventDefault();
             void createSponsor(e.currentTarget);
           }}
         >
-          <input className="input" name="name" placeholder="Sponsor name" required />
-          <input className="input" name="tier" placeholder="Tier (e.g. Gold)" defaultValue="Standard" />
-          <input className="input" name="url" placeholder="Website URL" />
-          <input className="input" name="boothLabel" placeholder="Booth label" />
-          <input className="input" name="sortOrder" type="number" placeholder="Sort order" defaultValue={0} />
-          <textarea className="textarea" name="description" placeholder="Short description" rows={2} />
-          <button type="submit" className="button" disabled={busy}>
+          <p className="console-panel-label">Add sponsor</p>
+          <label>
+            Sponsor name
+            <input className="input" name="name" required />
+          </label>
+          <label>
+            Tier
+            <input className="input" name="tier" placeholder="e.g. Gold" defaultValue="Standard" />
+          </label>
+          <label>
+            Website URL
+            <input className="input" name="url" />
+          </label>
+          <label>
+            Booth label
+            <input className="input" name="boothLabel" />
+          </label>
+          <label>
+            Sort order
+            <input className="input" name="sortOrder" type="number" defaultValue={0} />
+          </label>
+          <label>
+            Short description
+            <textarea className="textarea" name="description" rows={2} />
+          </label>
+          <button type="submit" className="button" disabled={busy} style={{ justifySelf: "start" }}>
             Add sponsor
           </button>
         </form>
@@ -190,7 +209,9 @@ export default function EventSponsorsPage() {
             </li>
           ))}
         </ul>
-        {sponsors.length === 0 ? <p className="help-text">No sponsors yet.</p> : null}
+        {sponsors.length === 0 ? (
+          <ListEmpty title="No sponsors yet" body="Add a sponsor above to show them on the public event page." />
+        ) : null}
       </OrganizerShell>
     </>
   );

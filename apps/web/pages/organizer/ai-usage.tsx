@@ -41,8 +41,13 @@ export default function OrganizerAiUsagePage() {
 
   const load = useCallback(async (id: string) => {
     setError(null);
-    const s = await apiFetch<UsageSummary>(`/ai/usage?organizationId=${encodeURIComponent(id)}&days=30`);
-    setSummary(s);
+    try {
+      const s = await apiFetch<UsageSummary>(`/ai/usage?organizationId=${encodeURIComponent(id)}&days=30`);
+      setSummary(s);
+    } catch (err) {
+      setSummary(null);
+      setError(err instanceof Error ? err.message : "Could not load AI usage");
+    }
   }, []);
 
   useEffect(() => {

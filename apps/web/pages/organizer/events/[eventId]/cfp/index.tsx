@@ -366,26 +366,33 @@ export default function OrganizerCfpPage() {
               </div>
             </section>
 
-            <section style={{ marginTop: 20 }}>
-              <h2>Convert accepted → draft program</h2>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <select className="input" value={convertMode} onChange={(e) => setConvertMode(e.target.value as typeof convertMode)}>
-                  <option value="standalone_session">Standalone DRAFT session</option>
-                  <option value="session_item">SessionItem in existing session</option>
-                </select>
-                {convertMode === "session_item" ? (
-                  <select className="input" value={targetSessionId} onChange={(e) => setTargetSessionId(e.target.value)}>
-                    <option value="">Choose session…</option>
-                    {sessions.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.title}
-                      </option>
-                    ))}
+            <section className="console-panel" style={{ marginTop: 16 }}>
+              <p className="console-panel-label">Convert accepted → draft program</p>
+              <div className="console-form">
+                <label>
+                  Conversion mode
+                  <select className="input" value={convertMode} onChange={(e) => setConvertMode(e.target.value as typeof convertMode)}>
+                    <option value="standalone_session">Standalone DRAFT session</option>
+                    <option value="session_item">SessionItem in existing session</option>
                   </select>
+                </label>
+                {convertMode === "session_item" ? (
+                  <label>
+                    Target session
+                    <select className="input" value={targetSessionId} onChange={(e) => setTargetSessionId(e.target.value)}>
+                      <option value="">Choose session…</option>
+                      {sessions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 ) : null}
                 <button
                   type="button"
                   className="button"
+                  style={{ justifySelf: "start" }}
                   disabled={
                     !selected.length ||
                     busy ||

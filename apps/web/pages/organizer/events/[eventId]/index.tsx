@@ -11,6 +11,8 @@ import { AnnouncementComposer } from "../../../../components/AnnouncementCompose
 import { EventFaqEditor } from "../../../../components/EventFaqEditor";
 import { OpsInboxPanel } from "../../../../components/OpsInboxPanel";
 import { RecapPanel } from "../../../../components/RecapPanel";
+import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListState";
+import { StatusChip } from "../../../../components/StatusChip";
 import { apiFetch } from "../../../../lib/api";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
@@ -302,27 +304,31 @@ export default function OrganizerEventPage() {
         <title>{`${event?.name || "Event"} — Organizer — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="overview" eventId={eventId} eventName={event?.name}>
+        {error && !event ? (
+          <ListError message={error} onRetry={() => void refresh().catch((err) => setError(err instanceof Error ? err.message : "Failed to load event"))} />
+        ) : null}
+        {!event && !error ? <ListSkeleton rows={5} /> : null}
+
         {event ? (
-          <>
-            <h1 style={{ margin: "0 0 4px", font: "var(--text-h1)" }}>{event.name}</h1>
-            <p className="help-text" style={{ marginTop: 0 }}>
-              {event.uiStatus} · /e/{event.slug}
-              {inviteLinks?.slugUrl ? (
-                <>
-                  {" · "}
+          <header className="console-page-header">
+            <div>
+              <h1>{event.name}</h1>
+              <p className="text-meta" style={{ margin: "6px 0 0", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <StatusChip status={event.uiStatus} />
+                <span>/e/{event.slug}</span>
+                {inviteLinks?.slugUrl ? (
                   <a href={inviteLinks.slugUrl}>{inviteLinks.slugUrl}</a>
-                </>
-              ) : null}
-            </p>
-          </>
-        ) : (
-          <p className="help-text">Loading…</p>
-        )}
+                ) : null}
+              </p>
+            </div>
+          </header>
+        ) : null}
 
         {message ? <p style={{ color: "var(--success)" }}>{message}</p> : null}
-        {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
+        {error && event ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
-        <nav className="nav" style={{ margin: "16px 0" }}>
+        {event ? (
+        <nav className="nav" style={{ margin: "0 0 16px" }}>
           {(
             [
               ["overview", "Overview"],
@@ -346,12 +352,13 @@ export default function OrganizerEventPage() {
             </button>
           ))}
         </nav>
+        ) : null}
 
         {tab === "overview" && event ? (
           <section style={{ display: "grid", gap: 16 }}>
-            <div>
-              <h2 style={{ marginTop: 0 }}>Publish</h2>
-              <p className="help-text">
+            <div className="console-panel">
+              <p className="console-panel-label">Publish</p>
+              <p className="help-text" style={{ marginTop: 0 }}>
                 Draft events 404 for outsiders. Published events are reachable via slug/join link. Archive hides them from
                 attendees while keeping data.
               </p>
@@ -392,13 +399,13 @@ export default function OrganizerEventPage() {
               </div>
             </div>
 
-            <div>
-              <h2>Create next edition</h2>
-              <p className="help-text">
+            <div className="console-panel">
+              <p className="console-panel-label">Create next edition</p>
+              <p className="help-text" style={{ marginTop: 0 }}>
                 Clones tracks, rooms, speakers, sessions, and papers into a new Draft — no attendees. Dates shift from the
                 new start.
               </p>
-              <form onSubmit={createNextEdition} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+              <form onSubmit={createNextEdition} className="console-form">
                 <label>
                   New start
                   <input
@@ -409,63 +416,74 @@ export default function OrganizerEventPage() {
                     onChange={(e) => setNextStart(e.target.value)}
                   />
                 </label>
-                <button className="button" type="submit" disabled={busy}>
+                <button className="button" type="submit" disabled={busy} style={{ justifySelf: "start" }}>
                   Create next edition
                 </button>
               </form>
             </div>
 
             {event.description ? (
-              <div>
-                <h2>About</h2>
-                <p style={{ whiteSpace: "pre-wrap" }}>{event.description}</p>
+              <div className="console-panel">
+                <p className="console-panel-label">About</p>
+                <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{event.description}</p>
               </div>
             ) : null}
           </section>
         ) : null}
 
         {tab === "program" ? (
-          <section style={{ display: "grid", gap: 24 }}>
-            <div>
-              <h2 style={{ marginTop: 0 }}>Tracks</h2>
-              <ul>
+          <section style={{ display: "grid", gap: 16 }}>
+            <div className="console-panel">
+              <p className="console-panel-label">Tracks</p>
+              <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
                 {tracks.map((t) => (
                   <li key={t.id}>
-                    <span style={{ display: "inline-block", width: 12, height: 12, background: t.color, marginRight: 6 }} />
+                    <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: t.color, marginRight: 6 }} />
                     {t.name}
                   </li>
                 ))}
               </ul>
-              <form onSubmit={addTrack} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <input className="input" placeholder="Track name" value={trackName} onChange={(e) => setTrackName(e.target.value)} />
-                <input className="input" type="color" value={trackColor} onChange={(e) => setTrackColor(e.target.value)} style={{ width: 56 }} />
+              <form onSubmit={addTrack} className="console-form" style={{ gridTemplateColumns: "1fr auto auto", alignItems: "end" }}>
+                <label style={{ margin: 0 }}>
+                  Track name
+                  <input className="input" placeholder="Track name" value={trackName} onChange={(e) => setTrackName(e.target.value)} />
+                </label>
+                <input className="input" type="color" value={trackColor} onChange={(e) => setTrackColor(e.target.value)} style={{ width: 56 }} aria-label="Track color" />
                 <button className="button" type="submit">
                   Add track
                 </button>
               </form>
             </div>
 
-            <div>
-              <h2>Rooms</h2>
-              <ul>
+            <div className="console-panel">
+              <p className="console-panel-label">Rooms</p>
+              <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
                 {rooms.map((r) => (
                   <li key={r.id}>{r.name}</li>
                 ))}
               </ul>
-              <form onSubmit={addRoom} style={{ display: "flex", gap: 8 }}>
-                <input className="input" placeholder="Room name" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
+              <form onSubmit={addRoom} className="console-form" style={{ gridTemplateColumns: "1fr auto", alignItems: "end" }}>
+                <label style={{ margin: 0 }}>
+                  Room name
+                  <input className="input" placeholder="Room name" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
+                </label>
                 <button className="button" type="submit">
                   Add room
                 </button>
               </form>
             </div>
 
-            <div>
-              <h2>Sessions</h2>
+            <div className="console-panel">
+              <p className="console-panel-label">Sessions</p>
               {sessions.length === 0 ? (
-                <p className="help-text">No sessions yet. Add your first block below.</p>
+                <ListEmpty
+                  title="No sessions yet"
+                  body="Add your first block below, or paste a program via Agenda ingest."
+                  actionLabel="Agenda ingest"
+                  onAction={() => void router.push(`/organizer/events/${eventId}/ingest`)}
+                />
               ) : (
-                <ul style={{ paddingLeft: 18 }}>
+                <ul style={{ paddingLeft: 18, margin: 0 }}>
                   {sessions.map((s) => (
                     <li key={s.id} style={{ marginBottom: 12 }}>
                       <strong>{s.title}</strong>
@@ -518,27 +536,36 @@ export default function OrganizerEventPage() {
               </form>
             </div>
 
-            <div>
-              <h2>Papers (SessionItems)</h2>
-              <p className="help-text">Authors stay in the order you enter them — never alphabetized.</p>
-              <form onSubmit={addPaper} style={{ display: "grid", gap: 8, maxWidth: 480 }}>
-                <select className="input" required value={itemSessionId} onChange={(e) => setItemSessionId(e.target.value)}>
-                  <option value="">Choose session</option>
-                  {sessions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.title}
-                    </option>
-                  ))}
-                </select>
-                <input className="input" placeholder="Paper title" required value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} />
-                <textarea
-                  className="input"
-                  rows={4}
-                  value={itemAuthors}
-                  onChange={(e) => setItemAuthors(e.target.value)}
-                  placeholder="One author per line (first = presenter)"
-                />
-                <button className="button" type="submit">
+            <div className="console-panel">
+              <p className="console-panel-label">Papers</p>
+              <p className="help-text" style={{ marginTop: 0 }}>Authors stay in the order you enter them — never alphabetized.</p>
+              <form onSubmit={addPaper} className="console-form">
+                <label>
+                  Session
+                  <select className="input" required value={itemSessionId} onChange={(e) => setItemSessionId(e.target.value)}>
+                    <option value="">Choose session</option>
+                    {sessions.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Paper title
+                  <input className="input" placeholder="Paper title" required value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} />
+                </label>
+                <label>
+                  Authors
+                  <textarea
+                    className="input"
+                    rows={4}
+                    value={itemAuthors}
+                    onChange={(e) => setItemAuthors(e.target.value)}
+                    placeholder="One author per line (first = presenter)"
+                  />
+                </label>
+                <button className="button" type="submit" style={{ justifySelf: "start" }}>
                   Add paper
                 </button>
               </form>
@@ -547,24 +574,30 @@ export default function OrganizerEventPage() {
         ) : null}
 
         {tab === "people" ? (
-          <section>
-            <h2 style={{ marginTop: 0 }}>Speakers</h2>
-            <ul>
-              {speakers.map((s) => (
-                <li key={s.id}>
-                  {s.name}
-                  {s.title || s.affiliation ? (
-                    <span className="help-text">
-                      {" "}
-                      — {[s.title, s.affiliation].filter(Boolean).join(", ")}
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-            {speakers.length === 0 ? <p className="help-text">Add speakers to assign them to sessions and papers.</p> : null}
-            <form onSubmit={addSpeaker} style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <input className="input" placeholder="Speaker name" value={speakerName} onChange={(e) => setSpeakerName(e.target.value)} />
+          <section className="console-panel">
+            <p className="console-panel-label">Speakers</p>
+            {speakers.length === 0 ? (
+              <ListEmpty title="No speakers yet" body="Add speakers to assign them to sessions and papers." />
+            ) : (
+              <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
+                {speakers.map((s) => (
+                  <li key={s.id}>
+                    {s.name}
+                    {s.title || s.affiliation ? (
+                      <span className="help-text">
+                        {" "}
+                        — {[s.title, s.affiliation].filter(Boolean).join(", ")}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form onSubmit={addSpeaker} className="console-form" style={{ gridTemplateColumns: "1fr auto", alignItems: "end" }}>
+              <label style={{ margin: 0 }}>
+                Speaker name
+                <input className="input" placeholder="Speaker name" value={speakerName} onChange={(e) => setSpeakerName(e.target.value)} />
+              </label>
               <button className="button" type="submit">
                 Add speaker
               </button>
@@ -573,9 +606,9 @@ export default function OrganizerEventPage() {
         ) : null}
 
         {tab === "invites" ? (
-          <section>
-            <h2 style={{ marginTop: 0 }}>CSV bulk invite</h2>
-            <p className="help-text">
+          <section className="console-panel">
+            <p className="console-panel-label">CSV bulk invite</p>
+            <p className="help-text" style={{ marginTop: 0 }}>
               Upload a CSV, review the dry-run (errors per row), then confirm. If email isn&apos;t set up, you&apos;ll get
               copyable invite links instead.
             </p>

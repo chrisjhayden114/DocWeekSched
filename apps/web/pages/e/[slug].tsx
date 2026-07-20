@@ -7,7 +7,7 @@ import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../../c
 import { BrandLogo } from "../../components/BrandLogo";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { filterSessions } from "../../lib/agendaFilters";
-import { writeClientStorage } from "../../lib/clientStorage";
+import { apiFetch, type AuthResponse, clearAuthClientState } from "../../lib/api";
 import { loginPathWithEvent } from "../../lib/entryRedirects";
 import { trackColor } from "../../lib/trackColors";
 
@@ -365,19 +365,29 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
 }
 
 export default function PublicEventPage({ event, slug, notFound }: Props) {
+  /**
+   * Browse-only: do NOT write activeEventId / linkedEventContext here.
+   * Only explicit join/switch (login?event=, /e/join, invite) may change context.
+   */
+  const [viewer, setViewer] = useState<AuthResponse["user"] | null>(null);
+  const [viewerChecked, setViewerChecked] = useState(false);
+
   useEffect(() => {
-    if (!event) return;
-    try {
-      window.localStorage.setItem("activeEventId", event.id);
-      writeClientStorage(
-        window.sessionStorage,
-        "linkedEventContext",
-        JSON.stringify({ id: event.id, name: event.name }),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [event]);
+    let cancelled = false;
+    apiFetch<AuthResponse["user"]>("/auth/me")
+      .then((me) => {
+        if (!cancelled) setViewer(me);
+      })
+      .catch(() => {
+        if (!cancelled) setViewer(null);
+      })
+      .finally(() => {
+        if (!cancelled) setViewerChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (notFound || !event) {
     return (
@@ -434,10 +444,42 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
               <BrandLogo size={32} />
               <span>{brand.productName}</span>
             </Link>
-            <nav className="mkt-header-nav">
-              <Link href={loginHref} className="button" style={{ minHeight: 40, padding: "8px 14px" }}>
-                Join / Sign in
-              </Link>
+            <nav className="mkt-header-nav" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {viewerChecked && viewer ? (
+                <>
+                  <Link href="/dashboard" className="button" style={{ minHeight: 40, padding: "8px 14px" }}>
+                    Open event app
+                  </Link>
+                  <Link
+                    href="/account"
+                    className="shell-avatar-button"
+                    aria-label={`Account — ${viewer.name}`}
+                    title={viewer.name}
+                    style={{ textDecoration: "none" }}
+                  >
+                    {viewer.photoUrl ? (
+                      <img src={viewer.photoUrl} alt="" />
+                    ) : (
+                      (viewer.name || "?").trim().charAt(0).toUpperCase() || "?"
+                    )}
+                  </Link>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    style={{ minHeight: 40, padding: "8px 12px" }}
+                    onClick={() => {
+                      clearAuthClientState();
+                      window.location.href = loginHref;
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <Link href={loginHref} className="button" style={{ minHeight: 40, padding: "8px 14px" }}>
+                  Join / Sign in
+                </Link>
+              )}
             </nav>
           </div>
         </header>
@@ -462,9 +504,15 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
             ) : null}
 
             <p style={{ margin: "16px 0 24px" }}>
-              <Link href={loginHref} className="button">
-                Join this event
-              </Link>
+              {viewer ? (
+                <Link href="/dashboard" className="button">
+                  Open event app
+                </Link>
+              ) : (
+                <Link href={loginHref} className="button">
+                  Join this event
+                </Link>
+              )}
             </p>
 
             <PublicSchedule event={event} loginHref={loginHref} />

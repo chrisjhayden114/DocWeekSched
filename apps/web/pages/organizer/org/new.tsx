@@ -39,29 +39,33 @@ export default function NewOrganizationPage() {
         <title>{`New organization — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell>
-        <div style={{ maxWidth: 560 }}>
-          <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Create organization</h1>
-          <p className="help-text">This is the home for your events — conferences, programs, meetups.</p>
-          <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
-            <label>
-              Organization name
-              <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
-            <label>
-              URL slug (optional)
-              <input
-                className="input"
-                placeholder="my-org"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
-              />
-            </label>
-            {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
-            <button className="button" type="submit" disabled={busy}>
-              {busy ? "Creating…" : "Create organization"}
-            </button>
-          </form>
-        </div>
+        <header className="console-page-header">
+          <div>
+            <h1>Create organization</h1>
+            <p className="text-meta" style={{ margin: "4px 0 0" }}>
+              This is the home for your events — conferences, programs, meetups.
+            </p>
+          </div>
+        </header>
+        <form onSubmit={onSubmit} className="console-form console-panel">
+          <label>
+            Organization name
+            <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label>
+            URL slug (optional)
+            <input
+              className="input"
+              placeholder="my-org"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+            />
+          </label>
+          {error ? <p style={{ color: "var(--danger)", margin: 0 }}>{error}</p> : null}
+          <button className="button" type="submit" disabled={busy} style={{ justifySelf: "start" }}>
+            {busy ? "Creating…" : "Create organization"}
+          </button>
+        </form>
       </OrganizerShell>
     </>
   );

@@ -282,36 +282,46 @@ export default function AgendaIngestPage() {
         {message ? <p style={{ color: "var(--success)" }}>{message}</p> : null}
 
         <section style={{ display: "grid", gap: 16, marginTop: 16 }}>
-          <form onSubmit={onPaste} style={{ display: "grid", gap: 8 }}>
-            <label className="help-text">Paste program text</label>
-            <textarea
-              className="input"
-              rows={6}
-              value={paste}
-              onChange={(e) => setPaste(e.target.value)}
-              placeholder="Paste agenda text…"
-            />
-            <button type="submit" className="button" disabled={busy || !paste.trim()}>
+          <form onSubmit={onPaste} className="console-form console-panel">
+            <p className="console-panel-label">Paste program text</p>
+            <label>
+              Program text
+              <textarea
+                className="input"
+                rows={6}
+                value={paste}
+                onChange={(e) => setPaste(e.target.value)}
+                placeholder="Paste agenda text…"
+              />
+            </label>
+            <button type="submit" className="button" disabled={busy || !paste.trim()} style={{ justifySelf: "start" }}>
               {busy ? "Working…" : "Extract from paste"}
             </button>
           </form>
 
-          <form onSubmit={onUrl} style={{ display: "grid", gap: 8 }}>
-            <label className="help-text">Fetch URL</label>
-            <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
-            <button type="submit" className="button secondary" disabled={busy || !url.trim()}>
+          <form onSubmit={onUrl} className="console-form console-panel">
+            <p className="console-panel-label">Fetch URL</p>
+            <label>
+              URL
+              <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+            </label>
+            <button type="submit" className="button" disabled={busy || !url.trim()} style={{ justifySelf: "start" }}>
               Extract from URL
             </button>
           </form>
 
-          <div>
-            <label className="help-text">Upload PDF / DOCX / XLSX / CSV / image</label>
-            <input
-              type="file"
-              accept=".pdf,.docx,.xlsx,.csv,.html,.htm,image/*"
-              disabled={busy}
-              onChange={(e) => void onFile(e.target.files?.[0] || null)}
-            />
+          <div className="console-form console-panel">
+            <p className="console-panel-label">Upload file</p>
+            <label>
+              PDF / DOCX / XLSX / CSV / image
+              <input
+                className="input"
+                type="file"
+                accept=".pdf,.docx,.xlsx,.csv,.html,.htm,image/*"
+                disabled={busy}
+                onChange={(e) => void onFile(e.target.files?.[0] || null)}
+              />
+            </label>
           </div>
         </section>
 

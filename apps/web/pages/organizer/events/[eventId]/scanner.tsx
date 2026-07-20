@@ -251,18 +251,19 @@ export default function CheckInScannerPage() {
 
   return (
     <OrganizerShell active="scanner" eventId={eventId}>
-      <div style={{ maxWidth: 560 }}>
-      <h1 style={{ marginTop: 0, font: "var(--text-h1)" }}>
-        Check-in scanner
-      </h1>
-      <p className="help-text">
-        Status: {online ? "Online" : "Offline"} · Roster {attendees.length} · Checked in {checkedInCount}
-        {queue.length ? ` · Pending sync ${queue.length}` : ""}
-        {syncing ? " · Syncing…" : ""}
-      </p>
+      <header className="console-page-header">
+        <div>
+          <h1>Check-in scanner</h1>
+          <p className="text-meta" style={{ margin: "4px 0 0" }}>
+            Status: {online ? "Online" : "Offline"} · Roster {attendees.length} · Checked in {checkedInCount}
+            {queue.length ? ` · Pending sync ${queue.length}` : ""}
+            {syncing ? " · Syncing…" : ""}
+          </p>
+        </div>
+      </header>
       {message ? <p role="status">{message}</p> : null}
       {error ? (
-        <p role="alert" style={{ color: "var(--danger-700, #C22F2F)" }}>
+        <p role="alert" style={{ color: "var(--danger)" }}>
           {error}
         </p>
       ) : null}
@@ -271,25 +272,27 @@ export default function CheckInScannerPage() {
         ref={videoRef}
         playsInline
         muted
-        style={{ width: "100%", maxHeight: 280, background: "#111", borderRadius: 8 }}
+        style={{ width: "100%", maxWidth: 560, maxHeight: 280, background: "#111", borderRadius: "var(--radius-sm)" }}
       />
 
       <form
-        style={{ display: "flex", gap: 8, marginTop: 12 }}
+        className="console-form"
+        style={{ marginTop: 12, gridTemplateColumns: "1fr auto", alignItems: "end", maxWidth: 560 }}
         onSubmit={(e) => {
           e.preventDefault();
           void recordScan(manualCode);
           setManualCode("");
         }}
       >
-        <input
-          className="input"
-          style={{ flex: 1 }}
-          value={manualCode}
-          onChange={(e) => setManualCode(e.target.value)}
-          placeholder="Paste or type check-in code (QR payload)"
-          aria-label="Check-in code"
-        />
+        <label style={{ margin: 0 }}>
+          Check-in code
+          <input
+            className="input"
+            value={manualCode}
+            onChange={(e) => setManualCode(e.target.value)}
+            placeholder="Paste or type QR payload"
+          />
+        </label>
         <button type="submit" className="button">
           Check in
         </button>
@@ -304,7 +307,7 @@ export default function CheckInScannerPage() {
         </button>
       </div>
 
-      <ul style={{ listStyle: "none", padding: 0, marginTop: 16 }}>
+      <ul style={{ listStyle: "none", padding: 0, marginTop: 16, maxWidth: 560 }}>
         {attendees.slice(0, 40).map((a) => (
           <li
             key={a.userId}
@@ -324,7 +327,6 @@ export default function CheckInScannerPage() {
           </li>
         ))}
       </ul>
-      </div>
     </OrganizerShell>
   );
 }

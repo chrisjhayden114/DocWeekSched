@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 /**
  * Phase D app shell (DESIGN_PHASE_D.md Part 2 "Layout architecture").
@@ -37,6 +37,12 @@ export type ShellMenuItem = {
   tone?: "danger" | "default";
 };
 
+export type ShellEventOption = {
+  id: string;
+  name: string;
+  meta?: string | null;
+};
+
 type AppShellProps = {
   /** Event (or workspace) name shown in the top bar. */
   title: string;
@@ -52,6 +58,14 @@ type AppShellProps = {
   accountMenu?: ShellMenuItem[];
   /** Extra elements rendered in the top bar, left of the avatar. */
   topBarExtra?: ReactNode;
+  /**
+   * Event switcher menu. When provided (and non-empty, or onSelectEvent is
+   * set), the top-bar title becomes a real dropdown that lists the user's
+   * events and calls onSelectEvent on pick.
+   */
+  events?: ShellEventOption[];
+  activeEventId?: string | null;
+  onSelectEvent?: (eventId: string) => void;
   children: ReactNode;
 };
 
@@ -91,20 +105,7 @@ function NavItemView({ item, onNavigate }: { item: ShellNavItem; onNavigate?: ()
   );
 }
 
-function AvatarMenu({
-  userName,
-  userPhotoUrl,
-  userMeta,
-  items,
-}: {
-  userName?: string | null;
-  userPhotoUrl?: string | null;
-  userMeta?: string | null;
-  items: ShellMenuItem[];
-}) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
+function useMenuDismiss(open: boolean, wrapRef: RefObject<HTMLDivElement | null>, setOpen: (v: boolean) => void) {
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -119,7 +120,94 @@ function AvatarMenu({
       document.removeEventListener("mousedown", onDoc);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, wrapRef, setOpen]);
+}
+
+function EventSwitcher({
+  title,
+  logoUrl,
+  events,
+  activeEventId,
+  onSelectEvent,
+}: {
+  title: string;
+  logoUrl?: string | null;
+  events: ShellEventOption[];
+  activeEventId?: string | null;
+  onSelectEvent: (eventId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useMenuDismiss(open, wrapRef, setOpen);
+
+  return (
+    <div className="shell-event-switcher" ref={wrapRef}>
+      <button
+        type="button"
+        className="shell-topbar-title shell-event-switcher-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Switch event"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {logoUrl ? <img src={logoUrl} alt="" className="shell-topbar-logo" /> : null}
+        <span className="shell-topbar-title-text">{title}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ color: "var(--gray-400)", flexShrink: 0 }}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open ? (
+        <ul className="shell-event-panel" role="menu">
+          <li className="shell-avatar-panel-header" role="none">
+            <span className="text-meta" style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Your events
+            </span>
+          </li>
+          {events.length === 0 ? (
+            <li role="none">
+              <span className="kebab-item" style={{ color: "var(--gray-500)", cursor: "default" }}>
+                No events available
+              </span>
+            </li>
+          ) : (
+            events.map((ev) => (
+              <li key={ev.id} role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`kebab-item${ev.id === activeEventId ? " is-active" : ""}`}
+                  aria-current={ev.id === activeEventId ? "true" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    if (ev.id !== activeEventId) onSelectEvent(ev.id);
+                  }}
+                >
+                  <span style={{ display: "block", fontWeight: 500 }}>{ev.name}</span>
+                  {ev.meta ? <span className="text-meta">{ev.meta}</span> : null}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function AvatarMenu({
+  userName,
+  userPhotoUrl,
+  userMeta,
+  items,
+}: {
+  userName?: string | null;
+  userPhotoUrl?: string | null;
+  userMeta?: string | null;
+  items: ShellMenuItem[];
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useMenuDismiss(open, wrapRef, setOpen);
 
   const initial = (userName || "?").trim().charAt(0).toUpperCase() || "?";
 
@@ -188,9 +276,13 @@ export function AppShell({
   userMeta,
   accountMenu = [],
   topBarExtra,
+  events,
+  activeEventId,
+  onSelectEvent,
   children,
 }: AppShellProps) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const switcherEnabled = Boolean(onSelectEvent);
 
   const allItems = nav.flatMap((group) => group.items);
   const primaryIds = (mobilePrimaryIds ?? allItems.slice(0, 3).map((i) => i.id)).slice(0, 3);
@@ -227,13 +319,20 @@ export function AppShell({
 
       <div className="shell-main">
         <header className="shell-topbar">
-          <span className="shell-topbar-title">
-            {logoUrl ? <img src={logoUrl} alt="" className="shell-topbar-logo" /> : null}
-            <span className="shell-topbar-title-text">{title}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ color: "var(--gray-400)", flexShrink: 0 }}>
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </span>
+          {switcherEnabled && onSelectEvent ? (
+            <EventSwitcher
+              title={title}
+              logoUrl={logoUrl}
+              events={events || []}
+              activeEventId={activeEventId}
+              onSelectEvent={onSelectEvent}
+            />
+          ) : (
+            <span className="shell-topbar-title">
+              {logoUrl ? <img src={logoUrl} alt="" className="shell-topbar-logo" /> : null}
+              <span className="shell-topbar-title-text">{title}</span>
+            </span>
+          )}
           <div className="shell-topbar-search">
             <input className="input" type="search" placeholder="Search" aria-label="Search" readOnly />
           </div>

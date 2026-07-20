@@ -25,7 +25,7 @@ import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 import { trackColor } from "../lib/trackColors";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
-import { ListEmpty, ListSkeleton } from "../components/ListState";
+import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
@@ -337,6 +337,11 @@ export default function Dashboard() {
   const [agendaFiltersOpen, setAgendaFiltersOpen] = useState(false);
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
+  const [eventLoadError, setEventLoadError] = useState<string | null>(null);
+  const [tabError, setTabError] = useState<string | null>(null);
+  const [tabReloadToken, setTabReloadToken] = useState(0);
+  /** Event ids that returned 403/404 — skip them when auto-falling back. */
+  const failedEventIds = useRef<Set<string>>(new Set());
   const [communityChannel, setCommunityChannel] = useState<CommunityChannelFilter>("ALL");
   const [updatingEvent, setUpdatingEvent] = useState(false);
   const [sessionFormKey, setSessionFormKey] = useState(0);
@@ -412,90 +417,169 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
-    apiFetch<Event>("/event", withEventHeaders(), token).then(setEvent).catch(() => null);
-    apiFetch<User>("/auth/me", withEventHeaders(), token).then((freshUser) => {
-      setUser(freshUser);
-      window.localStorage.setItem("user", JSON.stringify(freshUser));
-    }).catch(() => null);
-    if (activeEventId) {
-      apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(), token).then((meta) => {
-        setMyAttendance(meta.attendance);
-        setLikedSessionIds(meta.likedSessionIds);
-        setBookmarkedSessionIds(meta.bookmarkedSessionIds || []);
-      }).catch(() => null);
-      apiFetch<{ overrides: FeatureOverridesMap }>("/event/features", withEventHeaders(), token)
-        .then((res) => setFeatureOverrides(res.overrides || {}))
-        .catch(() => setFeatureOverrides({}));
-    }
-  }, [token, activeEventId]);
-
-  useEffect(() => {
     const storedEventId = window.localStorage.getItem("activeEventId");
     if (storedEventId) {
       setActiveEventId(storedEventId);
     }
   }, []);
 
-  const didAutoFillActiveEvent = useRef(false);
   useEffect(() => {
-    if (didAutoFillActiveEvent.current || activeEventId) return;
-    if (!event?.id) return;
-    didAutoFillActiveEvent.current = true;
-    setActiveEventId(event.id);
-    window.localStorage.setItem("activeEventId", event.id);
-  }, [event?.id, activeEventId]);
+    if (!token) return;
+    let cancelled = false;
+
+    (async () => {
+      /* Switcher list from existing /event/mine (org + admin memberships). */
+      try {
+        const mine = await apiFetch<EventItem[]>("/event/mine", {}, token);
+        if (!cancelled) setAdminEvents(mergeAdminEvents(mine, null));
+      } catch {
+        /* ignore — switcher stays empty */
+      }
+
+      if (!activeEventId) {
+        try {
+          const mine = await apiFetch<EventItem[]>("/event/mine", {}, token);
+          if (cancelled) return;
+          setAdminEvents(mergeAdminEvents(mine, null));
+          const next = mine.find((e) => !failedEventIds.current.has(e.id));
+          if (next) {
+            setActiveEventId(next.id);
+            window.localStorage.setItem("activeEventId", next.id);
+            return;
+          }
+          setEvent(null);
+          setEventLoadError("No event is linked to your account yet.");
+        } catch {
+          if (!cancelled) setEventLoadError("Could not load your events.");
+        }
+        return;
+      }
+
+      try {
+        const ev = await apiFetch<Event>("/event", withEventHeaders(), token);
+        if (cancelled) return;
+        failedEventIds.current.delete(activeEventId);
+        setEvent(ev);
+        setEventLoadError(null);
+        setAdminEvents((prev) => mergeAdminEvents(prev, ev));
+      } catch (err) {
+        const status = (err as Error & { status?: number }).status;
+        if (status === 403 || status === 404) {
+          failedEventIds.current.add(activeEventId);
+          try {
+            const mine = await apiFetch<EventItem[]>("/event/mine", {}, token);
+            if (cancelled) return;
+            setAdminEvents(mergeAdminEvents(mine, null));
+            const next = mine.find((e) => !failedEventIds.current.has(e.id)) ?? null;
+            if (next) {
+              setActiveEventId(next.id);
+              window.localStorage.setItem("activeEventId", next.id);
+              return;
+            }
+            window.localStorage.removeItem("activeEventId");
+            setActiveEventId(null);
+            setEvent(null);
+            setEventLoadError("You don’t have access to that event. Pick another from the switcher, or join an event.");
+          } catch {
+            if (!cancelled) {
+              setEvent(null);
+              setEventLoadError("Could not restore your event context.");
+            }
+          }
+        } else if (!cancelled) {
+          setEvent(null);
+          setEventLoadError(err instanceof Error ? err.message : "Could not load event");
+        }
+      }
+
+      apiFetch<User>("/auth/me", withEventHeaders(), token)
+        .then((freshUser) => {
+          if (cancelled) return;
+          setUser(freshUser);
+          window.localStorage.setItem("user", JSON.stringify(freshUser));
+        })
+        .catch(() => null);
+
+      if (activeEventId) {
+        apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(), token)
+          .then((meta) => {
+            if (cancelled) return;
+            setMyAttendance(meta.attendance);
+            setLikedSessionIds(meta.likedSessionIds);
+            setBookmarkedSessionIds(meta.bookmarkedSessionIds || []);
+          })
+          .catch(() => null);
+        apiFetch<{ overrides: FeatureOverridesMap }>("/event/features", withEventHeaders(), token)
+          .then((res) => {
+            if (!cancelled) setFeatureOverrides(res.overrides || {});
+          })
+          .catch(() => {
+            if (!cancelled) setFeatureOverrides({});
+          });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, activeEventId]);
 
   useEffect(() => {
     if (!token) return;
     const load = async () => {
-      if (active === "Agenda") {
-        try {
-          setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
-        } finally {
-          setSessionsLoading(false);
+      setTabError(null);
+      try {
+        if (active === "Agenda") {
+          try {
+            setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
+          } finally {
+            setSessionsLoading(false);
+          }
+          if (isAdmin && attendees.length === 0) {
+            setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token).catch(() => []));
+          }
         }
-        if (isAdmin && attendees.length === 0) {
-          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
+        if (active === "Attendees" || active === PARTICIPANTS_INVITES_TAB) {
+          setAttendeesLoading(true);
+          try {
+            setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
+          } finally {
+            setAttendeesLoading(false);
+          }
         }
-      }
-      if (active === "Attendees" || active === PARTICIPANTS_INVITES_TAB) {
-        setAttendeesLoading(true);
-        try {
-          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
-        } finally {
-          setAttendeesLoading(false);
+        if (active === COMMUNITY_TAB) {
+          const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
+          setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token));
+          if (attendees.length === 0) {
+            setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token).catch(() => []));
+          }
         }
-      }
-      if (active === COMMUNITY_TAB) {
-        const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
-        setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token));
-        if (attendees.length === 0) {
-          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
+        if (active === "Notifications") {
+          setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token));
         }
-      }
-      if (active === "Notifications") {
-        setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token));
-      }
-      if (active === "Messages") {
-        const convoList = await apiFetch<Conversation[]>("/conversations", withEventHeaders(), token);
-        setConversations(convoList);
-        const preferred =
-          convoList.find((c) => c.type === "EVENT") ?? convoList.find((c) => c.type !== "SESSION");
-        if (!activeConversationId && preferred) {
-          setActiveConversationId(preferred.id);
+        if (active === "Messages") {
+          const convoList = await apiFetch<Conversation[]>("/conversations", withEventHeaders(), token);
+          setConversations(convoList);
+          const preferred =
+            convoList.find((c) => c.type === "EVENT") ?? convoList.find((c) => c.type !== "SESSION");
+          if (!activeConversationId && preferred) {
+            setActiveConversationId(preferred.id);
+          }
+          if (attendees.length === 0) {
+            setAttendees(await apiFetchAll<User>("/attendees", {}, token).catch(() => []));
+          }
         }
-        if (attendees.length === 0) {
-          setAttendees(await apiFetchAll<User>("/attendees", {}, token));
-        }
-      }
-      if (isAdmin) {
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
         setAdminEvents(mergeAdminEvents(myEvents, event));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Something went wrong loading this panel";
+        setTabError(message);
+        setSessionsLoading(false);
+        setAttendeesLoading(false);
       }
     };
-    load();
-  }, [active, token, user?.role, activeConversationId, activeEventId, communityChannel, event]);
+    void load();
+  }, [active, token, user?.role, activeConversationId, activeEventId, communityChannel, event, tabReloadToken]);
 
   useEffect(() => {
     if (user?.role !== "ADMIN" || !event) return;
@@ -1012,6 +1096,21 @@ export default function Dashboard() {
       userName={user.name}
       userPhotoUrl={user.photoUrl}
       userMeta={`${user.role}${event ? ` · ${formatEventRange(event.startDate, event.endDate)}` : ""}`}
+      events={adminEvents.map((ev) => ({
+        id: ev.id,
+        name: ev.name,
+        meta: formatEventRange(ev.startDate, ev.endDate),
+      }))}
+      activeEventId={activeEventId}
+      onSelectEvent={(id) => {
+        failedEventIds.current.delete(id);
+        setActiveEventId(id);
+        window.localStorage.setItem("activeEventId", id);
+        setEventLoadError(null);
+        setTabError(null);
+        setSessionsLoading(true);
+        setEvent(null);
+      }}
       topBarExtra={
         engagementPointsOn && typeof user.engagementPoints === "number" ? (
           <span
@@ -1041,9 +1140,31 @@ export default function Dashboard() {
         { id: "logout", label: "Log out", tone: "danger" as const, onSelect: () => void handleLogout() },
       ]}
     >
+      {eventLoadError ? (
+        <ListEmpty
+          title="No event to show"
+          body={eventLoadError}
+          actionLabel="Browse demo"
+          onAction={() => {
+            window.location.href = `/e/${brand.demoEventSlug || "demo"}`;
+          }}
+        />
+      ) : null}
+      {tabError && !eventLoadError ? (
+        <ListError
+          message={tabError}
+          onRetry={() => {
+            setTabError(null);
+            setTabReloadToken((n) => n + 1);
+          }}
+        />
+      ) : null}
+
       <OnboardingPanel
         onSampleCreated={(eventId) => {
+          failedEventIds.current.delete(eventId);
           writeClientStorage(window.localStorage, "linkedEventContext", eventId);
+          window.localStorage.setItem("activeEventId", eventId);
           window.location.reload();
         }}
       />
@@ -1369,60 +1490,61 @@ export default function Dashboard() {
       {active === PARTICIPANTS_INVITES_TAB && isAdmin && (
         <div className="grid" style={{ gap: 16 }}>
           <ModerationReportsPanel token={token!} withEventHeaders={withEventHeaders} />
-          <div className="card" style={{ padding: 18 }}>
-            <h3 style={{ marginTop: 0 }}>Add participants</h3>
+          <div className="console-panel">
+            <p className="console-panel-label">Event for invites</p>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Invite people by email so they receive a link to set a password and confirm their profile. Invites are tied to
-              whichever event you select below (same as Profile → My Events).
+              Invites and the roster below are tied to this event (same as Profile → My Events).
             </p>
             {adminEvents.length > 0 ? (
-              <label className="help-text" style={{ margin: "12px 0 6px", display: "grid", gap: 6 }}>
-                Event for invites &amp; roster
-                <select
-                  className="select"
-                  value={activeEventId ?? ""}
-                  onChange={(e) => {
-                    const id = e.target.value || null;
-                    setActiveEventId(id);
-                    if (id) window.localStorage.setItem("activeEventId", id);
-                    else window.localStorage.removeItem("activeEventId");
-                  }}
-                >
-                  <option value="" disabled>
-                    Choose an event…
-                  </option>
-                  {adminEvents.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      {ev.name}
+              <div className="console-form">
+                <label>
+                  Event
+                  <select
+                    className="select"
+                    value={activeEventId ?? ""}
+                    onChange={(e) => {
+                      const id = e.target.value || null;
+                      setActiveEventId(id);
+                      if (id) window.localStorage.setItem("activeEventId", id);
+                      else window.localStorage.removeItem("activeEventId");
+                    }}
+                  >
+                    <option value="" disabled>
+                      Choose an event…
                     </option>
-                  ))}
-                </select>
-              </label>
+                    {adminEvents.map((ev) => (
+                      <option key={ev.id} value={ev.id}>
+                        {ev.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             ) : (
-              <p className="help-text" style={{ color: "#b42318", margin: "12px 0 0" }}>
+              <p className="help-text" style={{ color: "var(--danger)", margin: "12px 0 0" }}>
                 No events found. Create one under <strong>Profile</strong> → <strong>My Events</strong>.
               </p>
             )}
-            <AdminParticipantInviteCard
-              token={token!}
-              withEventHeaders={withEventHeaders}
-              activeEventId={activeEventId}
-              eventSlug={event?.slug ?? null}
-              onInvited={async () => {
-                const list = await apiFetchAll<User>("/attendees", withEventHeaders(), token!);
-                setAttendees(list);
-              }}
-            />
-            <BulkInviteCsvCard
-              token={token!}
-              withEventHeaders={withEventHeaders}
-              activeEventId={activeEventId}
-              onDone={async () => {
-                const list = await apiFetchAll<User>("/attendees", withEventHeaders(), token!);
-                setAttendees(list);
-              }}
-            />
           </div>
+          <AdminParticipantInviteCard
+            token={token!}
+            withEventHeaders={withEventHeaders}
+            activeEventId={activeEventId}
+            eventSlug={event?.slug ?? null}
+            onInvited={async () => {
+              const list = await apiFetchAll<User>("/attendees", withEventHeaders(), token!);
+              setAttendees(list);
+            }}
+          />
+          <BulkInviteCsvCard
+            token={token!}
+            withEventHeaders={withEventHeaders}
+            activeEventId={activeEventId}
+            onDone={async () => {
+              const list = await apiFetchAll<User>("/attendees", withEventHeaders(), token!);
+              setAttendees(list);
+            }}
+          />
           <div className="card" style={{ padding: 18 }}>
             <h3 style={{ marginTop: 0 }}>Roster &amp; invitations</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
@@ -2587,11 +2709,11 @@ function AdminParticipantInviteCard({
   const canInvite = Boolean(activeEventId);
 
   return (
-    <div className="admin-invite-card" style={{ marginBottom: 20 }}>
-      <h4 style={{ marginTop: 0 }}>Invite one person</h4>
+    <div className="console-panel admin-invite-card">
+      <p className="console-panel-label">Invite one person</p>
       {!canInvite ? (
-        <p className="help-text" style={{ marginTop: 0, color: "#b42318", fontWeight: 600 }}>
-          No active event is selected. Open <strong>Profile</strong>, scroll to <strong>My Events</strong>, and click your event. Then return here to send invites.
+        <p className="help-text" style={{ marginTop: 0, color: "var(--danger)", fontWeight: 600 }}>
+          No active event is selected. Choose an event above, then return here to send invites.
         </p>
       ) : null}
       <p className="help-text" style={{ marginTop: 0 }}>
@@ -2599,7 +2721,7 @@ function AdminParticipantInviteCard({
         isn&apos;t set up, copy the invite link from the success message instead.
       </p>
       {activeEventId ? (
-        <div className="help-text" style={{ margin: "0 0 8px", display: "grid", gap: 6 }}>
+        <div className="help-text" style={{ margin: "0 0 12px", display: "grid", gap: 6, maxWidth: 560 }}>
           <span>
             <strong>Permanent join link</strong> (share in programs; does not change):{" "}
             <strong>
@@ -2617,8 +2739,7 @@ function AdminParticipantInviteCard({
         </div>
       ) : null}
       <form
-        className="grid"
-        style={{ gap: 8 }}
+        className="console-form"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!canInvite) return;
@@ -2650,34 +2771,49 @@ function AdminParticipantInviteCard({
           }
         }}
       >
-        <input className="input" name="inviteEmail" type="email" placeholder="Email" required disabled={!canInvite || inviteBusy} />
-        <input className="input" name="inviteName" placeholder="Display name" required disabled={!canInvite || inviteBusy} />
-        <textarea
-          className="textarea"
-          name="inviteBio"
-          placeholder="Description / research interests (optional)"
-          rows={3}
-          disabled={!canInvite || inviteBusy}
-        />
-        <input className="input" name="invitePhotoUrl" placeholder="Photo URL or leave blank" disabled={!canInvite || inviteBusy} />
-        <input
-          className="input"
-          type="file"
-          accept="image/*"
-          disabled={!canInvite || inviteBusy}
-          onChange={async (ev) => {
-            const file = ev.currentTarget.files?.[0];
-            if (!file) return;
-            const data = await fileToDataUrl(file, { maxWidth: 800, maxHeight: 800, quality: 0.82 });
-            const target = ev.currentTarget.form?.elements.namedItem("invitePhotoUrl");
-            if (target instanceof HTMLInputElement) target.value = data;
-          }}
-        />
-        <button className="button secondary" type="submit" disabled={!canInvite || inviteBusy}>
+        <label>
+          Email
+          <input className="input" name="inviteEmail" type="email" required disabled={!canInvite || inviteBusy} />
+        </label>
+        <label>
+          Display name
+          <input className="input" name="inviteName" required disabled={!canInvite || inviteBusy} />
+        </label>
+        <label>
+          Description / research interests
+          <textarea
+            className="textarea"
+            name="inviteBio"
+            placeholder="Optional"
+            rows={3}
+            disabled={!canInvite || inviteBusy}
+          />
+        </label>
+        <label>
+          Photo URL
+          <input className="input" name="invitePhotoUrl" placeholder="Optional — or upload below" disabled={!canInvite || inviteBusy} />
+        </label>
+        <label>
+          Upload photo
+          <input
+            className="input"
+            type="file"
+            accept="image/*"
+            disabled={!canInvite || inviteBusy}
+            onChange={async (ev) => {
+              const file = ev.currentTarget.files?.[0];
+              if (!file) return;
+              const data = await fileToDataUrl(file, { maxWidth: 800, maxHeight: 800, quality: 0.82 });
+              const target = ev.currentTarget.form?.elements.namedItem("invitePhotoUrl");
+              if (target instanceof HTMLInputElement) target.value = data;
+            }}
+          />
+        </label>
+        <button className="button" type="submit" disabled={!canInvite || inviteBusy} style={{ justifySelf: "start" }}>
           {inviteBusy ? "Sending…" : "Create profile & send invite"}
         </button>
-        {inviteMessage && <p className="help-text" style={{ color: "#0f7b3d", margin: 0 }}>{inviteMessage}</p>}
-        {inviteError && <p className="help-text" style={{ color: "#b42318", margin: 0 }}>{inviteError}</p>}
+        {inviteMessage && <p className="help-text" style={{ color: "var(--success)", margin: 0 }}>{inviteMessage}</p>}
+        {inviteError && <p className="help-text" style={{ color: "var(--danger)", margin: 0 }}>{inviteError}</p>}
       </form>
     </div>
   );
@@ -2806,85 +2942,91 @@ other@university.edu,John Example,,
   }
 
   return (
-    <div className="admin-bulk-invite-card">
-      <hr style={{ margin: "0 0 20px", border: 0, borderTop: "1px solid var(--border)" }} />
-      <h4 style={{ marginTop: 0 }}>Bulk invite from spreadsheet</h4>
+    <div className="console-panel admin-bulk-invite-card">
+      <p className="console-panel-label">Bulk invite from spreadsheet</p>
       <p className="help-text" style={{ marginTop: 0 }}>
         Upload a <strong>CSV</strong> file (export from Excel or Google Sheets). Each row becomes one invite email with the same
         setup flow as above. Duplicate emails in the file are only sent once.
       </p>
-      <button type="button" className="button secondary" style={{ marginBottom: 8 }} onClick={downloadExampleCsv}>
-        Download example CSV
-      </button>
-      <input
-        className="input"
-        type="file"
-        accept=".csv,text/csv"
-        disabled={!canInvite || bulkBusy}
-        onChange={async (ev) => {
-          setBulkParseError(null);
-          setBulkRows(null);
-          setBulkResult(null);
-          const file = ev.target.files?.[0];
-          if (!file) return;
-          const text = await file.text();
-          const parsed = parseParticipantInviteCsv(text);
-          if (!parsed.ok) {
-            setBulkParseError(parsed.error);
-            return;
-          }
-          setBulkRows(parsed.rows);
-        }}
-      />
-      {bulkParseError ? (
-        <p className="help-text" style={{ color: "#b42318", margin: "8px 0 0" }}>
-          {bulkParseError}
-        </p>
-      ) : null}
-      {bulkRows ? (
-        <p className="help-text" style={{ margin: "8px 0 0" }}>
-          Ready to invite <strong>{bulkRows.length}</strong> people (after removing duplicate emails).
-        </p>
-      ) : null}
-      <button
-        type="button"
-        className="button"
-        style={{ marginTop: 10 }}
-        disabled={!canInvite || bulkBusy || !bulkRows?.length}
-        onClick={async () => {
-          if (!bulkRows?.length || !canInvite) return;
-          setBulkBusy(true);
-          setBulkResult(null);
-          try {
-            const res = await apiFetch<{
-              sentCount: number;
-              failedCount: number;
-              failed: { email: string; error: string }[];
-            }>(
-              "/attendees/invite-bulk",
-              withEventHeaders({
-                method: "POST",
-                body: JSON.stringify({ invites: bulkRows }),
-              }),
-              token,
-            );
-            const failedLines =
-              res.failed?.map((f) => `${f.email}: ${f.error}`).join("; ") || "";
-            setBulkResult(
-              `Sent ${res.sentCount} invite(s). ${res.failedCount ? `Could not send ${res.failedCount}: ${failedLines}` : "All rows processed."}`,
-            );
-            setBulkRows(null);
-            await onDone?.();
-          } catch (err) {
-            setBulkResult(err instanceof Error ? err.message : "Bulk invite failed.");
-          } finally {
-            setBulkBusy(false);
-          }
-        }}
-      >
-        {bulkBusy ? "Sending invites…" : "Send all invites from CSV"}
-      </button>
-      {bulkResult ? <p className="help-text" style={{ margin: "10px 0 0" }}>{bulkResult}</p> : null}
+      <div className="console-form">
+        <div>
+          <button type="button" className="button secondary" onClick={downloadExampleCsv}>
+            Download example CSV
+          </button>
+        </div>
+        <label>
+          CSV file
+          <input
+            className="input"
+            type="file"
+            accept=".csv,text/csv"
+            disabled={!canInvite || bulkBusy}
+            onChange={async (ev) => {
+              setBulkParseError(null);
+              setBulkRows(null);
+              setBulkResult(null);
+              const file = ev.target.files?.[0];
+              if (!file) return;
+              const text = await file.text();
+              const parsed = parseParticipantInviteCsv(text);
+              if (!parsed.ok) {
+                setBulkParseError(parsed.error);
+                return;
+              }
+              setBulkRows(parsed.rows);
+            }}
+          />
+        </label>
+        {bulkParseError ? (
+          <p className="help-text" style={{ color: "var(--danger)", margin: 0 }}>
+            {bulkParseError}
+          </p>
+        ) : null}
+        {bulkRows ? (
+          <p className="help-text" style={{ margin: 0 }}>
+            Ready to invite <strong>{bulkRows.length}</strong> people (after removing duplicate emails).
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="button"
+          style={{ justifySelf: "start" }}
+          disabled={!canInvite || bulkBusy || !bulkRows?.length}
+          onClick={async () => {
+            if (!bulkRows?.length || !canInvite) return;
+            setBulkBusy(true);
+            setBulkResult(null);
+            try {
+              const res = await apiFetch<{
+                sentCount: number;
+                failedCount: number;
+                failed: { email: string; error: string }[];
+              }>(
+                "/attendees/invite-bulk",
+                withEventHeaders({
+                  method: "POST",
+                  body: JSON.stringify({ invites: bulkRows }),
+                }),
+                token,
+              );
+              const failedLines =
+                res.failed?.map((f) => `${f.email}: ${f.error}`).join("; ") || "";
+              setBulkResult(
+                `Sent ${res.sentCount} invite(s). ${res.failedCount ? `Could not send ${res.failedCount}: ${failedLines}` : "All rows processed."}`,
+              );
+              setBulkRows(null);
+              await onDone?.();
+            } catch (err) {
+              setBulkResult(err instanceof Error ? err.message : "Bulk invite failed.");
+            } finally {
+              setBulkBusy(false);
+            }
+          }}
+        >
+          {bulkBusy ? "Sending invites…" : "Send all invites from CSV"}
+        </button>
+        {bulkResult ? <p className="help-text" style={{ margin: 0 }}>{bulkResult}</p> : null}
+      </div>
     </div>
   );
 }
@@ -3313,35 +3455,50 @@ function ProfileEditor({
               </button>
             ))}
           </div>
-          <form className="grid" onSubmit={createEvent}>
-            <input className="input" name="eventName" placeholder="New event name" required />
-            <input className="input" name="eventLogoUrl" placeholder="Header logo URL (optional)" />
-            <input
-              className="input"
-              type="file"
-              accept="image/*"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const data = await fileToDataUrl(file, { maxWidth: 512, maxHeight: 512, quality: 0.88 });
-                const el = e.currentTarget.form?.elements.namedItem("eventLogoUrl");
-                if (el instanceof HTMLInputElement) el.value = data;
-              }}
-            />
-            <input className="input" name="eventBannerUrl" placeholder="Banner URL (optional)" />
-            <input
-              className="input"
-              type="file"
-              accept="image/*"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const data = await fileToDataUrl(file, { maxWidth: 1920, maxHeight: 720, quality: 0.82 });
-                const el = e.currentTarget.form?.elements.namedItem("eventBannerUrl");
-                if (el instanceof HTMLInputElement) el.value = data;
-              }}
-            />
-            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+          <form className="console-form" onSubmit={createEvent}>
+            <label>
+              Event name
+              <input className="input" name="eventName" required />
+            </label>
+            <label>
+              Header logo URL
+              <input className="input" name="eventLogoUrl" placeholder="Optional" />
+            </label>
+            <label>
+              Upload logo
+              <input
+                className="input"
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const data = await fileToDataUrl(file, { maxWidth: 512, maxHeight: 512, quality: 0.88 });
+                  const el = e.currentTarget.form?.elements.namedItem("eventLogoUrl");
+                  if (el instanceof HTMLInputElement) el.value = data;
+                }}
+              />
+            </label>
+            <label>
+              Banner URL
+              <input className="input" name="eventBannerUrl" placeholder="Optional" />
+            </label>
+            <label>
+              Upload banner
+              <input
+                className="input"
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const data = await fileToDataUrl(file, { maxWidth: 1920, maxHeight: 720, quality: 0.82 });
+                  const el = e.currentTarget.form?.elements.namedItem("eventBannerUrl");
+                  if (el instanceof HTMLInputElement) el.value = data;
+                }}
+              />
+            </label>
+            <label>
               Event timezone
               <select className="select" name="timezone" defaultValue="America/New_York" required>
                 {EVENT_TIMEZONE_OPTIONS.map((tz) => (
@@ -3349,9 +3506,15 @@ function ProfileEditor({
                 ))}
               </select>
             </label>
-            <input className="input" type="datetime-local" name="startDate" required />
-            <input className="input" type="datetime-local" name="endDate" required />
-            <button className="button" type="submit">Create Event</button>
+            <label>
+              Start
+              <input className="input" type="datetime-local" name="startDate" required />
+            </label>
+            <label>
+              End
+              <input className="input" type="datetime-local" name="endDate" required />
+            </label>
+            <button className="button" type="submit" style={{ justifySelf: "start" }}>Create event</button>
           </form>
         </div>
       )}

@@ -3,7 +3,9 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { ListEmpty, ListError, ListSkeleton } from "../../components/ListState";
 import { OrganizerShell } from "../../components/OrganizerShell";
+import { StatusChip } from "../../components/StatusChip";
 import { apiFetch, AuthResponse, clearAuthClientState } from "../../lib/api";
 import { OrgSummary, OrganizerEvent, organizerFetch } from "../../lib/organizerApi";
 
@@ -55,9 +57,15 @@ export default function OrganizerDashboard() {
   async function selectOrg(id: string) {
     setOrgId(id);
     window.localStorage.setItem("organizerOrgId", id);
-    const list = await organizerFetch<OrganizerEvent[]>(`/organizations/${id}/events`, null);
-    setEvents(list);
-    void router.replace({ pathname: "/organizer", query: { org: id } }, undefined, { shallow: true });
+    setError(null);
+    try {
+      const list = await organizerFetch<OrganizerEvent[]>(`/organizations/${id}/events`, null);
+      setEvents(list);
+      void router.replace({ pathname: "/organizer", query: { org: id } }, undefined, { shallow: true });
+    } catch (err) {
+      setEvents([]);
+      setError(err instanceof Error ? err.message : "Could not load events");
+    }
   }
 
   return (
@@ -66,16 +74,16 @@ export default function OrganizerDashboard() {
         <title>{`Organizer — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="events" userName={user?.name}>
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
+        <header className="console-page-header">
           <div>
-            <h1 style={{ margin: 0, font: "var(--text-h1)" }}>Your events</h1>
+            <h1>Your events</h1>
             {user ? (
-              <p className="help-text" style={{ marginTop: 4 }}>
+              <p className="text-meta" style={{ margin: "4px 0 0" }}>
                 Signed in as {user.name}
               </p>
             ) : null}
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="console-page-actions">
             <Link className="button secondary" href="/organizer/org/new">
               New organization
             </Link>
@@ -89,41 +97,33 @@ export default function OrganizerDashboard() {
               className="button"
               href={orgId ? `/organizer/events/new?org=${encodeURIComponent(orgId)}` : "/organizer/org/new"}
             >
-              Create event
+              New event
             </Link>
           </div>
         </header>
 
-        {error ? (
-          <p style={{ color: "var(--danger)", marginTop: 16 }}>
-            {error}. <Link href="/login">Sign in</Link>
-          </p>
-        ) : null}
+        {error ? <ListError message={error} onRetry={() => void load()} /> : null}
 
-        {loading ? <p className="help-text">Loading…</p> : null}
+        {loading ? <ListSkeleton rows={4} /> : null}
 
         {!loading && orgs.length === 0 ? (
-          <section style={{ marginTop: 32 }}>
-            <h2 style={{ marginTop: 0 }}>Create your organization</h2>
-            <p className="help-text">
-              Organizations own events. Start here, then add your first draft event.
-            </p>
-            <Link className="button" href="/organizer/org/new">
-              Create organization
-            </Link>
-          </section>
+          <ListEmpty
+            title="Create your organization"
+            body="Organizations own events. Start here, then add your first draft event."
+            actionLabel="Create organization"
+            onAction={() => void router.push("/organizer/org/new")}
+          />
         ) : null}
 
         {orgs.length > 0 ? (
-          <section style={{ marginTop: 24 }}>
-            <label className="help-text" style={{ display: "block", marginBottom: 6 }}>
-              Organization
-            </label>
+          <section className="console-panel" style={{ marginBottom: 16 }}>
+            <p className="console-panel-label">Organization</p>
             <select
               className="input"
               value={orgId || ""}
               onChange={(e) => void selectOrg(e.target.value)}
               style={{ maxWidth: 360 }}
+              aria-label="Organization"
             >
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -134,77 +134,53 @@ export default function OrganizerDashboard() {
           </section>
         ) : null}
 
-        {!loading && orgId && events.length === 0 ? (
-          <section style={{ marginTop: 32 }}>
-            <h2 style={{ marginTop: 0 }}>No events yet</h2>
-            <p className="help-text">
-              Create a draft event, add sessions and speakers, then publish when you&apos;re ready. Or let the setup
-              assistant walk you through it in under two minutes of typing.
-            </p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Link
-                className="button"
-                href={`/organizer/events/new?org=${encodeURIComponent(orgId)}&mode=ai`}
-              >
-                Set up with AI
-              </Link>
-              <Link className="button secondary" href={`/organizer/events/new?org=${encodeURIComponent(orgId)}`}>
-                Create manually
-              </Link>
-            </div>
-          </section>
+        {!loading && orgId && events.length === 0 && !error ? (
+          <ListEmpty
+            title="No events yet"
+            body="Create a draft, add sessions and speakers, then publish when you’re ready."
+            actionLabel="New event"
+            onAction={() => void router.push(`/organizer/events/new?org=${encodeURIComponent(orgId)}`)}
+          />
         ) : null}
 
         {events.length > 0 ? (
-          <ul style={{ listStyle: "none", padding: 0, margin: "24px 0 0", display: "grid", gap: 12 }}>
-            {events.map((ev) => (
-              <li
-                key={ev.id}
-                className="card"
-                style={{
-                  padding: "14px 16px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <Link href={`/organizer/events/${ev.id}`} style={{ fontWeight: 600, fontSize: 15, color: "var(--gray-900)" }}>
-                    {ev.name}
-                  </Link>
-                  <p className="help-text" style={{ margin: "4px 0 0" }}>
-                    <StatusBadge status={ev.uiStatus} />
-                    {" · "}/e/{ev.slug}
-                    {" · "}
-                    {new Date(ev.startDate).toLocaleDateString()} – {new Date(ev.endDate).toLocaleDateString()}
-                  </p>
-                </div>
-                <Link className="button secondary" href={`/organizer/events/${ev.id}`}>
-                  Manage
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <section className="console-panel" style={{ padding: 0 }}>
+            <div className="console-table-wrap">
+              <table className="console-table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Dates</th>
+                    <th>Status</th>
+                    <th aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((ev) => (
+                    <tr key={ev.id}>
+                      <td>
+                        <Link href={`/organizer/events/${ev.id}`}>{ev.name}</Link>
+                        <div className="text-meta">/e/{ev.slug}</div>
+                      </td>
+                      <td>
+                        {new Date(ev.startDate).toLocaleDateString()} – {new Date(ev.endDate).toLocaleDateString()}
+                      </td>
+                      <td>
+                        <StatusChip status={ev.uiStatus} />
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <Link className="button secondary" href={`/organizer/events/${ev.id}`} style={{ minHeight: 32, padding: "4px 10px" }}>
+                          Manage
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         ) : null}
       </OrganizerShell>
     </>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const color =
-    status === "Published"
-      ? "var(--success)"
-      : status === "Draft"
-        ? "var(--gray-600)"
-        : status === "Past"
-          ? "var(--gray-500)"
-          : "var(--warning)";
-  return (
-    <span style={{ color, fontWeight: 500 }}>
-      {status}
-    </span>
   );
 }

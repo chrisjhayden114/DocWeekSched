@@ -1,5 +1,7 @@
-import type { ReactNode, SVGProps } from "react";
-import { AppShell, type ShellNavGroup } from "./AppShell";
+import { useRouter } from "next/router";
+import { useCallback, useEffect, useState, type ReactNode, type SVGProps } from "react";
+import { apiFetch } from "../lib/api";
+import { AppShell, type ShellEventOption, type ShellNavGroup } from "./AppShell";
 
 /**
  * Shell wrapper for organizer console pages (pages/organizer/**).
@@ -83,6 +85,14 @@ const icons = {
   ),
 };
 
+type MineEvent = {
+  id: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  uiStatus?: string;
+};
+
 type OrganizerShellProps = {
   /** Active nav item id (see item ids below). */
   active?: string;
@@ -94,7 +104,28 @@ type OrganizerShellProps = {
 };
 
 export function OrganizerShell({ active, eventId, eventName, userName, children }: OrganizerShellProps) {
+  const router = useRouter();
   const isActive = (id: string) => active === id;
+  const [events, setEvents] = useState<ShellEventOption[]>([]);
+
+  const loadEvents = useCallback(async () => {
+    try {
+      const mine = await apiFetch<MineEvent[]>("/event/mine");
+      setEvents(
+        mine.map((ev) => ({
+          id: ev.id,
+          name: ev.name,
+          meta: ev.uiStatus || null,
+        })),
+      );
+    } catch {
+      setEvents([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadEvents();
+  }, [loadEvents]);
 
   const organizeItems = eventId
     ? [
@@ -133,12 +164,24 @@ export function OrganizerShell({ active, eventId, eventName, userName, children 
     },
   ];
 
+  function switchEvent(id: string) {
+    try {
+      window.localStorage.setItem("activeEventId", id);
+    } catch {
+      /* ignore */
+    }
+    void router.push(`/organizer/events/${id}`);
+  }
+
   return (
     <AppShell
       title={eventName || "Organizer"}
       nav={nav}
       mobilePrimaryIds={organizeItems.slice(0, 3).map((i) => i.id)}
       userName={userName}
+      events={events}
+      activeEventId={eventId || null}
+      onSelectEvent={switchEvent}
       accountMenu={[
         { id: "attendee-app", label: "Open attendee app", href: "/dashboard" },
         { id: "account", label: "Account settings", href: "/account" },

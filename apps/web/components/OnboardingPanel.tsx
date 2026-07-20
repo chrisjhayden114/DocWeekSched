@@ -21,8 +21,8 @@ type Props = {
 };
 
 /**
- * First-run organizer onboarding: optional sample event + 4-step checklist.
- * Dismiss persists server-side (User.onboardingDismissedAt).
+ * First-run organizer onboarding: optional sample event + compact checklist
+ * with thin progress bar (D3 — not a hero block).
  */
 export function OnboardingPanel({ onSampleCreated }: Props) {
   const [state, setState] = useState<OnboardingState | null>(null);
@@ -47,6 +47,8 @@ export function OnboardingPanel({ onSampleCreated }: Props) {
   if (!state.showChecklist && !state.showSamplePrompt) return null;
 
   const doneCount = state.checklist.filter((c) => c.done).length;
+  const total = state.checklist.length || 1;
+  const progressPct = Math.round((doneCount / total) * 100);
 
   async function dismiss() {
     setBusy(true);
@@ -105,19 +107,12 @@ export function OnboardingPanel({ onSampleCreated }: Props) {
   }
 
   return (
-    <section
-      className="card"
-      style={{ marginBottom: 20, padding: 20 }}
-      aria-label="Getting started"
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+    <section className="onboarding-panel" aria-label="Getting started">
+      <div className="onboarding-panel-head">
         <div>
-          <h2 className="text-display-sm" style={{ margin: 0 }}>
-            Getting started
-          </h2>
-          <p className="text-body-md" style={{ color: "var(--ink-secondary)", margin: "6px 0 0" }}>
-            {doneCount}/{state.checklist.length} steps complete. Setup Copilot is the fastest path for
-            creating an event and adding sessions.
+          <h2>Getting started</h2>
+          <p className="text-meta" style={{ margin: "4px 0 0" }}>
+            {doneCount}/{state.checklist.length} steps · Setup Copilot is the fastest path
           </p>
         </div>
         <button type="button" className="button secondary" disabled={busy} onClick={() => void dismiss()}>
@@ -125,11 +120,14 @@ export function OnboardingPanel({ onSampleCreated }: Props) {
         </button>
       </div>
 
+      <div className="onboarding-progress" aria-hidden>
+        <span style={{ width: `${progressPct}%` }} />
+      </div>
+
       {state.showSamplePrompt ? (
-        <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-          <p className="text-body-md" style={{ marginTop: 0 }}>
-            Create a sample draft event with sessions, papers, speakers, and sponsors? It uses your plan’s
-            event allowance (you’ll see an upgrade prompt if you’re at the limit).
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--gray-200)" }}>
+          <p className="text-body" style={{ margin: "0 0 10px" }}>
+            Create a sample draft with sessions, papers, speakers, and sponsors?
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" className="button" disabled={busy} onClick={() => void createSample()}>
@@ -140,7 +138,7 @@ export function OnboardingPanel({ onSampleCreated }: Props) {
             </button>
           </div>
           {upgradeHint ? (
-            <p style={{ color: "var(--danger-700)" }}>
+            <p style={{ color: "var(--danger)", marginBottom: 0 }}>
               {upgradeHint}{" "}
               <Link href="/pricing">View pricing</Link>
             </p>
@@ -148,12 +146,10 @@ export function OnboardingPanel({ onSampleCreated }: Props) {
         </div>
       ) : null}
 
-      <ol style={{ margin: "16px 0 0", paddingLeft: 20 }}>
+      <ul className="onboarding-steps">
         {state.checklist.map((step) => (
-          <li key={step.key} style={{ marginBottom: 8 }}>
-            <span style={{ textDecoration: step.done ? "line-through" : undefined, opacity: step.done ? 0.7 : 1 }}>
-              {step.label}
-            </span>
+          <li key={step.key} className={step.done ? "is-done" : undefined}>
+            {step.label}
             {!step.done && (step.key === "create_event" || step.key === "add_sessions") ? (
               <>
                 {" · "}
@@ -176,8 +172,8 @@ export function OnboardingPanel({ onSampleCreated }: Props) {
             ) : null}
           </li>
         ))}
-      </ol>
-      {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
+      </ul>
+      {error ? <p style={{ color: "var(--danger)", marginBottom: 0 }}>{error}</p> : null}
     </section>
   );
 }

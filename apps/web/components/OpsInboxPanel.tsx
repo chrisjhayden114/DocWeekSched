@@ -1,4 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { AiGeneratedChip } from "./AiGeneratedChip";
+import { ListEmpty, ListError } from "./ListState";
 import { organizerFetch } from "../lib/organizerApi";
 
 type OpsCard = {
@@ -141,35 +143,41 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
   }
 
   if (!data) {
-    return <p className="help-text">{error || "Loading Ops Inbox…"}</p>;
+    return error ? <ListError message={error} onRetry={() => void load()} /> : <p className="help-text">Loading Ops Inbox…</p>;
   }
 
   if (!data.active) {
     return (
-      <section style={{ display: "grid", gap: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Ops Inbox</h2>
-        <p className="help-text">
+      <section className="console-panel">
+        <div className="console-panel-head">
+          <p className="console-panel-label">Ops Inbox</p>
+          <AiGeneratedChip />
+        </div>
+        <p className="help-text" style={{ marginTop: 0 }}>
           Active from 48 hours before the event starts through 24 hours after it ends ({windowLabel}).
         </p>
-        {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
+        {error ? <ListError message={error} /> : null}
       </section>
     );
   }
 
   return (
-    <section style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <h2 style={{ margin: 0, flex: 1 }}>Ops Inbox</h2>
-        <button type="button" className="button secondary" disabled={busy} onClick={() => void runDetectors()}>
-          Run detectors
-        </button>
+    <section className="console-panel">
+      <div className="console-panel-head">
+        <p className="console-panel-label">Ops Inbox</p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <AiGeneratedChip />
+          <button type="button" className="button secondary" disabled={busy} onClick={() => void runDetectors()}>
+            Run detectors
+          </button>
+        </div>
       </div>
-      <p className="help-text">
+      <p className="help-text" style={{ marginTop: 0 }}>
         Review-and-send only — nothing is delivered until you click Send/Apply. Window: {windowLabel}.
       </p>
-      {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
+      {error ? <ListError message={error} /> : null}
 
-      <form onSubmit={(e) => void saveBlocklist(e)} style={{ display: "grid", gap: 8, maxWidth: 560 }}>
+      <form onSubmit={(e) => void saveBlocklist(e)} className="console-form" style={{ marginBottom: 16 }}>
         <label>
           Community blocklist (comma-separated)
           <input
@@ -185,9 +193,14 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
       </form>
 
       {data.cards.length === 0 ? (
-        <p className="help-text">No open cards. Run detectors or wait for the scheduled sweep.</p>
+        <ListEmpty
+          title="No open cards"
+          body="Run detectors or wait for the scheduled sweep."
+          actionLabel="Run detectors"
+          onAction={() => void runDetectors()}
+        />
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 16 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 12 }}>
           {data.cards.map((card) => {
             const links = evidenceLinks(card.evidence || {});
             const editing = editingId === card.id;
@@ -195,13 +208,13 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
               <li
                 key={card.id}
                 style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  padding: 16,
-                  background: "var(--surface, #fff)",
+                  border: "1px solid var(--gray-200)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: 14,
+                  background: "#fff",
                 }}
               >
-                <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--ink-secondary, #41506D)" }}>
+                <p style={{ margin: "0 0 4px" }} className="text-meta">
                   {card.detectorKind} · {card.draftActionType}
                 </p>
                 <h3 style={{ margin: "0 0 8px", fontSize: 18 }}>{card.triggerSummary}</h3>

@@ -109,38 +109,45 @@ export default function OrganizerBillingPage() {
         <title>{`Billing — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="billing">
-        <div style={{ maxWidth: 720 }}>
-        <p className="help-text" style={{ marginTop: 0 }}>
-          <Link href="/pricing">Public pricing</Link>
-        </p>
-        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Billing</h1>
+        <header className="console-page-header">
+          <div>
+            <h1>Billing</h1>
+            <p className="text-meta" style={{ margin: "4px 0 0" }}>
+              <Link href="/pricing">Public pricing</Link>
+            </p>
+          </div>
+        </header>
 
         {orgs.length > 1 ? (
-          <label>
-            Organization
-            <select
-              className="input"
-              value={orgId || ""}
-              onChange={(e) => {
-                const id = e.target.value;
-                setOrgId(id);
-                window.localStorage.setItem("organizerOrgId", id);
-                void load(id).catch((err) => setError(err instanceof Error ? err.message : "Failed"));
-              }}
-            >
-              {orgs.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <section className="console-panel">
+            <div className="console-form">
+              <label>
+                Organization
+                <select
+                  className="input"
+                  value={orgId || ""}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setOrgId(id);
+                    window.localStorage.setItem("organizerOrgId", id);
+                    void load(id).catch((err) => setError(err instanceof Error ? err.message : "Failed"));
+                  }}
+                >
+                  {orgs.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
         ) : null}
 
         {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
         {summary ? (
-          <section style={{ display: "grid", gap: 16, marginTop: 16 }}>
+          <section style={{ display: "grid", gap: 16 }}>
             {summary.readOnly ? (
               <div
                 style={{
@@ -162,8 +169,8 @@ export default function OrganizerBillingPage() {
                 style={{
                   padding: 14,
                   borderRadius: "var(--radius-md)",
-                  background: "#fffaeb",
-                  border: "1px solid #fedf89",
+                  background: "var(--warning-50)",
+                  border: "1px solid var(--gray-200)",
                 }}
               >
                 <strong>Payment issue — grace period</strong>
@@ -177,9 +184,10 @@ export default function OrganizerBillingPage() {
               </div>
             ) : null}
 
-            <div className="card" style={{ padding: 18 }}>
-              <h2 style={{ marginTop: 0 }}>{summary.planName}</h2>
-              <p className="help-text">{summary.planDescription}</p>
+            <div className="console-panel">
+              <p className="console-panel-label">Current plan</p>
+              <h2 style={{ margin: "0 0 6px", font: "var(--text-h2)" }}>{summary.planName}</h2>
+              <p className="help-text" style={{ marginTop: 0 }}>{summary.planDescription}</p>
               <p>
                 <strong>{summary.displayPrice}</strong>
                 {" · "}
@@ -198,22 +206,21 @@ export default function OrganizerBillingPage() {
                   </>
                 ) : null}
               </p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button type="button" className="button secondary" disabled={busy} onClick={() => void openPortal()}>
-                  Customer portal
-                </button>
-              </div>
+              {/* One primary action for this panel. */}
+              <button type="button" className="button" disabled={busy} onClick={() => void openPortal()}>
+                Customer portal
+              </button>
             </div>
 
-            <div className="card" style={{ padding: 18 }}>
-              <h3 style={{ marginTop: 0 }}>Upgrade / change plan</h3>
-              <p className="help-text">{PRICE_LOCK.body}</p>
+            <div className="console-panel">
+              <p className="console-panel-label">Upgrade / change plan</p>
+              <p className="help-text" style={{ marginTop: 0 }}>{PRICE_LOCK.body}</p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {UPGRADE_SKUS.map((s) => (
                   <button
                     key={s.key}
                     type="button"
-                    className="button"
+                    className="button secondary"
                     disabled={busy}
                     onClick={() => void startCheckout(s.key)}
                   >
@@ -223,12 +230,12 @@ export default function OrganizerBillingPage() {
               </div>
             </div>
 
-            <div className="card" style={{ padding: 18 }}>
-              <h3 style={{ marginTop: 0 }}>Invoices</h3>
+            <div className="console-panel">
+              <p className="console-panel-label">Invoices</p>
               {summary.invoices.length === 0 ? (
-                <p className="help-text">Invoices appear here from Lemon Squeezy after purchases.</p>
+                <p className="help-text" style={{ margin: 0 }}>Invoices appear here from Lemon Squeezy after purchases.</p>
               ) : (
-                <ul>
+                <ul style={{ margin: 0 }}>
                   {summary.invoices.map((inv) => (
                     <li key={inv.id}>
                       {inv.createdAt.slice(0, 10)} — {(inv.amountCents / 100).toFixed(2)} {inv.currency} (
@@ -250,7 +257,6 @@ export default function OrganizerBillingPage() {
         ) : (
           <p className="help-text">Loading billing…</p>
         )}
-        </div>
       </OrganizerShell>
     </>
   );

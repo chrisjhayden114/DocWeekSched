@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { AiGeneratedChip } from "./AiGeneratedChip";
+import { ListEmpty, ListError } from "./ListState";
+import { StatusChip } from "./StatusChip";
 import { organizerFetch } from "../lib/organizerApi";
 
 type RecapSection = {
@@ -113,7 +116,7 @@ export function RecapPanel({ eventId }: { eventId: string }) {
   }
 
   if (error && !data) {
-    return <p className="help-text" style={{ color: "#b42318" }}>{error}</p>;
+    return <ListError message={error} onRetry={() => void load()} />;
   }
   if (!data) return <p className="help-text">Loading recap…</p>;
 
@@ -121,52 +124,53 @@ export function RecapPanel({ eventId }: { eventId: string }) {
   const emails = data.recap?.emails ?? [];
 
   return (
-    <section style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0, flex: 1 }}>Post-event recap</h2>
-        {data.recap?.status ? (
-          <span className="help-text">Status: {data.recap.status}</span>
-        ) : null}
-        <button
-          type="button"
-          className="button"
-          disabled={busy || !data.canGenerate}
-          onClick={() => void generate()}
-          title={data.canGenerate ? undefined : "Available after the event end date"}
-        >
-          {data.recap ? "Regenerate" : "Generate event recap"}
-        </button>
-        {data.recap ? (
+    <section className="console-panel">
+      <div className="console-panel-head">
+        <p className="console-panel-label">Post-event recap</p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <AiGeneratedChip />
+          {data.recap?.status ? <StatusChip status={data.recap.status} /> : null}
           <button
             type="button"
-            className="button secondary"
-            disabled={busy}
-            onClick={() => {
-              void (async () => {
-                try {
-                  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-                  const res = await fetch(`${API_URL}/ai/recap/export.csv`, {
-                    credentials: "include",
-                    headers: { "x-event-id": eventId },
-                  });
-                  if (!res.ok) throw new Error("Export failed");
-                  const csv = await res.text();
-                  const blob = new Blob([csv], { type: "text/csv" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `recap-${eventId}.csv`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Export failed");
-                }
-              })();
-            }}
+            className="button"
+            disabled={busy || !data.canGenerate}
+            onClick={() => void generate()}
+            title={data.canGenerate ? undefined : "Available after the event end date"}
           >
-            Export CSV
+            {data.recap ? "Regenerate" : "Generate event recap"}
           </button>
-        ) : null}
+          {data.recap ? (
+            <button
+              type="button"
+              className="button secondary"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+                    const res = await fetch(`${API_URL}/ai/recap/export.csv`, {
+                      credentials: "include",
+                      headers: { "x-event-id": eventId },
+                    });
+                    if (!res.ok) throw new Error("Export failed");
+                    const csv = await res.text();
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `recap-${eventId}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Export failed");
+                  }
+                })();
+              }}
+            >
+              Export CSV
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <p className="help-text">
@@ -217,17 +221,27 @@ export function RecapPanel({ eventId }: { eventId: string }) {
           </div>
         </div>
       ) : (
-        <p className="help-text">No recap workspace yet — generate after the event ends.</p>
+        <ListEmpty
+          title="No recap workspace yet"
+          body="Generate after the event ends. Numbers come from verified metrics; drafts stay labeled AI-generated."
+          actionLabel={data.canGenerate ? "Generate event recap" : undefined}
+          onAction={data.canGenerate ? () => void generate() : undefined}
+        />
       )}
 
       {emails.length > 0 ? (
-        <div>
-          <h3>Email drafts</h3>
+        <div style={{ marginTop: 16 }}>
+          <p className="console-panel-label">Email drafts</p>
           <ul style={{ display: "grid", gap: 12, padding: 0, listStyle: "none" }}>
             {emails.map((e) => (
-              <li key={e.id} style={{ borderTop: "1px solid #e5e5e5", paddingTop: 12 }}>
+              <li key={e.id} style={{ borderTop: "1px solid var(--gray-200)", paddingTop: 12 }}>
                 <strong>{e.kind.replace(/_/g, " ")}</strong>
-                {e.aiGenerated ? <span className="help-text"> · AI-generated</span> : null}
+                {e.aiGenerated ? (
+                  <>
+                    {" "}
+                    <AiGeneratedChip />
+                  </>
+                ) : null}
                 <div className="help-text">{e.status}{e.sentAt ? ` · sent ${new Date(e.sentAt).toLocaleString()}` : ""}</div>
                 <div style={{ fontWeight: 600, marginTop: 4 }}>{e.subject}</div>
                 <pre style={{ whiteSpace: "pre-wrap", fontSize: 13, margin: "8px 0" }}>{e.body}</pre>
