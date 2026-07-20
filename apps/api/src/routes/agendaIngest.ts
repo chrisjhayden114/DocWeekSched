@@ -17,6 +17,7 @@ import {
   textFromDataUrl,
   type ChangesetRow,
 } from "../lib/ai/ingest";
+import { extractedSessionSchema } from "../lib/ai/ingest/schema";
 import { prisma } from "../lib/db";
 import { enqueueJob, processDueJobs } from "../lib/jobs";
 import type { AuthedRequest } from "../lib/middleware";
@@ -37,9 +38,52 @@ const startSchema = z.object({
   processInline: z.boolean().optional(),
 });
 
+const changesetRowSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("create"),
+      rowIndex: z.number().int().nonnegative(),
+      session: extractedSessionSchema,
+      accepted: z.boolean(),
+    })
+    .passthrough(),
+  z
+    .object({
+      kind: z.literal("update"),
+      rowIndex: z.number().int().nonnegative(),
+      sessionId: z.string().min(1),
+      session: extractedSessionSchema,
+      existingTitle: z.string(),
+      message: z.string(),
+      similarity: z.number().optional().default(0),
+      accepted: z.boolean(),
+    })
+    .passthrough(),
+  z
+    .object({
+      kind: z.literal("delete"),
+      rowIndex: z.number().int().nonnegative(),
+      sessionId: z.string().min(1),
+      existingTitle: z.string(),
+      message: z.string(),
+      accepted: z.boolean(),
+    })
+    .passthrough(),
+]);
+
+/** Drop UI-only `error` rows; validate the rest as ChangesetRow. */
+const changesetSchema = z.preprocess((val) => {
+  if (!Array.isArray(val)) return val;
+  return val.filter((row) => {
+    if (!row || typeof row !== "object") return true;
+    return (row as { kind?: string }).kind !== "error";
+  });
+}, z.array(changesetRowSchema));
+
 const reviewSchema = z.object({
-  changeset: z.array(z.record(z.unknown())).optional(),
-  reviewState: z.record(z.unknown()).optional(),
+  changeset: changesetSchema.optional(),
+  /** Opaque UI state; not interpreted by the API. */
+  reviewState: z.record(z.string(), z.unknown()).optional(),
   assumptions: z
     .array(
       z.object({
@@ -54,7 +98,7 @@ const reviewSchema = z.object({
 });
 
 const confirmSchema = z.object({
-  changeset: z.array(z.record(z.unknown())).optional(),
+  changeset: changesetSchema.optional(),
 });
 
 function asChangesetRows(raw: unknown): ChangesetRow[] {
