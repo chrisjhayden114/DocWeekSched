@@ -45,6 +45,7 @@ export const brand = {
     { name: "Render", role: "API hosting" },
     { name: "Netlify", role: "Web hosting" },
     { name: "Resend", role: "Transactional email (when configured)" },
+    { name: "Sentry", role: "Error tracking (when configured)" },
   ],
   colors: {
     ink: "#18253F",

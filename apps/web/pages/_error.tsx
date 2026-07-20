@@ -1,4 +1,5 @@
 import type { NextPageContext } from "next";
+import * as Sentry from "@sentry/nextjs";
 import { BrandedErrorPage } from "../components/BrandedErrorPage";
 
 function ErrorPage({ statusCode }: { statusCode?: number }) {
@@ -20,7 +21,10 @@ function ErrorPage({ statusCode }: { statusCode?: number }) {
   );
 }
 
-ErrorPage.getInitialProps = ({ res, err }: NextPageContext) => {
+ErrorPage.getInitialProps = async (context: NextPageContext) => {
+  // No-op when DSN unset (Sentry SDK not initialized).
+  await Sentry.captureUnderscoreErrorException(context);
+  const { res, err } = context;
   const statusCode = res ? res.statusCode : err ? err.statusCode : 404;
   return { statusCode };
 };

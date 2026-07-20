@@ -16,6 +16,7 @@ Keep this file current: any session that changes operational behavior updates it
 | API (Express + Prisma) | Render, service `docweeksched-api` | `render.yaml` (free plan, **single instance**) |
 | Database (PostgreSQL) | Neon | `DATABASE_URL` |
 | Background jobs | In-process poller inside the API (`BackgroundJob` table) | `JOB_POLL_INTERVAL_MS` (default 5s) |
+| Health | `GET /health` liveness; `GET /health/ready` = DB `SELECT 1` + job-poller heartbeat | Point uptime monitors at `/health/ready` |
 
 There is no separate worker process: stopping/restarting the API stops all jobs and interval loops.
 
@@ -133,6 +134,7 @@ Buckets are keyed by route pattern (not concrete path) and by `req.ip` only
 | Anthropic | AI gateway provider | `ANTHROPIC_API_KEY`, `AI_PROVIDER=anthropic` | `mock` = kill switch |
 | S3/R2-compatible storage | Uploads (optional) | `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, … | Unset → data-URL fallback in Postgres |
 | Web push (VAPID) | Self-generated keypair, no vendor account | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Rotating keys invalidates subscriptions |
+| Sentry | Error tracking (API + web) | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_RELEASE` | Entirely off when DSN unset; listed in `brand.subprocessors` |
 
 No-account dependencies: Google Fonts (CSS), `api.qrserver.com` (QR images).
 
