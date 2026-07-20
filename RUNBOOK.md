@@ -144,3 +144,42 @@ Access needed: the provider dashboards above + GitHub repo + the domain registra
 ukedl.com (and the post-rename domain). Escalation contacts, customer commitments, and
 support-hours policy live in `packages/config` (`supportHours`) and the ToS. Expand this
 chapter during the launch-checklist session.
+
+## 10. Production environment reference
+
+The API runs a preflight at boot when `NODE_ENV=production` (`apps/api/src/lib/env.ts`):
+the **Fatal** rows below abort boot; the **Degraded** rows boot but log one loud
+warning line each (`[preflight] …`). Full var-by-var documentation lives in the root
+`.env.example`.
+
+### Fatal — API refuses to boot
+
+| Var | What breaks without it |
+|---|---|
+| `DATABASE_URL` | Everything (required in all environments) |
+| `JWT_SECRET` | Everything — also rejected if `<16` chars or `dev-secret` |
+| `WEB_BASE_URL` (non-localhost) | Emailed links, CORS allowlist, billing redirects would target localhost |
+| `API_PUBLIC_URL` (non-localhost) | ICS calendar feed URLs would point at localhost |
+| `COOKIE_SECURE=true` when `COOKIE_SAMESITE=none` | Browsers drop the session cookie entirely |
+
+### Degraded — boots with a warning
+
+| Var(s) | What breaks without it |
+|---|---|
+| `RESEND_API_KEY` (+ `RESEND_FROM_EMAIL`) | No email: invites, password reset, verification, CFP + decision emails all fall back to copy-link in the UI |
+| `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (+ `VAPID_SUBJECT`) | Web push disabled; notification delivery is inbox-only |
+| `LEMONSQUEEZY_API_KEY` + `LEMONSQUEEZY_STORE_ID` + `LEMONSQUEEZY_WEBHOOK_SECRET` + `LEMONSQUEEZY_VARIANT_*` | Billing checkout/portal return 503; no paid upgrades; webhooks (entitlement source of truth) never arrive |
+| `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` | All agents (agenda ingest, concierge, matchmaker, ops inbox, recap) return deterministic mock output |
+| `STORAGE_BUCKET` + `STORAGE_ACCESS_KEY_ID` + `STORAGE_SECRET_ACCESS_KEY` | Uploads (session resources, maps, photos, CFP attachments) stored as data-URLs in Postgres — works but bloats rows and backups |
+
+### Expected but not preflighted
+
+| Var(s) | What breaks without it |
+|---|---|
+| `ADMIN_INVITE_CODE` | Anyone could self-register as admin via the invite-code path |
+| `COOKIE_DOMAIN=.ukedl.com` | Cookies pinned to exact API host; web↔api same-site setup breaks |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | No error tracking (SDKs stay inert) |
+| `SENTRY_RELEASE` / `NEXT_PUBLIC_SENTRY_RELEASE` | Errors not attributable to a deploy (Render's `RENDER_GIT_COMMIT` is the API fallback) |
+| Job intervals (`JOB_POLL_INTERVAL_MS`, `JOB_POLL_STALE_MS`, `NOTIFICATION_JOB_INTERVAL_MS`, `OPS_DETECT_SWEEP_INTERVAL_MS`) | Defaults are fine; only tune with a reason |
+| Product tuning (`NOTIFICATION_DAILY_PUSH_BUDGET`, `WAITLIST_SEAT_HOLD_HOURS`, `ANNOUNCEMENT_EMAIL_RATE_PER_HOUR`) | Defaults 5 / 24h / 3 per hour |
+| `ALLOW_DESTRUCTIVE_DB` | Must **never** be set in production (see §6) |
