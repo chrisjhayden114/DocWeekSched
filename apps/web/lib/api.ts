@@ -82,4 +82,67 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, _toke
   return data as T;
 }
 
+/**
+ * Walk cursor pages for list endpoints that return a bare array plus
+ * `X-Next-Cursor` / `X-Has-More` headers (Phase 7 Chunk D).
+ */
+export async function apiFetchAll<T>(
+  path: string,
+  options: RequestInit = {},
+  _token?: string,
+  opts?: { take?: number; maxPages?: number },
+): Promise<T[]> {
+  const take = opts?.take ?? 500;
+  const maxPages = opts?.maxPages ?? 50;
+  const base = path.includes("?") ? `${path}&` : `${path}?`;
+  const all: T[] = [];
+  let cursor: string | null = null;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const url = `${base}take=${take}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const method = (options.method || "GET").toUpperCase();
+    const csrf = getCsrfToken();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(options.headers as Record<string, string> | undefined),
+    };
+    if (method !== "GET" && method !== "HEAD" && csrf) {
+      headers["X-CSRF-Token"] = csrf;
+    }
+
+    const res = await fetch(`${API_URL}${url}`, {
+      ...options,
+      method,
+      credentials: "include",
+      headers,
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const message = data.error
+        ? typeof data.error === "string"
+          ? data.error
+          : JSON.stringify(data.error)
+        : "Request failed";
+      const err = new Error(message) as Error & { status?: number; body?: unknown };
+      err.status = res.status;
+      err.body = data;
+      throw err;
+    }
+
+    const batch = (await res.json()) as T[];
+    if (!Array.isArray(batch)) {
+      throw new Error("Expected array response for apiFetchAll");
+    }
+    all.push(...batch);
+
+    const hasMore = res.headers.get("X-Has-More") === "1";
+    const next = res.headers.get("X-Next-Cursor");
+    if (!hasMore || !next || batch.length === 0) break;
+    cursor = next;
+  }
+
+  return all;
+}
+
 export { API_URL };

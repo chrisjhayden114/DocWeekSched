@@ -14,6 +14,7 @@ import { authRateLimit } from "../lib/rateLimit";
 import { randomBytes } from "crypto";
 import { requireFeature } from "../lib/features";
 import { validationErrorBody } from "../lib/errors";
+import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
 
 export const attendeesRouter = Router();
 
@@ -156,9 +157,25 @@ attendeesRouter.get(
     if (!access.canManageEvent) {
       await requireFeature(event.id, "attendee_directory");
     }
+    const { take, cursor } = parsePagination(req.query);
+
+    let cursorMembershipId: string | undefined;
+    if (cursor) {
+      const cursorRow = await prisma.eventMembership.findUnique({
+        where: { eventId_userId: { eventId: event.id, userId: cursor } },
+        select: { id: true },
+      });
+      if (cursorRow) cursorMembershipId = cursorRow.id;
+    }
 
     const members = await prisma.eventMembership.findMany({
-      where: { eventId: event.id, deletedAt: null },
+      where: {
+        eventId: event.id,
+        deletedAt: null,
+        ...(access.canManageEvent
+          ? {}
+          : { OR: [{ directoryOptIn: true }, { userId: req.user!.id }] }),
+      },
       include: {
         user: {
           select: {
@@ -168,55 +185,54 @@ attendeesRouter.get(
           },
         },
       },
-      orderBy: { user: { name: "asc" } },
+      orderBy: [{ user: { name: "asc" } }, { id: "asc" }],
+      ...(cursorMembershipId ? { cursor: { id: cursorMembershipId }, skip: 1 } : {}),
+      take: take + 1,
     });
 
-    if (!access.canManageEvent) {
-      return res.json(
-        members
-          .filter((m) => m.directoryOptIn || m.userId === req.user!.id)
-          .map((m) => ({
-            id: m.user.id,
-            name: m.user.name,
-            email: m.user.email,
-            role: m.user.role,
-            photoUrl: m.user.photoUrl,
-            researchInterests: m.user.researchInterests,
-            title: m.user.title,
-            affiliation: m.user.affiliation,
-            bio: m.user.bio,
-            participantType: m.user.participantType,
-            eventRole: m.role,
-            directoryOptIn: m.directoryOptIn,
-          })),
-      );
-    }
-
-    return res.json(
-      members.map((m) => {
-        const u = m.user;
-        const pending = u.profileSetupTokenHash != null;
-        const expiresAt = u.profileSetupTokenExpiresAt;
-        const expired = pending && expiresAt != null && expiresAt.getTime() < Date.now();
-        const inviteStatus = !pending ? "ACTIVE" : expired ? "INVITE_EXPIRED" : "PENDING_SETUP";
+    const mapped = members.map((m) => {
+      if (!access.canManageEvent) {
         return {
-          id: u.id,
-          name: u.name,
-          email: u.email,
-          role: u.role,
-          photoUrl: u.photoUrl,
-          researchInterests: u.researchInterests,
-          title: u.title,
-          affiliation: u.affiliation,
-          bio: u.bio,
-          participantType: u.participantType,
+          id: m.user.id,
+          name: m.user.name,
+          email: m.user.email,
+          role: m.user.role,
+          photoUrl: m.user.photoUrl,
+          researchInterests: m.user.researchInterests,
+          title: m.user.title,
+          affiliation: m.user.affiliation,
+          bio: m.user.bio,
+          participantType: m.user.participantType,
           eventRole: m.role,
           directoryOptIn: m.directoryOptIn,
-          inviteStatus,
-          inviteExpiresAt: pending && expiresAt ? expiresAt.toISOString() : null,
         };
-      }),
-    );
+      }
+      const u = m.user;
+      const pending = u.profileSetupTokenHash != null;
+      const expiresAt = u.profileSetupTokenExpiresAt;
+      const expired = pending && expiresAt != null && expiresAt.getTime() < Date.now();
+      const inviteStatus = !pending ? "ACTIVE" : expired ? "INVITE_EXPIRED" : "PENDING_SETUP";
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        photoUrl: u.photoUrl,
+        researchInterests: u.researchInterests,
+        title: u.title,
+        affiliation: u.affiliation,
+        bio: u.bio,
+        participantType: u.participantType,
+        eventRole: m.role,
+        directoryOptIn: m.directoryOptIn,
+        inviteStatus,
+        inviteExpiresAt: pending && expiresAt ? expiresAt.toISOString() : null,
+      };
+    });
+
+    const page = slicePage(mapped, take);
+    setPageHeaders(res, page);
+    return res.json(page.items);
   }),
 );
 

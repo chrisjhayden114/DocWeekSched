@@ -11,6 +11,7 @@ import { requireFeature } from "../lib/features";
 import { assertMutuallyVisible } from "../lib/visibility";
 import { authorOrDeleted } from "../lib/authorDisplay";
 import { validationErrorBody } from "../lib/errors";
+import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
 
 export const conversationsRouter = Router();
 
@@ -45,10 +46,22 @@ conversationsRouter.get(
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(userId, event.id);
     await getOrCreateEventConversation(event.id);
+    const { take, cursor } = parsePagination(req.query);
+
+    const { featureEnabled } = await import("../lib/features");
+    const allowedTypes: Array<"EVENT" | "DIRECT" | "GROUP"> = [];
+    if (await featureEnabled(event.id, "messaging_event_chat")) allowedTypes.push("EVENT");
+    if (await featureEnabled(event.id, "messaging_dms")) allowedTypes.push("DIRECT");
+    if (await featureEnabled(event.id, "messaging_groups")) allowedTypes.push("GROUP");
+    if (allowedTypes.length === 0) {
+      setPageHeaders(res, { nextCursor: null, hasMore: false });
+      return res.json([]);
+    }
 
     const conversations = await prisma.conversation.findMany({
       where: {
         eventId: event.id,
+        type: { in: allowedTypes },
         OR: [{ type: "EVENT" }, { members: { some: { userId } } }],
       },
       include: {
@@ -59,19 +72,14 @@ conversationsRouter.get(
           include: { user: { select: { id: true, name: true } } },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: take + 1,
     });
 
-    const { featureEnabled } = await import("../lib/features");
-    const filtered = [];
-    for (const c of conversations) {
-      if (c.type === "EVENT" && !(await featureEnabled(event.id, "messaging_event_chat"))) continue;
-      if (c.type === "DIRECT" && !(await featureEnabled(event.id, "messaging_dms"))) continue;
-      if (c.type === "GROUP" && !(await featureEnabled(event.id, "messaging_groups"))) continue;
-      filtered.push(c);
-    }
-
-    return res.json(filtered);
+    const page = slicePage(conversations, take);
+    setPageHeaders(res, page);
+    return res.json(page.items);
   }),
 );
 
@@ -185,18 +193,22 @@ conversationsRouter.get(
       throw new HttpError(403, { error: "Forbidden" });
     }
 
+    const { take, cursor } = parsePagination(req.query);
     const messages = await prisma.conversationMessage.findMany({
       where: { conversationId: conversation.id },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: take + 1,
       include: { user: { select: { id: true, name: true, role: true } } },
     });
 
-    return res.json(
-      messages.map((m) => ({
-        ...m,
-        user: authorOrDeleted(m.user),
-      })),
-    );
+    const mapped = messages.map((m) => ({
+      ...m,
+      user: authorOrDeleted(m.user),
+    }));
+    const page = slicePage(mapped, take);
+    setPageHeaders(res, page);
+    return res.json(page.items);
   }),
 );
 

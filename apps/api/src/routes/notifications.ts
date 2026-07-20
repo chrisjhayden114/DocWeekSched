@@ -3,6 +3,7 @@ import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorizatio
 import { prisma } from "../lib/db";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
 
 export const notificationsRouter = Router();
 
@@ -13,14 +14,18 @@ notificationsRouter.get(
     const userId = req.user!.id;
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(userId, event.id);
+    const { take, cursor } = parsePagination(req.query);
 
     const items = await prisma.userNotification.findMany({
       where: { userId, eventId: event.id },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: take + 1,
     });
 
-    return res.json(items);
+    const page = slicePage(items, take);
+    setPageHeaders(res, page);
+    return res.json(page.items);
   }),
 );
 

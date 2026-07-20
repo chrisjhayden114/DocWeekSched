@@ -12,6 +12,7 @@ import { sessionVisibilityWhere, isSessionAttendeeVisible } from "../lib/ai/inge
 import { recordSessionScheduleChange } from "../lib/ai/ops/scheduleChange";
 import { authorOrDeleted } from "../lib/authorDisplay";
 import { uploadHttpError, validationErrorBody } from "../lib/errors";
+import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
 import { getRequestId } from "../lib/requestId";
 
 export const sessionsRouter = Router();
@@ -183,13 +184,18 @@ sessionsRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await resolveEventFromRequest(req);
     const access = await requireEventAccess(req.user!.id, event.id);
+    const { take, cursor } = parsePagination(req.query);
 
-    const sessions = await prisma.session.findMany({
+    const rows = await prisma.session.findMany({
       where: { eventId: event.id, ...sessionVisibilityWhere(access) },
-      orderBy: { startsAt: "asc" },
+      orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: take + 1,
       include: sessionInclude,
     });
-    return res.json(sessions);
+    const page = slicePage(rows, take);
+    setPageHeaders(res, page);
+    return res.json(page.items);
   }),
 );
 
@@ -1024,17 +1030,23 @@ sessionsRouter.delete(
   }),
 );
 
+const answeredSchema = z.object({
+  answered: z.boolean().optional(),
+});
+
 sessionsRouter.post(
   "/:id/conversations/:threadId/answered",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = answeredSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const session = await findSessionWithEvent(req.params.id);
     if (!session) throw new HttpError(404, { error: "Session not found" });
     await requireEventAccess(req.user!.id, session.eventId, { manage: true });
     await requireFeature(session.eventId, "session_qa");
 
-    const answered = req.body?.answered !== false;
+    const answered = parsed.data.answered !== false;
     const thread = await prisma.sessionDiscussionThread.updateMany({
       where: { id: req.params.threadId, sessionId: session.id },
       data: answered
@@ -1046,17 +1058,23 @@ sessionsRouter.post(
   }),
 );
 
+const hideSchema = z.object({
+  hidden: z.boolean().optional(),
+});
+
 sessionsRouter.post(
   "/:id/conversations/:threadId/hide",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = hideSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const session = await findSessionWithEvent(req.params.id);
     if (!session) throw new HttpError(404, { error: "Session not found" });
     await requireEventAccess(req.user!.id, session.eventId, { manage: true });
     await requireFeature(session.eventId, "session_qa");
 
-    const hidden = req.body?.hidden !== false;
+    const hidden = parsed.data.hidden !== false;
     const thread = await prisma.sessionDiscussionThread.updateMany({
       where: { id: req.params.threadId, sessionId: session.id },
       data: hidden

@@ -19,7 +19,7 @@ import { UploadDropzone } from "../components/UploadDropzone";
 import { VenueMapsAttendee, roomPinIndex } from "../components/VenueMapsAttendee";
 import { MeetingRequestModal, MeetingRequestsPanel } from "../components/MeetingRequestsPanel";
 import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
-import { apiFetch, clearAuthClientState } from "../lib/api";
+import { apiFetch, apiFetchAll, clearAuthClientState } from "../lib/api";
 import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
@@ -446,13 +446,13 @@ export default function Dashboard() {
       if (active === "Agenda") {
         setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
         if (isAdmin && attendees.length === 0) {
-          setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
         }
       }
       if (active === "Attendees" || active === PARTICIPANTS_INVITES_TAB) {
         setAttendeesLoading(true);
         try {
-          setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
         } finally {
           setAttendeesLoading(false);
         }
@@ -461,7 +461,7 @@ export default function Dashboard() {
         const qs = communityChannel === "ALL" ? "" : `?channel=${communityChannel}`;
         setNetworkThreads(await apiFetch<NetworkThread[]>(`/network/threads${qs}`, withEventHeaders(), token));
         if (attendees.length === 0) {
-          setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+          setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
         }
       }
       if (active === "Notifications") {
@@ -476,7 +476,7 @@ export default function Dashboard() {
           setActiveConversationId(preferred.id);
         }
         if (attendees.length === 0) {
-          setAttendees(await apiFetch<User[]>("/attendees", {}, token));
+          setAttendees(await apiFetchAll<User>("/attendees", {}, token));
         }
       }
       if (isAdmin) {
@@ -496,7 +496,7 @@ export default function Dashboard() {
     if (!token || active !== "Messages" || !activeConversationId) return;
     setMessages([]);
     let cancelled = false;
-    apiFetch<Message[]>(`/conversations/${activeConversationId}/messages`, withEventHeaders(), token)
+    apiFetchAll<Message>(`/conversations/${activeConversationId}/messages`, withEventHeaders(), token)
       .then((rows) => {
         if (!cancelled) setMessages(rows);
       })
@@ -1339,7 +1339,7 @@ export default function Dashboard() {
               activeEventId={activeEventId}
               eventSlug={event?.slug ?? null}
               onInvited={async () => {
-                const list = await apiFetch<User[]>("/attendees", withEventHeaders(), token!);
+                const list = await apiFetchAll<User>("/attendees", withEventHeaders(), token!);
                 setAttendees(list);
               }}
             />
@@ -1348,7 +1348,7 @@ export default function Dashboard() {
               withEventHeaders={withEventHeaders}
               activeEventId={activeEventId}
               onDone={async () => {
-                const list = await apiFetch<User[]>("/attendees", withEventHeaders(), token!);
+                const list = await apiFetchAll<User>("/attendees", withEventHeaders(), token!);
                 setAttendees(list);
               }}
             />
@@ -1939,10 +1939,10 @@ export default function Dashboard() {
               setAttendees((prev) => prev.filter((row) => row.id !== rosterConfirm.user.id));
             } else if (rosterConfirm.kind === "make-admin") {
               await apiFetch(`/attendees/${rosterConfirm.user.id}/make-admin`, { method: "POST" }, token);
-              setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+              setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
             } else {
               await apiFetch(`/attendees/${rosterConfirm.user.id}/remove-admin`, { method: "POST" }, token);
-              setAttendees(await apiFetch<User[]>("/attendees", withEventHeaders(), token));
+              setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
             }
             setRosterConfirm(null);
           } catch (err) {
