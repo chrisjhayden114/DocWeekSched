@@ -10,6 +10,8 @@ const nextConfig = {
         source: "/(.*)",
         headers: buildSecurityHeaders({
           apiUrl: process.env.NEXT_PUBLIC_API_URL,
+          // Sentry ingest origin joins connect-src only when the DSN is set.
+          sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
           // Report-Only by default; flip to enforcing via CSP_ENFORCE=1 at
           // build time once report-only has been verified (LAUNCH_CHECKLIST).
           enforceCsp: process.env.CSP_ENFORCE === "1",

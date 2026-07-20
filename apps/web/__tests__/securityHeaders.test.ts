@@ -12,10 +12,15 @@ import { resolve } from "path";
 import type { AddressInfo } from "net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { apiOrigin, buildCsp, buildSecurityHeaders } = require("../lib/securityHeaders") as {
+const { apiOrigin, sentryIngestOrigin, buildCsp, buildSecurityHeaders } = require("../lib/securityHeaders") as {
   apiOrigin: (rawUrl?: string) => string;
-  buildCsp: (opts?: { apiUrl?: string }) => string;
-  buildSecurityHeaders: (opts?: { apiUrl?: string; enforceCsp?: boolean }) => Array<{ key: string; value: string }>;
+  sentryIngestOrigin: (dsn?: string) => string | null;
+  buildCsp: (opts?: { apiUrl?: string; sentryDsn?: string }) => string;
+  buildSecurityHeaders: (opts?: {
+    apiUrl?: string;
+    sentryDsn?: string;
+    enforceCsp?: boolean;
+  }) => Array<{ key: string; value: string }>;
 };
 
 function headerMap(headers: Array<{ key: string; value: string }>): Map<string, string> {
@@ -92,6 +97,34 @@ describe("CSP policy string", () => {
     expect(apiOrigin(undefined)).toBe("http://localhost:4000");
     expect(apiOrigin("not a url")).toBe("http://localhost:4000");
     expect(buildCsp({ apiUrl: "http://localhost:4000" })).toContain("connect-src 'self' http://localhost:4000");
+  });
+
+  it("connect-src is exactly 'self' + API origin when no Sentry DSN is set", () => {
+    const noDsn = buildCsp({ apiUrl: "https://api.ukedl.com" });
+    expect(cspDirective(noDsn, "connect-src")).toBe("connect-src 'self' https://api.ukedl.com");
+    const emptyDsn = buildCsp({ apiUrl: "https://api.ukedl.com", sentryDsn: "  " });
+    expect(cspDirective(emptyDsn, "connect-src")).toBe("connect-src 'self' https://api.ukedl.com");
+  });
+
+  it("connect-src includes the DSN's exact ingest origin when set — never a wildcard", () => {
+    const dsn = "https://abc123publickey@o424242.ingest.us.sentry.io/4507000000000000";
+    expect(sentryIngestOrigin(dsn)).toBe("https://o424242.ingest.us.sentry.io");
+    expect(sentryIngestOrigin(undefined)).toBeNull();
+    expect(sentryIngestOrigin("not a dsn")).toBeNull();
+
+    const withDsn = buildCsp({ apiUrl: "https://api.ukedl.com", sentryDsn: dsn });
+    expect(cspDirective(withDsn, "connect-src")).toBe(
+      "connect-src 'self' https://api.ukedl.com https://o424242.ingest.us.sentry.io",
+    );
+    expect(withDsn).not.toContain("*");
+    // script-src is untouched by the Sentry addition.
+    expect(cspDirective(withDsn, "script-src")).toBe("script-src 'self'");
+  });
+
+  it("headers() wiring passes the DSN through to the CSP header", () => {
+    const dsn = "https://key@o1.ingest.sentry.io/2";
+    const map = headerMap(buildSecurityHeaders({ apiUrl: "https://api.ukedl.com", sentryDsn: dsn }));
+    expect(map.get("Content-Security-Policy-Report-Only")).toContain("https://o1.ingest.sentry.io");
   });
 });
 

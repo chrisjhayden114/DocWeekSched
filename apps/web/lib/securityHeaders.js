@@ -20,14 +20,34 @@ function apiOrigin(rawUrl) {
   }
 }
 
-function buildCsp({ apiUrl } = {}) {
+/**
+ * Exact ingest origin from a Sentry DSN (https://KEY@oNNN.ingest.sentry.io/PROJECT).
+ * The browser SDK POSTs events to this host; without it in connect-src an
+ * enforced CSP silently kills web error reporting. Returns null when unset —
+ * never a wildcard.
+ */
+function sentryIngestOrigin(dsn) {
+  const raw = (dsn || "").trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
+function buildCsp({ apiUrl, sentryDsn } = {}) {
+  const connectSrc = ["'self'", apiOrigin(apiUrl)];
+  const ingest = sentryIngestOrigin(sentryDsn);
+  if (ingest) connectSrc.push(ingest);
+
   const directives = [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    `connect-src 'self' ${apiOrigin(apiUrl)}`,
+    `connect-src ${connectSrc.join(" ")}`,
     "worker-src 'self'",
     "manifest-src 'self'",
     "frame-ancestors 'none'",
@@ -40,9 +60,9 @@ function buildCsp({ apiUrl } = {}) {
 
 /**
  * Header list for next.config.js headers().
- * @param {{ apiUrl?: string, enforceCsp?: boolean }} opts
+ * @param {{ apiUrl?: string, sentryDsn?: string, enforceCsp?: boolean }} opts
  */
-function buildSecurityHeaders({ apiUrl, enforceCsp } = {}) {
+function buildSecurityHeaders({ apiUrl, sentryDsn, enforceCsp } = {}) {
   return [
     // No `preload` yet — submitting to the preload list is a cutover item.
     { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
@@ -53,9 +73,9 @@ function buildSecurityHeaders({ apiUrl, enforceCsp } = {}) {
     { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
     {
       key: enforceCsp ? "Content-Security-Policy" : "Content-Security-Policy-Report-Only",
-      value: buildCsp({ apiUrl }),
+      value: buildCsp({ apiUrl, sentryDsn }),
     },
   ];
 }
 
-module.exports = { apiOrigin, buildCsp, buildSecurityHeaders };
+module.exports = { apiOrigin, sentryIngestOrigin, buildCsp, buildSecurityHeaders };
