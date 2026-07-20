@@ -11,9 +11,13 @@ for (const p of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../../.
   if (existsSync(p)) dotenv.config({ path: p });
 }
 
+import { assertDestructiveAllowed } from "../lib/destructiveGuard";
 import { resetPublicDemoEvent } from "../lib/demoEvent";
 
 async function main() {
+  // Fail fast with a clear message before touching the database. The reset
+  // itself re-checks; this catches misconfigured .env at the script boundary.
+  assertDestructiveAllowed("seed-script");
   const result = await resetPublicDemoEvent();
   console.log(
     JSON.stringify(

@@ -9,6 +9,7 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { prisma } from "../db";
+import { assertDestructiveAllowed } from "../destructiveGuard";
 import { verifyPassword } from "../auth";
 import { writeAuditLog } from "../ai/audit";
 import { enqueueJob, registerJobHandler } from "../jobs";
@@ -237,6 +238,9 @@ export async function cancelPendingDeletionIfAny(userId: string): Promise<boolea
  * Never touches Speaker / Session / SessionItem / CfpSubmission rows except SetNull on Session.speakerId.
  */
 export async function hardDeleteUserAccount(userId: string): Promise<void> {
+  // Hard-deleting accounts in production is legitimate (GDPR); the guard only
+  // stops dev/test processes pointed at the production Neon URL.
+  assertDestructiveAllowed("account-hard-delete");
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
 

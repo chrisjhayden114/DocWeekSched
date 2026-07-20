@@ -13,6 +13,7 @@ import {
   SessionPublishStatus,
 } from "@prisma/client";
 import { prisma } from "../db";
+import { assertDestructiveAllowed } from "../destructiveGuard";
 import { upsertFeatureOverrides } from "../features/featureEnabled";
 import { newJoinToken } from "../inviteTokens";
 import { buildDemoFixtureSpec, demoConferenceWindow } from "./fixture";
@@ -109,6 +110,9 @@ function sessionWallTime(anchor: Date, dayOffset: number, startMinute: number): 
  * Safe to run nightly; does not send invite emails.
  */
 export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: string; created: boolean }> {
+  // Legitimate in production (nightly job); the guard stops dev/test processes
+  // pointed at the production Neon URL from wiping the demo event's children.
+  assertDestructiveAllowed("demo-reset");
   const org = await ensureInternalDemoOrg();
   const spec = buildDemoFixtureSpec("public_demo");
   const { start, end } = demoConferenceWindow();
