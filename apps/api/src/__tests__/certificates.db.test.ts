@@ -421,7 +421,6 @@ describe("Phase P4 certificates (DB)", () => {
       finished = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job.id } });
     }
     const jobMs = Date.now() - jobStarted;
-    // eslint-disable-next-line no-console
     console.log(
       `[certificates.db.test] 500-batch timing: seed=${seedMs}ms job=${jobMs}ms total=${seedMs + jobMs}ms status=${finished.status}`,
     );
