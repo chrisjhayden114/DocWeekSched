@@ -54,7 +54,7 @@ export function HeroIngestDemo() {
         spellCheck={false}
       />
       <div className="mkt-ingest-actions">
-        <button type="button" className="button" onClick={() => setRan(true)}>
+        <button type="button" className="button secondary" onClick={() => setRan(true)}>
           Extract draft sessions
         </button>
         <button

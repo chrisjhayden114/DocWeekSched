@@ -26,26 +26,27 @@ export default function HelpIndexPage({ articles }: Props) {
         <meta property="og:description" content={description} />
         <meta property="og:url" content={url} />
         <meta property="og:type" content="website" />
+        <meta property="og:site_name" content={brand.productName} />
         <link rel="canonical" href={url} />
       </Head>
       <div className="mkt-page">
         <SiteHeader />
         <main className="mkt-section">
-          <div className="mkt-section-inner" style={{ maxWidth: 720 }}>
-            <h1 className="text-display-xl" style={{ marginTop: 0 }}>
-              Help
-            </h1>
-            <p className="text-body-md" style={{ color: "var(--ink-secondary)" }}>
-              Markdown-driven guides for organizers and attendees. Full-text search arrives in a later
-              release.
+          <div className="mkt-section-inner mkt-prose">
+            <p className="mkt-eyebrow">Resources</p>
+            <h1>Help</h1>
+            <p>
+              Guides for organizers and attendees. Full-text search arrives in a later release.
             </p>
-            <ul className="text-body-md" style={{ paddingLeft: 20 }}>
+            <ul style={{ paddingLeft: 20, marginTop: 24 }}>
               {articles.map((a) => (
-                <li key={a.slug} style={{ marginBottom: 10 }}>
+                <li key={a.slug} style={{ marginBottom: 12 }}>
                   <Link href={`/help/${a.slug}`}>
                     <strong>{a.title}</strong>
                   </Link>
-                  <div className="text-meta">{a.description}</div>
+                  <div className="text-meta" style={{ marginTop: 2 }}>
+                    {a.description}
+                  </div>
                 </li>
               ))}
             </ul>

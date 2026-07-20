@@ -1,8 +1,9 @@
 import { brand } from "@event-app/config";
 import {
   PRICE_LOCK,
+  PLAN_BY_SKU,
   formatDisplayPrice,
-  publicPricingPlans,
+  type PlanDefinition,
 } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
@@ -28,10 +29,65 @@ const FAQ = [
   },
 ] as const;
 
+type TierCard = {
+  plan: PlanDefinition;
+  popular?: boolean;
+  /** Extra honest bullets beyond generated limits. */
+  extras?: string[];
+};
+
+function limitFeatures(plan: PlanDefinition): string[] {
+  const events =
+    plan.limits.activeEvents == null ? "Unlimited active events" : `${plan.limits.activeEvents} active event`;
+  const attendees =
+    plan.limits.attendees == null
+      ? "Unlimited attendees per event"
+      : `Up to ${plan.limits.attendees.toLocaleString()} attendees per event`;
+  const rows = [events, attendees];
+  if (plan.entitlements.ai_ingest) rows.push("AI program ingest");
+  if (plan.entitlements.analytics) rows.push("Analytics");
+  if (plan.entitlements.ai_full_suite) rows.push("Full AI suite");
+  if (plan.entitlements.sso) rows.push("SSO");
+  if (plan.entitlements.white_label) rows.push("White-label");
+  if (plan.entitlements.priority_support) rows.push("Priority support");
+  if (plan.tier === "FREE") rows.push("Core agenda and community");
+  if (plan.tier === "PER_EVENT" || plan.tier === "PRO") rows.push("No “Powered by” badge");
+  return rows;
+}
+
+/** Three comparison tiers from the public catalog (display only). */
+const TIERS: TierCard[] = [
+  {
+    plan: PLAN_BY_SKU.free,
+    extras: ["Small “Powered by” badge on attendee surfaces"],
+  },
+  {
+    plan: PLAN_BY_SKU.pro_monthly,
+    popular: true,
+    extras: [
+      `Annual option: ${formatDisplayPrice(
+        PLAN_BY_SKU.pro_annual.displayPriceCents,
+        PLAN_BY_SKU.pro_annual.currency,
+        PLAN_BY_SKU.pro_annual.interval,
+      )}`,
+    ],
+  },
+  {
+    plan: PLAN_BY_SKU.enterprise,
+    extras: ["Custom limits and procurement"],
+  },
+];
+
+const PER_EVENT_SKUS = [
+  PLAN_BY_SKU.per_event_250,
+  PLAN_BY_SKU.per_event_500,
+  PLAN_BY_SKU.per_event_1000,
+] as const;
+
 export default function PricingPage() {
-  const plans = publicPricingPlans();
   const title = `Pricing — ${brand.productName}`;
-  const description = `Honest, public pricing for ${brand.productName}. Recurring-event price lock included.`;
+  const description = `Open pricing for ${brand.productName}. Free, Pro, Enterprise, and one-time per-event plans. Recurring-event price lock included.`;
+  const url = `${brand.primaryUrl}/pricing`;
 
   return (
     <>
@@ -40,83 +96,123 @@ export default function PricingPage() {
         <meta name="description" content={description} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
-        <meta property="og:url" content={`${brand.primaryUrl}/pricing`} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={url} />
         <meta property="og:site_name" content={brand.productName} />
-        <link rel="canonical" href={`${brand.primaryUrl}/pricing`} />
+        <link rel="canonical" href={url} />
       </Head>
       <div className="mkt-page">
         <SiteHeader />
-        <main className="mkt-section">
-          <div className="mkt-section-inner" style={{ maxWidth: 960 }}>
-            <h1 className="text-display-xl" style={{ marginTop: 0 }}>
-              Honest pricing
-            </h1>
-            <p className="text-body-lg" style={{ color: "var(--ink-secondary)", maxWidth: 560 }}>
-              Checkout is handled by Lemon Squeezy (merchant of record) — they collect payment and applicable
-              sales tax/VAT. Catalog amounts below match what we charge before tax.
-            </p>
-
-            <section className="mkt-price-lock">
-              <h2 className="text-display-sm" style={{ margin: "0 0 8px" }}>
-                {PRICE_LOCK.headline}
-              </h2>
-              <p style={{ margin: 0, maxWidth: 640 }}>{PRICE_LOCK.body}</p>
-              <p className="text-meta" style={{ marginTop: 10 }}>
-                {PRICE_LOCK.footnote}
+        <main>
+          <section className="mkt-section">
+            <div className="mkt-section-inner">
+              <p className="mkt-eyebrow">Pricing</p>
+              <h1 className="mkt-h2" style={{ fontSize: 36 }}>
+                Open pricing
+              </h1>
+              <p className="mkt-standfirst">
+                Catalog amounts match what we charge before tax. Checkout is handled by Lemon Squeezy
+                (merchant of record) — they collect payment and applicable sales tax/VAT.
               </p>
-            </section>
 
-            <div className="mkt-plan-grid">
-              {plans.map((p) => (
-                <article key={p.sku} className="mkt-plan-card">
-                  <h3 style={{ margin: "0 0 6px" }}>{p.name}</h3>
-                  <p className="mkt-plan-price">
-                    {formatDisplayPrice(p.displayPriceCents, p.currency, p.interval)}
-                  </p>
-                  <p className="help-text" style={{ marginTop: 0, minHeight: 72 }}>
-                    {p.plainDescription}
-                  </p>
-                  <ul className="help-text" style={{ paddingLeft: 18, margin: "0 0 16px" }}>
-                    <li>Events: {p.limits.activeEvents == null ? "Unlimited" : p.limits.activeEvents}</li>
-                    <li>
-                      Attendees / event:{" "}
-                      {p.limits.attendees == null ? "Unlimited" : p.limits.attendees.toLocaleString()}
-                    </li>
-                  </ul>
-                  {p.contactOnly ? (
-                    <a className="button secondary" href={`mailto:${brand.supportEmail}?subject=Enterprise%20plan`}>
-                      Contact us
-                    </a>
-                  ) : p.sku === "free" ? (
-                    <Link className="button" href="/login">
-                      Start free
-                    </Link>
-                  ) : (
-                    <Link className="button" href="/login">
+              <section className="mkt-price-lock" aria-labelledby="price-lock-heading">
+                <h2 id="price-lock-heading" className="mkt-feature-title">
+                  {PRICE_LOCK.headline}
+                </h2>
+                <p style={{ margin: "0 0 8px", maxWidth: 640, color: "var(--gray-700)" }}>{PRICE_LOCK.body}</p>
+                <p className="text-meta" style={{ margin: 0 }}>
+                  {PRICE_LOCK.footnote}
+                </p>
+              </section>
+
+              <div className="mkt-plan-grid">
+                {TIERS.map(({ plan, popular, extras }) => {
+                  const features = [...limitFeatures(plan), ...(extras ?? [])];
+                  return (
+                    <article key={plan.sku} className={`mkt-plan-card${popular ? " is-popular" : ""}`}>
+                      {popular ? <span className="mkt-plan-chip">Popular</span> : null}
+                      <h3>{plan.name}</h3>
+                      <p className="mkt-plan-price">
+                        {formatDisplayPrice(plan.displayPriceCents, plan.currency, plan.interval)}
+                      </p>
+                      <p className="mkt-feature-body" style={{ margin: 0 }}>
+                        {plan.plainDescription}
+                      </p>
+                      <ul className="mkt-plan-features">
+                        {features.map((f) => (
+                          <li key={f}>{f}</li>
+                        ))}
+                      </ul>
+                      {plan.contactOnly ? (
+                        <a
+                          className="button secondary"
+                          href={`mailto:${brand.supportEmail}?subject=Enterprise%20plan`}
+                        >
+                          Contact us
+                        </a>
+                      ) : plan.sku === "free" ? (
+                        <Link className="button" href="/login">
+                          Start free
+                        </Link>
+                      ) : (
+                        <Link className="button" href="/login">
+                          Sign in to upgrade
+                        </Link>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+
+              <p className="mkt-eyebrow">One-time options</p>
+              <h2 className="mkt-h2" style={{ fontSize: 24 }}>
+                Per-event plans
+              </h2>
+              <p className="mkt-standfirst">
+                Single-event purchases from the same catalog — useful when you are not ready for a Pro
+                subscription.
+              </p>
+              <div className="mkt-plan-grid">
+                {PER_EVENT_SKUS.map((plan) => (
+                  <article key={plan.sku} className="mkt-plan-card">
+                    <h3>{plan.name}</h3>
+                    <p className="mkt-plan-price">
+                      {formatDisplayPrice(plan.displayPriceCents, plan.currency, plan.interval)}
+                    </p>
+                    <p className="mkt-feature-body" style={{ margin: 0 }}>
+                      {plan.plainDescription}
+                    </p>
+                    <ul className="mkt-plan-features">
+                      {limitFeatures(plan).map((f) => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                    <Link className="button secondary" href="/login">
                       Sign in to upgrade
                     </Link>
-                  )}
-                </article>
-              ))}
+                  </article>
+                ))}
+              </div>
+
+              <p className="mkt-eyebrow" style={{ marginTop: 16 }}>
+                FAQ
+              </p>
+              <h2 className="mkt-h2">Common questions</h2>
+              <div className="mkt-faq">
+                {FAQ.map((item) => (
+                  <details key={item.q}>
+                    <summary>{item.q}</summary>
+                    <p>{item.a}</p>
+                  </details>
+                ))}
+              </div>
+
+              <p className="text-meta" style={{ marginTop: 28 }}>
+                Tax note: Lemon Squeezy adds applicable sales tax/VAT at checkout where required. Displayed
+                catalog prices are the pre-tax amounts from our plan config.
+              </p>
             </div>
-
-            <h2 className="text-display-md">FAQ</h2>
-            <dl className="mkt-faq">
-              {FAQ.map((item) => (
-                <div key={item.q}>
-                  <dt className="text-display-sm">{item.q}</dt>
-                  <dd className="text-body-md" style={{ color: "var(--ink-secondary)", marginLeft: 0 }}>
-                    {item.a}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-
-            <p className="text-meta" style={{ marginTop: 28 }}>
-              Tax note: Lemon Squeezy adds applicable sales tax/VAT at checkout where required. Displayed
-              catalog prices are the pre-tax amounts from our plan config.
-            </p>
-          </div>
+          </section>
         </main>
         <SiteFooter />
       </div>

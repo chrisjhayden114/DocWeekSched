@@ -14,29 +14,33 @@ export function BrandedErrorPage({ statusCode, title, message }: Props) {
     <>
       <Head>
         <title>{`${title} — ${brand.productName}`}</title>
+        <meta name="robots" content="noindex" />
       </Head>
-      <div className="container branded-error-page">
-        <div className="card branded-error-card">
-          <div className="login-brand" style={{ marginBottom: "var(--space-4)" }}>
+      <div className="mkt-login-page">
+        <div className="mkt-login-card" style={{ maxWidth: 440 }}>
+          <div className="login-brand login-brand--card">
             <BrandLogo size={48} />
             <div>
-              <p className="text-meta" style={{ margin: 0 }}>
+              <p className="text-meta" style={{ margin: 0, color: "var(--gray-500)" }}>
                 {brand.productName}
               </p>
-              <h1 className="text-display-md" style={{ margin: "4px 0 0" }}>
+              <h1 style={{ margin: "4px 0 0", font: "600 22px/28px var(--font-body)", color: "var(--gray-900)" }}>
                 {statusCode} · {title}
               </h1>
             </div>
           </div>
-          <p className="text-body-md" style={{ color: "var(--ink-secondary)", marginTop: 0 }}>
+          <p style={{ color: "var(--gray-600)", margin: "0 0 20px", font: "400 15px/24px var(--font-body)" }}>
             {message}
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", marginTop: "var(--space-5)" }}>
-            <Link href="/dashboard" className="button" style={{ display: "inline-flex", alignItems: "center" }}>
-              Back to my event
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <Link href="/" className="button">
+              Home
             </Link>
-            <Link href="/login" className="button secondary" style={{ display: "inline-flex", alignItems: "center" }}>
+            <Link href="/login" className="button secondary">
               Sign in
+            </Link>
+            <Link href="/help" className="button secondary">
+              Help
             </Link>
           </div>
         </div>

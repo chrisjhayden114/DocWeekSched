@@ -1,9 +1,11 @@
 import { brand } from "@event-app/config";
 import Head from "next/head";
+import Link from "next/link";
 import type { GetServerSideProps } from "next";
 import { SiteFooter } from "../components/marketing/SiteFooter";
 import { SiteHeader } from "../components/marketing/SiteHeader";
 import { HeroIngestDemo } from "../components/marketing/HeroIngestDemo";
+import { DemoScheduleFrame } from "../components/marketing/DemoScheduleFrame";
 import { homeEventQueryRedirect } from "../lib/entryRedirects";
 
 type Props = Record<string, never>;
@@ -14,7 +16,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     return {
       redirect: {
         destination: target,
-        permanent: false, // 302 — temporary
+        permanent: false,
       },
     };
   }
@@ -23,46 +25,44 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 
 const FEATURES = [
   {
-    title: "Paste your program. Your event is live.",
-    body: "Upload a PDF or paste a schedule — Agenda Ingest drafts sessions and papers for you to review before anything goes public.",
+    eyebrow: "Papers & authors",
+    title: "Academic structure, first-class",
+    body: "Sessions nest papers with author order preserved, discussants, and individual times — the parent/child model conference programs actually use.",
   },
   {
-    title: "Your attendees will thank you.",
-    body: "Calm by design: digest-first notifications, quiet hours, and no engagement bait. Attendees get a useful agenda without the noise.",
+    eyebrow: "AI program ingest",
+    title: "AI generated, always reviewable",
+    body: "Upload a PDF or paste a schedule. Agenda Ingest proposes sessions and papers — nothing publishes until you confirm.",
   },
   {
-    title: "Built for events that happen every year.",
-    body: "Event Series remembers structure across editions, and the recurring-event price lock keeps next year’s rate predictable.",
-  },
-  {
-    title: "Academic-grade where it counts.",
-    body: "Paper-level session items, author ordering, CFP with blind review, certificates, and async as a first-class attendance mode.",
-  },
-  {
-    title: "Honest pricing, honest uptime.",
-    body: "Public plan matrix, published support hours, and a status page you can actually check at 3 a.m.",
+    eyebrow: "Attendee experience",
+    title: "Calm by design",
+    body: "Digest-first notifications, quiet hours, and no engagement bait. Attendees get a scannable agenda without the noise.",
   },
 ] as const;
 
-const FAQ = [
+const STEPS = [
   {
-    q: "Do attendees need to download an app?",
-    a: "No. The web app installs as a PWA when they want offline access — no app-store gate.",
+    n: "1",
+    title: "Paste or upload your program",
+    body: "Bring a PDF, spreadsheet, or plain text. Ingest drafts the structure for review.",
   },
   {
-    q: "Can I try it without signing up?",
-    a: `Yes — open the public demo at /e/${brand.demoEventSlug}.`,
+    n: "2",
+    title: "Edit tracks, rooms, and papers",
+    body: "Tighten titles, assign rooms, keep author order. Publish when the draft is right.",
   },
   {
-    q: "What counts as an attendee?",
-    a: "Anyone invited or joined for an event counts toward your plan’s attendee cap for that event.",
+    n: "3",
+    title: "Share the public schedule",
+    body: "Attendees open a clean agenda, build My Schedule, and join without an app-store gate.",
   },
 ] as const;
 
 export default function LandingPage() {
   const title = `${brand.productName} — Paste your program. Your event is live.`;
   const description =
-    "Calm, AI-native event workspace for recurring conferences and academic programs. Agenda ingest, quiet notifications, and honest pricing.";
+    "Calm event workspace for academic programs and recurring conferences. Agenda ingest, first-class papers, quiet notifications, and open pricing.";
   const ogImage = `${brand.primaryUrl}/icons/icon-512.png`;
 
   return (
@@ -86,68 +86,126 @@ export default function LandingPage() {
         <SiteHeader />
         <main>
           <section className="mkt-hero" aria-labelledby="mkt-hero-brand">
-            <div className="mkt-hero-inner">
-              <p id="mkt-hero-brand" className="mkt-hero-brand">
-                {brand.productName}
-              </p>
-              <h1 className="mkt-hero-headline">Paste your program. Your event is live.</h1>
-              <p className="mkt-hero-sub">
-                Turn an uploaded agenda into a calm, publishable event in minutes — without notification spam or sales-call pricing.
-              </p>
-              <div className="mkt-hero-cta">
-                <a className="button" href="/login">
-                  Start free
-                </a>
-                <a className="button secondary" href={`/e/${brand.demoEventSlug}`}>
-                  Try the demo
-                </a>
+            <div className="mkt-hero-inner mkt-hero-grid">
+              <div className="mkt-hero-copy">
+                <p id="mkt-hero-brand" className="mkt-hero-brand">
+                  {brand.productName}
+                </p>
+                <h1 className="mkt-hero-headline">Paste your program. Your event is live.</h1>
+                <p className="mkt-hero-sub">
+                  Turn an uploaded agenda into a calm, publishable event in minutes — without notification spam or
+                  sales-call pricing.
+                </p>
+                <div className="mkt-hero-cta">
+                  <Link className="button" href="/login">
+                    Create your event
+                  </Link>
+                  <Link className="button secondary" href={`/e/${brand.demoEventSlug}`}>
+                    Try the demo
+                  </Link>
+                </div>
               </div>
+              <DemoScheduleFrame />
+            </div>
+          </section>
+
+          <section className="mkt-section" aria-label="Try agenda ingest">
+            <div className="mkt-section-inner">
+              <p className="mkt-eyebrow">Interactive demo</p>
+              <h2 className="mkt-h2">Extract a draft from a sample program</h2>
+              <p className="mkt-standfirst">
+                No account required. This runs entirely in your browser — a mock extract of the sample text below.
+              </p>
               <HeroIngestDemo />
             </div>
           </section>
 
-          {FEATURES.map((f) => (
-            <section key={f.title} className="mkt-section">
-              <div className="mkt-section-inner">
-                <h2 className="text-display-md" style={{ marginTop: 0 }}>
-                  {f.title}
-                </h2>
-                <p className="text-body-lg" style={{ color: "var(--ink-secondary)", maxWidth: 560, marginBottom: 0 }}>
-                  {f.body}
-                </p>
-              </div>
-            </section>
-          ))}
-
-          <section className="mkt-section mkt-section--alt" id="pricing-teaser">
+          <section className="mkt-section mkt-section--alt" id="product">
             <div className="mkt-section-inner">
-              <h2 className="text-display-md" style={{ marginTop: 0 }}>
-                Honest pricing
-              </h2>
-              <p className="text-body-lg" style={{ color: "var(--ink-secondary)", maxWidth: 520 }}>
-                Transparent plan matrix, recurring-event price lock, no sales-call gate.
+              <p className="mkt-eyebrow">Built for academic events</p>
+              <h2 className="mkt-h2">What organizers actually need</h2>
+              <p className="mkt-standfirst">
+                Papers, authors, CFP, and series — treated as product, not afterthoughts.
               </p>
-              <a className="button" href="/pricing">
-                See plans
-              </a>
+              <div className="mkt-feature-trio">
+                {FEATURES.map((f) => (
+                  <article key={f.title} className="mkt-feature-card">
+                    <p className="mkt-eyebrow" style={{ marginBottom: 8 }}>
+                      {f.eyebrow}
+                    </p>
+                    <h3 className="mkt-feature-title">{f.title}</h3>
+                    <p className="mkt-feature-body">{f.body}</p>
+                  </article>
+                ))}
+              </div>
             </div>
           </section>
 
-          <section className="mkt-section" id="faq">
+          <section className="mkt-section">
             <div className="mkt-section-inner">
-              <h2 className="text-display-md" style={{ marginTop: 0 }}>
-                FAQ
-              </h2>
-              <dl className="mkt-faq">
-                {FAQ.map((item) => (
-                  <div key={item.q}>
-                    <dt className="text-display-sm">{item.q}</dt>
-                    <dd className="text-body-md" style={{ color: "var(--ink-secondary)", marginLeft: 0 }}>
-                      {item.a}
-                    </dd>
-                  </div>
+              <p className="mkt-eyebrow">How it works</p>
+              <h2 className="mkt-h2">Three steps from program to published</h2>
+              <p className="mkt-standfirst">Review every draft before attendees see it.</p>
+              <ol className="mkt-steps">
+                {STEPS.map((s) => (
+                  <li key={s.n}>
+                    <span className="mkt-step-n" aria-hidden>
+                      {s.n}
+                    </span>
+                    <div>
+                      <h3 className="mkt-feature-title">{s.title}</h3>
+                      <p className="mkt-feature-body">{s.body}</p>
+                    </div>
+                  </li>
                 ))}
-              </dl>
+              </ol>
+            </div>
+          </section>
+
+          <section className="mkt-section mkt-section--alt" id="trust">
+            <div className="mkt-section-inner">
+              <p className="mkt-eyebrow">Trust</p>
+              <h2 className="mkt-h2">What we publish as true</h2>
+              <p className="mkt-standfirst">
+                Specific product facts — not logos, testimonials, or invented user counts.
+              </p>
+              <ul className="mkt-trust-list">
+                <li>
+                  <strong>Open pricing.</strong> Public plan matrix on{" "}
+                  <Link href="/pricing">/pricing</Link> — no sales-call gate for the catalog.
+                </li>
+                <li>
+                  <strong>Data export.</strong> Organizers can export their event data; we do not hold agendas hostage.
+                </li>
+                {brand.productPrinciples.map((p) => (
+                  <li key={p}>
+                    <strong>{p}.</strong>
+                  </li>
+                ))}
+                <li>
+                  <strong>Security &amp; principles.</strong> Architecture notes, subprocessors, and the full list on{" "}
+                  <Link href="/security">/security</Link>.
+                </li>
+              </ul>
+            </div>
+          </section>
+
+          <section className="mkt-section mkt-cta-band">
+            <div className="mkt-section-inner mkt-cta-band-inner">
+              <h2 className="mkt-h2" style={{ marginBottom: 8 }}>
+                Ready when your program is
+              </h2>
+              <p className="mkt-standfirst" style={{ marginBottom: 20 }}>
+                Start free, or open the public demo schedule first.
+              </p>
+              <div className="mkt-hero-cta" style={{ marginBottom: 0 }}>
+                <Link className="button" href="/login">
+                  Create your event
+                </Link>
+                <Link className="button secondary" href={`/e/${brand.demoEventSlug}`}>
+                  Open /e/{brand.demoEventSlug}
+                </Link>
+              </div>
             </div>
           </section>
         </main>

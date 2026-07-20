@@ -46,17 +46,18 @@ export default function HelpArticlePage({ article }: Props) {
         <meta property="og:description" content={article.description} />
         <meta property="og:url" content={url} />
         <meta property="og:type" content="article" />
+        <meta property="og:site_name" content={brand.productName} />
         <link rel="canonical" href={url} />
       </Head>
       <div className="mkt-page">
         <SiteHeader />
         <main className="mkt-section">
-          <article className="mkt-section-inner mkt-legal" style={{ maxWidth: 720 }}>
+          <article className="mkt-section-inner mkt-prose mkt-legal">
             <p className="text-meta" style={{ marginTop: 0 }}>
               <Link href="/help">Help</Link> / {article.title}
             </p>
             <div
-              className="help-article-body text-body-md"
+              className="help-article-body"
               dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
             />
             <p className="text-meta" style={{ marginTop: 32 }}>

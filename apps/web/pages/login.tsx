@@ -168,45 +168,50 @@ export default function LoginPage() {
     }
   }
 
+  const pageTitle = linkedEventName
+    ? `${linkedEventName} — ${brand.productName}`
+    : `Sign in — ${brand.productName}`;
+
   return (
     <>
       <Head>
-        <title>{linkedEventName ? `${linkedEventName} — ${brand.productName}` : `Sign in — ${brand.productName}`}</title>
+        <title>{pageTitle}</title>
+        <meta name="description" content={`Sign in to ${brand.productName}.`} />
         <meta name="robots" content="noindex" />
       </Head>
-      <div className="container">
-        <p className="help-text" style={{ marginBottom: 12 }}>
-          <Link href="/">← {brand.productName}</Link>
+      <div className="mkt-login-page">
+        <p className="text-meta" style={{ margin: "0 0 16px", width: "100%", maxWidth: 400 }}>
+          <Link href="/" style={{ color: "var(--gray-600)" }}>
+            ← {brand.productName}
+          </Link>
         </p>
-        <div className="card login-card">
+        <div className="mkt-login-card">
           <div className="login-brand login-brand--card">
-            <BrandLogo size={56} className="login-brand-logo" />
+            <BrandLogo size={48} className="login-brand-logo" />
             <div className="login-brand-text">
-              <h1 className="text-display-md" style={{ margin: 0 }}>
+              <h1 style={{ margin: 0, font: "600 22px/28px var(--font-body)", color: "var(--gray-900)" }}>
                 {brand.productName}
               </h1>
               {linkedEventName ? (
-                <p className="login-guest-event-name text-body-md" style={{ margin: "6px 0 0" }}>
+                <p className="login-guest-event-name" style={{ margin: "6px 0 0", color: "var(--gray-600)", font: "400 14px/20px var(--font-body)" }}>
                   {linkedEventName}
                 </p>
               ) : (
-                <p className="text-body-md" style={{ margin: "6px 0 0", color: "var(--ink-secondary)" }}>
+                <p style={{ margin: "6px 0 0", color: "var(--gray-600)", font: "400 14px/20px var(--font-body)" }}>
                   Sign in to your event
                 </p>
               )}
             </div>
           </div>
 
-          <p className="text-body-md" style={{ color: "var(--ink-secondary)", margin: "0 0 var(--space-4)" }}>
+          <p style={{ color: "var(--gray-600)", margin: "0 0 16px", font: "400 14px/21px var(--font-body)" }}>
             Have an event link from your organizer? Open it and we&apos;ll bring you to the right place.
           </p>
 
           {mode === "register" ? (
             <>
-              <div style={{ marginBottom: "var(--space-3)" }}>
-                <label className="text-meta" htmlFor="register-type">
-                  Account type
-                </label>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="register-type">Account type</label>
                 <select
                   id="register-type"
                   className="select"
@@ -238,13 +243,21 @@ export default function LoginPage() {
                     <input id="reg-invite" className="input" name="inviteCode" type="password" required />
                   </>
                 )}
-                {error && <p style={{ color: "var(--danger-700)" }}>{error}</p>}
-                {registerMessage && <p style={{ color: "var(--success-700)" }}>{registerMessage}</p>}
-                <button className="button" type="submit" disabled={loading} style={{ marginTop: 12, width: "100%", minHeight: 44 }}>
+                {error ? (
+                  <p className="mkt-form-status mkt-form-status--error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                {registerMessage ? (
+                  <p className="mkt-form-status mkt-form-status--success" role="status">
+                    {registerMessage}
+                  </p>
+                ) : null}
+                <button className="button" type="submit" disabled={loading} style={{ minHeight: 44 }}>
                   {loading ? "Please wait…" : "Create account"}
                 </button>
               </form>
-              <p className="text-body-md" style={{ marginTop: "var(--space-4)", textAlign: "center" }}>
+              <p style={{ marginTop: 20, textAlign: "center", font: "400 14px/20px var(--font-body)", color: "var(--gray-600)" }}>
                 Already have an account?{" "}
                 <button type="button" className="linkish" onClick={() => setMode("login")}>
                   Sign in
@@ -266,24 +279,30 @@ export default function LoginPage() {
                   minLength={8}
                   autoComplete="current-password"
                 />
-                {error && <p style={{ color: "var(--danger-700)" }}>{error}</p>}
-                {registerMessage && <p style={{ color: "var(--success-700)" }}>{registerMessage}</p>}
-                <button className="button" type="submit" disabled={loading} style={{ marginTop: 12, width: "100%", minHeight: 44 }}>
+                {error ? (
+                  <p className="mkt-form-status mkt-form-status--error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                {registerMessage ? (
+                  <p className="mkt-form-status mkt-form-status--success" role="status">
+                    {registerMessage}
+                  </p>
+                ) : null}
+                <button className="button" type="submit" disabled={loading} style={{ minHeight: 44 }}>
                   {loading ? "Please wait…" : "Continue"}
                 </button>
               </form>
 
-              <p style={{ marginTop: "var(--space-3)", textAlign: "center" }}>
+              <p style={{ marginTop: 12, textAlign: "center" }}>
                 <button type="button" className="linkish" style={{ minHeight: 44 }} onClick={() => setForgotOpen((v) => !v)}>
                   Forgot password?
                 </button>
               </p>
 
               {forgotOpen && (
-                <div style={{ marginTop: "var(--space-2)" }}>
-                  <label htmlFor="forgot-email" className="text-meta">
-                    Email for reset link
-                  </label>
+                <div style={{ marginTop: 8 }}>
+                  <label htmlFor="forgot-email">Email for reset link</label>
                   <input
                     id="forgot-email"
                     className="input"
@@ -301,12 +320,20 @@ export default function LoginPage() {
                   >
                     {forgotSending ? "Sending…" : "Send reset link"}
                   </button>
-                  {forgotMessage && <p className="text-meta">{forgotMessage}</p>}
-                  {forgotError && <p style={{ color: "var(--danger-700)" }}>{forgotError}</p>}
+                  {forgotMessage ? (
+                    <p className="mkt-form-status mkt-form-status--success" role="status">
+                      {forgotMessage}
+                    </p>
+                  ) : null}
+                  {forgotError ? (
+                    <p className="mkt-form-status mkt-form-status--error" role="alert">
+                      {forgotError}
+                    </p>
+                  ) : null}
                 </div>
               )}
 
-              <p className="text-body-md" style={{ marginTop: "var(--space-4)", textAlign: "center" }}>
+              <p style={{ marginTop: 20, textAlign: "center", font: "400 14px/20px var(--font-body)", color: "var(--gray-600)" }}>
                 New here?{" "}
                 <button type="button" className="linkish" onClick={() => setMode("register")}>
                   Create an account

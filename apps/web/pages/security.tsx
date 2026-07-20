@@ -1,12 +1,23 @@
 import { brand } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
+import { ProseToc } from "../components/marketing/ProseToc";
 import { SiteFooter } from "../components/marketing/SiteFooter";
 import { SiteHeader } from "../components/marketing/SiteHeader";
+
+const TOC = [
+  { id: "architecture", label: "Architecture summary" },
+  { id: "status", label: "Status" },
+  { id: "downloads", label: "Downloads" },
+  { id: "export", label: "Data export and continuity" },
+  { id: "principles", label: "Product principles" },
+  { id: "report", label: "Report a vulnerability" },
+] as const;
 
 export default function SecurityPage() {
   const title = `Security — ${brand.productName}`;
   const description = `Security architecture, downloads, and product principles for ${brand.productName}.`;
+  const url = `${brand.primaryUrl}/security`;
 
   return (
     <>
@@ -15,21 +26,23 @@ export default function SecurityPage() {
         <meta name="description" content={description} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
-        <link rel="canonical" href={`${brand.primaryUrl}/security`} />
+        <meta property="og:url" content={url} />
+        <meta property="og:site_name" content={brand.productName} />
+        <link rel="canonical" href={url} />
       </Head>
       <div className="mkt-page">
         <SiteHeader />
         <main className="mkt-section">
-          <article className="mkt-section-inner mkt-legal" style={{ maxWidth: 720 }}>
-            <h1 className="text-display-xl" style={{ marginTop: 0 }}>
-              Security
-            </h1>
-            <p className="text-body-md" style={{ color: "var(--ink-secondary)" }}>
+          <article className="mkt-section-inner mkt-prose mkt-legal">
+            <h1>Security</h1>
+            <p>
               How {brand.legalEntity} operates {brand.productName} for organizers who need trustworthy
               uptime and honest capability claims.
             </p>
 
-            <h2 className="text-display-sm">Architecture summary</h2>
+            <ProseToc items={[...TOC]} />
+
+            <h2 id="architecture">Architecture summary</h2>
             <ul>
               <li>
                 <strong>Managed infrastructure.</strong> Web on Netlify, API on Render, PostgreSQL on Neon —
@@ -59,7 +72,7 @@ export default function SecurityPage() {
               </li>
             </ul>
 
-            <h2 className="text-display-sm">Status</h2>
+            <h2 id="status">Status</h2>
             <p>
               Public status page:{" "}
               <a href={brand.statusPageUrl} rel="noopener noreferrer">
@@ -68,7 +81,7 @@ export default function SecurityPage() {
               (placeholder until the S2 provider is wired). Support hours: {brand.supportHours}
             </p>
 
-            <h2 className="text-display-sm">Downloads</h2>
+            <h2 id="downloads">Downloads</h2>
             <p className="mkt-draft-banner" role="status">
               DRAFT — requires legal / security review
             </p>
@@ -87,7 +100,7 @@ export default function SecurityPage() {
               </li>
             </ul>
 
-            <h2 className="text-display-sm">Data export and continuity</h2>
+            <h2 id="export">Data export and continuity</h2>
             <p>
               Signed-in users can export their own account data as JSON from{" "}
               <Link href="/account">Account</Link> (profile, memberships, attendance, and message metadata).
@@ -96,7 +109,7 @@ export default function SecurityPage() {
               read-only degradation so schedules remain available.
             </p>
 
-            <h2 className="text-display-sm">Product principles (anti-goals)</h2>
+            <h2 id="principles">Product principles (anti-goals)</h2>
             <ul>
               {brand.productPrinciples.map((p) => (
                 <li key={p}>{p}</li>
@@ -107,7 +120,7 @@ export default function SecurityPage() {
               them later.
             </p>
 
-            <h2 className="text-display-sm">Report a vulnerability</h2>
+            <h2 id="report">Report a vulnerability</h2>
             <p>
               Email <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>. See also{" "}
               <a href="/.well-known/security.txt">/.well-known/security.txt</a>.
