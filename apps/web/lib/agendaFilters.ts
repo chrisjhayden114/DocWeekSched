@@ -39,11 +39,11 @@ export function sessionSearchBlob(s: FilterableSession): string {
   return parts.filter(Boolean).join(" ").toLowerCase();
 }
 
-export function filterSessions(
-  sessions: FilterableSession[],
+export function filterSessions<T extends FilterableSession>(
+  sessions: T[],
   filters: AgendaFilters,
   dayKeyFn: (iso: string) => string,
-): FilterableSession[] {
+): T[] {
   const q = filters.query.trim().toLowerCase();
   return sessions.filter((s) => {
     if (filters.trackId && s.trackId !== filters.trackId) return false;

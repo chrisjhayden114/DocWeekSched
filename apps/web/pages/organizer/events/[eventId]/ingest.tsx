@@ -122,8 +122,8 @@ function rowsToApiChangeset(rows: ReviewChangeRow[], original: unknown): unknown
       ...base,
       kind: row.kind,
       rowIndex: row.rowIndex,
-      accepted: row.accepted,
-      title: row.title,
+      accepted: "accepted" in row ? row.accepted : undefined,
+      title: "title" in row ? row.title : undefined,
       message: "message" in row ? row.message : undefined,
       session: "session" in row ? row.session : base.session,
       sessionId: "sessionId" in row ? row.sessionId : base.sessionId,
@@ -337,7 +337,7 @@ export default function AgendaIngestPage() {
               if (session) {
                 return `${session.title} · ${session.startTime || ""}${session.room ? ` · ${session.room}` : ""}`;
               }
-              return row.title || `Row ${row.rowIndex + 1}`;
+              return ("title" in row && row.title) || `Row ${row.rowIndex + 1}`;
             }}
             confirmLabel="Confirm drafts"
             onConfirm={run.status === "READY_FOR_REVIEW" ? onConfirm : undefined}

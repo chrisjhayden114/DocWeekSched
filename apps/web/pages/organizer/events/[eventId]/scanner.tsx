@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { apiFetch } from "../../../lib/api";
+import { apiFetch } from "../../../../lib/api";
 
 type RosterAttendee = {
   userId: string;

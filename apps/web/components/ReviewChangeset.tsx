@@ -99,10 +99,22 @@ export function ReviewChangeset({
   lowConfidence = 0.8,
   sourcePreview,
 }: ReviewChangesetProps) {
-  const creates = useMemo(() => rows.filter((r) => r.kind === "create"), [rows]);
-  const updates = useMemo(() => rows.filter((r) => r.kind === "update"), [rows]);
-  const deletes = useMemo(() => rows.filter((r) => r.kind === "delete"), [rows]);
-  const errors = useMemo(() => rows.filter((r) => r.kind === "error"), [rows]);
+  const creates = useMemo(
+    () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "create" }> => r.kind === "create"),
+    [rows],
+  );
+  const updates = useMemo(
+    () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "update" | "skip" }> => r.kind === "update"),
+    [rows],
+  );
+  const deletes = useMemo(
+    () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "delete" }> => r.kind === "delete"),
+    [rows],
+  );
+  const errors = useMemo(
+    () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "error" }> => r.kind === "error"),
+    [rows],
+  );
   const acceptedCount = useMemo(() => rows.filter(rowAccepted).length, [rows]);
   const canConfirm = acceptedCount > 0 && !busy && Boolean(onConfirm);
 

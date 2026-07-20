@@ -62,7 +62,7 @@ export function MatchmakerPanel({
           "/ai/matchmaker/suggestions",
           withEventHeaders(),
           token,
-        ).catch(() => ({ suggestions: [] as Suggestion[] })),
+        ).catch((): { suggestions: Suggestion[]; aiGeneratedLabel?: string } => ({ suggestions: [] })),
       ]);
       setMeta(m);
       setSuggestions(s.suggestions || []);
@@ -199,7 +199,7 @@ export function MatchmakerPanel({
       {!suggestions.length ? (
         <p className="help-text">No suggestions yet. Opt in, keep Match me on, and refresh during the event window.</p>
       ) : (
-        <ul className="matchmaker-list" style={{ listStyle: "none", padding: 0, margin: 0, display: 16 }}>
+        <ul className="matchmaker-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {suggestions.map((s) => (
             <li key={s.id} className="matchmaker-item" style={{ borderTop: "1px solid var(--border, #D9E1EE)", paddingTop: 12 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>

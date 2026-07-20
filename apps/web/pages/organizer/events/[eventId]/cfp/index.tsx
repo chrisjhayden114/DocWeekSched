@@ -3,8 +3,8 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { ReviewChangeset, type ReviewChangeRow } from "../../../../components/ReviewChangeset";
-import { organizerFetch } from "../../../../lib/organizerApi";
+import { ReviewChangeset, type ReviewChangeRow } from "../../../../../components/ReviewChangeset";
+import { organizerFetch } from "../../../../../lib/organizerApi";
 
 type FormRow = {
   id: string;
@@ -287,10 +287,10 @@ export default function OrganizerCfpPage() {
                   type="button"
                   className="button secondary"
                   onClick={() =>
-                    void organizerFetch(`/cfp/manage/${formId}/assign`, eventId, {
+                    void organizerFetch<{ created?: number }>(`/cfp/manage/${formId}/assign`, eventId, {
                       method: "POST",
                       body: JSON.stringify({ mode: "all" }),
-                    }).then((r: { created?: number }) => {
+                    }).then((r) => {
                       setMessage(`Assigned (all): ${r.created ?? 0} review stubs`);
                       return refresh();
                     })
@@ -302,10 +302,10 @@ export default function OrganizerCfpPage() {
                   type="button"
                   className="button secondary"
                   onClick={() =>
-                    void organizerFetch(`/cfp/manage/${formId}/assign`, eventId, {
+                    void organizerFetch<{ created?: number }>(`/cfp/manage/${formId}/assign`, eventId, {
                       method: "POST",
                       body: JSON.stringify({ mode: "round_robin" }),
-                    }).then((r: { created?: number }) => {
+                    }).then((r) => {
                       setMessage(`Assigned (round-robin): ${r.created ?? 0}`);
                       return refresh();
                     })

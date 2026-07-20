@@ -2,9 +2,9 @@ import { brand } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import type { GetServerSideProps } from "next";
-import { SiteFooter } from "../components/marketing/SiteFooter";
-import { SiteHeader } from "../components/marketing/SiteHeader";
-import { listHelpArticles, type HelpArticleMeta } from "../lib/help/articles";
+import { SiteFooter } from "../../components/marketing/SiteFooter";
+import { SiteHeader } from "../../components/marketing/SiteHeader";
+import { listHelpArticles, type HelpArticleMeta } from "../../lib/help/articles";
 
 type Props = { articles: HelpArticleMeta[] };
 

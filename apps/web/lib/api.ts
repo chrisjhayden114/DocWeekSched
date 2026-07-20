@@ -99,7 +99,7 @@ export async function apiFetchAll<T>(
   let cursor: string | null = null;
 
   for (let page = 0; page < maxPages; page += 1) {
-    const url = `${base}take=${take}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const url: string = `${base}take=${take}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
     const method = (options.method || "GET").toUpperCase();
     const csrf = getCsrfToken();
     const headers: Record<string, string> = {
@@ -110,7 +110,7 @@ export async function apiFetchAll<T>(
       headers["X-CSRF-Token"] = csrf;
     }
 
-    const res = await fetch(`${API_URL}${url}`, {
+    const res: Response = await fetch(`${API_URL}${url}`, {
       ...options,
       method,
       credentials: "include",
@@ -137,7 +137,7 @@ export async function apiFetchAll<T>(
     all.push(...batch);
 
     const hasMore = res.headers.get("X-Has-More") === "1";
-    const next = res.headers.get("X-Next-Cursor");
+    const next: string | null = res.headers.get("X-Next-Cursor");
     if (!hasMore || !next || batch.length === 0) break;
     cursor = next;
   }

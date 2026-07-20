@@ -21,6 +21,7 @@ export type MainNavTab =
   | "Participants and Invites"
   | "Community"
   | "Maps"
+  | "Meet"
   | "Messages"
   | "Notifications"
   | "Profile";

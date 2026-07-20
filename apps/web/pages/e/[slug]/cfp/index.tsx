@@ -3,7 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { API_URL } from "../../../lib/api";
+import { API_URL } from "../../../../lib/api";
 
 type PublicCfp = {
   event: { id: string; name: string; slug: string; timezone: string };
