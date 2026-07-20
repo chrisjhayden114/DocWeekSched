@@ -171,9 +171,7 @@ export default function LoginPage() {
   return (
     <>
       <Head>
-        <title>
-          {linkedEventName ? `${linkedEventName} — ${brand.productName}` : `Sign in — ${brand.productName}`}
-        </title>
+        <title>{linkedEventName ? `${linkedEventName} — ${brand.productName}` : `Sign in — ${brand.productName}`}</title>
         <meta name="robots" content="noindex" />
       </Head>
       <div className="container">

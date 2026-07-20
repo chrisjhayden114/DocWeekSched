@@ -53,7 +53,7 @@ export default function StyleguidePage() {
   return (
     <>
       <Head>
-        <title>Styleguide — {brand.productName}</title>
+        <title>{`Styleguide — ${brand.productName}`}</title>
       </Head>
       <main className="container" style={{ display: "grid", gap: "var(--space-5)", paddingBottom: 64 }}>
         <header>

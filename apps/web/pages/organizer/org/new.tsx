@@ -36,7 +36,7 @@ export default function NewOrganizationPage() {
   return (
     <>
       <Head>
-        <title>New organization — {brand.productName}</title>
+        <title>{`New organization — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell>
         <div style={{ maxWidth: 560 }}>

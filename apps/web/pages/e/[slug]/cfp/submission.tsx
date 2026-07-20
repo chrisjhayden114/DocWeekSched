@@ -43,7 +43,7 @@ export default function CfpSubmissionViewPage() {
   return (
     <>
       <Head>
-        <title>Your submission — {brand.productName}</title>
+        <title>{`Your submission — ${brand.productName}`}</title>
       </Head>
       <main className="page" style={{ maxWidth: 640, margin: "0 auto", padding: 24 }}>
         <h1>Your submission</h1>

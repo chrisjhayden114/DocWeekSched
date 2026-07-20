@@ -137,9 +137,7 @@ export default function PublicCfpPage() {
   return (
     <>
       <Head>
-        <title>
-          {data?.form.title || "Call for papers"} — {brand.productName}
-        </title>
+        <title>{`${data?.form.title || "Call for papers"} — ${brand.productName}`}</title>
       </Head>
       <main className="page" style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 64px" }}>
         <p className="help-text">

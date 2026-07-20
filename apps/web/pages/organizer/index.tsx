@@ -63,7 +63,7 @@ export default function OrganizerDashboard() {
   return (
     <>
       <Head>
-        <title>Organizer — {brand.productName}</title>
+        <title>{`Organizer — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="events" userName={user?.name}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>

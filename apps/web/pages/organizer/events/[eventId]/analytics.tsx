@@ -100,7 +100,7 @@ export default function EventAnalyticsPage() {
   return (
     <>
       <Head>
-        <title>Analytics — {data?.eventName || "Event"} — {brand.productName}</title>
+        <title>{`Analytics — ${data?.eventName || "Event"} — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="analytics" eventId={eventId} eventName={data?.eventName}>
         <h1 style={{ margin: "0 0 4px", font: "var(--text-h1)" }}>Analytics</h1>

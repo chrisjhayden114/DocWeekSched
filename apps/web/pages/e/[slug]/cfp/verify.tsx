@@ -37,7 +37,7 @@ export default function CfpVerifyPage() {
   return (
     <>
       <Head>
-        <title>Confirm submission — {brand.productName}</title>
+        <title>{`Confirm submission — ${brand.productName}`}</title>
       </Head>
       <main className="page" style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
         <h1>Email confirmation</h1>

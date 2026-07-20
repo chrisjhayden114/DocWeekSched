@@ -263,9 +263,7 @@ export default function AgendaIngestPage() {
   return (
     <>
       <Head>
-        <title>
-          Agenda ingest · {brand.productName}
-        </title>
+        <title>{`Agenda ingest · ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="ingest" eventId={eventId}>
         <h1 style={{ marginTop: 0, font: "var(--text-h1)" }}>Agenda ingest</h1>

@@ -160,7 +160,7 @@ export default function OrganizerCfpPage() {
   return (
     <>
       <Head>
-        <title>CFP — {brand.productName}</title>
+        <title>{`CFP — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="cfp" eventId={eventId}>
         {eventId ? (

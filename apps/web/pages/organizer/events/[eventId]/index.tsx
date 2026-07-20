@@ -299,7 +299,7 @@ export default function OrganizerEventPage() {
   return (
     <>
       <Head>
-        <title>{event?.name || "Event"} — Organizer — {brand.productName}</title>
+        <title>{`${event?.name || "Event"} — Organizer — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="overview" eventId={eventId} eventName={event?.name}>
         {event ? (

@@ -126,7 +126,7 @@ export default function EventSponsorsPage() {
   return (
     <>
       <Head>
-        <title>Sponsors — {brand.productName}</title>
+        <title>{`Sponsors — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="sponsors" eventId={eventId}>
         <h1 style={{ margin: 0, font: "var(--text-h1)" }}>Sponsors</h1>

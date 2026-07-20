@@ -13,9 +13,7 @@ export function BrandedErrorPage({ statusCode, title, message }: Props) {
   return (
     <>
       <Head>
-        <title>
-          {title} — {brand.productName}
-        </title>
+        <title>{`${title} — ${brand.productName}`}</title>
       </Head>
       <div className="container branded-error-page">
         <div className="card branded-error-card">

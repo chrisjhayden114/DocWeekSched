@@ -10,11 +10,28 @@ function onlineMeetingLabel(href: string): string {
 export function OnlineMeetingLink({
   href,
   onClick,
+  variant = "default",
 }: {
   href: string;
   onClick?: (e: MouseEvent<HTMLAnchorElement>) => void;
+  /** Compact chip for dense agenda meta lines. */
+  variant?: "default" | "chip";
 }) {
   const label = onlineMeetingLabel(href);
+  if (variant === "chip") {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="schedule-meta-chip"
+        onClick={onClick}
+        aria-label={`Join ${label} meeting`}
+      >
+        {label}
+      </a>
+    );
+  }
   return (
     <a
       href={href}

@@ -70,7 +70,7 @@ export default function OrganizerAiUsagePage() {
   return (
     <>
       <Head>
-        <title>AI usage — {brand.productName}</title>
+        <title>{`AI usage — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="ai-usage">
         <div className="card" style={{ marginBottom: 16 }}>

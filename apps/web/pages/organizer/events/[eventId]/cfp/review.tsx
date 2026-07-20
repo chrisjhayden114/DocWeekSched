@@ -96,7 +96,7 @@ export default function CfpReviewerPage() {
   return (
     <>
       <Head>
-        <title>CFP review — {brand.productName}</title>
+        <title>{`CFP review — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="cfp" eventId={eventId}>
         <p className="help-text" style={{ marginTop: 0 }}>

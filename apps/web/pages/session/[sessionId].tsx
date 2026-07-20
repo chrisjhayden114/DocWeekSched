@@ -3,6 +3,9 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DELETED_PARTICIPANT_LABEL, resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue } from "@event-app/shared";
+import { AppShell, type ShellNavGroup } from "../../components/AppShell";
+import { MainNavIcon } from "../../components/dashboardNavIcons";
+import { ListSkeleton } from "../../components/ListState";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { ConciergeChat } from "../../components/ConciergeChat";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
@@ -241,10 +244,12 @@ export default function SessionPage() {
     }
   }, []);
   const [resourceKind, setResourceKind] = useState<"LINK" | "FILE">("LINK");
+  const [feedbackRating, setFeedbackRating] = useState(5);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [venueMapsOn, setVenueMapsOn] = useState(false);
   const [conciergeOn, setConciergeOn] = useState(false);
+  const [communityOn, setCommunityOn] = useState(true);
   const [roomMapPin, setRoomMapPin] = useState<{ mapId: string; pinId: string } | null>(null);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
 
@@ -372,6 +377,7 @@ export default function SessionPage() {
         setConciergeOn(concierge);
         setPollsOn(pollsEnabled);
         setFeedbackOn(feedbackEnabled);
+        setCommunityOn(enabled("community"));
         setActiveEventId(evId);
         setCanManage(Boolean(user?.isEventAdmin) || user?.role === "ADMIN");
         if (!session?.roomId || !on) {
@@ -584,56 +590,72 @@ export default function SessionPage() {
   const openThread = threads.find((thread) => thread.id === openThreadId) ?? null;
   const displayTimezone = timeMode === "EVENT" ? event?.timezone || myTimezone : myTimezone;
 
+  const shellNav: ShellNavGroup[] = [
+    {
+      id: "event",
+      label: "Event",
+      items: [
+        {
+          id: "Agenda",
+          label: "Agenda",
+          href: "/dashboard?tab=Agenda",
+          icon: <MainNavIcon tab="Agenda" />,
+          active: true,
+        },
+        { id: "Attendees", label: "Attendees", href: "/dashboard?tab=Attendees", icon: <MainNavIcon tab="Attendees" /> },
+        ...(communityOn
+          ? [{ id: "Community", label: "Community", href: "/dashboard?tab=Community", icon: <MainNavIcon tab="Community" /> }]
+          : []),
+        { id: "Messages", label: "Messages", href: "/dashboard?tab=Messages", icon: <MainNavIcon tab="Messages" /> },
+      ],
+    },
+    {
+      id: "account",
+      label: "Account",
+      items: [
+        { id: "Profile", label: "Profile", href: "/dashboard?tab=Profile", icon: <MainNavIcon tab="Profile" /> },
+      ],
+    },
+  ];
+
   return (
-    <div className="container">
-      {event?.bannerUrl ? (
-        <div className="hero-banner" style={{ backgroundImage: `url(${event.bannerUrl})` }} />
-      ) : null}
-      <div className="header app-shell">
-        <div className="app-shell-title">
-          <nav className="session-breadcrumb text-meta" aria-label="Breadcrumb">
-            <Link href="/dashboard">{event?.name || "Event"}</Link>
-            <span aria-hidden="true"> › </span>
-            <Link href="/dashboard?tab=Agenda">Agenda</Link>
-            <span aria-hidden="true"> › </span>
-            <span aria-current="page">{session?.title || "Session"}</span>
-          </nav>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
-            {event?.logoUrl ? (
-              <img
-                src={event.logoUrl}
-                alt=""
-                width={44}
-                height={44}
-                style={{
-                  objectFit: "contain",
-                  borderRadius: 10,
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  padding: 4,
-                }}
-              />
-            ) : null}
-            <h1 style={{ margin: 0 }}>{event?.name || "Event"}</h1>
-          </div>
-          <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)", margin: "8px 0 0" }}>
-            {user.name}
-            {event ? ` · ${formatEventRange(event.startDate, event.endDate)}` : ""}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="button secondary"
-          onClick={() => {
+    <AppShell
+      title={event?.name || "Event"}
+      logoUrl={event?.logoUrl}
+      nav={shellNav}
+      mobilePrimaryIds={["Agenda", "Attendees", communityOn ? "Community" : "Messages"]}
+      userName={user.name}
+      userPhotoUrl={user.photoUrl}
+      userMeta={event ? formatEventRange(event.startDate, event.endDate) : null}
+      accountMenu={[
+        { id: "profile", label: "Profile", href: "/dashboard?tab=Profile" },
+        { id: "account", label: "Account settings", href: "/account" },
+        {
+          id: "logout",
+          label: "Log out",
+          tone: "danger",
+          onSelect: () => {
             clearAuthClientState();
             window.location.href = "/login";
+          },
+        },
+      ]}
+    >
+      <p style={{ margin: "0 0 12px" }}>
+        <button
+          type="button"
+          className="linkish session-back-link"
+          onClick={() => {
+            /* history.back preserves the agenda scroll position */
+            if (window.history.length > 1) router.back();
+            else void router.push("/dashboard?tab=Agenda");
           }}
         >
-          Logout
+          ← Back to agenda
         </button>
-      </div>
+      </p>
 
-      {loading && <p className="help-text">Loading session…</p>}
+      {loading && <ListSkeleton rows={5} />}
       {loadError && (
         <div className="card">
           <p>{loadError}</p>
@@ -646,42 +668,40 @@ export default function SessionPage() {
       {!loading && session && (
         <>
           <div className="card session-page-header">
-            {session.imageUrl ? (
-              <img src={session.imageUrl} alt="" className="session-page-image" />
-            ) : (
-              <div className="session-title-banner" aria-hidden="true">
-                <span className="session-title-banner-label">{session.title}</span>
-              </div>
-            )}
-            <h2 style={{ margin: "0 0 8px" }}>{session.title}</h2>
-            <p style={{ color: "var(--ink-muted)", margin: "0 0 8px" }}>
-              {formatEventTimeRange(session.startsAt, session.endsAt, displayTimezone)}
-              {session.room?.name ? ` · ${session.room.name}` : session.location ? ` · ${session.location}` : ""}
-            </p>
-            {(() => {
-              const inPerson = (session.attendances || []).filter(
-                (a) => a.status === "JOINING" && (a.joinMode === "IN_PERSON" || !a.joinMode),
-              ).length;
-              const virtual = (session.attendances || []).filter(
-                (a) => a.status === "JOINING" && a.joinMode === "VIRTUAL",
-              ).length;
-              const hasCap = session.inPersonCapacity != null || session.virtualCapacity != null;
-              if (!hasCap) return null;
-              return (
-                <p className="help-text" style={{ margin: "0 0 10px" }}>
-                  Capacity: {inPerson}
-                  {session.inPersonCapacity != null ? `/${session.inPersonCapacity}` : ""} in-person · {virtual}
-                  {session.virtualCapacity != null ? `/${session.virtualCapacity}` : ""} virtual
-                  {(session.inPersonCapacity != null && inPerson >= session.inPersonCapacity) ||
-                  (session.virtualCapacity != null && virtual >= session.virtualCapacity)
-                    ? " · Full — waitlist available from the agenda"
-                    : ""}
-                </p>
-              );
-            })()}
-            <div className="nav agenda-timezone-toggle" style={{ marginBottom: 12 }}>
+            {session.imageUrl ? <img src={session.imageUrl} alt="" className="session-page-image" /> : null}
+            <h1 style={{ margin: "0 0 6px", font: "var(--text-h2)" }}>{session.title}</h1>
+            <div className="session-meta-block">
+              <p className="session-meta-line">
+                {formatEventTimeRange(session.startsAt, session.endsAt, displayTimezone)}
+                {session.room?.name ? ` · ${session.room.name}` : session.location ? ` · ${session.location}` : ""}
+              </p>
+              {(() => {
+                const inPerson = (session.attendances || []).filter(
+                  (a) => a.status === "JOINING" && (a.joinMode === "IN_PERSON" || !a.joinMode),
+                ).length;
+                const virtual = (session.attendances || []).filter(
+                  (a) => a.status === "JOINING" && a.joinMode === "VIRTUAL",
+                ).length;
+                const hasCap = session.inPersonCapacity != null || session.virtualCapacity != null;
+                if (!hasCap) return null;
+                return (
+                  <p className="session-meta-line">
+                    Capacity: {inPerson}
+                    {session.inPersonCapacity != null ? `/${session.inPersonCapacity}` : ""} in-person · {virtual}
+                    {session.virtualCapacity != null ? `/${session.virtualCapacity}` : ""} virtual
+                    {(session.inPersonCapacity != null && inPerson >= session.inPersonCapacity) ||
+                    (session.virtualCapacity != null && virtual >= session.virtualCapacity)
+                      ? " · Full — waitlist available from the agenda"
+                      : ""}
+                  </p>
+                );
+              })()}
+            </div>
+            <div className="agenda-timezone-toggle" role="tablist" aria-label="Time display mode" style={{ margin: "10px 0 12px" }}>
               <button
                 type="button"
+                role="tab"
+                aria-selected={timeMode === "MY"}
                 className={timeMode === "MY" ? "active" : ""}
                 onClick={() => setTimeMode("MY")}
               >
@@ -689,69 +709,17 @@ export default function SessionPage() {
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={timeMode === "EVENT"}
                 className={timeMode === "EVENT" ? "active" : ""}
                 onClick={() => setTimeMode("EVENT")}
               >
                 Event timezone
               </button>
             </div>
-            {(session.sessionSpeakers && session.sessionSpeakers.length > 0) ||
-            session.speakers ||
-            session.speaker?.name ||
-            session.location ||
-            session.room?.name ? (
-              <div style={{ margin: "0 0 8px" }}>
-                {session.sessionSpeakers && session.sessionSpeakers.length > 0 ? (
-                  <p style={{ margin: "0 0 6px" }}>
-                    <strong style={{ color: "var(--ink-900)" }}>Speakers:</strong>{" "}
-                    {session.sessionSpeakers.map((row, i) => (
-                      <span key={row.speaker.id}>
-                        {i > 0 ? " · " : ""}
-                        <Link href={`/dashboard?tab=Attendees`}>{row.speaker.name}</Link>
-                        {row.speaker.title || row.speaker.affiliation
-                          ? ` (${[row.speaker.title, row.speaker.affiliation].filter(Boolean).join(", ")})`
-                          : ""}
-                      </span>
-                    ))}
-                  </p>
-                ) : (session.speakers || session.speaker?.name) ? (
-                  <p className="schedule-speaker" style={{ margin: "0 0 6px" }}>
-                    <strong style={{ color: "var(--ink-900)" }}>Speakers:</strong>{" "}
-                    {session.speakers || session.speaker?.name}
-                  </p>
-                ) : null}
-                {(session.room?.name || session.location) && (
-                  <p style={{ margin: 0, color: "var(--ink-muted)" }}>
-                    <strong style={{ color: "var(--ink-900)" }}>Room:</strong>{" "}
-                    {session.room?.name || session.location}
-                  </p>
-                )}
-              </div>
-            ) : null}
-            {session.description && <p style={{ margin: "12px 0", lineHeight: 1.5 }}>{session.description}</p>}
-            {session.items && session.items.length > 0 ? (
-              <div style={{ margin: "16px 0" }}>
-                <h3 style={{ margin: "0 0 8px", fontSize: "1.05rem" }}>
-                  Program
-                </h3>
-                <ol className="session-items-list" style={{ margin: 0, paddingLeft: "1.2rem" }}>
-                  {session.items.map((item) => (
-                    <li key={item.id} style={{ marginBottom: 8 }}>
-                      <strong>{item.title}</strong>
-                      {item.authors?.length ? (
-                        <span className="help-text">
-                          {" "}
-                          — {item.authors.map((a) => a.name).join(", ")}
-                        </span>
-                      ) : null}
-                      {item.discussantSpeaker ? (
-                        <span className="help-text"> · Discussant: {item.discussantSpeaker.name}</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            ) : null}
+            {session.description && (
+              <p style={{ margin: "0 0 12px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{session.description}</p>
+            )}
             <div className="schedule-links" style={{ marginBottom: 12 }}>
               {session.zoomLink && <OnlineMeetingLink href={session.zoomLink} />}
               {session.recordingUrl && (
@@ -843,6 +811,66 @@ export default function SessionPage() {
             </div>
           </div>
 
+          {session.items && session.items.length > 0 ? (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <h2 className="text-h3" style={{ margin: "0 0 12px" }}>
+                Papers ({session.items.length})
+              </h2>
+              <ol className="session-papers">
+                {session.items.map((item) => (
+                  <li key={item.id} className="session-paper">
+                    <p className="session-paper-title">{item.title}</p>
+                    {item.authors?.length ? (
+                      <p className="session-paper-authors">{item.authors.map((a) => a.name).join(", ")}</p>
+                    ) : null}
+                    {item.discussantSpeaker ? (
+                      <p className="session-paper-authors">Discussant: {item.discussantSpeaker.name}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+
+          {(session.sessionSpeakers && session.sessionSpeakers.length > 0) ||
+          session.speakers ||
+          session.speaker?.name ? (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <h2 className="text-h3" style={{ margin: "0 0 12px" }}>
+                Speakers
+              </h2>
+              {session.sessionSpeakers && session.sessionSpeakers.length > 0 ? (
+                <ul className="session-speakers-list">
+                  {session.sessionSpeakers.map((row) => (
+                    <li key={row.speaker.id} className="session-speaker-row">
+                      {row.speaker.photoUrl ? (
+                        <img src={row.speaker.photoUrl} alt="" className="session-speaker-avatar" />
+                      ) : (
+                        <span className="session-speaker-avatar" aria-hidden>
+                          {row.speaker.name.trim().charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span>
+                        <span className="session-speaker-name">
+                          <Link href="/dashboard?tab=Attendees">{row.speaker.name}</Link>
+                        </span>
+                        {row.speaker.title || row.speaker.affiliation ? (
+                          <span className="session-speaker-affil">
+                            {[row.speaker.title, row.speaker.affiliation].filter(Boolean).join(", ")}
+                          </span>
+                        ) : null}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-body" style={{ margin: 0 }}>
+                  {session.speakers || session.speaker?.name}
+                </p>
+              )}
+            </div>
+          ) : null}
+
           <div className="card" style={{ marginBottom: 16 }}>
             <h3 style={{ marginTop: 0 }}>Session resources</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
@@ -852,7 +880,7 @@ export default function SessionPage() {
               <p className="help-text">Join this session to see shared resources and add your own.</p>
             )}
             {resourceError && (
-              <p className="help-text" style={{ color: "var(--danger, #b91c1c)" }}>
+              <p className="help-text" style={{ color: "var(--danger)" }}>
                 {resourceError}
               </p>
             )}
@@ -1195,7 +1223,7 @@ export default function SessionPage() {
                                       style={{
                                         height: 6,
                                         width: `${pct}%`,
-                                        background: "var(--accent, #2F6FED)",
+                                        background: "var(--primary)",
                                         borderRadius: 3,
                                       }}
                                     />
@@ -1289,19 +1317,24 @@ export default function SessionPage() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
-                    await submitFeedback(Number(fd.get("rating")), String(fd.get("comment") || "").trim());
+                    await submitFeedback(feedbackRating, String(fd.get("comment") || "").trim());
                   }}
                 >
-                  <label className="help-text">
-                    Rating
-                    <select className="select" name="rating" defaultValue={5} required>
-                      {[5, 4, 3, 2, 1].map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <span className="text-label">Rating</span>
+                  <div className="join-mode-switch" role="radiogroup" aria-label="Rating out of 5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        role="radio"
+                        aria-checked={feedbackRating === n}
+                        className={feedbackRating === n ? "is-active" : ""}
+                        onClick={() => setFeedbackRating(n)}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
                   <textarea className="textarea" name="comment" placeholder="Optional comment" rows={2} />
                   <button type="submit" className="button">
                     Submit feedback
@@ -1320,6 +1353,6 @@ export default function SessionPage() {
       )}
 
       {activeEventId && conciergeOn ? <ConciergeChat eventId={activeEventId} enabled /> : null}
-    </div>
+    </AppShell>
   );
 }

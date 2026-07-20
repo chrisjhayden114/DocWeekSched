@@ -668,9 +668,12 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   font-weight: 500;
 }
 
+/* —— Agenda (Phase D2): sticky context bar, day chips, 88px time rail, dense rows —— */
 .schedule-layout {
   display: grid;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
 }
 
 .schedule-admin-rail {
@@ -679,42 +682,84 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 }
 
 .schedule-list {
-  padding: 18px 18px 8px;
+  min-width: 0;
 }
 
-/* Agenda: Event vs My schedule — paired controls with a clear divider (esp. narrow screens) */
-.agenda-view-toggle {
+/* Sticky context bar: segmented view control + day chips + tz controls. */
+.agenda-context-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) 0 var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+/* Inside the app shell the top bar (56px) is also sticky — pin below it. */
+.shell .agenda-context-bar {
+  top: 56px;
+}
+
+/* On the public event page the sticky marketing header (~64px) is above it. */
+.mkt-page .agenda-context-bar {
+  top: 64px;
+  z-index: 10;
+}
+
+.agenda-context-row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.agenda-context-spacer {
+  flex: 1;
+}
+
+/* Segmented control (Event Schedule / My Schedule): radius 6, active gray-200, 40px. */
+.agenda-view-toggle {
+  display: inline-flex;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: stretch;
-  width: 100%;
-  gap: 0;
-  margin-bottom: 16px;
-  padding: 0;
+  width: auto;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--gray-100);
+  background: #ffffff;
   min-height: 40px;
 }
 
 .agenda-view-toggle button {
-  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-width: 0;
   margin: 0;
   border: none;
-  border-radius: 0;
+  border-radius: 4px;
   box-shadow: none;
   background: transparent;
+  padding: 5px 14px;
+  font: 600 14px/20px var(--font-body);
+  color: var(--gray-600);
 }
 
 .agenda-view-toggle button.active {
+  background: var(--gray-200);
+  color: var(--gray-900);
   box-shadow: none;
 }
 
-.agenda-view-toggle button:not(.active) {
-  color: var(--ink-700);
+.agenda-view-toggle button:not(.active):hover:not(:disabled) {
+  background: var(--gray-50);
 }
 
 .agenda-view-toggle button:active:not(:disabled) {
@@ -722,91 +767,187 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 }
 
 .agenda-view-toggle-divider {
-  width: 1px;
-  flex-shrink: 0;
-  align-self: stretch;
-  background: var(--border);
+  display: none;
 }
 
+.agenda-seg-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--gray-900);
+  color: #ffffff;
+  font: 600 11px/18px var(--font-body);
+  text-align: center;
+}
+
+.agenda-view-toggle button.active .agenda-seg-count {
+  background: var(--gray-900);
+}
+
+/* Timezone control: smaller segmented pair. */
 .agenda-timezone-toggle {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  display: inline-flex;
+  gap: 2px;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: #ffffff;
 }
 
 .agenda-timezone-toggle button {
-  flex: 0 1 auto;
-  min-width: 140px;
-}
-
-.schedule-day {
-  border-top: 1px solid var(--border);
-  padding: 14px 0;
-}
-
-.schedule-day:first-of-type {
-  border-top: none;
-  padding-top: 4px;
-}
-
-.schedule-day-heading {
-  margin: 0 0 14px;
-  font: var(--text-h3);
+  min-width: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  padding: 4px 10px;
+  font: 500 12px/18px var(--font-body);
   color: var(--gray-600);
 }
 
+.agenda-timezone-toggle button.active {
+  background: var(--gray-200);
+  color: var(--gray-900);
+  box-shadow: none;
+}
+
+/* Day chips — per-day tabs. */
+.day-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.day-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.day-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  color: var(--gray-700);
+  font: 500 13px/18px var(--font-body);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.day-chip:hover {
+  background: var(--gray-50);
+}
+
+.day-chip.is-active {
+  background: var(--gray-200);
+  border-color: var(--gray-300);
+  color: var(--gray-900);
+  font-weight: 600;
+}
+
+/* Day headers: bold weekday + regular date. */
+.schedule-day {
+  padding: var(--space-3) 0 var(--space-2);
+}
+
+.schedule-day + .schedule-day {
+  border-top: 1px solid var(--gray-200);
+}
+
+.schedule-day-heading {
+  margin: 0 0 10px;
+  font: 400 15px/22px var(--font-body);
+  color: var(--gray-600);
+}
+
+.schedule-day-heading strong {
+  font-weight: 700;
+  color: var(--gray-700);
+}
+
+/* Time rail: 88px, hairline divider, times only at slot boundaries. */
 .schedule-slot {
   display: grid;
-  grid-template-columns: 130px 1fr;
-  gap: 14px;
-  align-items: start;
-  margin-bottom: 10px;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 0 var(--space-3);
+  align-items: stretch;
+  margin-bottom: var(--space-2);
 }
 
 .schedule-time {
-  font-weight: 600;
-  color: var(--ink-700);
-  font-size: 14px;
-  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px var(--space-2) 0 0;
+  border-right: 1px solid var(--gray-200);
+  font: 400 13px/18px var(--font-body);
+  letter-spacing: -0.1px;
+  color: var(--gray-600);
 }
 
+.schedule-time-tz {
+  font: 400 11px/14px var(--font-body);
+  color: var(--gray-400);
+}
+
+/* Concurrent sessions: equal-width flex children ≥768px. */
 .schedule-events {
-  display: grid;
+  display: flex;
+  flex-wrap: nowrap;
   gap: 8px;
   align-items: stretch;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.schedule-events > .schedule-event {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .schedule-events-wrap {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .schedule-concurrent-note {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  max-width: 100%;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--gray-200);
-  background: var(--gray-100);
-  color: var(--gray-600);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--gray-500);
+  font: 400 12px/16px var(--font-body);
 }
 
+/* Session row: white, 1px border, radius 4, 3px track color bar. Target ≤84–96px. */
 .schedule-event {
+  position: relative;
   display: flex;
-  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  padding: 7px 10px 7px 13px;
   background: #ffffff;
+  overflow: hidden;
   box-shadow: none;
   cursor: pointer;
   transition: var(--transition);
+}
+
+.schedule-event::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--track-color, var(--gray-300));
 }
 
 .schedule-event:hover {
@@ -814,132 +955,287 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   background: var(--gray-25);
 }
 
-.schedule-event-head {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
+.schedule-event > .attendance-join-dot,
+.schedule-event .schedule-event-save {
+  margin-top: 1px;
 }
 
-.schedule-thumb {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  object-fit: cover;
-  flex-shrink: 0;
-  border: 1px solid var(--border-strong);
-}
-
-.schedule-event h4 {
-  margin: 0 0 2px;
-  font-size: 14px;
+.schedule-event-main {
   flex: 1;
-  line-height: 1.2;
+  min-width: 0;
+}
+
+.schedule-event-title {
+  margin: 0;
+  font: 600 15px/1.3 var(--font-body);
+  color: var(--gray-900);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 6px;
+}
+
+/* Titles wrap at most twice in concurrent equal-width cards. */
+.schedule-event-title-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.schedule-event-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 2px;
+  min-width: 0;
+}
+
+.schedule-event-meta {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 400 12px/16px var(--font-body);
+  color: var(--gray-500);
+  /* Prefer phrase wraps over one-word-per-line shredding in narrow columns. */
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/*
+ * Concurrent (side-by-side) cards: the compact attendance selector must not
+ * share the meta line — it steals width and shreds the text one word per line.
+ * Meta takes the full first row; selector drops below, right-aligned.
+ */
+.schedule-events:has(> .schedule-event + .schedule-event) .schedule-event-meta {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.schedule-events:has(> .schedule-event + .schedule-event) .join-mode-switch--compact {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Inline chips on the 12px meta line (Zoom / recording / map). */
+.schedule-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: baseline;
+  padding: 0 5px;
+  margin: 0 1px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+  background: var(--gray-50);
+  color: var(--gray-700);
+  font: 500 11px/16px var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+a.schedule-meta-chip:hover,
+button.schedule-meta-chip:hover {
+  border-color: var(--gray-300);
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.schedule-event-speakers {
+  margin: 2px 0 0;
+  font: 400 12px/16px var(--font-body);
+  color: var(--gray-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .schedule-option-chip {
   display: inline-flex;
-  margin-left: 8px;
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--gray-200);
   background: var(--gray-100);
   color: var(--gray-600);
-  font-size: 12px;
-  font-weight: 500;
+  font: 500 11px/16px var(--font-body);
   vertical-align: middle;
 }
 
-.schedule-speaker {
-  color: var(--gray-600);
-  font-size: 13px;
-  line-height: 1.4;
-  font-weight: 500;
-  margin-bottom: 2px;
+/* Papers nested in a row (public schedule) — parent session → child papers. */
+.schedule-row-papers {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
 }
 
-.schedule-speaker-with-location .schedule-speaker-names {
-  color: var(--gray-600);
-  font-size: 13px;
-  line-height: 1.4;
+.schedule-row-paper {
+  padding-left: 10px;
+  border-left: 2px solid var(--gray-200);
+  font: 400 12px/16px var(--font-body);
+  color: var(--gray-500);
 }
 
-.schedule-speaker-sep {
-  color: var(--gray-400);
-  font-weight: 400;
+.schedule-row-paper-title {
+  display: block;
+  font: 500 13px/18px var(--font-body);
+  color: var(--gray-800);
 }
 
-.schedule-session-location {
-  color: var(--gray-600);
-  font-weight: 500;
-}
-
-html[data-theme="slate"] .schedule-session-location {
-  color: var(--ink-700);
-}
-
-.schedule-event p {
-  margin: 0 0 8px;
-  color: var(--ink-700);
-  line-height: 1.45;
-}
-
-.schedule-event-footer {
+/* Compact quiet row actions (Q&A / like / star / edit). */
+.schedule-event-side {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: auto;
-  width: 100%;
-}
-
-.schedule-meta-line {
-  color: var(--ink-muted);
-  font: var(--text-meta);
-}
-
-.schedule-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.schedule-actions-toolbar {
-  flex-wrap: nowrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 1px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
-.schedule-actions-toolbar > * {
   flex-shrink: 0;
 }
 
-.schedule-actions-toolbar .schedule-toolbar-btn,
-.schedule-actions-toolbar .agenda-add-my-btn {
-  padding: 4px 9px;
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 6px;
-  line-height: 1.2;
-  transform: none;
-  box-shadow: none;
-}
-
-.schedule-actions-toolbar .schedule-toolbar-btn:hover:not(:disabled),
-.schedule-actions-toolbar .agenda-add-my-btn:hover {
-  transform: none;
-  filter: brightness(0.98);
-}
-
-.schedule-actions-toolbar .schedule-toolbar-btn:active:not(:disabled),
-.schedule-actions-toolbar .agenda-add-my-btn:active {
-  transform: scale(0.97);
-}
-
-.schedule-actions-with-attendance {
+.schedule-row-actions {
+  display: flex;
   align-items: center;
+  gap: 2px;
+}
+
+.row-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+  font: 500 12px/16px var(--font-body);
+  color: var(--gray-500);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: var(--transition);
+}
+
+.row-action-btn:hover:not(:disabled) {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.row-action-btn.is-active {
+  color: var(--primary);
+  background: var(--primary-50);
+}
+
+/* Right filter rail (≥1280px) — rows double as the track legend. */
+.agenda-rail {
+  display: none;
+  min-width: 0;
+}
+
+.agenda-rail-panel {
+  background: #ffffff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-4);
+}
+
+.agenda-filter-group {
+  display: grid;
+  gap: 1px;
+}
+
+.agenda-filter-group-label {
+  padding: 0 var(--space-2) var(--space-1);
+  font: 500 11px/16px var(--font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+}
+
+.agenda-filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 31px;
+  padding: 4px var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--gray-700);
+  font: 400 13px/18px var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.agenda-filter-row:hover {
+  background: var(--gray-100);
+}
+
+.agenda-filter-row.is-active {
+  background: var(--primary-50);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.agenda-filter-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agenda-filter-row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenda-filter-count {
+  margin-left: auto;
+  font: 400 11px/16px var(--font-body);
+  color: var(--gray-400);
+}
+
+.agenda-filters-sheet {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.agenda-filters-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (min-width: 1280px) {
+  .schedule-layout {
+    grid-template-columns: minmax(0, 1fr) 248px;
+  }
+
+  .agenda-rail {
+    display: block;
+    position: sticky;
+    top: var(--space-4);
+    align-self: start;
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+  }
+
+  .shell .agenda-rail {
+    top: 72px;
+    max-height: calc(100vh - 88px);
+  }
+
+  .agenda-filters-btn {
+    display: none;
+  }
 }
 
 .session-attendance-block {
@@ -1046,6 +1342,25 @@ html[data-theme="slate"] .schedule-session-location {
   background: var(--primary-50);
   color: var(--primary);
   font-weight: 600;
+}
+
+/* 24px compact attendance mode — joined rows only, right-aligned on meta row. */
+.join-mode-switch--compact {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  align-self: center;
+}
+
+.join-mode-switch--compact button {
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 22px;
+  height: 22px;
+  min-height: 22px;
+  white-space: nowrap;
 }
 
 .schedule-links {
@@ -1597,6 +1912,90 @@ html[data-theme="slate"] .schedule-session-location {
   margin-top: 8px;
 }
 
+/* Session detail meta block + papers + speakers (Phase D2). */
+.session-meta-block {
+  display: grid;
+  gap: 2px;
+}
+
+.session-meta-line {
+  margin: 0;
+  font: 400 13px/18px var(--font-body);
+  color: var(--gray-500);
+}
+
+.session-papers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.session-paper {
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+}
+
+.session-paper-title {
+  margin: 0;
+  font: 600 15px/1.3 var(--font-body);
+  color: var(--gray-900);
+}
+
+.session-paper-authors {
+  margin: 3px 0 0;
+  font: 400 13px/18px var(--font-body);
+  color: var(--gray-600);
+}
+
+.session-speakers-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.session-speaker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-speaker-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  color: var(--gray-500);
+  font: 600 14px/1 var(--font-body);
+}
+
+.session-speaker-name {
+  display: block;
+  font: 500 14px/20px var(--font-body);
+  color: var(--gray-900);
+}
+
+.session-speaker-name a {
+  color: inherit;
+}
+
+.session-speaker-affil {
+  display: block;
+  font: 400 12px/16px var(--font-body);
+  color: var(--gray-500);
+}
+
 .session-conversation-card {
   margin-top: 16px;
 }
@@ -1707,13 +2106,6 @@ html[data-theme="slate"] .schedule-session-location {
 @media (min-width: 900px) {
   .session-thread-layout {
     grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-    align-items: start;
-  }
-}
-
-@media (min-width: 960px) {
-  .schedule-layout {
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);
     align-items: start;
   }
 }
@@ -1853,37 +2245,6 @@ html[data-theme="slate"] .schedule-session-location {
     width: 100%;
   }
 
-  .schedule-slot {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .schedule-events {
-    grid-template-columns: 1fr;
-  }
-
-  .schedule-time {
-    padding-top: 0;
-  }
-
-  .schedule-event-footer {
-    align-items: stretch;
-  }
-
-  .schedule-actions {
-    width: 100%;
-  }
-
-  .schedule-actions-toolbar {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-
-  .schedule-actions-toolbar > * {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
   .session-attendance-block {
     width: 100%;
   }
@@ -1896,12 +2257,12 @@ html[data-theme="slate"] .schedule-session-location {
     max-width: none;
   }
 
-  .join-mode-switch {
+  .join-mode-switch:not(.join-mode-switch--compact) {
     width: auto;
     flex: 1 1 100%;
   }
 
-  .join-mode-switch button {
+  .join-mode-switch:not(.join-mode-switch--compact) button {
     flex: 1;
   }
 
@@ -2581,24 +2942,40 @@ html[data-theme="slate"] .schedule-session-location {
     overflow-x: hidden;
   }
 
-  .schedule-layout {
-    display: block;
-  }
-
-  .schedule-admin-rail {
-    margin-top: var(--space-4);
-  }
-
+  /* Agenda below 768px: single column, time inline above rows. */
   .schedule-slot {
-    display: block;
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .schedule-time {
-    margin-bottom: var(--space-2);
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    padding: 0;
+    border-right: none;
   }
 
   .schedule-events {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+
+  .schedule-events > .schedule-event {
+    flex: 1 1 auto;
+  }
+
+  .schedule-event-side {
+    align-items: flex-start;
+  }
+
+  .schedule-event-meta-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .join-mode-switch--compact {
+    margin-left: auto;
   }
 
   .dashboard-tabs {
@@ -2658,7 +3035,7 @@ html[data-theme="slate"] .schedule-session-location {
     flex-wrap: wrap;
   }
 
-  .join-mode-switch button {
+  .join-mode-switch:not(.join-mode-switch--compact) button {
     min-height: 44px;
   }
 }

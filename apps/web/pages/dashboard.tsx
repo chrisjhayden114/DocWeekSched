@@ -1,6 +1,6 @@
 import { brand, icsProductId } from "@event-app/config";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   DELETED_PARTICIPANT_LABEL,
   resolveFeatureEnabled,
@@ -23,6 +23,9 @@ import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
 import { apiFetch, apiFetchAll, clearAuthClientState } from "../lib/api";
 import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
+import { trackColor } from "../lib/trackColors";
+import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
+import { ListEmpty, ListSkeleton } from "../components/ListState";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
@@ -312,6 +315,7 @@ export default function Dashboard() {
 
   const [event, setEvent] = useState<Event | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [attendees, setAttendees] = useState<User[]>([]);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
   const [networkThreads, setNetworkThreads] = useState<NetworkThread[]>([]);
@@ -330,6 +334,7 @@ export default function Dashboard() {
   const [agendaFilterRoom, setAgendaFilterRoom] = useState<string>("");
   const [agendaFilterDay, setAgendaFilterDay] = useState<string>("");
   const [agendaSearch, setAgendaSearch] = useState("");
+  const [agendaFiltersOpen, setAgendaFiltersOpen] = useState(false);
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [communityChannel, setCommunityChannel] = useState<CommunityChannelFilter>("ALL");
@@ -445,7 +450,11 @@ export default function Dashboard() {
     if (!token) return;
     const load = async () => {
       if (active === "Agenda") {
-        setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
+        try {
+          setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
+        } finally {
+          setSessionsLoading(false);
+        }
         if (isAdmin && attendees.length === 0) {
           setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token));
         }
@@ -612,9 +621,13 @@ export default function Dashboard() {
     const mapId = typeof router.query.mapId === "string" ? router.query.mapId : null;
     const pinId = typeof router.query.pinId === "string" ? router.query.pinId : null;
     const tabQ = typeof router.query.tab === "string" ? router.query.tab : null;
-    if (tabQ === "Maps" || mapId || pinId) {
+    // Case-insensitive so links like ?tab=maps work too.
+    const tabMatch = tabQ ? adminTabs.find((t) => t.toLowerCase() === tabQ.toLowerCase()) ?? null : null;
+    if (tabMatch === MAPS_TAB || mapId || pinId) {
       setActive(MAPS_TAB);
       setMapsFocus({ mapId, pinId });
+    } else if (tabMatch) {
+      setActive(tabMatch);
     }
   }, [router.isReady, router.query.mapId, router.query.pinId, router.query.tab]);
 
@@ -656,6 +669,7 @@ export default function Dashboard() {
     [sortedSessions, agendaFilterTrack, agendaFilterRoom, agendaFilterDay, agendaSearch, agendaDisplayTimezone],
   );
   const agendaNowNext = useMemo(() => nowAndNext(filteredSessions), [filteredSessions]);
+  /* First-appearance order across the event schedule — drives collision-free track colors. */
   const trackOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string; color?: string }>();
     for (const s of sessions) {
@@ -663,6 +677,7 @@ export default function Dashboard() {
     }
     return [...map.values()];
   }, [sessions]);
+  const orderedTrackIds = useMemo(() => trackOptions.map((t) => t.id), [trackOptions]);
   const roomOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
     for (const s of sessions) {
@@ -691,6 +706,13 @@ export default function Dashboard() {
     () => groupSessionsByDayAndTime(myScheduledSessions, agendaDisplayTimezone),
     [myScheduledSessions, agendaDisplayTimezone],
   );
+  /* Count pill on the My Schedule segment — unaffected by active filters. */
+  const myAgendaCount = useMemo(
+    () => sortedSessions.filter((s) => joiningSessionIds.includes(s.id)).length,
+    [sortedSessions, joiningSessionIds],
+  );
+  const agendaActiveFilterCount =
+    (agendaFilterTrack ? 1 : 0) + (agendaFilterRoom ? 1 : 0) + (agendaSearch.trim() ? 1 : 0);
 
   const messageSearchLower = messageDirectoryQuery.trim().toLowerCase();
 
@@ -946,6 +968,41 @@ export default function Dashboard() {
     availableTabs.includes(tab),
   );
 
+  /* Filter controls — rendered in the right rail (≥1280px) and the Filters sheet below. */
+  const agendaFilterControls = (
+    <>
+      <input
+        className="input"
+        type="search"
+        placeholder="Search sessions, speakers, papers…"
+        aria-label="Search sessions"
+        value={agendaSearch}
+        onChange={(e) => setAgendaSearch(e.target.value)}
+      />
+      <FilterGroup
+        label="Day"
+        options={dayOptions.map((d) => ({ id: d, label: dayChipLabel(d) }))}
+        value={agendaFilterDay}
+        onChange={setAgendaFilterDay}
+        allLabel="All days"
+      />
+      <FilterGroup
+        label="Track"
+        options={trackOptions.map((t) => ({ id: t.id, label: t.name, dot: trackColor(t.id, t.color, orderedTrackIds) }))}
+        value={agendaFilterTrack}
+        onChange={setAgendaFilterTrack}
+        allLabel="All tracks"
+      />
+      <FilterGroup
+        label="Room"
+        options={roomOptions.map((r) => ({ id: r.id, label: r.name }))}
+        value={agendaFilterRoom}
+        onChange={setAgendaFilterRoom}
+        allLabel="All rooms"
+      />
+    </>
+  );
+
   return (
     <AppShell
       title={event?.name || "Event dashboard"}
@@ -997,90 +1054,89 @@ export default function Dashboard() {
             <SponsorsStrip token={token} eventId={activeEventId} enabled={featureOn("sponsors")} />
           ) : null}
         <div className="schedule-layout">
-          <div className="card schedule-list">
-            <div className="nav agenda-view-toggle" role="tablist" aria-label="Schedule views">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={agendaView === "Event Schedule"}
-                className={agendaView === "Event Schedule" ? "active" : ""}
-                onClick={() => setAgendaView("Event Schedule")}
-              >
-                Event Schedule
-              </button>
-              <span className="agenda-view-toggle-divider" aria-hidden="true" />
-              <button
-                type="button"
-                role="tab"
-                aria-selected={agendaView === "My Schedule"}
-                className={agendaView === "My Schedule" ? "active" : ""}
-                onClick={() => setAgendaView("My Schedule")}
-              >
-                My Schedule
-              </button>
-            </div>
-            {timezoneToggleOn ? (
-              <div className="nav agenda-timezone-toggle" role="tablist" aria-label="Time display mode">
+          <div className="schedule-list">
+            <div className="agenda-context-bar">
+              <div className="agenda-context-row">
+                <div className="nav agenda-view-toggle" role="tablist" aria-label="Schedule views">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={agendaView === "Event Schedule"}
+                    className={agendaView === "Event Schedule" ? "active" : ""}
+                    onClick={() => setAgendaView("Event Schedule")}
+                  >
+                    Event Schedule
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={agendaView === "My Schedule"}
+                    className={agendaView === "My Schedule" ? "active" : ""}
+                    onClick={() => setAgendaView("My Schedule")}
+                  >
+                    My Schedule
+                    <span className="agenda-seg-count">{myAgendaCount}</span>
+                  </button>
+                </div>
+                <span className="agenda-context-spacer" aria-hidden />
+                {timezoneToggleOn ? (
+                  <div
+                    className="agenda-timezone-toggle"
+                    role="tablist"
+                    aria-label="Time display mode"
+                    title={`Times shown in ${agendaDisplayTimezone}`}
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={agendaTimeMode === "MY"}
+                      className={agendaTimeMode === "MY" ? "active" : ""}
+                      onClick={() => setAgendaTimeMode("MY")}
+                    >
+                      My timezone
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={agendaTimeMode === "EVENT"}
+                      className={agendaTimeMode === "EVENT" ? "active" : ""}
+                      onClick={() => setAgendaTimeMode("EVENT")}
+                    >
+                      Event timezone
+                    </button>
+                  </div>
+                ) : null}
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={agendaTimeMode === "MY"}
-                  className={agendaTimeMode === "MY" ? "active" : ""}
-                  onClick={() => setAgendaTimeMode("MY")}
+                  className="button secondary agenda-filters-btn"
+                  aria-haspopup="dialog"
+                  aria-expanded={agendaFiltersOpen}
+                  onClick={() => setAgendaFiltersOpen(true)}
                 >
-                  My timezone
+                  Filters{agendaActiveFilterCount ? ` · ${agendaActiveFilterCount}` : ""}
                 </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={agendaTimeMode === "EVENT"}
-                  className={agendaTimeMode === "EVENT" ? "active" : ""}
-                  onClick={() => setAgendaTimeMode("EVENT")}
-                >
-                  Event timezone
-                </button>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      setEditingSession(null);
+                      setSessionFormKey((k) => k + 1);
+                      setSessionDrawerOpen(true);
+                    }}
+                  >
+                    + New session
+                  </button>
+                ) : null}
               </div>
-            ) : null}
-            <p className="help-text" style={{ margin: "8px 0 12px" }}>
-              Times shown in{" "}
-              <strong>{agendaDisplayTimezone}</strong>
-              {timezoneToggleOn
-                ? ` (${agendaTimeMode === "MY" ? "your device setting" : "event setting"}).`
-                : " (event timezone)."}
-            </p>
-            <div className="agenda-filters" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              <input
-                className="input"
-                style={{ flex: "1 1 160px", minWidth: 140 }}
-                placeholder="Search sessions, speakers, papers…"
-                value={agendaSearch}
-                onChange={(e) => setAgendaSearch(e.target.value)}
-              />
-              <select className="input" value={agendaFilterDay} onChange={(e) => setAgendaFilterDay(e.target.value)}>
-                <option value="">All days</option>
-                {dayOptions.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-              <select className="input" value={agendaFilterTrack} onChange={(e) => setAgendaFilterTrack(e.target.value)}>
-                <option value="">All tracks</option>
-                {trackOptions.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-              <select className="input" value={agendaFilterRoom} onChange={(e) => setAgendaFilterRoom(e.target.value)}>
-                <option value="">All rooms</option>
-                {roomOptions.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
+              <DayChips days={dayOptions} value={agendaFilterDay} onChange={setAgendaFilterDay} />
             </div>
+            <p className="text-meta" style={{ margin: "0 0 10px" }}>
+              Times shown in <strong>{agendaDisplayTimezone}</strong>
+              {timezoneToggleOn
+                ? ` (${agendaTimeMode === "MY" ? "your device setting" : "event setting"})`
+                : " (event timezone)"}
+            </p>
             {(agendaNowNext.now.length > 0 || agendaNowNext.next) && (
               <p className="help-text" style={{ marginTop: 0 }}>
                 {agendaNowNext.now.length > 0 ? (
@@ -1097,7 +1153,7 @@ export default function Dashboard() {
               </p>
             )}
             {agendaView === "My Schedule" && myOverlapIds.size > 0 ? (
-              <p className="help-text" style={{ color: "#b42318", marginTop: 0 }}>
+              <p className="help-text" style={{ color: "var(--danger)", marginTop: 0 }}>
                 {myOverlapIds.size} sessions on your agenda overlap — check times before you go.
               </p>
             ) : null}
@@ -1146,12 +1202,14 @@ export default function Dashboard() {
                 </button>
               </div>
             ) : null}
-            {agendaView === "Event Schedule" && (
+            {sessionsLoading && sortedSessions.length === 0 ? <ListSkeleton rows={8} /> : null}
+            {(!sessionsLoading || sortedSessions.length > 0) && agendaView === "Event Schedule" && (
               <ScheduleBoard
                 grouped={groupedAgenda}
                 eventName={event?.name || "Event"}
                 eventTimezone={event?.timezone || "UTC"}
                 displayTimezone={agendaDisplayTimezone}
+                orderedTrackIds={orderedTrackIds}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={sessionLikesOn ? likedSessionIds : []}
@@ -1171,12 +1229,13 @@ export default function Dashboard() {
                 onGoToSession={goToSessionPage}
               />
             )}
-            {agendaView === "My Schedule" && (
+            {(!sessionsLoading || sortedSessions.length > 0) && agendaView === "My Schedule" && (
               <ScheduleBoard
                 grouped={groupedMySchedule}
                 eventName={event?.name || "Event"}
                 eventTimezone={event?.timezone || "UTC"}
                 displayTimezone={agendaDisplayTimezone}
+                orderedTrackIds={orderedTrackIds}
                 isAdmin={isAdmin}
                 myAttendance={myAttendance}
                 likedSessionIds={sessionLikesOn ? likedSessionIds : []}
@@ -1197,56 +1256,47 @@ export default function Dashboard() {
               />
             )}
           </div>
-          {isAdmin && (
-            <div className="schedule-admin-rail">
-              <button
-                type="button"
-                className="button"
+          <aside className="agenda-rail" aria-label="Agenda filters">
+            <div className="agenda-rail-panel">{agendaFilterControls}</div>
+          </aside>
+          {isAdmin && (sessionDrawerOpen || editingSession) ? (
+            <>
+              <div
+                className="drawer-backdrop"
+                role="presentation"
                 onClick={() => {
+                  setSessionDrawerOpen(false);
                   setEditingSession(null);
-                  setSessionFormKey((k) => k + 1);
-                  setSessionDrawerOpen(true);
                 }}
-              >
-                + New session
-              </button>
-              {sessionDrawerOpen || editingSession ? (
-                <>
-                  <div
-                    className="drawer-backdrop"
-                    role="presentation"
-                    onClick={() => {
-                      setSessionDrawerOpen(false);
-                      setEditingSession(null);
-                    }}
-                  />
-                  <div className="drawer-panel" role="dialog" aria-modal="true" aria-label="Session editor">
-                    <SessionForm
-                      key={sessionFormKey}
-                      token={token!}
-                      eventTimezone={event?.timezone || "UTC"}
-                      eventHeaders={withEventHeaders}
-                      attendees={attendees}
-                      editing={editingSession}
-                      onSaved={async () => {
-                        setEditingSession(null);
-                        setSessionDrawerOpen(false);
-                        setActive("Agenda");
-                        setSessionFormKey((k) => k + 1);
-                        setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token!));
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
-                      onCancel={() => {
-                        setEditingSession(null);
-                        setSessionDrawerOpen(false);
-                      }}
-                    />
-                  </div>
-                </>
-              ) : null}
-            </div>
-          )}
+              />
+              <div className="drawer-panel" role="dialog" aria-modal="true" aria-label="Session editor">
+                <SessionForm
+                  key={sessionFormKey}
+                  token={token!}
+                  eventTimezone={event?.timezone || "UTC"}
+                  eventHeaders={withEventHeaders}
+                  attendees={attendees}
+                  editing={editingSession}
+                  onSaved={async () => {
+                    setEditingSession(null);
+                    setSessionDrawerOpen(false);
+                    setActive("Agenda");
+                    setSessionFormKey((k) => k + 1);
+                    setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token!));
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  onCancel={() => {
+                    setEditingSession(null);
+                    setSessionDrawerOpen(false);
+                  }}
+                />
+              </div>
+            </>
+          ) : null}
         </div>
+        <AgendaFiltersSheet open={agendaFiltersOpen} onClose={() => setAgendaFiltersOpen(false)}>
+          {agendaFilterControls}
+        </AgendaFiltersSheet>
         </>
       )}
 
@@ -2022,6 +2072,7 @@ function ScheduleBoard({
   eventName,
   eventTimezone,
   displayTimezone,
+  orderedTrackIds = [],
   isAdmin,
   myAttendance,
   likedSessionIds,
@@ -2040,6 +2091,7 @@ function ScheduleBoard({
   eventName: string;
   eventTimezone: string;
   displayTimezone: string;
+  orderedTrackIds?: string[];
   isAdmin: boolean;
   myAttendance: SessionAttendance[];
   likedSessionIds: string[];
@@ -2085,7 +2137,12 @@ function ScheduleBoard({
   }, [grouped, calendarModalSessionId]);
 
   if (grouped.length === 0) {
-    return <p style={{ color: "var(--ink-500)" }}>No sessions in this view yet.</p>;
+    return (
+      <ListEmpty
+        title="No sessions in this view"
+        body="Adjust the day or filters, or check back once the program is published."
+      />
+    );
   }
 
   const agendaModalAllowsVirtual = agendaModalSession?.allowVirtualJoin !== false;
@@ -2098,20 +2155,28 @@ function ScheduleBoard({
 
   return (
     <>
-      {grouped.map((dayGroup) => (
+      {grouped.map((dayGroup) => {
+        const [weekday, ...restLabel] = dayGroup.dayLabel.split(", ");
+        return (
         <section key={dayGroup.dayLabel} className="schedule-day">
-          <h3 className="schedule-day-heading">{dayGroup.dayLabel}</h3>
+          <h3 className="schedule-day-heading">
+            <strong>{weekday}</strong>
+            {restLabel.length ? `, ${restLabel.join(", ")}` : null}
+          </h3>
           {dayGroup.timeSlots.map((slot) => (
             <div key={`${dayGroup.dayLabel}-${slot.timeLabel}`} className="schedule-slot">
-              <div className="schedule-time">{slot.timeLabel}</div>
+              <div className="schedule-time">
+                <span>{slot.timeLabel}</span>
+                <span className="schedule-time-tz">
+                  {timeZoneAbbrev(new Date(slot.sessions[0]!.startsAt), displayTimezone)}
+                </span>
+              </div>
               <div className="schedule-events-wrap">
                 {slot.sessions.length > 1 && (
-                  <div className="schedule-concurrent-note">
-                    {slot.sessions.length} options at this time - choose the session that best fits your plan.
-                  </div>
+                  <div className="schedule-concurrent-note">{slot.sessions.length} concurrent sessions</div>
                 )}
                 <div className="schedule-events">
-                {slot.sessions.map((s, optionIndex) => {
+                {slot.sessions.map((s) => {
                   const myRow = myAttendance.find((item) => item.sessionId === s.id);
                   const myStatus = myRow?.status;
                   const joiningList = (s.attendances || []).filter((attendance) => attendance.status === "JOINING");
@@ -2129,221 +2194,205 @@ function ScheduleBoard({
                     s.inPersonCapacity != null && inPersonJoining >= s.inPersonCapacity;
                   const virtualFull =
                     s.virtualCapacity != null && virtualJoining >= s.virtualCapacity;
-                  const joinModeShort =
-                    myMode === "VIRTUAL" ? "Virtual" : myMode === "ASYNC" ? "Async" : "In person";
+                  const paperCount = s.items?.length || 0;
+                  const roomLabel = s.room?.name || s.location || null;
+                  const countBits = [
+                    `${inPersonJoining}${s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person`,
+                    `${virtualJoining}${s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual`,
+                    `${asyncJoining} async`,
+                  ];
+                  if (likeCount > 0) countBits.push(`${likeCount} like${likeCount === 1 ? "" : "s"}`);
+                  if ((s.waitlistEntries?.length || 0) > 0) countBits.push(`${s.waitlistEntries!.length} waitlisted`);
+                  const extraLinks: Array<{ key: string; node: ReactNode }> = [];
+                  if (s.recordingUrl) {
+                    extraLinks.push({
+                      key: "rec",
+                      node: (
+                        <a href={s.recordingUrl} target="_blank" rel="noreferrer" className="schedule-meta-chip" onClick={(event) => event.stopPropagation()}>
+                          Recording
+                        </a>
+                      ),
+                    });
+                  }
+                  if (s.fileLink) {
+                    extraLinks.push({
+                      key: "file",
+                      node: (
+                        <a href={s.fileLink} target="_blank" rel="noreferrer" className="schedule-meta-chip" onClick={(event) => event.stopPropagation()}>
+                          Resources
+                        </a>
+                      ),
+                    });
+                  }
+                  if (s.fileUrl) {
+                    extraLinks.push({
+                      key: "upload",
+                      node: (
+                        <a href={s.fileUrl} target="_blank" rel="noreferrer" className="schedule-meta-chip" onClick={(event) => event.stopPropagation()}>
+                          File
+                        </a>
+                      ),
+                    });
+                  }
+                  if (s.roomId && onViewOnMap && roomPins[s.roomId]) {
+                    extraLinks.push({
+                      key: "map",
+                      node: (
+                        <button
+                          type="button"
+                          className="schedule-meta-chip"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onViewOnMap(s.roomId!);
+                          }}
+                        >
+                          Map
+                        </button>
+                      ),
+                    });
+                  }
                   return (
                     <article
                       className="schedule-event"
                       key={s.id}
-                      title={s.description || "No session description yet."}
+                      style={{ ["--track-color" as string]: trackColor(s.trackId, s.track?.color, orderedTrackIds) }}
+                      title={s.description || undefined}
                       onClick={() => onGoToSession(s.id)}
                     >
-                      <div className="schedule-event-head">
-                        {s.imageUrl && (
-                          <img src={s.imageUrl} alt="" className="schedule-thumb" />
-                        )}
-                        <h4>
-                          {s.title}
-                          {slot.sessions.length > 1 && (
-                            <span className="schedule-option-chip">Option {optionIndex + 1}</span>
-                          )}
-                          {inPersonFull || virtualFull ? (
-                            <span className="schedule-option-chip" style={{ marginLeft: 6 }}>
-                              Full — waitlist
+                      <button
+                        type="button"
+                        className={`attendance-join-dot schedule-event-save ${joining ? "is-on" : ""}`}
+                        aria-pressed={joining}
+                        aria-label={joining ? "Remove from my schedule" : "Add to my schedule"}
+                        title={
+                          joining
+                            ? `On my schedule (${agendaJoinModeLabel(myMode)}) — click to remove`
+                            : sessionAllowsVirtual
+                              ? "Add to my schedule — in person, virtual, or async"
+                              : "Add to my schedule — in person or async"
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (joining) {
+                            void onPatchAttendance(s.id, { status: "NOT_JOINING" });
+                          } else {
+                            setAgendaModalSessionId(s.id);
+                          }
+                        }}
+                      />
+                      <div className="schedule-event-main">
+                        <h4 className="schedule-event-title">
+                          <span className="schedule-event-title-text">{s.title}</span>
+                          {paperCount > 0 ? (
+                            <span className="schedule-option-chip">
+                              {paperCount} paper{paperCount === 1 ? "" : "s"}
                             </span>
+                          ) : null}
+                          {inPersonFull || virtualFull ? (
+                            <span className="schedule-option-chip">Full — waitlist</span>
                           ) : null}
                         </h4>
-                      </div>
-                      {(s.speakers || s.speaker?.name || s.location) && (
-                        <div className="schedule-speaker schedule-speaker-with-location">
-                          {(s.speakers || s.speaker?.name) && (
-                            <span className="schedule-speaker-names">{s.speakers || s.speaker?.name}</span>
-                          )}
-                          {s.location && (s.speakers || s.speaker?.name) && (
-                            <span className="schedule-speaker-sep" aria-hidden>
-                              {" "}
-                              —{" "}
-                            </span>
-                          )}
-                          {s.location && <span className="schedule-session-location">{s.location}</span>}
-                        </div>
-                      )}
-                      <div className="schedule-links">
-                        {s.zoomLink && (
-                          <OnlineMeetingLink href={s.zoomLink} onClick={(event) => event.stopPropagation()} />
-                        )}
-                        {s.recordingUrl && <a href={s.recordingUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Recording</a>}
-                        {s.fileLink && <a href={s.fileLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Resources</a>}
-                        {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Uploaded File</a>}
-                        {s.roomId && onViewOnMap && roomPins[s.roomId] ? (
-                          <button
-                            type="button"
-                            className="linkish"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onViewOnMap(s.roomId!);
-                            }}
-                          >
-                            View on map
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="schedule-event-footer">
-                        <div className="schedule-meta-line">
-                          <span className="schedule-meta-time">
-                            {formatEventTimeRange(s.startsAt, s.endsAt, displayTimezone)}
-                          </span>
+                        <div className="schedule-event-meta-row">
+                          <p className="schedule-event-meta">
+                            {formatRowTimeRange(s.startsAt, s.endsAt, displayTimezone)}
+                            {roomLabel ? ` · ${roomLabel}` : ""}
+                            {s.track?.name ? ` · ${s.track.name}` : ""}
+                            {s.zoomLink ? (
+                              <>
+                                {" · "}
+                                <OnlineMeetingLink
+                                  href={s.zoomLink}
+                                  variant="chip"
+                                  onClick={(event) => event.stopPropagation()}
+                                />
+                              </>
+                            ) : null}
+                            {extraLinks.map((link) => (
+                              <span key={link.key}>
+                                {" · "}
+                                {link.node}
+                              </span>
+                            ))}
+                            {isAdmin || joinedCount > 0 ? ` · ${countBits.join(" · ")}` : null}
+                          </p>
                           {joining ? (
-                            <span className="schedule-meta-my-mode"> · MY: {joinModeShort}</span>
-                          ) : null}
-                        </div>
-                        <div
-                          className="schedule-meta-detail"
-                          title={`${inPersonJoining}${s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person · ${virtualJoining}${s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual · ${asyncJoining} async${likeCount ? ` · ${likeCount} likes` : ""}${(s.waitlistEntries?.length || 0) > 0 ? ` · ${s.waitlistEntries!.length} waitlisted` : ""}`}
-                        >
-                          {isAdmin || likeCount > 0 || (s.waitlistEntries?.length || 0) > 0 ? (
-                            <span className="schedule-meta-detail-text text-meta">
-                              {isAdmin ? (
-                                <>
-                                  {inPersonJoining}
-                                  {s.inPersonCapacity != null ? `/${s.inPersonCapacity}` : ""} in-person ·{" "}
-                                  {virtualJoining}
-                                  {s.virtualCapacity != null ? `/${s.virtualCapacity}` : ""} virtual · {asyncJoining}{" "}
-                                  async
-                                  {likeCount > 0 ? ` · ${likeCount} likes` : ""}
-                                  {(s.waitlistEntries?.length || 0) > 0
-                                    ? ` · ${s.waitlistEntries!.length} waitlisted`
-                                    : ""}
-                                </>
-                              ) : (
-                                <>
-                                  {likeCount > 0 ? `${likeCount} likes` : null}
-                                  {likeCount > 0 && (s.waitlistEntries?.length || 0) > 0 ? " · " : null}
-                                  {(s.waitlistEntries?.length || 0) > 0
-                                    ? `${s.waitlistEntries!.length} waitlisted`
-                                    : null}
-                                </>
-                              )}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="schedule-actions schedule-actions-toolbar schedule-actions-with-attendance">
-                          <div onClick={(event) => event.stopPropagation()} role="group" aria-label="My agenda">
-                            {!joining ? (
-                              <button
-                                type="button"
-                                className="agenda-add-my-btn"
-                                aria-label={
-                                  sessionAllowsVirtual
-                                    ? "Add to my agenda. You can choose in person, virtual, or async."
-                                    : "Add to my agenda. You can choose in person or async."
-                                }
-                                title={
-                                  sessionAllowsVirtual
-                                    ? "Add to my agenda — in person, virtual, or async"
-                                    : "Add to my agenda — in person or async"
-                                }
-                                onClick={() => setAgendaModalSessionId(s.id)}
-                              >
-                                <span aria-hidden className="agenda-add-my-btn-icon">
-                                  &#128197;
-                                </span>
-                                <span>Add</span>
-                              </button>
-                            ) : (
-                              <div
-                                className="session-attendance-block session-attendance-inline"
-                                title="On my agenda — switch mode or remove"
-                              >
-                                <span className="attendance-join-text" title={agendaJoinModeLabel(myMode)}>
-                                  {joinModeShort}
-                                </span>
-                                <div className="join-mode-switch" role="group" aria-label="Attendance mode">
-                                  {sessionAllowsVirtual && (
-                                    <button
-                                      type="button"
-                                      className={myMode === "VIRTUAL" ? "is-active" : ""}
-                                      onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
-                                    >
-                                      Virtual
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    className={myMode === "IN_PERSON" ? "is-active" : ""}
-                                    onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "IN_PERSON" })}
-                                  >
-                                    In person
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={myMode === "ASYNC" ? "is-active" : ""}
-                                    onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "ASYNC" })}
-                                    title="Asynchronous – Time Zone Issues!"
-                                  >
-                                    Async
-                                  </button>
-                                </div>
+                            <div
+                              className="join-mode-switch join-mode-switch--compact"
+                              onClick={(event) => event.stopPropagation()}
+                              role="group"
+                              aria-label="Attendance mode"
+                            >
+                              {sessionAllowsVirtual && (
                                 <button
                                   type="button"
-                                  className="button secondary schedule-toolbar-btn"
-                                  aria-label="Remove from my agenda"
-                                  onClick={() => onPatchAttendance(s.id, { status: "NOT_JOINING" })}
+                                  className={myMode === "VIRTUAL" ? "is-active" : ""}
+                                  onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
                                 >
-                                  Remove
+                                  Virtual
                                 </button>
-                              </div>
-                            )}
-                          </div>
+                              )}
+                              <button
+                                type="button"
+                                className={myMode === "IN_PERSON" ? "is-active" : ""}
+                                onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "IN_PERSON" })}
+                              >
+                                In person
+                              </button>
+                              <button
+                                type="button"
+                                className={myMode === "ASYNC" ? "is-active" : ""}
+                                onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "ASYNC" })}
+                                title="Asynchronous — join across time zones"
+                              >
+                                Async
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                        {(s.speakers || s.speaker?.name) && (
+                          <p className="schedule-event-speakers">{s.speakers || s.speaker?.name}</p>
+                        )}
+                      </div>
+                      <div className="schedule-event-side" onClick={(event) => event.stopPropagation()}>
+                        <div className="schedule-row-actions">
                           {qaEnabled ? (
                             <button
-                              className="button secondary schedule-toolbar-btn"
+                              className="row-action-btn"
                               type="button"
                               title="Session Q&A"
                               aria-label="Session Q&A"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onGoToSession(s.id);
-                              }}
+                              onClick={() => onGoToSession(s.id)}
                             >
                               Q&amp;A
                             </button>
                           ) : null}
                           {likesEnabled && onToggleLike ? (
                             <button
-                              className={`button schedule-toolbar-btn ${liked ? "" : "secondary"}`}
+                              className={`row-action-btn${liked ? " is-active" : ""}`}
                               type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onToggleLike(s.id);
-                              }}
+                              aria-pressed={liked}
+                              onClick={() => onToggleLike(s.id)}
                             >
-                              Like
+                              ♥{likeCount > 0 ? ` ${likeCount}` : ""}
                             </button>
                           ) : null}
                           {onToggleBookmark ? (
                             <button
-                              className={`button schedule-toolbar-btn ${starred ? "" : "secondary"}`}
+                              className={`row-action-btn${starred ? " is-active" : ""}`}
                               type="button"
                               title={starred ? "Remove star (session starting soon alerts)" : "Star for reminders"}
                               aria-label={starred ? "Unstar session" : "Star session"}
                               aria-pressed={starred}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onToggleBookmark(s.id);
-                              }}
+                              onClick={() => onToggleBookmark(s.id)}
                             >
                               {starred ? "★" : "☆"}
                             </button>
                           ) : null}
                           {isAdmin && (
                             <button
-                              className="button secondary schedule-toolbar-btn"
+                              className="row-action-btn"
                               type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onEditSession(s);
-                              }}
+                              onClick={() => onEditSession(s)}
                             >
                               Edit
                             </button>
@@ -2358,7 +2407,8 @@ function ScheduleBoard({
             </div>
           ))}
         </section>
-      ))}
+        );
+      })}
       {agendaModalSessionId && (
         <div
           className="agenda-add-modal-overlay"
@@ -4843,6 +4893,13 @@ function formatTimeRange(start: string, end: string, timeZone = "UTC") {
   const startDate = new Date(start);
   const endDate = new Date(end);
   return `${startDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone })} - ${endDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone })} ${timeZoneAbbrev(startDate, timeZone)}`;
+}
+
+/** Row meta time: short range without TZ (the rail shows the TZ). */
+function formatRowTimeRange(start: string, end: string, timeZone = "UTC") {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
+  return `${fmt(start)}–${fmt(end)}`;
 }
 
 function toGoogleCalendarUtc(dateString: string) {

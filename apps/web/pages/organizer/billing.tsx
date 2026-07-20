@@ -106,7 +106,7 @@ export default function OrganizerBillingPage() {
   return (
     <>
       <Head>
-        <title>Billing — {brand.productName}</title>
+        <title>{`Billing — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="billing">
         <div style={{ maxWidth: 720 }}>

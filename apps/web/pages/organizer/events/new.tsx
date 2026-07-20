@@ -255,7 +255,7 @@ export default function NewEventWizard() {
   return (
     <>
       <Head>
-        <title>{modeAi ? "Set up with AI" : "Create event"} — {brand.productName}</title>
+        <title>{`${modeAi ? "Set up with AI" : "Create event"} — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="new-event">
         <div style={{ maxWidth: modeAi ? 960 : 640 }}>
