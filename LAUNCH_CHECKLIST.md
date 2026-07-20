@@ -12,7 +12,8 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 - [ ] **Cookie flags for same-site setup** — `COOKIE_DOMAIN=.ukedl.com`, `COOKIE_SAMESITE=lax`, `COOKIE_SECURE=true`; retire the interim `SameSite=None` config. Verify login works on `ukedl.com` and `www.ukedl.com`. *Owner: Chris · Status: todo*
 - [ ] **CORS origins** — `WEB_BASE_URL=https://ukedl.com` on the API (allowlist auto-includes the `www.` variant); confirm no `*.onrender.com` or localhost origins remain. *Owner: Chris · Status: todo*
 - [ ] **`API_PUBLIC_URL=https://api.ukedl.com`** — ICS feed URLs; preflight makes this fatal if forgotten. *Owner: Chris · Status: todo*
-- [ ] **HSTS verified on BOTH hosts** — `curl -sI https://ukedl.com` and `https://api.ukedl.com` show `Strict-Transport-Security`. *Owner: Chris · Status: todo*
+- [ ] **HSTS verified on BOTH hosts** — `curl -sI https://ukedl.com` and `https://api.ukedl.com` show `Strict-Transport-Security` (web ships `max-age=31536000; includeSubDomains` via Chunk E headers). *Owner: Chris · Status: todo*
+- [ ] **HSTS preload (post-launch)** — only after HSTS has run clean for a while: add `preload` to the header and submit to hstspreload.org. Deliberately NOT shipped in Chunk E — preload is effectively irreversible. *Owner: Chris · Status: todo*
 
 ## 2. Providers
 
@@ -34,7 +35,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 
 ## 4. Hardening verification
 
-- [ ] **CSP report-only → enforce** (Chunk E, runs last) — deploy report-only, watch reports for a full demo-event walkthrough, then enforce. No `unsafe-inline` in `script-src`. *Owner: Chris · Status: blocked (Chunk E not built)*
+- [ ] **CSP report-only → enforce** — headers ship report-only by default (`apps/web/lib/securityHeaders.js`). Walk the full demo event (dashboard, scanner, maps, uploads, push, billing) with devtools open and zero CSP violations logged, then set `CSP_ENFORCE=1` in the Netlify build env and redeploy. No `unsafe-inline` in `script-src`, ever. Known watch item: if `NEXT_PUBLIC_SENTRY_DSN` is set, the browser SDK's `connect-src` to `*.ingest.sentry.io` will violate — decide (add the ingest origin or drop web Sentry) BEFORE enforcing. *Owner: Chris · Status: todo*
 - [ ] **Rate-limit smoke test from a cold IP** — from a network that hasn't hit the API (mobile hotspot/VPS): hammer `POST /auth/login` and one public CFP route; expect 429s at the documented thresholds; confirm normal browsing is unaffected. *Owner: Chris · Status: todo*
 - [ ] **Uptime monitor → `/health/ready`** — external monitor (UptimeRobot or similar) on `https://api.ukedl.com/health/ready` expecting HTTP 200; alert to email/phone. `/health` alone is NOT sufficient (doesn't cover DB/poller). *Owner: Chris · Status: todo*
 - [ ] **Boot-log preflight review** — after the production deploy, read the first screen of API logs; zero unexpected `[preflight]` warnings. *Owner: Chris · Status: todo*
