@@ -10,7 +10,11 @@ const { withSentryConfig } = require("@sentry/nextjs");
 
 module.exports = withSentryConfig(nextConfig, {
   silent: true,
-  disableLogger: true,
   // Don't fail the Netlify build when Sentry auth isn't configured.
   dryRun: !process.env.SENTRY_AUTH_TOKEN,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
 });
