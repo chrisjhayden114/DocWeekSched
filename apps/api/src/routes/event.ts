@@ -535,15 +535,20 @@ eventRouter.post(
   }),
 );
 
+const regenerateSlugSchema = z.object({
+  slug: slugField,
+});
+
 eventRouter.post(
   "/invite-links/regenerate-slug",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = regenerateSlugSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
-    const preferred = typeof req.body?.slug === "string" ? req.body.slug : undefined;
-    const slug = await regenerateSlug(event.id, preferred);
+    const slug = await regenerateSlug(event.id, parsed.data.slug);
     const base = env.webBaseUrl.replace(/\/$/, "");
     return res.json({ ok: true, slug, slugUrl: `${base}/e/${slug}` });
   }),

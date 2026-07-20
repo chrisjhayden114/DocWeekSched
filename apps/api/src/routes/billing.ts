@@ -150,13 +150,18 @@ billingRouter.post(
   }),
 );
 
+const portalSchema = z.object({
+  organizationId: z.string().min(1),
+});
+
 billingRouter.post(
   "/portal",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const orgId = typeof req.body?.organizationId === "string" ? req.body.organizationId : "";
-    if (!orgId) return res.status(400).json({ error: "organizationId required" });
+    const parsed = portalSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const orgId = parsed.data.organizationId;
     await requireOrgRole(req.user!.id, orgId, OrgRole.ADMIN);
     const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
     if (!org.billingCustomerId) {

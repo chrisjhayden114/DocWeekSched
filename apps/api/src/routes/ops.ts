@@ -69,11 +69,17 @@ opsRouter.get(
   }),
 );
 
+const runDetectorsSchema = z.object({
+  sync: z.boolean().optional(),
+});
+
 opsRouter.post(
   "/inbox/run-detectors",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = runDetectorsSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     await requireFeature(event.id, "ops_agent");
@@ -87,7 +93,7 @@ opsRouter.post(
       throw new HttpError(400, { error: "Ops Inbox is outside its active window" });
     }
 
-    const sync = String(req.query.sync || "") === "1" || req.body?.sync === true;
+    const sync = String(req.query.sync || "") === "1" || parsed.data.sync === true;
     if (sync) {
       const result = await runOpsDetectorsForEvent(event.id, { forceDigest: true });
       return res.json(result);

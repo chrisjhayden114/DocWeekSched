@@ -307,12 +307,17 @@ cfpRouter.post(
   }),
 );
 
+const publicVerifySchema = z.object({
+  token: z.string().min(1).max(512),
+});
+
 cfpRouter.post(
   "/public/verify",
   authRateLimit({ windowMs: 60_000, max: 10 }),
   asyncHandler(async (req, res) => {
-    const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
-    if (!token) throw new HttpError(400, { error: "token required" });
+    const parsed = publicVerifySchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const token = parsed.data.token.trim();
     const hash = hashToken(token);
     const sub = await prisma.cfpSubmission.findFirst({
       where: { verifyTokenHash: hash },
@@ -641,15 +646,21 @@ cfpRouter.post(
   }),
 );
 
+const assignSchema = z.object({
+  mode: z.enum(["all", "round_robin"]).optional(),
+});
+
 cfpRouter.post(
   "/manage/:formId/assign",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = assignSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const eventId = String(req.headers["x-event-id"] || "");
     await requireCfpManage(req.user!.id, eventId);
     const form = await loadFormForEvent(eventId, req.params.formId);
-    const mode = req.body?.mode === "round_robin" ? "round_robin" : "all";
+    const mode = parsed.data.mode === "round_robin" ? "round_robin" : "all";
     const result = await assignReviews(prisma, form.id, mode);
     return res.json(result);
   }),
@@ -727,11 +738,18 @@ cfpRouter.get(
   }),
 );
 
+const emailUpdateSchema = z.object({
+  subject: z.string().min(1).max(500).optional(),
+  body: z.string().min(1).max(20_000).optional(),
+});
+
 cfpRouter.put(
   "/manage/emails/:emailId",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = emailUpdateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const eventId = String(req.headers["x-event-id"] || "");
     await requireCfpManage(req.user!.id, eventId);
     const email = await prisma.cfpDecisionEmail.findUnique({
@@ -742,11 +760,12 @@ cfpRouter.put(
       throw new HttpError(404, { error: "Email not found" });
     }
     if (email.sentAt) throw new HttpError(400, { error: "Already sent" });
-    const subject = typeof req.body?.subject === "string" ? req.body.subject : email.subject;
-    const body = typeof req.body?.body === "string" ? req.body.body : email.body;
     const updated = await prisma.cfpDecisionEmail.update({
       where: { id: email.id },
-      data: { subject, body },
+      data: {
+        subject: parsed.data.subject ?? email.subject,
+        body: parsed.data.body ?? email.body,
+      },
     });
     return res.json(updated);
   }),

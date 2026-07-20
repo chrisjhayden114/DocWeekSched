@@ -98,12 +98,18 @@ meetingsRouter.post(
   }),
 );
 
+const acceptSchema = z.object({
+  slotId: z.string().min(1).optional(),
+});
+
 meetingsRouter.post(
   "/:id/accept",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const slotId = typeof req.body?.slotId === "string" ? req.body.slotId : null;
+    const parsed = acceptSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const slotId = parsed.data.slotId ?? null;
     const event = await resolveEventFromRequest(req);
     const userId = req.user!.id;
     await requireEventAccess(userId, event.id);

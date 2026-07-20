@@ -55,15 +55,19 @@ pushRouter.post(
   }),
 );
 
+const unsubscribeSchema = z.object({
+  endpoint: z.string().url().max(2048),
+});
+
 pushRouter.delete(
   "/subscribe",
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint : null;
-    if (!endpoint) return res.status(400).json({ error: "endpoint required" });
+    const parsed = unsubscribeSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     await prisma.pushSubscription.deleteMany({
-      where: { userId: req.user!.id, endpoint },
+      where: { userId: req.user!.id, endpoint: parsed.data.endpoint },
     });
     return res.json({ ok: true });
   }),
