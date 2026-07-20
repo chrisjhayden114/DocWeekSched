@@ -4,6 +4,7 @@ import { asyncHandler, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { validationErrorBody } from "../lib/errors";
 
 export const roomsRouter = Router();
 
@@ -34,7 +35,7 @@ roomsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = roomSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const room = await prisma.room.create({
@@ -55,7 +56,7 @@ roomsRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = roomSchema.partial().safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const existing = await prisma.room.findFirst({ where: { id: req.params.id, eventId: event.id } });

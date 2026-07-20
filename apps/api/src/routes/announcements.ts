@@ -14,6 +14,7 @@ import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { allAttendeeUserIds, minRemainingPushBudget, notifyMany } from "../lib/notifications";
 import { getEmailProvider } from "../lib/email";
 import { brand } from "@event-app/config";
+import { validationErrorBody } from "../lib/errors";
 
 export const announcementsRouter = Router();
 
@@ -164,7 +165,7 @@ announcementsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = composeSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });

@@ -15,6 +15,7 @@ import { prisma } from "../lib/db";
 import { requireFeature } from "../lib/features";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { resolveEventFromRequest } from "../lib/requestEvent";
+import { validationErrorBody } from "../lib/errors";
 
 export const opsRouter = Router();
 
@@ -110,7 +111,7 @@ opsRouter.patch(
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     await requireFeature(event.id, "ops_agent");
     const parsed = blocklistSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const updated = await prisma.event.update({
       where: { id: event.id },
@@ -130,7 +131,7 @@ opsRouter.patch(
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     await requireFeature(event.id, "ops_agent");
     const parsed = editSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     try {
       const card = await editOpsCard({

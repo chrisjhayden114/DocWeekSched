@@ -6,6 +6,7 @@ import { prisma } from "../lib/db";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { notifyMany } from "../lib/notifications";
+import { validationErrorBody } from "../lib/errors";
 
 export const moderationRouter = Router();
 
@@ -15,7 +16,7 @@ moderationRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = z.object({ userId: z.string().min(1) }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     const blockerId = req.user!.id;
     const blockedId = parsed.data.userId;
@@ -59,7 +60,7 @@ moderationRouter.post(
         details: z.string().max(2000).optional(),
       })
       .safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     const reporterId = req.user!.id;
     await requireEventAccess(reporterId, event.id);
@@ -121,7 +122,7 @@ moderationRouter.post(
     const parsed = z
       .object({ status: z.enum(["REVIEWED", "DISMISSED"]) })
       .safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const updated = await prisma.userReport.updateMany({

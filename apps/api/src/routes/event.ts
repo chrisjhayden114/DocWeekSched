@@ -18,6 +18,7 @@ import { ensureUniqueEventSlug, slugifyEventBase } from "../lib/slug";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { hashToken } from "../lib/auth";
+import { validationErrorBody } from "../lib/errors";
 
 export const eventRouter = Router();
 
@@ -203,7 +204,7 @@ eventRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = eventSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const { assertCanCreateEvent, limit } = await import("../lib/billing");
@@ -292,7 +293,7 @@ eventRouter.put(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = eventSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);
@@ -406,7 +407,7 @@ eventRouter.patch(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = statusSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const updated = await prisma.event.update({
@@ -468,7 +469,7 @@ eventRouter.patch(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = inviteLinkSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
@@ -585,7 +586,7 @@ eventRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = featuresPutSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
 

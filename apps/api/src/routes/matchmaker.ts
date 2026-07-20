@@ -19,6 +19,7 @@ import {
 import { getDirectConversation } from "../lib/conversations";
 import { prisma } from "../lib/db";
 import { AI_GENERATED_CHIP_LABEL } from "@event-app/shared";
+import { validationErrorBody } from "../lib/errors";
 
 export const matchmakerRouter = Router();
 
@@ -84,7 +85,7 @@ matchmakerRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = matchMeSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
     await requireFeature(event.id, "matchmaker");
@@ -103,7 +104,7 @@ matchmakerRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = refreshSchema.safeParse(req.body ?? {});
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
     await requireFeature(event.id, "matchmaker");
@@ -162,7 +163,7 @@ matchmakerRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = draftSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);

@@ -42,6 +42,7 @@ import { getEmailProvider } from "../lib/email";
 import type { AuthedRequest } from "../lib/middleware";
 import { requireAuth, requireCsrf } from "../lib/middleware";
 import { getStorageProvider } from "../lib/storage";
+import { validationErrorBody } from "../lib/errors";
 
 export const cfpRouter = Router();
 
@@ -202,7 +203,7 @@ cfpRouter.post(
   asyncHandler(async (req, res) => {
     const slug = String(req.params.slug || "").toLowerCase();
     const parsed = publicSubmitSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const event = await prisma.event.findUnique({ where: { slug } });
     if (!event) throw new HttpError(404, { error: "Event not found" });
@@ -390,7 +391,7 @@ cfpRouter.post(
     if (!eventId) throw new HttpError(400, { error: "x-event-id required" });
     await requireCfpManage(req.user!.id, eventId);
     const parsed = formUpsertSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const opensAt = new Date(parsed.data.opensAt);
     const closesAt = new Date(parsed.data.closesAt);
@@ -434,7 +435,7 @@ cfpRouter.put(
     await requireCfpManage(req.user!.id, eventId);
     const form = await loadFormForEvent(eventId, req.params.formId);
     const parsed = formUpsertSchema.partial().safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const updated = await prisma.cfpForm.update({
       where: { id: form.id },
@@ -622,7 +623,7 @@ cfpRouter.post(
     await requireCfpManage(req.user!.id, eventId);
     const form = await loadFormForEvent(eventId, req.params.formId);
     const parsed = reviewersSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const added = [];
     for (const userId of parsed.data.userIds) {
@@ -669,7 +670,7 @@ cfpRouter.post(
     const access = await requireCfpManage(req.user!.id, eventId);
     const form = await loadFormForEvent(eventId, req.params.formId);
     const parsed = decisionSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const status =
       parsed.data.decision === "ACCEPT" ? CfpSubmissionStatus.ACCEPTED : CfpSubmissionStatus.REJECTED;
@@ -807,7 +808,7 @@ cfpRouter.post(
     await requireCfpManage(req.user!.id, eventId);
     const form = await loadFormForEvent(eventId, req.params.formId);
     const parsed = convertSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const results = [];
     for (const item of parsed.data.items) {
@@ -927,7 +928,7 @@ cfpRouter.put(
       throw new HttpError(403, { error: "Forbidden" });
     }
     const parsed = scoreSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     if (parsed.data.recuse) {
       const updated = await prisma.cfpReview.update({

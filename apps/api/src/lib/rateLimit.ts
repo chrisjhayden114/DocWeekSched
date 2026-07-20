@@ -77,6 +77,11 @@ export type RateLimitOptions = {
 /**
  * Fixed-window rate limit (default 5 requests / minute), with exponential
  * backoff once a window is exceeded or failures are noted.
+ *
+ * Mount ROUTE-LEVEL (as middleware on a specific `router.get/post(...)`), or
+ * pass an explicit `name`. Mounting via `router.use(authRateLimit())` is wrong:
+ * `req.route` is unset at that point, so keys fall back to the concrete path and
+ * path-param enumeration reopens (each guessed ID gets its own bucket).
  */
 export function authRateLimit(opts?: RateLimitOptions) {
   const windowMs = opts?.windowMs ?? 60_000;

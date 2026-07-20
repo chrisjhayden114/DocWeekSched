@@ -11,6 +11,7 @@ import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { can, upgradePayload } from "../lib/billing/entitlements";
 import { requireFeature, featureEnabled } from "../lib/features";
 import { authRateLimit } from "../lib/rateLimit";
+import { validationErrorBody } from "../lib/errors";
 import {
   enqueueCertificateBatchIssue,
   issueCertificateForUser,
@@ -87,7 +88,7 @@ certificatesRouter.post(
 
     const parsed = templateBodySchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new HttpError(400, { error: "Invalid certificate template", details: parsed.error.flatten() });
+      throw new HttpError(400, validationErrorBody(parsed.error, "Invalid certificate template"));
     }
 
     const validated = await validateTemplateEligibility({
@@ -133,7 +134,7 @@ certificatesRouter.put(
 
     const parsed = templateBodySchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new HttpError(400, { error: "Invalid certificate template", details: parsed.error.flatten() });
+      throw new HttpError(400, validationErrorBody(parsed.error, "Invalid certificate template"));
     }
 
     const validated = await validateTemplateEligibility({

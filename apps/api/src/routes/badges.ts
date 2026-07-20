@@ -10,6 +10,7 @@ import { prisma } from "../lib/db";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { can, upgradePayload } from "../lib/billing/entitlements";
 import { longestName, renderBadgePdf, type BadgeAttendee } from "../lib/badges";
+import { validationErrorBody } from "../lib/errors";
 
 export const badgesRouter = Router();
 
@@ -66,7 +67,7 @@ badgesRouter.put(
     await assertBadgesEntitlement(access.event.organizationId);
 
     const parsed = templateBodySchema.safeParse(req.body);
-    if (!parsed.success) throw new HttpError(400, { error: "Invalid badge template", details: parsed.error.flatten() });
+    if (!parsed.success) throw new HttpError(400, validationErrorBody(parsed.error, "Invalid badge template"));
 
     const template = await prisma.badgeTemplate.upsert({
       where: { eventId: access.event.id },
@@ -113,7 +114,7 @@ badgesRouter.post(
     await assertBadgesEntitlement(access.event.organizationId);
 
     const parsed = pdfQuerySchema.safeParse(req.body ?? {});
-    if (!parsed.success) throw new HttpError(400, { error: "Invalid PDF options", details: parsed.error.flatten() });
+    if (!parsed.success) throw new HttpError(400, validationErrorBody(parsed.error, "Invalid PDF options"));
 
     let template = await prisma.badgeTemplate.findUnique({ where: { eventId: access.event.id } });
     if (!template) {

@@ -31,6 +31,7 @@ import { env } from "../lib/env";
 import type { AuthedRequest } from "../lib/middleware";
 import { requireAuth, requireCsrf } from "../lib/middleware";
 import { loadFeatureOverrides } from "../lib/features";
+import { validationErrorBody } from "../lib/errors";
 
 export const setupCopilotRouter = Router();
 
@@ -118,7 +119,7 @@ setupCopilotRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = turnSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const { mode, userMessage } = parsed.data;
     const form = parsed.data.form as SetupCopilotFormState;
@@ -183,7 +184,7 @@ setupCopilotRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = confirmFeaturesSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     await requireEventAccess(req.user!.id, parsed.data.eventId, { manage: true });
     const event = await prisma.event.findUniqueOrThrow({
@@ -195,7 +196,11 @@ setupCopilotRouter.post(
       assertRegistryKeys(parsed.data.overrides);
     } catch (err) {
       if (err instanceof UnknownFeatureKeyError) {
-        return res.status(400).json({ error: err.message, unknownKeys: err.unknownKeys });
+        return res.status(400).json({
+          error: "Unknown feature key(s).",
+          code: "UNKNOWN_FEATURE_KEYS",
+          details: { keys: err.unknownKeys },
+        });
       }
       throw err;
     }
@@ -247,7 +252,7 @@ setupCopilotRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = proposeSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     let current = {};
     let liveEvent = !!parsed.data.liveEvent;
@@ -272,7 +277,11 @@ setupCopilotRouter.post(
       return res.json(card);
     } catch (err) {
       if (err instanceof UnknownFeatureKeyError) {
-        return res.status(400).json({ error: err.message, unknownKeys: err.unknownKeys });
+        return res.status(400).json({
+          error: "Unknown feature key(s).",
+          code: "UNKNOWN_FEATURE_KEYS",
+          details: { keys: err.unknownKeys },
+        });
       }
       throw err;
     }
@@ -290,7 +299,7 @@ setupCopilotRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = completeSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     await requireOrgRole(req.user!.id, parsed.data.organizationId, OrgRole.STAFF);
     const { assertCanCreateEvent } = await import("../lib/billing");
@@ -323,7 +332,7 @@ setupCopilotRouter.post(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = formStateSchema.safeParse(req.body?.form ?? req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     return res.json({ form: parsed.data, preserved: true, aiGenerated: true as const });
   }),
 );

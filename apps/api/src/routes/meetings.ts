@@ -7,6 +7,7 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { assertMutuallyVisible } from "../lib/visibility";
 import { notifyMany } from "../lib/notifications";
+import { validationErrorBody } from "../lib/errors";
 
 export const meetingsRouter = Router();
 
@@ -53,7 +54,7 @@ meetingsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = createSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     const fromUserId = req.user!.id;
     const toUserId = parsed.data.toUserId;

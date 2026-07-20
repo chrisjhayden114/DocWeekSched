@@ -6,6 +6,7 @@ import { prisma } from "../lib/db";
 import { cloneNextEdition } from "../lib/seriesClone";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { validationErrorBody } from "../lib/errors";
 
 export const seriesRouter = Router();
 
@@ -31,7 +32,7 @@ seriesRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = nextEditionSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     await requireOrgRole(req.user!.id, parsed.data.organizationId, OrgRole.STAFF);
     await requireEventAccess(req.user!.id, parsed.data.sourceEventId, { manage: true });
@@ -49,8 +50,12 @@ seriesRouter.post(
       });
       return res.status(201).json(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Clone failed";
-      throw new HttpError(400, { error: message });
+      if (err instanceof HttpError) throw err;
+      const { log } = await import("../lib/log");
+      log("warn", "series clone failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      throw new HttpError(400, { error: "Could not clone event series.", code: "CLONE_FAILED" });
     }
   }),
 );
@@ -68,7 +73,7 @@ seriesRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = consentSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     const series = await prisma.eventSeries.findUnique({ where: { id: parsed.data.seriesId } });
     if (!series) return res.status(404).json({ error: "Series not found" });

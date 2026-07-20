@@ -5,6 +5,7 @@ import { asyncHandler, requireOrgRole } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { uiEventStatus } from "../lib/eventStatus";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { validationErrorBody } from "../lib/errors";
 
 export const organizationsRouter = Router();
 
@@ -64,7 +65,7 @@ organizationsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = createOrgSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     const slugBase =
       parsed.data.slug?.trim().toLowerCase() ||

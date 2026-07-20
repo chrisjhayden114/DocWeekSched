@@ -5,6 +5,7 @@ import { asyncHandler, requireOrgRole } from "../lib/authorization";
 import { summarizeAiUsage } from "../lib/ai";
 import { prisma } from "../lib/db";
 import { AuthedRequest, requireAuth } from "../lib/middleware";
+import { validationErrorBody } from "../lib/errors";
 
 export const aiUsageRouter = Router();
 
@@ -18,7 +19,7 @@ aiUsageRouter.get(
         days: z.coerce.number().int().min(1).max(90).optional(),
       })
       .safeParse(req.query);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const orgId = parsed.data.organizationId;
     await requireOrgRole(req.user!.id, orgId, OrgRole.STAFF);

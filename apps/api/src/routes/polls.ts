@@ -9,6 +9,7 @@ import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorizatio
 import { prisma } from "../lib/db";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
+import { validationErrorBody } from "../lib/errors";
 
 export const pollsRouter = Router();
 
@@ -75,7 +76,7 @@ pollsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = createSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const session = await sessionForPoll(req.params.sessionId);
     if (!session) throw new HttpError(404, { error: "Session not found" });
     await requireEventAccess(req.user!.id, session.eventId, { manage: true });
@@ -153,7 +154,7 @@ pollsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = voteSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const poll = await prisma.sessionPoll.findUnique({
       where: { id: req.params.pollId },

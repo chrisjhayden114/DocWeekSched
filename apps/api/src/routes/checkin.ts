@@ -11,6 +11,7 @@ import { prisma } from "../lib/db";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { requireAuth, requireCsrf, AuthedRequest } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
+import { validationErrorBody } from "../lib/errors";
 
 export const checkinRouter = Router();
 
@@ -120,7 +121,7 @@ checkinRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = staffScanSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     if (!parsed.data.checkInCode && !parsed.data.userId) {
       return res.status(400).json({ error: "checkInCode or userId required" });
     }

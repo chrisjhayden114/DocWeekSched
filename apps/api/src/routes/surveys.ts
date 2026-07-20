@@ -4,6 +4,7 @@ import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorizatio
 import { prisma } from "../lib/db";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { requireAuth, requireCsrf, AuthedRequest } from "../lib/middleware";
+import { validationErrorBody } from "../lib/errors";
 
 export const surveysRouter = Router();
 
@@ -40,7 +41,7 @@ surveysRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = surveySchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);
@@ -81,7 +82,7 @@ surveysRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = answerSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);

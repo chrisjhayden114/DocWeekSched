@@ -25,6 +25,7 @@ import {
   noteIdentifierFailure,
 } from "../lib/rateLimit";
 import { resolveEventFromRequest, getRequestedEventId } from "../lib/requestEvent";
+import { validationErrorBody } from "../lib/errors";
 
 export const authRouter = Router();
 
@@ -89,7 +90,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     try {
@@ -161,7 +162,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = adminRegisterSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     if (!env.adminInviteCode || parsed.data.inviteCode !== env.adminInviteCode) {
       noteAuthFailure(req);
@@ -214,7 +215,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const { email, password } = parsed.data;
@@ -297,7 +298,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = forgotPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const email = parsed.data.email.trim();
@@ -341,7 +342,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = resetPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     try {
@@ -470,7 +471,7 @@ authRouter.put(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = profileSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const user = await prisma.user.update({
@@ -547,7 +548,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = profileSetupSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     try {

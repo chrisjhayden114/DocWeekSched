@@ -10,6 +10,7 @@ import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
 import { assertMutuallyVisible } from "../lib/visibility";
 import { authorOrDeleted } from "../lib/authorDisplay";
+import { validationErrorBody } from "../lib/errors";
 
 export const conversationsRouter = Router();
 
@@ -81,7 +82,7 @@ conversationsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = createDirectSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const userId = req.user!.id;
@@ -129,7 +130,7 @@ conversationsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = createGroupSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const userId = req.user!.id;
@@ -206,7 +207,7 @@ conversationsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = messageSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const userId = req.user!.id;
@@ -282,7 +283,7 @@ conversationsRouter.patch(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = messageSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const userId = req.user!.id;

@@ -9,6 +9,7 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { featureKeyForNetworkChannel, requireFeature, featureEnabled } from "../lib/features";
 import { authorOrDeleted } from "../lib/authorDisplay";
+import { validationErrorBody } from "../lib/errors";
 
 export const networkRouter = Router();
 
@@ -95,7 +96,7 @@ networkRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = threadSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);
@@ -212,7 +213,7 @@ networkRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = replySchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);
@@ -328,7 +329,7 @@ networkRouter.patch(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = threadEditSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
 

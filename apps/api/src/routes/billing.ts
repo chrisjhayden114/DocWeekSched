@@ -20,6 +20,7 @@ import {
   limit,
   processVerifiedWebhook,
 } from "../lib/billing";
+import { validationErrorBody } from "../lib/errors";
 
 export const billingRouter = Router();
 
@@ -112,7 +113,7 @@ billingRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = checkoutSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     await requireOrgRole(req.user!.id, parsed.data.organizationId, OrgRole.ADMIN);
 
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
@@ -184,7 +185,12 @@ export async function handleBillingWebhook(req: AuthedRequest, res: import("expr
   try {
     verified = provider.verifyWebhook(raw, signature);
   } catch (err) {
-    return res.status(401).json({ error: err instanceof Error ? err.message : "Invalid signature" });
+    // Never echo provider/crypto error strings to the client.
+    const { log } = await import("../lib/log");
+    log("warn", "billing webhook signature verification failed", {
+      detail: err instanceof Error ? err.message : String(err),
+    });
+    return res.status(401).json({ error: "Invalid signature", code: "INVALID_SIGNATURE" });
   }
   const result = await processVerifiedWebhook(verified);
   return res.json({ ok: true, ...result });

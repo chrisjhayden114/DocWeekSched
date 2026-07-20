@@ -11,6 +11,7 @@ import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { can, upgradePayload } from "../lib/billing/entitlements";
 import { requireFeature } from "../lib/features";
 import { resolveEventFromRequest } from "../lib/requestEvent";
+import { validationErrorBody } from "../lib/errors";
 import {
   enqueueRecapGenerate,
   generateEventRecap,
@@ -95,7 +96,7 @@ recapRouter.post(
     assertEventEnded(event.endDate);
 
     const parsed = generateSchema.safeParse(req.body ?? {});
-    if (!parsed.success) throw new HttpError(400, { error: "Invalid body", details: parsed.error.flatten() });
+    if (!parsed.success) throw new HttpError(400, validationErrorBody(parsed.error));
 
     if (parsed.data.sync) {
       const result = await generateEventRecap({
@@ -154,7 +155,7 @@ recapRouter.patch(
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await loadEventForRecap(req);
     const parsed = editSectionSchema.safeParse(req.body);
-    if (!parsed.success) throw new HttpError(400, { error: "Invalid body", details: parsed.error.flatten() });
+    if (!parsed.success) throw new HttpError(400, validationErrorBody(parsed.error, "Invalid body"));
 
     const section = await prisma.eventRecapSection.findFirst({
       where: {
@@ -188,7 +189,7 @@ recapRouter.patch(
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await loadEventForRecap(req);
     const parsed = editEmailSchema.safeParse(req.body);
-    if (!parsed.success) throw new HttpError(400, { error: "Invalid body", details: parsed.error.flatten() });
+    if (!parsed.success) throw new HttpError(400, validationErrorBody(parsed.error, "Invalid body"));
 
     const email = await prisma.eventRecapEmail.findFirst({
       where: {

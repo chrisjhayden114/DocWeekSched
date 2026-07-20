@@ -7,6 +7,8 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { getStorageProvider } from "../lib/storage";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { clampPercent } from "@event-app/shared";
+import { uploadHttpError, validationErrorBody } from "../lib/errors";
+import { getRequestId } from "../lib/requestId";
 
 export const mapsRouter = Router();
 
@@ -91,7 +93,7 @@ mapsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = mapSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
 
@@ -105,7 +107,7 @@ mapsRouter.post(
       });
       imageUrl = stored.url;
     } catch (err) {
-      return res.status(400).json({ error: err instanceof Error ? err.message : "Upload failed" });
+      throw uploadHttpError(err, getRequestId(req));
     }
 
     const map = await prisma.venueMap.create({
@@ -168,7 +170,7 @@ mapsRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = mapUpdateSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const existing = await loadMapForEvent(req.params.id, event.id);
@@ -185,7 +187,7 @@ mapsRouter.put(
         });
         imageUrl = stored.url;
       } catch (err) {
-        return res.status(400).json({ error: err instanceof Error ? err.message : "Upload failed" });
+        throw uploadHttpError(err, getRequestId(req));
       }
     }
 
@@ -239,7 +241,7 @@ mapsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = pinSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const map = await loadMapForEvent(req.params.id, event.id);
@@ -272,7 +274,7 @@ mapsRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = pinSchema.partial().safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const map = await loadMapForEvent(req.params.id, event.id);

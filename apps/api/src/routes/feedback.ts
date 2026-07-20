@@ -8,6 +8,7 @@ import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorizatio
 import { prisma } from "../lib/db";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
+import { validationErrorBody } from "../lib/errors";
 
 export const feedbackRouter = Router();
 
@@ -65,7 +66,7 @@ feedbackRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = submitSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const session = await prisma.session.findUnique({
       where: { id: req.params.sessionId },

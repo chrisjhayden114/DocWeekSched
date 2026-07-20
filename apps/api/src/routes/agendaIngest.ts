@@ -23,6 +23,7 @@ import type { AuthedRequest } from "../lib/middleware";
 import { requireAuth, requireCsrf } from "../lib/middleware";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { getStorageProvider } from "../lib/storage";
+import { validationErrorBody } from "../lib/errors";
 
 export const agendaIngestRouter = Router();
 
@@ -134,7 +135,7 @@ agendaIngestRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = startSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);
@@ -257,7 +258,7 @@ agendaIngestRouter.patch(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = reviewSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);
@@ -299,7 +300,7 @@ agendaIngestRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = confirmSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);

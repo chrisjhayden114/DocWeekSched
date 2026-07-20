@@ -13,6 +13,7 @@ import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { authRateLimit } from "../lib/rateLimit";
 import { randomBytes } from "crypto";
 import { requireFeature } from "../lib/features";
+import { validationErrorBody } from "../lib/errors";
 
 export const attendeesRouter = Router();
 
@@ -243,7 +244,7 @@ attendeesRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = z.object({ directoryOptIn: z.boolean() }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
     const updated = await prisma.eventMembership.updateMany({
@@ -272,7 +273,7 @@ attendeesRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = z.object({ matchMeEnabled: z.boolean() }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
     const updated = await prisma.eventMembership.updateMany({
@@ -291,7 +292,7 @@ attendeesRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = inviteSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
@@ -328,7 +329,7 @@ attendeesRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = dryRunSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
@@ -358,7 +359,7 @@ attendeesRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = inviteBulkSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });

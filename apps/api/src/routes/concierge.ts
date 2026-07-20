@@ -16,6 +16,7 @@ import {
   listConversationMessages,
   runConciergeTurn,
 } from "../lib/ai/concierge";
+import { validationErrorBody } from "../lib/errors";
 
 export const conciergeRouter = Router();
 
@@ -67,7 +68,7 @@ conciergeRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = turnSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
@@ -106,7 +107,7 @@ conciergeRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = confirmSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
@@ -157,7 +158,7 @@ eventFaqRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = faqBodySchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const max = await prisma.eventFaq.aggregate({
@@ -182,7 +183,7 @@ eventFaqRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = faqBodySchema.partial().safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const existing = await prisma.eventFaq.findFirst({

@@ -14,6 +14,7 @@ import { createSampleEventForOrg } from "../lib/demoEvent";
 import { assertCanCreateEvent } from "../lib/billing/entitlements";
 import { getPrimaryChecklistForUser } from "../lib/onboarding/checklist";
 import { OrgRole } from "@prisma/client";
+import { validationErrorBody } from "../lib/errors";
 
 export const accountRouter = Router();
 
@@ -74,7 +75,7 @@ accountRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = deleteRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
     try {
       const result = await requestAccountDeletion({
@@ -203,7 +204,7 @@ accountRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = sampleEventSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const membership = await prisma.orgMembership.findFirst({

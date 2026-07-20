@@ -4,6 +4,7 @@ import { asyncHandler } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { vapidPublicKey } from "../lib/push/webPush";
+import { validationErrorBody } from "../lib/errors";
 
 export const pushRouter = Router();
 
@@ -30,7 +31,7 @@ pushRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = subscribeSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const userId = req.user!.id;
     const row = await prisma.pushSubscription.upsert({
       where: { endpoint: parsed.data.endpoint },

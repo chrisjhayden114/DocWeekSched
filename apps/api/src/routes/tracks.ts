@@ -4,6 +4,7 @@ import { asyncHandler, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { validationErrorBody } from "../lib/errors";
 
 export const tracksRouter = Router();
 
@@ -33,7 +34,7 @@ tracksRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = trackSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const track = await prisma.track.create({
@@ -54,7 +55,7 @@ tracksRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = trackSchema.partial().safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
     const existing = await prisma.track.findFirst({ where: { id: req.params.id, eventId: event.id } });

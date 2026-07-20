@@ -11,6 +11,8 @@ import { requireFeature } from "../lib/features";
 import { sessionVisibilityWhere, isSessionAttendeeVisible } from "../lib/ai/ingest/visibility";
 import { recordSessionScheduleChange } from "../lib/ai/ops/scheduleChange";
 import { authorOrDeleted } from "../lib/authorDisplay";
+import { uploadHttpError, validationErrorBody } from "../lib/errors";
+import { getRequestId } from "../lib/requestId";
 
 export const sessionsRouter = Router();
 
@@ -258,7 +260,7 @@ sessionsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = resourceSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const session = await findSessionWithEvent(req.params.id);
@@ -291,8 +293,7 @@ sessionsRouter.post(
         url = stored.url;
         storageKey = stored.storageKey;
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Upload failed";
-        return res.status(400).json({ error: message });
+        throw uploadHttpError(err, getRequestId(req));
       }
     }
 
@@ -393,7 +394,7 @@ sessionsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = sessionSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const event = await resolveEventFromRequest(req);
@@ -441,7 +442,7 @@ sessionsRouter.put(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = sessionSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const existing = await findSessionWithEvent(req.params.id);
@@ -561,7 +562,7 @@ sessionsRouter.put(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = attendanceSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const sessionRow = await findSessionWithEvent(req.params.id);
@@ -612,14 +613,13 @@ sessionsRouter.put(
 
     if (result.kind === "waitlisted") {
       return res.status(409).json({
-        ok: false,
+        error: result.message,
         code: "SESSION_FULL",
+        ok: false,
         waitlisted: true,
         position: result.position,
         capacity: result.capacity,
         current: result.current,
-        error: result.message,
-        message: result.message,
       });
     }
 
@@ -855,7 +855,7 @@ sessionsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = threadSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const session = await findSessionWithEvent(req.params.id);
@@ -893,7 +893,7 @@ sessionsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = replySchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
+      return res.status(400).json(validationErrorBody(parsed.error));
     }
 
     const session = await findSessionWithEvent(req.params.id);
@@ -1111,7 +1111,7 @@ sessionsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = sessionItemSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const session = await findSessionWithEvent(req.params.id);
     if (!session) throw new HttpError(404, { error: "Session not found" });
     await requireEventAccess(req.user!.id, session.eventId, { manage: true });
@@ -1156,7 +1156,7 @@ sessionsRouter.put(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = sessionItemSchema.partial().safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const session = await findSessionWithEvent(req.params.id);
     if (!session) throw new HttpError(404, { error: "Session not found" });
     await requireEventAccess(req.user!.id, session.eventId, { manage: true });
@@ -1212,7 +1212,7 @@ sessionsRouter.post(
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = z.object({ itemIds: z.array(z.string()).min(1) }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const session = await findSessionWithEvent(req.params.id);
     if (!session) throw new HttpError(404, { error: "Session not found" });
     await requireEventAccess(req.user!.id, session.eventId, { manage: true });
