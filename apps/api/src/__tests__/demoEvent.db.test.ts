@@ -20,6 +20,7 @@ import {
 } from "../lib/demoEvent";
 import { getPublicEventBySlug } from "../lib/publicEvent";
 import { rejectDemoMutations } from "../lib/demoEvent/middleware";
+import { ensureUniqueEventSlug, isReservedEventSlug } from "../lib/slug";
 import type { Request, Response } from "express";
 
 describe("Phase 6 demo event (DB)", () => {
@@ -103,6 +104,57 @@ describe("Phase 6 demo event (DB)", () => {
       expect(status).toBe(403);
       expect(body.code).toBe("DEMO_READ_ONLY");
     }
+  });
+
+  it("refuses reset when the demo slug is held by a non-internal org", async () => {
+    if (!dbReady) return;
+    const original = await prisma.event.findUniqueOrThrow({
+      where: { slug: brand.demoEventSlug },
+      select: { id: true, organizationId: true },
+    });
+    const squatterOrg = await prisma.organization.create({
+      data: {
+        name: "Slug Squatter Test Org",
+        slug: `test-squatter-${Date.now().toString(36)}`,
+        plan: "FREE",
+      },
+    });
+    try {
+      await prisma.event.update({
+        where: { id: original.id },
+        data: { organizationId: squatterOrg.id },
+      });
+      await expect(resetPublicDemoEvent()).rejects.toThrow(/Refusing demo reset/);
+      // The squatter's event survived untouched.
+      const stillThere = await prisma.event.findUnique({ where: { id: original.id } });
+      expect(stillThere?.organizationId).toBe(squatterOrg.id);
+    } finally {
+      await prisma.event.update({
+        where: { id: original.id },
+        data: { organizationId: original.organizationId },
+      });
+      await prisma.organization.delete({ where: { id: squatterOrg.id } });
+    }
+    // Back under the internal org, reset works again.
+    const after = await resetPublicDemoEvent();
+    expect(after.eventId).toBe(original.id);
+  });
+
+  it("slug generation never yields reserved demo/sample slugs", async () => {
+    if (!dbReady) return;
+    const demoSlug = await ensureUniqueEventSlug("demo");
+    expect(demoSlug).not.toBe(brand.demoEventSlug);
+    expect(isReservedEventSlug(demoSlug)).toBe(false);
+
+    const sampleSlug = await ensureUniqueEventSlug("sample-foo");
+    expect(sampleSlug).not.toBe("sample-foo");
+    expect(sampleSlug.startsWith("sample-")).toBe(false);
+    expect(isReservedEventSlug(sampleSlug)).toBe(false);
+
+    // Requesting an exact reserved slug on create/update goes through
+    // ensureUniqueEventSlug, so customers can never claim these.
+    const exact = await ensureUniqueEventSlug(brand.demoEventSlug);
+    expect(isReservedEventSlug(exact)).toBe(false);
   });
 
   it("GET requests are not blocked by demo middleware", async () => {

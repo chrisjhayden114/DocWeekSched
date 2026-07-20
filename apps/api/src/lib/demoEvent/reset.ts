@@ -117,6 +117,16 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
   let event = await prisma.event.findUnique({ where: { slug: brand.demoEventSlug } });
   let created = false;
 
+  // Second safety condition (independent of slug reservation): never wipe an
+  // event that is not the internal org's. If a non-internal event somehow holds
+  // the demo slug, refuse loudly instead of destroying it.
+  if (event && event.organizationId !== org.id) {
+    throw new Error(
+      `Refusing demo reset: event holding slug "${brand.demoEventSlug}" (id ${event.id}) ` +
+        `does not belong to the internal org "${brand.internalOrgSlug}".`,
+    );
+  }
+
   if (!event) {
     created = true;
     event = await prisma.event.create({
