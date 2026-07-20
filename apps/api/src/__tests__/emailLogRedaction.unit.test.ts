@@ -10,7 +10,7 @@ import { redactEmails } from "../lib/email/redact";
 const RECIPIENT = "attendee.pii@example.org";
 
 function loggedText(spy: ReturnType<typeof vi.spyOn>): string {
-  return spy.mock.calls.map((args) => args.map(String).join(" ")).join("\n");
+  return spy.mock.calls.map((args: unknown[]) => args.map(String).join(" ")).join("\n");
 }
 
 afterEach(() => {
