@@ -42,6 +42,10 @@ import { badgesRouter } from "./routes/badges";
 import { certificatesRouter, verifyRouter } from "./routes/certificates";
 import { accountRouter } from "./routes/account";
 import { asyncHandler } from "./lib/authorization";
+import { prisma } from "./lib/db";
+import { log } from "./lib/log";
+import { getRequestId, requestIdMiddleware } from "./lib/requestId";
+import { captureException, initSentry } from "./lib/sentry";
 import { flushQueuedPushes, notifySessionStartingSoon } from "./lib/notifications";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
 import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
@@ -54,9 +58,12 @@ import {
   registerDemoEventJobs,
   rejectDemoMutations,
 } from "./lib/demoEvent";
-import { enqueueJob, startJobPoller } from "./lib/jobs";
-const app = express();
+import { evaluateReadiness } from "./lib/health";
+import { enqueueJob, getJobPollerHeartbeatAgeMs, startJobPoller } from "./lib/jobs";
 
+initSentry();
+
+const app = express();
 
 const configuredOrigin = env.webBaseUrl.trim().replace(/\/$/, "");
 const allowedOrigins = new Set<string>([configuredOrigin]);
@@ -72,6 +79,7 @@ try {
 }
 
 app.set("trust proxy", 1);
+app.use(requestIdMiddleware);
 app.use(securityHeaders);
 app.use(
   cors({
@@ -113,7 +121,36 @@ app.use((req, res, next) => {
   void rejectDemoMutations(req, res, next);
 });
 
+/** Liveness — process is up. Does not touch the DB. */
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+/**
+ * Readiness — DB reachable + job poller has ticked recently.
+ * Uptime monitors / Render health checks should point here.
+ */
+app.get(
+  "/health/ready",
+  asyncHandler(async (_req, res) => {
+    let dbOk = false;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      dbOk = true;
+    } catch (err) {
+      log("error", "health/ready db check failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
+    const jobPollerAgeMs = getJobPollerHeartbeatAgeMs();
+    const staleMs = Number(process.env.JOB_POLL_STALE_MS || 60_000);
+    const { ok: ready, jobPollerOk } = evaluateReadiness({ dbOk, jobPollerAgeMs, staleMs });
+    return res.status(ready ? 200 : 503).json({
+      ok: ready,
+      db: dbOk,
+      jobPollerAgeMs,
+      jobPollerOk,
+    });
+  }),
+);
 
 app.use("/auth", authRouter);
 app.use("/account", accountRouter);
@@ -155,34 +192,51 @@ app.use("/checkins", checkinRouter);
 app.use("/network", networkRouter);
 app.use("/notifications", notificationsRouter);
 
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const requestId = getRequestId(req);
   if (err instanceof Error && err.message.startsWith("CORS blocked")) {
-    return res.status(403).json({ error: "Origin not allowed" });
+    return res.status(403).json({ error: "Origin not allowed", requestId });
   }
   if (err && typeof err === "object" && "status" in err && "body" in err) {
     const httpErr = err as { status: number; body: Record<string, unknown> };
     if (typeof httpErr.status === "number" && httpErr.status >= 400 && httpErr.status < 600) {
-      return res.status(httpErr.status).json(httpErr.body);
+      return res.status(httpErr.status).json({ ...httpErr.body, requestId });
     }
   }
-  console.error(err);
-  return res.status(500).json({ error: "Internal server error" });
+  log("error", "unhandled request error", {
+    requestId,
+    detail: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+  });
+  captureException(err, { requestId });
+  return res.status(500).json({ error: "Internal server error", requestId });
 });
 
 app.listen(env.apiPort, () => {
-  console.log(`API listening on ${env.apiPort}`);
+  log("info", `API listening on ${env.apiPort}`);
   if (env.cookieSameSite === "none") {
-    console.warn(
+    log(
+      "warn",
       "[auth] COOKIE_SAMESITE=none (cross-site interim). Prefer api.ukedl.com + COOKIE_DOMAIN=.ukedl.com + SameSite=Lax.",
     );
   } else if (env.cookieDomain) {
-    console.log(`[auth] Session cookies Domain=${env.cookieDomain} SameSite=${env.cookieSameSite}`);
+    log("info", `[auth] Session cookies Domain=${env.cookieDomain} SameSite=${env.cookieSameSite}`);
   }
 
   const tickMs = Number(process.env.NOTIFICATION_JOB_INTERVAL_MS || 60_000);
   setInterval(() => {
-    void flushQueuedPushes().catch((err) => console.error("[notifications] flushQueuedPushes", err));
-    void notifySessionStartingSoon().catch((err) => console.error("[notifications] sessionStartingSoon", err));
+    void flushQueuedPushes().catch((err) => {
+      log("error", "flushQueuedPushes failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      captureException(err, { tags: { area: "notifications" } });
+    });
+    void notifySessionStartingSoon().catch((err) => {
+      log("error", "notifySessionStartingSoon failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      captureException(err, { tags: { area: "notifications" } });
+    });
   }, tickMs);
 
   // Periodic ops detector sweep (enqueue per-event jobs; never auto-applies cards).
@@ -191,7 +245,12 @@ app.listen(env.apiPort, () => {
     void enqueueJob({
       type: OPS_DETECT_SWEEP_JOB,
       payload: {},
-    }).catch((err) => console.error("[ops] detect sweep enqueue", err));
+    }).catch((err) => {
+      log("error", "ops detect sweep enqueue failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      captureException(err, { tags: { area: "ops_sweep" } });
+    });
   }, opsSweepMs);
 
   registerAgendaIngestJob();
@@ -201,8 +260,11 @@ app.listen(env.apiPort, () => {
   registerRecapJobs();
   registerAccountDeletionJobs();
   registerDemoEventJobs();
-  void ensureNightlyDemoResetScheduled().catch((err) =>
-    console.error("[demo] schedule nightly reset", err),
-  );
+  void ensureNightlyDemoResetScheduled().catch((err) => {
+    log("error", "schedule nightly demo reset failed", {
+      detail: err instanceof Error ? err.message : String(err),
+    });
+    captureException(err, { tags: { area: "demo_schedule" } });
+  });
   startJobPoller();
 });

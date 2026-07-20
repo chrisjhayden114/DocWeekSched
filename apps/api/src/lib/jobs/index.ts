@@ -1,6 +1,8 @@
 import { BackgroundJobStatus, type Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { writeAuditLog } from "../ai/audit";
+import { log } from "../log";
+import { captureException } from "../sentry";
 
 export type JobHandler = (job: {
   id: string;
@@ -166,10 +168,18 @@ async function runOne(jobId: string): Promise<void> {
     const message = err instanceof Error ? err.message : "Job failed";
     const nextAttempts = job.attempts + 1;
     const dead = nextAttempts >= job.maxAttempts;
+    log("error", "background job failed", {
+      jobId,
+      type: job.type,
+      detail: message,
+      dead,
+    });
+    captureException(err, { tags: { jobType: job.type, jobId }, extra: { dead } });
     await prisma.backgroundJob.update({
       where: { id: jobId },
       data: {
         status: dead ? BackgroundJobStatus.DEAD : BackgroundJobStatus.FAILED,
+        // Stored for ops/audit; GET /jobs/:id never echoes this raw string to clients.
         error: message,
         finishedAt: dead ? new Date() : null,
         ...(dead ? {} : { scheduledAt: new Date(Date.now() + 30_000) }),
@@ -188,11 +198,35 @@ async function runOne(jobId: string): Promise<void> {
 }
 
 let pollerStarted = false;
+/** Last time the poller tick finished (success or caught failure). */
+let lastPollerHeartbeatAt: number | null = null;
+
+/** Milliseconds since the last poller tick, or null if the poller has never run. */
+export function getJobPollerHeartbeatAgeMs(): number | null {
+  if (lastPollerHeartbeatAt == null) return null;
+  return Date.now() - lastPollerHeartbeatAt;
+}
 
 export function startJobPoller(intervalMs = Number(process.env.JOB_POLL_INTERVAL_MS || 5000)): void {
   if (pollerStarted) return;
   pollerStarted = true;
+  // Mark alive at boot so /health/ready isn't falsely 503 for the first interval.
+  lastPollerHeartbeatAt = Date.now();
   setInterval(() => {
-    void processDueJobs().catch((err) => console.error("[jobs] processDueJobs", err));
+    void processDueJobs()
+      .catch((err) => {
+        log("error", "processDueJobs tick failed", {
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        captureException(err, { tags: { area: "job_poller" } });
+      })
+      .finally(() => {
+        lastPollerHeartbeatAt = Date.now();
+      });
   }, intervalMs);
+}
+
+/** Test helper — mark the poller as recently healthy without starting the interval. */
+export function _markJobPollerHeartbeatForTests(at = Date.now()): void {
+  lastPollerHeartbeatAt = at;
 }

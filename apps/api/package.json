@@ -20,6 +20,7 @@
     "@event-app/config": "*",
     "@event-app/shared": "*",
     "@prisma/client": "^5.18.0",
+    "@sentry/node": "^10.66.0",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
