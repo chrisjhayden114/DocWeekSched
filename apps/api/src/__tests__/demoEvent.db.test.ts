@@ -39,7 +39,9 @@ describe("Phase 6 demo event (DB)", () => {
     clearDemoEventIdCache();
     const first = await resetPublicDemoEvent();
     eventId = first.eventId;
-  });
+    // The full demo seed takes ~15s against the network dev branch; the 10s
+    // default hook timeout can't fit it (same pattern as recap.db.test.ts).
+  }, 90_000);
 
   afterAll(async () => {
     await prisma.$disconnect();

@@ -602,7 +602,9 @@ describe("Phase A6 recap (DB)", () => {
       expect(match!.publicId).toBe(before.publicId);
       expect(match!.issuedAt.toISOString()).toBe(before.issuedAt);
     }
-  });
+    // Generate + regenerate + certificate batch legitimately runs ~25s against the
+    // network dev branch; the 30s default left no headroom and flaked.
+  }, 120_000);
 
   it("8) PRO gating — FREE cannot use recap_agent", async () => {
     if (skip()) return;
