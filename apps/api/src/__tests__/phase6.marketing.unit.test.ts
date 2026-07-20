@@ -71,8 +71,12 @@ describe("forbidden brand literals", () => {
     expect(offenders, offenders.join("\n")).toEqual([]);
   });
 
-  it("brand config exposes Colloquium working name and demo slug", () => {
-    expect(brand.productName).toBe("Colloquium");
+  it("brand config exposes a valid product name and demo slug", () => {
+    // Don't pin the exact name — the whole point of the config is that a
+    // rename is a one-line change there. Assert it's set and is never the
+    // trademark-conflicted legacy name.
+    expect(brand.productName.trim().length).toBeGreaterThan(0);
+    expect(brand.productName).not.toBe("EventPilot");
     expect(brand.demoEventSlug).toBe("demo");
     expect(brand.internalOrgSlug).toBe("colloquium-internal");
     expect(brand.domain).toBeTruthy();

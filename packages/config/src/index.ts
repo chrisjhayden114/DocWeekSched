@@ -3,20 +3,28 @@
  * Rename the product by changing this module only — do not hardcode the name elsewhere.
  */
 export const brand = {
-  /** Working name — final rename is a one-line change here. */
-  productName: "Colloquium",
-  /** Placeholder until domain cutover. */
-  domain: "colloquium.example",
+  /**
+   * NEUTRAL LAUNCH NAME — "Colloquium" is NOT trademark-cleared yet.
+   * Launching under the existing UKEDL identity; swap in the cleared final
+   * name here (one line) + redeploy once the attorney signs off.
+   */
+  productName: "UKEDL",
+  domain: "ukedl.com",
   /** Absolute origin for canonical URLs / OG (no trailing slash). */
-  primaryUrl: "https://colloquium.example",
-  supportEmail: "support@colloquium.example",
-  legalEntity: "Colloquium LLC (pending formation)",
+  primaryUrl: "https://ukedl.com",
+  supportEmail: "support@ukedl.com",
+  legalEntity: "UKEDL (sole proprietorship; entity formation pending)",
   logoAlt: "Product logo",
   /** Reserved public demo event slug (seeded in Phase 6 Chunk C). */
   demoEventSlug: "demo",
   /** Internal/founder org that owns the public demo (plan INTERNAL — not customer limits). */
+  /**
+   * Internal org slug is never rendered publicly — keeping the original value
+   * so existing seeded demo data (dev) stays owned by the same org; the
+   * demo-reset org check would otherwise refuse the old demo event.
+   */
   internalOrgSlug: "colloquium-internal",
-  internalOrgName: "Colloquium Internal",
+  internalOrgName: "Platform Internal",
   /** Honest support hours — used by ToS / security / help. */
   supportHours: "Weekdays 9:00–17:00 US Pacific. Event-day coverage is best-effort.",
   /**
@@ -33,10 +41,10 @@ export const brand = {
     "No engagement bait",
   ],
   /** Placeholder until S2 wires a real status provider. */
-  statusPageUrl: "https://status.colloquium.example",
+  statusPageUrl: "https://status.ukedl.com",
   social: {
-    x: "https://x.com/colloquium",
-    linkedin: "https://www.linkedin.com/company/colloquium",
+    x: "https://x.com/ukedl",
+    linkedin: "https://www.linkedin.com/company/ukedl",
   },
   /** Subprocessors named in the privacy policy (Chunk B). */
   subprocessors: [
