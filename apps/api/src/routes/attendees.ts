@@ -10,6 +10,7 @@ import { sendParticipantInviteEmail } from "../lib/mail";
 import { notifyMany } from "../lib/notifications";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { authRateLimit } from "../lib/rateLimit";
 import { randomBytes } from "crypto";
 import { requireFeature } from "../lib/features";
 
@@ -323,6 +324,7 @@ attendeesRouter.post(
   "/invite-dry-run",
   requireAuth,
   requireCsrf,
+  authRateLimit({ windowMs: 60_000, max: 10, keyBy: "user" }),
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = dryRunSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -352,6 +354,7 @@ attendeesRouter.post(
   "/invite-bulk",
   requireAuth,
   requireCsrf,
+  authRateLimit({ windowMs: 60_000, max: 10, keyBy: "user" }),
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = inviteBulkSchema.safeParse(req.body);
     if (!parsed.success) {

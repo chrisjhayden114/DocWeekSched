@@ -16,7 +16,14 @@ import { env } from "../lib/env";
 import { newInviteToken } from "../lib/inviteTokens";
 import { sendPasswordResetEmail, sendEmailVerificationEmail } from "../lib/mail";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
-import { authRateLimit, clearAuthFailures, noteAuthFailure } from "../lib/rateLimit";
+import {
+  authRateLimit,
+  clearAuthFailures,
+  clearIdentifierFailures,
+  identifierBlockedSeconds,
+  noteAuthFailure,
+  noteIdentifierFailure,
+} from "../lib/rateLimit";
 import { resolveEventFromRequest, getRequestedEventId } from "../lib/requestEvent";
 
 export const authRouter = Router();
@@ -211,15 +218,26 @@ authRouter.post(
     }
 
     const { email, password } = parsed.data;
+
+    // Per-identifier backoff: attempts on one account spread across many IPs
+    // still escalate (the IP bucket alone can't see a distributed attack).
+    const blockedSeconds = identifierBlockedSeconds(email);
+    if (blockedSeconds > 0) {
+      res.setHeader("Retry-After", String(blockedSeconds));
+      return res.status(429).json({ error: "Too many requests. Try again later." });
+    }
+
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       noteAuthFailure(req);
+      noteIdentifierFailure(email);
       return res.status(401).json({ error: GENERIC_AUTH_ERROR });
     }
 
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
       noteAuthFailure(req);
+      noteIdentifierFailure(email);
       return res.status(401).json({ error: GENERIC_AUTH_ERROR });
     }
 
@@ -245,6 +263,7 @@ authRouter.post(
 
     const { csrfToken } = setSessionCookies(res, { userId: user.id, role: user.role });
     clearAuthFailures(req);
+    clearIdentifierFailures(email);
     return res.json({
       user: {
         id: user.id,
@@ -359,6 +378,7 @@ authRouter.post(
 
 authRouter.get(
   "/verify-email/:token",
+  authRateLimit({ windowMs: 60_000, max: 10 }),
   asyncHandler(async (req, res) => {
     const raw = String(req.params.token || "");
     if (raw.length < 16) return res.status(400).json({ error: "Invalid or expired verification link" });
@@ -505,6 +525,7 @@ const profileSetupSchema = z.object({
 
 authRouter.get(
   "/profile-setup/:token",
+  authRateLimit({ windowMs: 60_000, max: 10 }),
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findFirst({
       where: {

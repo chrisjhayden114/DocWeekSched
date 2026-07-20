@@ -12,6 +12,7 @@ import { OrgRole } from "@prisma/client";
 import { prisma } from "../lib/db";
 import { env } from "../lib/env";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { publicRateLimit } from "../lib/rateLimit";
 import {
   getBillingProvider,
   loadOrgBilling,
@@ -39,6 +40,7 @@ const checkoutSchema = z.object({
 /** Public pricing catalog — same numbers checkout charges. */
 billingRouter.get(
   "/pricing",
+  publicRateLimit(),
   asyncHandler(async (_req, res) => {
     const plans = publicPricingPlans().map((p) => ({
       sku: p.sku,

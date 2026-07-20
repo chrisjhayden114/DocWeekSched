@@ -13,7 +13,7 @@ import {
 } from "../lib/inviteTokens";
 import { isPubliclyJoinable, uiEventStatus } from "../lib/eventStatus";
 import { getPublicEventBySlug } from "../lib/publicEvent";
-import { publicRateLimit } from "../lib/rateLimit";
+import { authRateLimit, publicRateLimit } from "../lib/rateLimit";
 import { ensureUniqueEventSlug, slugifyEventBase } from "../lib/slug";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
@@ -78,6 +78,7 @@ eventRouter.get(
 /** Public: slug only (never raw event CUID). Enforces ACTIVE + slug invite controls. Bumps use count. */
 eventRouter.get(
   "/slug/:slug",
+  publicRateLimit(),
   asyncHandler(async (req, res) => {
     const raw = String(req.params.slug || "").trim().toLowerCase();
     if (!raw || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw)) {
@@ -118,6 +119,7 @@ eventRouter.get(
 /** Public: opaque join token (permanent ID link replacement). */
 eventRouter.get(
   "/join/:token",
+  authRateLimit({ windowMs: 60_000, max: 10 }),
   asyncHandler(async (req, res) => {
     const raw = String(req.params.token || "").trim();
     if (raw.length < 16) {

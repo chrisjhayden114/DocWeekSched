@@ -17,6 +17,7 @@ import {
   requireCfpReviewer,
   requireEventAccess,
 } from "../lib/authorization";
+import { authRateLimit, publicRateLimit } from "../lib/rateLimit";
 import {
   applyMergeFields,
   assertCfpWindowOpen,
@@ -102,8 +103,46 @@ function verifyUrl(slug: string, verifyToken: string) {
 // Public (no auth)
 // ---------------------------------------------------------------------------
 
+// NOTE: declared BEFORE "/public/:slug" — Express matches in declaration order,
+// and ":slug" would otherwise swallow "submission" (it did until Phase 7).
+cfpRouter.get(
+  "/public/submission",
+  authRateLimit({ windowMs: 60_000, max: 10 }),
+  asyncHandler(async (req, res) => {
+    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
+    if (!token) throw new HttpError(400, { error: "token required" });
+    const sub = await prisma.cfpSubmission.findFirst({
+      where: { accessTokenHash: hashToken(token) },
+      include: {
+        attachments: true,
+        cfpForm: { select: { title: true, blindReview: true, event: { select: { name: true, slug: true } } } },
+      },
+    });
+    if (!sub) throw new HttpError(404, { error: "Submission not found" });
+    return res.json({
+      id: sub.id,
+      title: sub.title,
+      abstract: sub.abstract,
+      status: sub.status,
+      submitterName: sub.submitterName,
+      submitterEmail: sub.submitterEmail,
+      submittedAt: sub.submittedAt,
+      attachments: sub.attachments.map((a) => ({
+        id: a.id,
+        fileName: a.fileName,
+        mime: a.mime,
+        url: a.url,
+      })),
+      formTitle: sub.cfpForm.title,
+      eventName: sub.cfpForm.event.name,
+      eventSlug: sub.cfpForm.event.slug,
+    });
+  }),
+);
+
 cfpRouter.get(
   "/public/:slug",
+  publicRateLimit(),
   asyncHandler(async (req, res) => {
     const slug = String(req.params.slug || "").toLowerCase();
     const event = await prisma.event.findUnique({ where: { slug } });
@@ -159,6 +198,7 @@ const publicSubmitSchema = z.object({
 
 cfpRouter.post(
   "/public/:slug/submit",
+  authRateLimit({ windowMs: 60_000, max: 5 }),
   asyncHandler(async (req, res) => {
     const slug = String(req.params.slug || "").toLowerCase();
     const parsed = publicSubmitSchema.safeParse(req.body);
@@ -268,6 +308,7 @@ cfpRouter.post(
 
 cfpRouter.post(
   "/public/verify",
+  authRateLimit({ windowMs: 60_000, max: 10 }),
   asyncHandler(async (req, res) => {
     const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
     if (!token) throw new HttpError(400, { error: "token required" });
@@ -298,40 +339,6 @@ cfpRouter.post(
       accessToken: access.raw,
       accessUrl: submissionPublicUrl(sub.cfpForm.event.slug, access.raw),
       title: updated.title,
-    });
-  }),
-);
-
-cfpRouter.get(
-  "/public/submission",
-  asyncHandler(async (req, res) => {
-    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
-    if (!token) throw new HttpError(400, { error: "token required" });
-    const sub = await prisma.cfpSubmission.findFirst({
-      where: { accessTokenHash: hashToken(token) },
-      include: {
-        attachments: true,
-        cfpForm: { select: { title: true, blindReview: true, event: { select: { name: true, slug: true } } } },
-      },
-    });
-    if (!sub) throw new HttpError(404, { error: "Submission not found" });
-    return res.json({
-      id: sub.id,
-      title: sub.title,
-      abstract: sub.abstract,
-      status: sub.status,
-      submitterName: sub.submitterName,
-      submitterEmail: sub.submitterEmail,
-      submittedAt: sub.submittedAt,
-      attachments: sub.attachments.map((a) => ({
-        id: a.id,
-        fileName: a.fileName,
-        mime: a.mime,
-        url: a.url,
-      })),
-      formTitle: sub.cfpForm.title,
-      eventName: sub.cfpForm.event.name,
-      eventSlug: sub.cfpForm.event.slug,
     });
   }),
 );

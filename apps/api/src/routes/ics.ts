@@ -5,6 +5,7 @@ import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorizatio
 import { prisma } from "../lib/db";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { authRateLimit } from "../lib/rateLimit";
 import { env } from "../lib/env";
 
 export const icsRouter = Router();
@@ -93,6 +94,9 @@ icsRouter.post(
 /** Public read-only ICS feed (token in path). */
 icsRouter.get(
   "/:token",
+  // Token GET tier. Calendar clients poll only every few hours; if a shared
+  // venue NAT ever trips this, raise toward the public-read tier (60/min).
+  authRateLimit({ windowMs: 60_000, max: 10 }),
   asyncHandler(async (req, res) => {
     const tokenHash = hashToken(String(req.params.token || ""));
     const feed = await prisma.icsFeedToken.findFirst({

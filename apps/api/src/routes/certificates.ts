@@ -215,6 +215,7 @@ certificatesRouter.post(
   "/templates/:templateId/batch",
   requireAuth,
   requireCsrf,
+  authRateLimit({ windowMs: 60_000, max: 10, keyBy: "user" }),
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = z
       .object({ sendReadyEmail: z.boolean().optional() })

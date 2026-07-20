@@ -113,10 +113,13 @@ the demo reset, `npm run seed:demo`, the account hard-delete job, and every
 ## 7. Rate limiting — single-instance assumption
 
 API rate limits (`apps/api/src/lib/rateLimit.ts`) are an **in-memory Map inside the
-API process**. This is correct while the API runs as exactly one instance (current
-Render setup). If the service is ever scaled to multiple instances, limits become
-per-instance and effectively multiply — move to a shared store (Postgres/Redis)
-before scaling out. A restart clears all limit/backoff state.
+API process** — this covers both the per-IP route buckets and the per-account
+(hashed email) login backoff. This is correct while the API runs as exactly one
+instance (current Render setup). If the service is ever scaled to multiple
+instances, limits become per-instance and effectively multiply — move to a shared
+store (Postgres/Redis) before scaling out. A restart clears all limit/backoff state.
+Buckets are keyed by route pattern (not concrete path) and by `req.ip` only
+(`trust proxy 1`); expired buckets are pruned every few minutes.
 
 ## 8. Provider account list
 
