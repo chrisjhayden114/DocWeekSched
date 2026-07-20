@@ -48,6 +48,8 @@ jobs:
       - name: Unit tests
         working-directory: apps/api
         run: npx vitest run unit.test
+      - name: Web security-header tests
+        run: npm test --workspace @event-app/web
 
   db-tests:
     name: Full suite vs service Postgres
