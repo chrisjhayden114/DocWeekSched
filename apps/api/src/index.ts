@@ -61,6 +61,7 @@ import {
 import { evaluateReadiness } from "./lib/health";
 import { enqueueJob, getJobPollerHeartbeatAgeMs, startJobPoller } from "./lib/jobs";
 import { jsonBodyParser } from "./lib/bodyLimit";
+import { CORS_EXPOSED_HEADERS } from "./lib/cors";
 
 initSentry();
 
@@ -85,6 +86,9 @@ app.use(securityHeaders);
 app.use(
   cors({
     credentials: true,
+    // Pagination + request-id are not in the CORS safelist; without this,
+    // cross-origin browsers (web→api) cannot read them via fetch().
+    exposedHeaders: [...CORS_EXPOSED_HEADERS],
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.has(origin)) {
         callback(null, true);

@@ -3,15 +3,18 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import cors from "cors";
 import express from "express";
 import type { AddressInfo } from "net";
 import type { Server } from "http";
 import { z } from "zod";
 import { jsonBodyParser, jsonLimitForPath, DEFAULT_JSON_LIMIT } from "../lib/bodyLimit";
+import { CORS_EXPOSED_HEADERS } from "../lib/cors";
 import {
   DEFAULT_PAGE_TAKE,
   MAX_PAGE_TAKE,
   parsePagination,
+  setPageHeaders,
   slicePage,
 } from "../lib/pagination";
 import { validationErrorBody } from "../lib/errors";
@@ -124,6 +127,52 @@ describe("ingest changeset schema shape", () => {
       expect(body.code).toBe("VALIDATION");
       expect(typeof body.error).toBe("string");
     }
+  });
+});
+
+describe("CORS exposes pagination headers to the browser", () => {
+  let server: Server;
+  let base = "";
+
+  beforeAll(async () => {
+    const app = express();
+    // Mirror production cors() options that matter for header exposure.
+    app.use(
+      cors({
+        credentials: true,
+        origin: "http://localhost:3000",
+        exposedHeaders: [...CORS_EXPOSED_HEADERS],
+      }),
+    );
+    app.get("/sessions", (_req, res) => {
+      setPageHeaders(res, { nextCursor: "cursor-1", hasMore: true });
+      res.json([{ id: "s1" }]);
+    });
+    await new Promise<void>((resolve) => {
+      server = app.listen(0, "127.0.0.1", resolve);
+    });
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  });
+
+  it("sets Access-Control-Expose-Headers including X-Next-Cursor and X-Has-More", async () => {
+    const res = await fetch(`${base}/sessions`, {
+      headers: { Origin: "http://localhost:3000" },
+    });
+    expect(res.status).toBe(200);
+    const exposed = res.headers.get("Access-Control-Expose-Headers") || "";
+    const normalized = exposed.toLowerCase();
+    expect(normalized).toContain("x-next-cursor");
+    expect(normalized).toContain("x-has-more");
+    expect(normalized).toContain("x-request-id");
+    // Headers themselves are present on the response (Node can always read them).
+    expect(res.headers.get("X-Next-Cursor")).toBe("cursor-1");
+    expect(res.headers.get("X-Has-More")).toBe("1");
   });
 });
 
