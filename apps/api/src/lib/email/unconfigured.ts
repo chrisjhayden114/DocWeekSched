@@ -15,10 +15,11 @@ export class UnconfiguredEmailProvider implements EmailProvider {
   }
 
   async send(input: SendEmailInput): Promise<SendEmailResult> {
+    // Never log the recipient address (PII). The label is enough to debug.
     if (input.copyUrl) {
-      console.info(`[mail] Delivery unavailable (${input.logLabel || "email"}). Copy link for ${input.to}`);
+      console.info(`[mail] Delivery unavailable (${input.logLabel || "email"}). Copy link returned to caller.`);
     } else {
-      console.info(`[mail] Delivery unavailable (${input.logLabel || "email"}) for ${input.to}`);
+      console.info(`[mail] Delivery unavailable (${input.logLabel || "email"}).`);
     }
     return {
       delivered: false,

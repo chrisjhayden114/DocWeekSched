@@ -1,3 +1,4 @@
+import { redactEmails } from "./redact";
 import type { EmailProvider, SendEmailInput, SendEmailResult } from "./types";
 
 export class ResendEmailProvider implements EmailProvider {
@@ -25,7 +26,8 @@ export class ResendEmailProvider implements EmailProvider {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error("[mail] Resend failed:", res.status, body.slice(0, 300));
+      // Provider error bodies can echo the recipient address — redact before logging.
+      console.error("[mail] Resend failed:", res.status, redactEmails(body.slice(0, 300)));
       return {
         delivered: false,
         copyUrl: input.copyUrl,
