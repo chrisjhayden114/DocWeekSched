@@ -182,7 +182,7 @@ export function SetupCopilotChat({
         display: "flex",
         flexDirection: "column",
         minHeight: compact ? 280 : 420,
-        border: "1px solid var(--border, #D9E1EE)",
+        border: "1px solid var(--border)",
         borderRadius: 8,
         background: "var(--surface, #fff)",
       }}
@@ -190,7 +190,7 @@ export function SetupCopilotChat({
       <div
         style={{
           padding: "10px 12px",
-          borderBottom: "1px solid var(--border, #D9E1EE)",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -209,7 +209,7 @@ export function SetupCopilotChat({
               maxWidth: "92%",
               padding: "8px 10px",
               borderRadius: 8,
-              background: m.role === "user" ? "var(--primary-100, #E5EBF7)" : "var(--surface-alt, #F3F6FB)",
+              background: m.role === "user" ? "var(--primary-50)" : "var(--surface-alt)",
               whiteSpace: "pre-wrap",
               fontSize: 14,
               lineHeight: 1.45,
@@ -232,7 +232,7 @@ export function SetupCopilotChat({
         <p style={{ color: "var(--danger-700)", margin: "0 12px 8px", fontSize: 13 }}>{error}</p>
       ) : null}
       <form
-        style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--border, #D9E1EE)" }}
+        style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--border)" }}
         onSubmit={(e) => {
           e.preventDefault();
           void send();

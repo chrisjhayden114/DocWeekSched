@@ -3,10 +3,10 @@
  */
 
 import Head from "next/head";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { brand } from "@event-app/config";
+import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 
 type Analytics = {
@@ -102,17 +102,12 @@ export default function EventAnalyticsPage() {
       <Head>
         <title>Analytics — {data?.eventName || "Event"} — {brand.productName}</title>
       </Head>
-      <main className="page" style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 80px" }}>
-        <p className="help-text">
-          <Link href={`/organizer/events/${eventId}`}>← Event</Link>
-          {" · "}
-          <Link href={`/organizer/events/${eventId}/scanner`}>Check-in scanner</Link>
-        </p>
-        <h1 style={{ marginBottom: 4 }}>Analytics</h1>
+      <OrganizerShell active="analytics" eventId={eventId} eventName={data?.eventName}>
+        <h1 style={{ margin: "0 0 4px", font: "var(--text-h1)" }}>Analytics</h1>
         <p className="help-text" style={{ marginTop: 0 }}>
           Engagement points feed these numbers — no public leaderboard unless you enable it.
         </p>
-        {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
+        {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
         {!data && !error ? <p className="help-text">Loading…</p> : null}
 
         {data ? (
@@ -198,7 +193,7 @@ export default function EventAnalyticsPage() {
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                 <thead>
-                  <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border, #D9E1EE)" }}>
+                  <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border)" }}>
                     <th style={{ padding: 8 }}>Session</th>
                     <th style={{ padding: 8 }}>Joins</th>
                     <th style={{ padding: 8 }}>Likes</th>
@@ -209,7 +204,7 @@ export default function EventAnalyticsPage() {
                 </thead>
                 <tbody>
                   {data.sessionPopularity.map((s) => (
-                    <tr key={s.sessionId} style={{ borderBottom: "1px solid var(--border, #D9E1EE)" }}>
+                    <tr key={s.sessionId} style={{ borderBottom: "1px solid var(--border)" }}>
                       <td style={{ padding: 8 }}>{s.title}</td>
                       <td style={{ padding: 8 }}>{s.joins}</td>
                       <td style={{ padding: 8 }}>{s.likes}</td>
@@ -230,7 +225,7 @@ export default function EventAnalyticsPage() {
                 <h2>Year-over-year · {series.seriesName}</h2>
                 <ul style={{ listStyle: "none", padding: 0 }}>
                   {series.editions.map((ed) => (
-                    <li key={ed.eventId} style={{ padding: "8px 0", borderBottom: "1px solid var(--border, #D9E1EE)" }}>
+                    <li key={ed.eventId} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                       <strong>{ed.name}</strong>
                       <span className="help-text">
                         {" "}
@@ -244,7 +239,7 @@ export default function EventAnalyticsPage() {
             ) : null}
           </>
         ) : null}
-      </main>
+      </OrganizerShell>
     </>
   );
 }

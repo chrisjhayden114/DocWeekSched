@@ -8,6 +8,7 @@ import {
   type FeatureOverrideValue,
 } from "@event-app/shared";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
+import { AppShell, type ShellNavGroup, type ShellNavItem } from "../components/AppShell";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { EventSettingsModal } from "../components/EventSettingsModal";
@@ -896,80 +897,99 @@ export default function Dashboard() {
 
   if (!user) return null;
 
-  const appShellBannerStyle: CSSProperties | undefined = event?.bannerUrl
-    ? {
-        backgroundImage: `linear-gradient(135deg, rgba(0, 30, 92, 0.88) 0%, rgba(0, 51, 160, 0.78) 100%), url(${JSON.stringify(event.bannerUrl)})`,
-      }
-    : undefined;
+  const eventGroupTabs: Tab[] = ["Agenda", "Attendees", MATCHMAKER_TAB, COMMUNITY_TAB, MAPS_TAB, "Messages"];
+  const toNavItem = (tab: Tab): ShellNavItem => ({
+    id: tab,
+    label: tab,
+    icon: <MainNavIcon tab={tab} />,
+    active: active === tab,
+    onSelect: () => setActive(tab),
+    badge: tab === "Notifications" && unreadNotifications > 0 ? unreadNotifications : undefined,
+  });
+  const shellNav: ShellNavGroup[] = [
+    {
+      id: "event",
+      label: "Event",
+      items: eventGroupTabs.filter((tab) => availableTabs.includes(tab)).map(toNavItem),
+    },
+    ...(isAdmin
+      ? [
+          {
+            id: "organize",
+            label: "Organize",
+            items: [
+              ...(availableTabs.includes(PARTICIPANTS_INVITES_TAB) ? [toNavItem(PARTICIPANTS_INVITES_TAB)] : []),
+              ...(user.orgRole
+                ? [
+                    {
+                      id: "organizer-console",
+                      label: "Organizer console",
+                      href: "/organizer",
+                      icon: <MainNavIcon tab="Participants and Invites" />,
+                    } satisfies ShellNavItem,
+                  ]
+                : []),
+            ],
+          },
+        ]
+      : []),
+    {
+      id: "account",
+      label: "Account",
+      items: [
+        ...(["Profile", "Notifications"] as Tab[]).filter((tab) => availableTabs.includes(tab)).map(toNavItem),
+        { id: "account-settings", label: "Settings", href: "/account", icon: <MainNavIcon tab="Profile" /> },
+      ],
+    },
+  ];
+  const mobilePrimaryIds = (["Agenda", "Attendees", COMMUNITY_TAB] as Tab[]).filter((tab) =>
+    availableTabs.includes(tab),
+  );
 
   return (
-    <div className="container">
-      <div className={`header app-shell${event?.bannerUrl ? " app-shell--with-banner" : ""}`} style={appShellBannerStyle}>
-        <div className="app-shell-title">
-          <div className="app-shell-heading-row">
-            {event?.logoUrl ? (
-              <img src={event.logoUrl} alt="" className="app-shell-logo" width={48} height={48} />
-            ) : null}
-            <h1 className="app-shell-heading-title">{event?.name || "Event Dashboard"}</h1>
-          </div>
-          <p className="app-shell-subtitle" style={{ color: "var(--ink-muted)" }}>
-            {user.name} · {user.role}
-            {engagementPointsOn && typeof user.engagementPoints === "number" && (
-              <>
-                {" · "}
-                <span
-                  className={`points-gem ${engagementGemTier(user.engagementPoints).tierClass}`}
-                  title={`${engagementGemTier(user.engagementPoints).label} · ${user.engagementPoints} engagement pts`}
-                >
-                  <EngagementGemMark />
-                  <span>{user.engagementPoints}</span>
-                </span>
-              </>
-            )}
-            {event && ` · ${formatEventRange(event.startDate, event.endDate)}`}
-          </p>
-        </div>
-        <div className="app-shell-actions">
-          {isAdmin && event && (
-            <button
-              className="button secondary event-settings-trigger"
-              type="button"
-              onClick={() => {
-                setEventSettingsError(null);
-                setEventSettingsOpen(true);
-              }}
-            >
-              Event settings
-            </button>
-          )}
-          <button className="button secondary" onClick={handleLogout}>
-            Logout
-          </button>
-        </div>
-      </div>
-
+    <AppShell
+      title={event?.name || "Event dashboard"}
+      logoUrl={event?.logoUrl}
+      nav={shellNav}
+      mobilePrimaryIds={mobilePrimaryIds}
+      userName={user.name}
+      userPhotoUrl={user.photoUrl}
+      userMeta={`${user.role}${event ? ` · ${formatEventRange(event.startDate, event.endDate)}` : ""}`}
+      topBarExtra={
+        engagementPointsOn && typeof user.engagementPoints === "number" ? (
+          <span
+            className={`points-gem ${engagementGemTier(user.engagementPoints).tierClass}`}
+            title={`${engagementGemTier(user.engagementPoints).label} · ${user.engagementPoints} engagement pts`}
+          >
+            <EngagementGemMark />
+            <span>{user.engagementPoints}</span>
+          </span>
+        ) : null
+      }
+      accountMenu={[
+        { id: "profile", label: "Profile", onSelect: () => setActive("Profile") },
+        ...(isAdmin && event
+          ? [
+              {
+                id: "event-settings",
+                label: "Event settings",
+                onSelect: () => {
+                  setEventSettingsError(null);
+                  setEventSettingsOpen(true);
+                },
+              },
+            ]
+          : []),
+        { id: "account", label: "Account settings", href: "/account" },
+        { id: "logout", label: "Log out", tone: "danger" as const, onSelect: () => void handleLogout() },
+      ]}
+    >
       <OnboardingPanel
         onSampleCreated={(eventId) => {
           writeClientStorage(window.localStorage, "linkedEventContext", eventId);
           window.location.reload();
         }}
       />
-
-      <div className="nav dashboard-tabs" style={{ marginBottom: 20 }}>
-        {availableTabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            className={active === tab ? "active" : ""}
-            onClick={() => setActive(tab)}
-          >
-            <span className="nav-tab-inner">
-              <MainNavIcon tab={tab} />
-              <span>{tab}</span>
-            </span>
-          </button>
-        ))}
-      </div>
 
       {active === "Agenda" && (
         <>
@@ -1993,7 +2013,7 @@ export default function Dashboard() {
         />
       ) : null}
 
-    </div>
+    </AppShell>
   );
 }
 
@@ -2998,7 +3018,7 @@ function ProfileEditor({
             gap: 8,
             justifyItems: "start",
             paddingBottom: 12,
-            borderBottom: "1px solid var(--border, #D9E1EE)",
+            borderBottom: "1px solid var(--border)",
             marginBottom: 4,
           }}
         >

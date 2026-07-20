@@ -31,14 +31,14 @@ export function BrandLogo({ size = 52, className }: { size?: number; className?:
         width="20"
         height="18"
         rx="2.5"
-        fill="var(--surface, #f8fafc)"
+        fill="var(--surface, #ffffff)"
         stroke="var(--primary-700, #0033a0)"
         strokeWidth="1.4"
       />
       <path d="M22 12h20" stroke="var(--primary-700, #0033a0)" strokeWidth="1.4" />
       <rect x="26" y="8" width="2.2" height="4" rx="0.5" fill="var(--primary-700, #0033a0)" />
       <rect x="35" y="8" width="2.2" height="4" rx="0.5" fill="var(--primary-700, #0033a0)" />
-      <circle cx="28" cy="18" r="1.6" fill="var(--gold-on-navy, #e8c547)" />
+      <circle cx="28" cy="18" r="1.6" fill="var(--gold-on-navy, #1a4fc4)" />
       <circle cx="33" cy="18" r="1.6" fill="var(--primary-700, #0033a0)" />
       <circle cx="38" cy="18" r="1.6" fill="var(--primary-700, #0033a0)" />
       <path
@@ -50,8 +50,8 @@ export function BrandLogo({ size = 52, className }: { size?: number; className?:
         cy="23"
         rx="4.2"
         ry="3.2"
-        fill="var(--gold-on-navy, #e8c547)"
-        stroke="var(--gold-700, #c9a227)"
+        fill="var(--gold-on-navy, #1a4fc4)"
+        stroke="var(--gold-700, #424242)"
         strokeWidth="0.6"
       />
       <path

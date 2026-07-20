@@ -23,10 +23,10 @@ export function ConfigDiffCardView({ card, confirming, onConfirm, onDismiss }: P
       role="region"
       aria-label="Feature changes to review"
       style={{
-        border: "1px solid var(--border, #D9E1EE)",
+        border: "1px solid var(--border)",
         borderRadius: 8,
         padding: "12px 14px",
-        background: "var(--surface-alt, #F3F6FB)",
+        background: "var(--surface-alt)",
         marginTop: 12,
       }}
     >
@@ -50,7 +50,7 @@ export function ConfigDiffCardView({ card, confirming, onConfirm, onDismiss }: P
                 padding: "8px 10px",
                 background: "var(--surface, #fff)",
                 borderRadius: 6,
-                border: "1px solid var(--border, #D9E1EE)",
+                border: "1px solid var(--border)",
               }}
             >
               <div style={{ fontWeight: 600 }}>{e.name}</div>

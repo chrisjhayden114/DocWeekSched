@@ -1,23 +1,70 @@
 /**
- * Design tokens — Phase 2.5
- * Single source for type, color, space, radius, elevation.
+ * Design tokens — Phase D (DESIGN_PHASE_D.md Part 2).
+ * Single source for type, color, space, radius, elevation, motion.
  * Import from globals.css; do not hardcode hex/px in components.
+ *
+ * Language: calm, credible, academic. One typeface (Inter), one accent
+ * (UK blue), a neutral gray ramp, borders over shadows, small radii.
  */
 
 :root {
-  /* —— Color —— */
-  --ink: #18253f;
-  --ink-secondary: #41506d;
-  --primary-700: #0033a0;
-  --primary-100: #e5ebf7;
-  --navy-900: #1f3864;
-  --gold-400: #e8c547; /* decorative / on-navy ONLY — never text on white */
-  --gold-700: #7a5a00; /* text on light surfaces */
-  --surface: #ffffff;
-  --surface-alt: #f3f6fb;
-  --border: #d9e1ee;
-  --success-700: #1e7a34;
-  --danger-700: #c22f2f;
+  /* —— Type families —— */
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Merriweather is retired from the app; display face is Inter 600. */
+  --font-display: var(--font-body);
+
+  /* —— Type scale (Part 2) —— */
+  --text-h1: 600 28px/34px var(--font-body);
+  --text-h2: 600 20px/28px var(--font-body);
+  --text-h3: 600 16px/24px var(--font-body);
+  --text-body: 400 14px/21px var(--font-body);
+  --text-label: 500 13px/18px var(--font-body);
+  --text-meta: 400 12px/16px var(--font-body);
+
+  /* —— Neutral gray ramp (does ~90% of the UI) —— */
+  --gray-25: #fcfcfd;
+  --gray-50: #fafafa;
+  --gray-100: #f5f5f5;
+  --gray-200: #e5e5e5;
+  --gray-300: #d6d6d6;
+  --gray-400: #a3a3a3;
+  --gray-500: #737373;
+  --gray-600: #525252;
+  --gray-700: #424242;
+  --gray-800: #292929;
+  --gray-900: #161616;
+
+  /* —— One accent —— */
+  --primary: #0033a0;
+  --primary-600: #1a4fc4; /* hover / links on white */
+  --primary-50: #eef2fb; /* selected / tint */
+
+  /* —— Text roles (never pure #000) —— */
+  --title-color: var(--gray-900);
+  --text-color: var(--gray-700);
+  --meta-color: var(--gray-500);
+
+  /* —— Semantic —— */
+  --success: #1e7a34;
+  --success-50: #e9f4ec;
+  --danger: #c22f2f;
+  --danger-50: #fbeded;
+  --warning: #b45309;
+  --warning-50: #faf1e6;
+  --live: #34c46b;
+  --live-50: #eaf9f0;
+
+  /* —— Track / category palette (muted, AA on white) —— */
+  --track-1: #0960ab;
+  --track-2: #07662b;
+  --track-3: #892264;
+  --track-4: #c55113;
+  --track-5: #473bbd;
+  --track-6: #990f0f;
+  --track-7: #0f766e;
+  --track-8: #673ab7;
+  --track-9: #a16207;
+  --track-10: #505158;
 
   /* —— Spacing (4/8/12/16/24/32/48) —— */
   --space-1: 4px;
@@ -28,111 +75,122 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  /* —— Radius —— */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 14px;
+  /* —— Radius (no pills except count badges) —— */
+  --radius-sm: 4px; /* cards, chips, rows */
+  --radius-md: 6px; /* buttons, inputs, segmented controls */
+  --radius-lg: 10px; /* modals, marketing cards */
 
-  /* —— Elevation —— */
-  --shadow-1: 0 1px 3px rgba(24, 37, 63, 0.1);
-  --shadow-2: 0 8px 24px rgba(24, 37, 63, 0.14);
+  /* —— Elevation (borders do the separation work) —— */
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-2: 0 4px 6px -2px rgba(16, 24, 40, 0.03), 0 12px 16px -4px rgba(16, 24, 40, 0.08);
 
-  /* —— Type families —— */
-  --font-display: "Merriweather", Georgia, serif;
-  --font-body: "Lato", "Segoe UI", "Helvetica Neue", sans-serif;
+  /* —— Motion —— */
+  --transition: all 0.15s ease;
 
-  /* —— Type scale —— */
-  --text-display-xl: 700 32px/40px var(--font-display);
-  --text-display-md: 700 22px/30px var(--font-display);
-  --text-display-sm: 700 18px/26px var(--font-display);
-  --text-body-lg: 400 16px/24px var(--font-body);
-  --text-body-md: 400 14px/21px var(--font-body);
-  --text-meta: 400 12px/16px var(--font-body);
-
-  /* —— Legacy aliases (keep existing class rules working) —— */
-  --uk-blue: var(--primary-700);
-  --uk-blue-dark: #001e5c;
-  --navy-950: #0a1628;
-  --navy-800: #152642;
-  --gold: var(--gold-700); /* default “gold text” is now AA-safe on white */
-  --gold-dim: var(--gold-700);
-  --gold-on-navy: var(--gold-400);
-  --ink-900: var(--ink);
-  --ink-700: var(--ink-secondary);
-  --ink-muted: #5f6f8e;
-  --ink-500: #7585a1;
-  --border-strong: rgba(0, 51, 160, 0.28);
-  --bg: var(--surface);
+  /* —— Legacy aliases (kept working; mapped onto the new ramp) —— */
+  --ink: var(--gray-900);
+  --ink-secondary: var(--gray-700);
+  --ink-900: var(--gray-900);
+  --ink-700: var(--gray-700);
+  --ink-muted: var(--gray-500);
+  --ink-500: var(--gray-400);
+  --primary-700: var(--primary);
+  --primary-100: var(--primary-50);
+  --uk-blue: var(--primary);
+  --uk-blue-dark: #00267a;
+  --navy-900: var(--gray-800);
+  --navy-950: var(--gray-900);
+  --navy-800: var(--gray-800);
+  /* Gold is quarantined to marketing-navy surfaces; in-app aliases go neutral. */
+  --gold-400: var(--gray-400);
+  --gold-700: var(--gray-700);
+  --gold: var(--gray-700);
+  --gold-dim: var(--gray-500);
+  --gold-on-navy: var(--primary-600);
+  --surface: #ffffff;
+  --surface-alt: var(--gray-50);
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --success-700: var(--success);
+  --danger-700: var(--danger);
+  --bg: var(--gray-50);
   --card: var(--surface);
   --card-solid: var(--surface);
   --glow: 0 0 0 transparent;
+
+  /* Legacy type aliases → Inter scale */
+  --text-display-xl: var(--text-h1);
+  --text-display-md: var(--text-h2);
+  --text-display-sm: var(--text-h3);
+  --text-body-lg: 400 16px/24px var(--font-body);
+  --text-body-md: var(--text-body);
 }
 
+/* Slate theme: same neutral ramp, slate accent. */
 html[data-theme="slate"] {
-  --ink: #0f172a;
-  --ink-secondary: #334155;
-  --primary-700: #475569;
-  --primary-100: #e2e8f0;
-  --navy-900: #1e293b;
-  --gold-400: #eab308;
-  --gold-700: #854d0e;
-  --surface: #ffffff;
-  --surface-alt: #f1f5f9;
-  --border: #cbd5e1;
-  --success-700: #15803d;
-  --danger-700: #b91c1c;
-
-  --uk-blue: var(--primary-700);
+  --primary: #475569;
+  --primary-600: #64748b;
+  --primary-50: #f1f5f9;
   --uk-blue-dark: #334155;
-  --navy-950: #0f172a;
-  --navy-800: #273548;
-  --gold: var(--gold-700);
-  --gold-dim: var(--gold-700);
-  --gold-on-navy: var(--gold-400);
-  --ink-900: var(--ink);
-  --ink-700: var(--ink-secondary);
-  --ink-muted: #64748b;
-  --ink-500: #94a3b8;
-  --border-strong: rgba(51, 65, 85, 0.35);
-  --bg: #f8fafc;
-  --card: #ffffff;
-  --card-solid: #ffffff;
 }
 
 /* Utility type classes */
+.text-h1,
 .text-display-xl {
-  font: var(--text-display-xl);
-  color: var(--ink);
+  font: var(--text-h1);
+  color: var(--title-color);
 }
+.text-h2,
 .text-display-md {
-  font: var(--text-display-md);
-  color: var(--ink);
+  font: var(--text-h2);
+  color: var(--title-color);
 }
+.text-h3,
 .text-display-sm {
-  font: var(--text-display-sm);
-  color: var(--ink);
+  font: var(--text-h3);
+  color: var(--title-color);
 }
 .text-body-lg {
   font: var(--text-body-lg);
-  color: var(--ink);
+  color: var(--text-color);
 }
+.text-body,
 .text-body-md {
-  font: var(--text-body-md);
-  color: var(--ink);
+  font: var(--text-body);
+  color: var(--text-color);
+}
+.text-label {
+  font: var(--text-label);
+  color: var(--text-color);
 }
 .text-meta {
   font: var(--text-meta);
-  color: var(--ink-secondary);
+  color: var(--meta-color);
 }
 
+/* Chips: 4px radius, quiet gray by default. */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-2);
   border-radius: var(--radius-sm);
-  background: var(--primary-100);
-  color: var(--primary-700);
+  border: 1px solid var(--gray-200);
+  background: var(--gray-100);
+  color: var(--gray-600);
   font: var(--text-meta);
-  font-weight: 700;
+  font-weight: 500;
+}
+
+.chip--primary {
+  border-color: transparent;
+  background: var(--primary-50);
+  color: var(--primary);
+}
+
+/* Small gray label for AI outputs — honest, quiet. */
+.ai-generated-chip {
+  background: var(--gray-100);
+  border-color: var(--gray-200);
+  color: var(--gray-500);
 }

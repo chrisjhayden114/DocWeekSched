@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { OrganizerShell } from "../../../../components/OrganizerShell";
 import {
   ReviewChangeset,
   type ReviewAssumption,
@@ -266,24 +267,21 @@ export default function AgendaIngestPage() {
           Agenda ingest · {brand.productName}
         </title>
       </Head>
-      <main className="page" style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px 64px" }}>
-        <p className="help-text" style={{ marginTop: 0 }}>
-          <Link href={`/organizer/events/${eventId}`}>← Event</Link>
-        </p>
-        <h1 style={{ marginTop: 0 }}>Agenda ingest</h1>
+      <OrganizerShell active="ingest" eventId={eventId}>
+        <h1 style={{ marginTop: 0, font: "var(--text-h1)" }}>Agenda ingest</h1>
         <p className="help-text">
           Upload a program (≤20 MB), paste text, or fetch a URL. Review the changeset, then confirm to create{" "}
           <strong>DRAFT</strong> sessions only.
         </p>
 
-        {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
+        {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
         {upgrade ? (
-          <p style={{ color: "#b54708", background: "#fffaeb", padding: 12, borderRadius: 8 }}>
+          <p style={{ color: "var(--warning)", background: "var(--warning-50)", padding: 12, borderRadius: "var(--radius-sm)" }}>
             {upgrade}{" "}
             <Link href="/organizer/billing">Upgrade plan</Link>
           </p>
         ) : null}
-        {message ? <p style={{ color: "#027a48" }}>{message}</p> : null}
+        {message ? <p style={{ color: "var(--success)" }}>{message}</p> : null}
 
         <section style={{ display: "grid", gap: 16, marginTop: 16 }}>
           <form onSubmit={onPaste} style={{ display: "grid", gap: 8 }}>
@@ -390,7 +388,7 @@ export default function AgendaIngestPage() {
             </details>
           ) : null}
         </section>
-      </main>
+      </OrganizerShell>
     </>
   );
 }

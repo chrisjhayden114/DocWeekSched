@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { OrganizerShell } from "../../components/OrganizerShell";
 import { apiFetch, AuthResponse, clearAuthClientState } from "../../lib/api";
 import { OrgSummary, OrganizerEvent, organizerFetch } from "../../lib/organizerApi";
 
@@ -64,21 +65,10 @@ export default function OrganizerDashboard() {
       <Head>
         <title>Organizer — {brand.productName}</title>
       </Head>
-      <main className="page" style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 64px" }}>
+      <OrganizerShell active="events" userName={user?.name}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <p className="help-text" style={{ margin: 0 }}>
-              <Link href="/dashboard">Attendee app</Link>
-              {" · "}
-              <Link href="/organizer/billing">Billing</Link>
-              {" · "}
-              <Link href="/organizer/ai-usage">AI usage</Link>
-              {" · "}
-              <Link href="/pricing">Pricing</Link>
-              {" · "}
-              Organizer
-            </p>
-            <h1 style={{ margin: "4px 0 0" }}>Your events</h1>
+            <h1 style={{ margin: 0, font: "var(--text-h1)" }}>Your events</h1>
             {user ? (
               <p className="help-text" style={{ marginTop: 4 }}>
                 Signed in as {user.name}
@@ -105,7 +95,7 @@ export default function OrganizerDashboard() {
         </header>
 
         {error ? (
-          <p style={{ color: "#b42318", marginTop: 16 }}>
+          <p style={{ color: "var(--danger)", marginTop: 16 }}>
             {error}. <Link href="/login">Sign in</Link>
           </p>
         ) : null}
@@ -170,9 +160,8 @@ export default function OrganizerDashboard() {
             {events.map((ev) => (
               <li
                 key={ev.id}
+                className="card"
                 style={{
-                  border: "1px solid var(--border, #D9E1EE)",
-                  borderRadius: 8,
                   padding: "14px 16px",
                   display: "flex",
                   justifyContent: "space-between",
@@ -182,7 +171,7 @@ export default function OrganizerDashboard() {
                 }}
               >
                 <div>
-                  <Link href={`/organizer/events/${ev.id}`} style={{ fontWeight: 700, fontSize: 18 }}>
+                  <Link href={`/organizer/events/${ev.id}`} style={{ fontWeight: 600, fontSize: 15, color: "var(--gray-900)" }}>
                     {ev.name}
                   </Link>
                   <p className="help-text" style={{ margin: "4px 0 0" }}>
@@ -199,7 +188,7 @@ export default function OrganizerDashboard() {
             ))}
           </ul>
         ) : null}
-      </main>
+      </OrganizerShell>
     </>
   );
 }
@@ -207,14 +196,14 @@ export default function OrganizerDashboard() {
 function StatusBadge({ status }: { status: string }) {
   const color =
     status === "Published"
-      ? "#0a7a3e"
+      ? "var(--success)"
       : status === "Draft"
-        ? "#41506D"
+        ? "var(--gray-600)"
         : status === "Past"
-          ? "#0033A0"
-          : "#7a3e0a";
+          ? "var(--gray-500)"
+          : "var(--warning)";
   return (
-    <span style={{ color, fontWeight: 600 }}>
+    <span style={{ color, fontWeight: 500 }}>
       {status}
     </span>
   );

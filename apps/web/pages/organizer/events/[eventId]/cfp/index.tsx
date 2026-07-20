@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { OrganizerShell } from "../../../../../components/OrganizerShell";
 import { ReviewChangeset, type ReviewChangeRow } from "../../../../../components/ReviewChangeset";
 import { organizerFetch } from "../../../../../lib/organizerApi";
 
@@ -161,13 +162,13 @@ export default function OrganizerCfpPage() {
       <Head>
         <title>CFP — {brand.productName}</title>
       </Head>
-      <main className="page" style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 64px" }}>
-        <p className="help-text">
-          <Link href={`/organizer/events/${eventId}`}>← Event</Link>
-          {" · "}
-          <Link href={`/organizer/events/${eventId}/cfp/review`}>Reviewer UI</Link>
-        </p>
-        <h1>Call for papers</h1>
+      <OrganizerShell active="cfp" eventId={eventId}>
+        {eventId ? (
+          <p className="help-text" style={{ marginTop: 0 }}>
+            <Link href={`/organizer/events/${eventId}/cfp/review`}>Reviewer UI</Link>
+          </p>
+        ) : null}
+        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Call for papers</h1>
         {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
         {message ? <p className="help-text">{message}</p> : null}
 
@@ -411,7 +412,7 @@ export default function OrganizerCfpPage() {
             </section>
           </>
         )}
-      </main>
+      </OrganizerShell>
     </>
   );
 }

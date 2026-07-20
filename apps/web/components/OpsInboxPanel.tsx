@@ -195,7 +195,7 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
               <li
                 key={card.id}
                 style={{
-                  border: "1px solid var(--border, #D9E1EE)",
+                  border: "1px solid var(--border)",
                   borderRadius: 8,
                   padding: 16,
                   background: "var(--surface, #fff)",

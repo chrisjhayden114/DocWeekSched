@@ -653,7 +653,7 @@ export default function SessionPage() {
                 <span className="session-title-banner-label">{session.title}</span>
               </div>
             )}
-            <h2 style={{ margin: "0 0 8px", fontFamily: "Merriweather, Georgia, serif" }}>{session.title}</h2>
+            <h2 style={{ margin: "0 0 8px" }}>{session.title}</h2>
             <p style={{ color: "var(--ink-muted)", margin: "0 0 8px" }}>
               {formatEventTimeRange(session.startsAt, session.endsAt, displayTimezone)}
               {session.room?.name ? ` · ${session.room.name}` : session.location ? ` · ${session.location}` : ""}
@@ -731,7 +731,7 @@ export default function SessionPage() {
             {session.description && <p style={{ margin: "12px 0", lineHeight: 1.5 }}>{session.description}</p>}
             {session.items && session.items.length > 0 ? (
               <div style={{ margin: "16px 0" }}>
-                <h3 style={{ margin: "0 0 8px", fontFamily: "Merriweather, Georgia, serif", fontSize: "1.05rem" }}>
+                <h3 style={{ margin: "0 0 8px", fontSize: "1.05rem" }}>
                   Program
                 </h3>
                 <ol className="session-items-list" style={{ margin: 0, paddingLeft: "1.2rem" }}>
@@ -1187,7 +1187,7 @@ export default function SessionPage() {
                                     style={{
                                       height: 6,
                                       marginTop: 4,
-                                      background: "var(--border, #D9E1EE)",
+                                      background: "var(--border)",
                                       borderRadius: 3,
                                     }}
                                   >

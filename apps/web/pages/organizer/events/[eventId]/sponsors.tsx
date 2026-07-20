@@ -3,10 +3,10 @@
  */
 
 import Head from "next/head";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { brand } from "@event-app/config";
+import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 
 type Sponsor = {
@@ -128,13 +128,10 @@ export default function EventSponsorsPage() {
       <Head>
         <title>Sponsors — {brand.productName}</title>
       </Head>
-      <main className="page" style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 80px" }}>
-        <p className="help-text">
-          <Link href={`/organizer/events/${eventId}`}>← Event</Link>
-        </p>
-        <h1>Sponsors</h1>
+      <OrganizerShell active="sponsors" eventId={eventId}>
+        <h1 style={{ margin: 0, font: "var(--text-h1)" }}>Sponsors</h1>
         <p className="help-text">Shown to attendees by tier / sort order. Capture leads at the booth and export CSV.</p>
-        {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
+        {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
         <form
           className="grid"
@@ -161,7 +158,7 @@ export default function EventSponsorsPage() {
               key={s.id}
               style={{
                 padding: "12px 0",
-                borderBottom: "1px solid var(--border, #D9E1EE)",
+                borderBottom: "1px solid var(--gray-200)",
                 display: "grid",
                 gap: 6,
               }}
@@ -194,7 +191,7 @@ export default function EventSponsorsPage() {
           ))}
         </ul>
         {sponsors.length === 0 ? <p className="help-text">No sponsors yet.</p> : null}
-      </main>
+      </OrganizerShell>
     </>
   );
 }

@@ -201,7 +201,7 @@ export function MatchmakerPanel({
       ) : (
         <ul className="matchmaker-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {suggestions.map((s) => (
-            <li key={s.id} className="matchmaker-item" style={{ borderTop: "1px solid var(--border, #D9E1EE)", paddingTop: 12 }}>
+            <li key={s.id} className="matchmaker-item" style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                 {s.user.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -219,7 +219,7 @@ export function MatchmakerPanel({
                       width: 48,
                       height: 48,
                       borderRadius: 8,
-                      background: "var(--primary-100, #E5EBF7)",
+                      background: "var(--primary-50)",
                     }}
                   />
                 )}

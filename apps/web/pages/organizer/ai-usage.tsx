@@ -1,8 +1,8 @@
 import { brand } from "@event-app/config";
 import Head from "next/head";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { OrganizerShell } from "../../components/OrganizerShell";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
 import { OrgSummary } from "../../lib/organizerApi";
 
@@ -72,20 +72,13 @@ export default function OrganizerAiUsagePage() {
       <Head>
         <title>AI usage — {brand.productName}</title>
       </Head>
-      <div className="container">
+      <OrganizerShell active="ai-usage">
         <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <div>
-              <h1 className="text-display-md" style={{ margin: 0 }}>
-                AI usage (30 days)
-              </h1>
-              <p className="help-text" style={{ margin: "8px 0 0" }}>
-                Metered gateway calls for your organization — tokens and estimated cost.
-              </p>
-            </div>
-            <Link href="/organizer" className="button secondary" style={{ alignSelf: "flex-start" }}>
-              Back to organizer
-            </Link>
+          <div>
+            <h1 style={{ margin: 0, font: "var(--text-h2)" }}>AI usage (30 days)</h1>
+            <p className="help-text" style={{ margin: "8px 0 0" }}>
+              Metered gateway calls for your organization — tokens and estimated cost.
+            </p>
           </div>
           <label className="help-text" style={{ display: "grid", gap: 6, marginTop: 16, maxWidth: 360 }}>
             Organization
@@ -108,7 +101,7 @@ export default function OrganizerAiUsagePage() {
               ))}
             </select>
           </label>
-          {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
+          {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
         </div>
 
         {summary ? (
@@ -169,7 +162,7 @@ export default function OrganizerAiUsagePage() {
         ) : (
           <p className="help-text">Select an organization to view usage.</p>
         )}
-      </div>
+      </OrganizerShell>
     </>
   );
 }

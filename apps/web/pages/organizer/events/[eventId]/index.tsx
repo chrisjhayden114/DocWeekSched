@@ -1,8 +1,8 @@
 import { brand } from "@event-app/config";
 import Head from "next/head";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { ReviewChangeset, parseCsvToTable } from "../../../../components/ReviewChangeset";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
 import { SetupCopilotChat } from "../../../../components/SetupCopilotChat";
@@ -301,15 +301,10 @@ export default function OrganizerEventPage() {
       <Head>
         <title>{event?.name || "Event"} — Organizer — {brand.productName}</title>
       </Head>
-      <main className="page" style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 80px" }}>
-        <p className="help-text">
-          <Link href="/organizer">← Organizer</Link>
-          {" · "}
-          <Link href="/dashboard">Open attendee app</Link>
-        </p>
+      <OrganizerShell active="overview" eventId={eventId} eventName={event?.name}>
         {event ? (
           <>
-            <h1 style={{ marginBottom: 4 }}>{event.name}</h1>
+            <h1 style={{ margin: "0 0 4px", font: "var(--text-h1)" }}>{event.name}</h1>
             <p className="help-text" style={{ marginTop: 0 }}>
               {event.uiStatus} · /e/{event.slug}
               {inviteLinks?.slugUrl ? (
@@ -324,10 +319,10 @@ export default function OrganizerEventPage() {
           <p className="help-text">Loading…</p>
         )}
 
-        {message ? <p style={{ color: "#0a7a3e" }}>{message}</p> : null}
-        {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
+        {message ? <p style={{ color: "var(--success)" }}>{message}</p> : null}
+        {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
-        <nav style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "16px 0" }}>
+        <nav className="nav" style={{ margin: "16px 0" }}>
           {(
             [
               ["overview", "Overview"],
@@ -344,27 +339,12 @@ export default function OrganizerEventPage() {
             <button
               key={id}
               type="button"
-              className={tab === id ? "button" : "button secondary"}
+              className={tab === id ? "active" : ""}
               onClick={() => setTab(id)}
             >
               {label}
             </button>
           ))}
-          <Link href={`/organizer/events/${eventId}/ingest`} className="button secondary">
-            Agenda ingest
-          </Link>
-          <Link href={`/organizer/events/${eventId}/cfp`} className="button secondary">
-            CFP
-          </Link>
-          <Link href={`/organizer/events/${eventId}/analytics`} className="button secondary">
-            Analytics
-          </Link>
-          <Link href={`/organizer/events/${eventId}/sponsors`} className="button secondary">
-            Sponsors
-          </Link>
-          <Link href={`/organizer/events/${eventId}/scanner`} className="button secondary">
-            Check-in scanner
-          </Link>
         </nav>
 
         {tab === "overview" && event ? (
@@ -714,7 +694,7 @@ export default function OrganizerEventPage() {
             {eventId ? <EventFaqEditor eventId={eventId} /> : null}
           </section>
         ) : null}
-      </main>
+      </OrganizerShell>
     </>
   );
 }

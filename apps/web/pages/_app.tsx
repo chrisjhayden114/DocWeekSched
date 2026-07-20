@@ -28,6 +28,12 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="apple-mobile-web-app-title" content={brand.productName} />
         <link rel="manifest" href="/api/manifest" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        />
       </Head>
       <Component {...pageProps} />
     </>

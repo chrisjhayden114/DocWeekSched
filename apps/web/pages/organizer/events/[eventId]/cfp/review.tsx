@@ -1,8 +1,8 @@
 import { brand } from "@event-app/config";
 import Head from "next/head";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { OrganizerShell } from "../../../../../components/OrganizerShell";
 import { organizerFetch } from "../../../../../lib/organizerApi";
 
 type Assignment = {
@@ -98,12 +98,11 @@ export default function CfpReviewerPage() {
       <Head>
         <title>CFP review — {brand.productName}</title>
       </Head>
-      <main className="page" style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 64px" }}>
-        <p className="help-text">
-          <Link href={`/organizer/events/${eventId}`}>Event</Link>
-          {" · Reviewer workspace (no billing, rosters, or settings)"}
+      <OrganizerShell active="cfp" eventId={eventId}>
+        <p className="help-text" style={{ marginTop: 0 }}>
+          Reviewer workspace (no billing, rosters, or settings)
         </p>
-        <h1>Assigned reviews</h1>
+        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Assigned reviews</h1>
         {blindReview ? <p className="help-text">Blind review is on — submitter identity is hidden.</p> : null}
         {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
         {message ? <p className="help-text">{message}</p> : null}
@@ -111,12 +110,8 @@ export default function CfpReviewerPage() {
         {assignments.map((a) => (
           <section
             key={a.reviewId}
-            style={{
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: 14,
-              marginBottom: 14,
-            }}
+            className="card"
+            style={{ padding: 16, marginBottom: 14 }}
           >
             <h2 style={{ marginTop: 0, fontSize: 18 }}>{a.submission.title}</h2>
             <p className="help-text">
@@ -168,7 +163,7 @@ export default function CfpReviewerPage() {
           </section>
         ))}
         {!assignments.length ? <p className="help-text">No assignments yet.</p> : null}
-      </main>
+      </OrganizerShell>
     </>
   );
 }

@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 
 type RosterAttendee = {
@@ -249,8 +250,9 @@ export default function CheckInScannerPage() {
   }
 
   return (
-    <main style={{ padding: 16, maxWidth: 560, margin: "0 auto", fontFamily: "inherit" }}>
-      <h1 className="text-display-sm" style={{ marginTop: 0 }}>
+    <OrganizerShell active="scanner" eventId={eventId}>
+      <div style={{ maxWidth: 560 }}>
+      <h1 style={{ marginTop: 0, font: "var(--text-h1)" }}>
         Check-in scanner
       </h1>
       <p className="help-text">
@@ -311,7 +313,7 @@ export default function CheckInScannerPage() {
               justifyContent: "space-between",
               gap: 8,
               padding: "8px 0",
-              borderBottom: "1px solid var(--border, #D9E1EE)",
+              borderBottom: "1px solid var(--gray-200)",
             }}
           >
             <span>
@@ -322,6 +324,7 @@ export default function CheckInScannerPage() {
           </li>
         ))}
       </ul>
-    </main>
+      </div>
+    </OrganizerShell>
   );
 }

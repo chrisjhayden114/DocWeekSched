@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { SetupCopilotFormState } from "@event-app/shared";
 import { emptySetupFormState } from "@event-app/shared";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../components/FeatureConfigPanel";
+import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
 import { AiGeneratedChip } from "../../../components/AiGeneratedChip";
 import { apiFetch } from "../../../lib/api";
@@ -256,11 +257,9 @@ export default function NewEventWizard() {
       <Head>
         <title>{modeAi ? "Set up with AI" : "Create event"} — {brand.productName}</title>
       </Head>
-      <main className="page" style={{ maxWidth: modeAi ? 960 : 640, margin: "0 auto", padding: "24px 16px 64px" }}>
-        <p className="help-text">
-          <Link href="/organizer">← Organizer</Link>
-        </p>
-        <h1>{modeAi ? "Set up with AI" : "Create event"}</h1>
+      <OrganizerShell active="new-event">
+        <div style={{ maxWidth: modeAi ? 960 : 640 }}>
+        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>{modeAi ? "Set up with AI" : "Create event"}</h1>
         <p className="help-text">
           {modeAi
             ? "Answer a few short questions — the form on the right fills in as you go. Switch to manual anytime; nothing is lost."
@@ -348,10 +347,10 @@ export default function NewEventWizard() {
             </div>
             <aside
               style={{
-                border: "1px solid var(--border, #D9E1EE)",
+                border: "1px solid var(--border)",
                 borderRadius: 8,
                 padding: 16,
-                background: "var(--surface-alt, #F3F6FB)",
+                background: "var(--surface-alt)",
                 alignSelf: "start",
               }}
             >
@@ -615,7 +614,8 @@ export default function NewEventWizard() {
             </div>
           </section>
         ) : null}
-      </main>
+        </div>
+      </OrganizerShell>
     </>
   );
 }

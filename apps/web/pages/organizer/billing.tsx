@@ -4,6 +4,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { OrganizerShell } from "../../components/OrganizerShell";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
 import { OrgSummary } from "../../lib/organizerApi";
 
@@ -107,13 +108,12 @@ export default function OrganizerBillingPage() {
       <Head>
         <title>Billing — {brand.productName}</title>
       </Head>
-      <main className="page" style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 64px" }}>
-        <p className="help-text">
-          <Link href="/organizer">← Organizer</Link>
-          {" · "}
+      <OrganizerShell active="billing">
+        <div style={{ maxWidth: 720 }}>
+        <p className="help-text" style={{ marginTop: 0 }}>
           <Link href="/pricing">Public pricing</Link>
         </p>
-        <h1>Billing</h1>
+        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Billing</h1>
 
         {orgs.length > 1 ? (
           <label>
@@ -137,7 +137,7 @@ export default function OrganizerBillingPage() {
           </label>
         ) : null}
 
-        {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
+        {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
         {summary ? (
           <section style={{ display: "grid", gap: 16, marginTop: 16 }}>
@@ -146,8 +146,8 @@ export default function OrganizerBillingPage() {
                 style={{
                   padding: 14,
                   borderRadius: "var(--radius-md)",
-                  background: "#fef3f2",
-                  border: "1px solid #fecdca",
+                  background: "var(--danger-50)",
+                  border: "1px solid var(--gray-200)",
                 }}
               >
                 <strong>Read-only</strong>
@@ -250,7 +250,8 @@ export default function OrganizerBillingPage() {
         ) : (
           <p className="help-text">Loading billing…</p>
         )}
-      </main>
+        </div>
+      </OrganizerShell>
     </>
   );
 }
