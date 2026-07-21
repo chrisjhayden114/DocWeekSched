@@ -1551,25 +1551,29 @@ button.schedule-meta-chip:hover {
   font-weight: 600;
 }
 
-/* Compact attendance mode — joined rows only. No fixed height (clips on mobile). */
+/* Compact attendance mode — joined rows only. Segments size to content. */
 .join-mode-switch--compact {
   flex: 0 0 auto;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   height: auto;
   min-height: 0;
   border-radius: var(--radius-sm);
   align-self: flex-start;
   max-width: 100%;
+  width: auto;
 }
 
 .join-mode-switch--compact button {
+  flex: 0 0 auto;
   padding: 4px 8px;
   font-size: 11px;
   font-weight: 500;
   line-height: 16px;
   height: auto;
   min-height: 28px;
+  min-width: max-content;
   white-space: nowrap;
+  overflow: visible;
 }
 
 .schedule-links {
@@ -2670,6 +2674,12 @@ button.schedule-meta-chip:hover {
     flex-basis: 100%;
   }
 
+  /* Keep organizer event chips in a single scroll row (override stacked nav). */
+  .console-event-tabs button {
+    flex: 0 0 auto;
+    flex-basis: auto;
+  }
+
   .dashboard-tabs > button {
     flex-basis: calc(50% - 6px);
     flex-grow: 1;
@@ -3311,16 +3321,23 @@ button.schedule-meta-chip:hover {
     flex-wrap: nowrap;
   }
 
+  /*
+   * Session card: main + save top-right; Q&A/Like/Star/Edit as one quiet row
+   * along the card bottom (not a vertical right column). Target ≤260px tall.
+   */
   .schedule-events > .schedule-event {
     flex: 1 1 auto;
     width: 100%;
-    padding: 10px 8px 10px 13px;
-    /* Allow selector to grow fully visible — do not clip against fixed heights. */
+    max-height: none;
+    padding: 8px 8px 4px 12px;
     overflow: visible;
-    align-items: flex-start;
+    align-items: start;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 4px;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas:
+      "main save"
+      "actions actions";
+    column-gap: 2px;
     row-gap: 0;
   }
 
@@ -3329,60 +3346,135 @@ button.schedule-meta-chip:hover {
     flex-direction: column;
     align-items: stretch;
     gap: 0;
-    grid-column: 1;
+    grid-area: main;
     min-width: 0;
   }
 
-  .schedule-event-side {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-    align-items: flex-end;
-    justify-content: flex-start;
-    gap: 2px;
+  .schedule-event-title {
+    font: 600 14px/1.25 var(--font-body);
   }
 
   .schedule-event-meta {
-    margin-top: 4px;
+    margin-top: 2px;
     width: 100%;
+    font: 400 12px/15px var(--font-body);
   }
 
-  /* Own fully-visible line under meta — never share a clipped 24px band. */
-  .schedule-event-main > .join-mode-switch--compact {
+  /* Side unwraps so save + actions become grid children of the card. */
+  .schedule-event-side {
+    display: contents;
+  }
+
+  .schedule-event-save {
+    grid-area: save;
+    align-self: start;
+    justify-self: end;
+    width: 40px;
+    height: 40px;
+  }
+
+  .schedule-row-actions {
+    grid-area: actions;
     display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 0;
     width: 100%;
-    margin-top: 8px;
+    margin: 4px 0 0;
+    padding: 2px 48px 0 0; /* clear Concierge FAB on the right */
+    border-top: 1px solid var(--gray-100);
+  }
+
+  .schedule-row-actions .row-action-btn {
+    flex: 1 1 0;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 2px;
+    font: 500 14px/18px var(--font-body);
+    color: var(--gray-600);
+  }
+
+  /*
+   * Attendance segments: size to label content — never flex-shrink truncate
+   * ("In perso"). Wrap the whole control to its own line when needed.
+   */
+  .schedule-event-main > .join-mode-switch--compact {
+    display: inline-flex;
+    flex-wrap: wrap;
+    width: auto;
+    max-width: 100%;
+    margin-top: 6px;
     margin-left: 0;
     height: auto;
     overflow: visible;
   }
 
   .schedule-event-main > .join-mode-switch--compact button {
-    flex: 1 1 0;
-    min-width: 0;
-    min-height: 40px;
+    flex: 0 0 auto;
+    min-width: max-content;
+    min-height: 36px;
     height: auto;
-    padding: 8px 6px;
+    padding: 6px 10px;
     font-size: 12px;
     line-height: 16px;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .schedule-event-speakers {
-    margin-top: 6px;
+    margin-top: 4px;
     white-space: normal;
+    font: 400 12px/15px var(--font-body);
   }
 
   .schedule-event--minimal {
-    padding-top: 8px;
-    padding-bottom: 8px;
+    padding-top: 6px;
+    padding-bottom: 2px;
   }
 
-  .schedule-event--minimal .schedule-event-side {
-    align-self: center;
+  .schedule-event--minimal .schedule-row-actions {
+    margin-top: 2px;
   }
 
   .schedule-day-heading {
     padding-top: 4px;
+  }
+
+  /* Organizer event console: single-row horizontal chip tabs. */
+  .console-event-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0 0 12px;
+    padding: 0 0 4px;
+  }
+
+  .console-event-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .console-event-tabs button {
+    flex: 0 0 auto;
+    flex-basis: auto !important;
+    width: auto;
+    min-width: max-content;
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    font: 500 13px/18px var(--font-body);
+    white-space: nowrap;
+  }
+
+  .console-event-tabs button.active {
+    background: var(--primary-50);
+    color: var(--primary);
+    border-color: var(--primary);
+    font-weight: 600;
   }
 
   /* Attendee list → compact anatomy; Message/Meet under identity on phones. */
@@ -4974,10 +5066,13 @@ button.schedule-meta-chip:hover {
     min-height: calc(56px + env(safe-area-inset-top, 0px));
   }
 
-  /* Compact Concierge: icon pill above the bottom tab bar + safe area. */
+  /*
+   * Compact Concierge: clear of bottom tabs + card action row text.
+   * Extra right/bottom margin so it only sits over empty canvas.
+   */
   .concierge-fab {
-    right: 12px;
-    bottom: calc(56px + 12px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    bottom: calc(56px + 20px + env(safe-area-inset-bottom, 0px));
     z-index: 35;
     width: 44px;
     height: 44px;

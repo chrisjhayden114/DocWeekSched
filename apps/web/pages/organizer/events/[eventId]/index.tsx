@@ -328,7 +328,7 @@ export default function OrganizerEventPage() {
         {error && event ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
         {event ? (
-        <nav className="nav" style={{ margin: "0 0 16px" }}>
+        <nav className="nav console-event-tabs" aria-label="Event sections" style={{ margin: "0 0 16px" }}>
           {(
             [
               ["overview", "Overview"],

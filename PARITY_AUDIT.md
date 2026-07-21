@@ -77,3 +77,34 @@ The "later = more work" worry is mostly unfounded here: every backlog item is an
 - B5 Auto-generated event marketing kit (QR poster PDF for organizers)
 
 **Deliberate skips (write these into sales copy as principles, not absences):** session ads, engagement leaderboards/gamification, counts-everywhere FOMO patterns, native app-store container (PWA install is the calmer, zero-lead-time answer — EventPilot's own 75-day launch runway and store-resubmission fees are the counter-pitch).
+
+## Addendum — Sched Platform menu, item-by-item (July 2026)
+
+| Sched feature | UKEDL status | Action |
+|---|---|---|
+| Scheduling | ✓ core product | — |
+| Event registration | ◐ join links / invites / CSV; no custom registration forms (fields like dietary, affiliation) | **B6 backlog**: registration form builder w/ custom questions — build when first paying customer asks |
+| Event ticketing (paid attendee tickets) | ✗ | **Deliberate skip for now** — UKEDL bills organizers, not attendees; attendee payments = merchant-of-record complexity. Revisit only on real demand |
+| Page management (custom event pages) | ◐ event FAQ editor + description | **B7 backlog** (small): custom info pages (policies / logistics / travel) — EventPilot ships these as stock pages |
+| Room scheduling | ✓ rooms + filters; D6 adds by-room view | — |
+| Event App | ✓ PWA (installable, offline page) | — |
+| Event analytics | ✓; deeper cuts tracked as B4 | — |
+| PD Tracking & Reporting | ✓ via certificates + eligibility rules + check-in logs | Add credit-hours CSV export to B4 |
+| Free tier | ✓ Free plan | — |
+| Call for papers | ✓ built-in, with review + decisions (stronger than Sched's) | — |
+| AI event planner | ✓✓ ingest / setup copilot / concierge / ops / recap / matchmaker | — |
+| Badges | ✓ PDF badge sheets | — |
+| Event attendee tracking | ✓ check-in + attendance modes + analytics | — |
+| Lead retrieval (sponsor badge-scanning) | ✗ | **Deliberate skip** — conflicts with "no attendee-data monetization" absent explicit consent design; academic sponsor demand is low. Revisit only with a consent-first design |
+| Forms product (vs Google Forms) | ◐ surveys, feedback, polls in-app; no generic form builder | Sufficient for event needs — no generic builder planned |
+| Safety and security | ✓ security page, moderation, roles, calm principles | — |
+
+### From the /platform page prose (beyond the feature menu)
+| Claim | UKEDL status | Action |
+|---|---|---|
+| White-label branding (own colors/logo/messaging per event) | ◐ per-event logo + banner; no per-event accent color/theming | **B8 backlog** (small): organizer-set event accent color applied to public page + app chrome (EventPilot does this with a one-dark-color accessibility rule worth copying) |
+| Offline ("everything just works — even offline") | ◐ offline fallback page only | **B9 backlog** (medium): service-worker caching of agenda/session data so the schedule browses offline at venues with bad Wi-Fi — high real-world value for conferences |
+| SOC 2 Type II / FERPA / PCI badges | ✗ (honest security page instead) | Strategic, not product: SOC 2 is an org-level audit costing real money — pursue when revenue justifies (enterprise deals will tell you when). FERPA alignment worth a written statement earlier since buyers are education institutions |
+| Post-event access to materials | ✓ past events remain browsable | — |
+| Speaker self-service ("speakers take control of sessions") | ◐ CFP covers submissions; SessionResources supports uploads | Verify speakers can upload/edit their own materials post-acceptance; if organizer-only today, small backlog item |
+| Discount programs (education/nonprofit/loyalty) | ✗ | Pricing-page tactic to consider at first-customers stage — education discounts resonate with your exact buyer |
