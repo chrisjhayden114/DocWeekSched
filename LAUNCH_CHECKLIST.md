@@ -1,53 +1,89 @@
-# LAUNCH_CHECKLIST.md — Phase 7 cutover
+# LAUNCH_CHECKLIST.md — cutover + full-operation checklist
 
 Every item must be checked (or consciously waived, with a note) before opening the
 product to paying customers. Default owner: Chris Hayden. References:
-`RUNBOOK.md` §10 (env), `.env.example` (var docs), `GAP_REPORT.md` (deferred items).
+`RUNBOOK.md` §10 (env), `.env.example` (var docs), `GAP_REPORT.md` (deferred items),
+`CUSTOMER_TEST_FINDINGS.md` + `FIX_PLAN.md` (July 2026 end-to-end product test).
 
 Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 
+> **Read this first.** The July 2026 customer test proved that **Resend is not a
+> nice-to-have — it is a hard blocker.** Registration creates users with
+> `emailVerifiedAt: null` and login returns 403 until verification, so with no email
+> provider configured *every new signup is permanently locked out*. Nothing else in
+> this list matters until §0 is green.
+
+---
+
+## 0. BLOCKERS — the product does not work for new users until these are done
+
+- [ ] **Resend key + verified sending domain** — `RESEND_API_KEY`, `EMAIL_FROM` on `ukedl.com`, `EMAIL_PROVIDER=resend` in Render. Without this, self-serve registration is a dead end (`CUSTOMER_TEST_FINDINGS.md` #1). *Owner: Chris · Status: todo · **P0***
+- [ ] **SPF / DKIM / DMARC published + verified** — Resend dashboard shows Verified; a real invite lands in the inbox (not spam) for Gmail **and** Outlook. *Owner: Chris · Status: todo · **P0***
+- [ ] **P0 acceptance test** — register a brand-new account with a real inbox → verification email arrives → click through → sign in successfully. *Owner: Chris · Status: todo · **P0***
+- [ ] **Verify-link fallback shipped** (FIX_PLAN chunk E1 item 1) — so an unconfigured or failing email provider can never silently lock users out again. *Owner: Cursor · Status: todo · **P0***
+
 ## 1. Domains, cookies, CORS
 
-- [ ] **API on `api.ukedl.com`** — custom domain on Render, TLS issued. *Owner: Chris · Status: todo*
-- [ ] **Cookie flags for same-site setup** — `COOKIE_DOMAIN=.ukedl.com`, `COOKIE_SAMESITE=lax`, `COOKIE_SECURE=true`; retire the interim `SameSite=None` config. Verify login works on `ukedl.com` and `www.ukedl.com`. *Owner: Chris · Status: todo*
-- [ ] **CORS origins** — `WEB_BASE_URL=https://ukedl.com` on the API (allowlist auto-includes the `www.` variant); confirm no `*.onrender.com` or localhost origins remain. *Owner: Chris · Status: todo*
-- [ ] **`API_PUBLIC_URL=https://api.ukedl.com`** — ICS feed URLs; preflight makes this fatal if forgotten. *Owner: Chris · Status: todo*
-- [ ] **HSTS verified on BOTH hosts** — `curl -sI https://ukedl.com` and `https://api.ukedl.com` show `Strict-Transport-Security` (web ships `max-age=31536000; includeSubDomains` via Chunk E headers). *Owner: Chris · Status: todo*
-- [ ] **HSTS preload (post-launch)** — only after HSTS has run clean for a while: add `preload` to the header and submit to hstspreload.org. Deliberately NOT shipped in Chunk E — preload is effectively irreversible. *Owner: Chris · Status: todo*
+- [x] **API on `api.ukedl.com`** — custom domain on Render, TLS issued. *done (2026-07-20)*
+- [x] **Cookie flags for same-site setup** — `COOKIE_DOMAIN=.ukedl.com`, `COOKIE_SAMESITE=lax`, `COOKIE_SECURE=true`; login verified on `ukedl.com`. *done (2026-07-20)*
+- [x] **CORS origins** — `WEB_BASE_URL=https://ukedl.com`; no `*.onrender.com` or localhost origins remain. *done (2026-07-20)*
+- [x] **`API_PUBLIC_URL=https://api.ukedl.com`** — ICS feed URLs; preflight fatal if missing. *done (2026-07-20)*
+- [x] **HSTS verified on BOTH hosts** — confirmed via curl on web + API. *done (2026-07-20)*
+- [ ] **HSTS preload (post-launch)** — only after HSTS has run clean for a while; effectively irreversible. *Owner: Chris · Status: todo*
 
 ## 2. Providers
 
-- [ ] **Lemon Squeezy live keys** — live store, products/variants created; `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, all `LEMONSQUEEZY_VARIANT_*` set; `BILLING_PROVIDER=lemonsqueezy`. *Owner: Chris · Status: todo*
-- [ ] **Lemon Squeezy webhook registered** — `https://api.ukedl.com/billing/webhooks/lemonsqueezy` with `LEMONSQUEEZY_WEBHOOK_SECRET`; events: order_created, subscription_created/updated/cancelled, subscription_payment_failed/success. Fire a test event and confirm entitlement updates. *Owner: Chris · Status: todo*
-- [ ] **VAPID keypair generated** — `npx web-push generate-vapid-keys`; set `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`. Keys are permanent — rotating invalidates all subscriptions. *Owner: Chris · Status: todo*
-- [ ] **Resend production key + sending domain** — `RESEND_API_KEY`, `RESEND_FROM_EMAIL` on the real domain. *Owner: Chris · Status: todo*
-- [ ] **SPF / DKIM / DMARC records** — published for the sending domain; Resend dashboard shows verified; test an invite lands in inbox (not spam) for Gmail + Outlook. *Owner: Chris · Status: todo*
-- [ ] **AI provider key** — `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`; confirm hard caps (`AI_HARD_CAP_*`) are acceptable for launch. *Owner: Chris · Status: todo*
-- [ ] **Storage decision** — either configure S3/R2 (`STORAGE_*`) or explicitly accept the data-URL-in-Postgres fallback for launch and record that decision here. *Owner: Chris · Status: todo*
-- [ ] **Sentry DSNs** — `SENTRY_DSN` (API) + `NEXT_PUBLIC_SENTRY_DSN` (web), release tagging via git SHA; trigger one test error per side and see it arrive. *Owner: Chris · Status: todo*
+- [ ] **Resend** — see §0. *Status: todo · **P0***
+- [ ] **AI provider key** — `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`; confirm `AI_HARD_CAP_*` values are acceptable. Until this is set the product runs the **mock** provider: Agenda ingest, Setup copilot, Concierge, Matchmaker, Ops and Recap all return canned output, which makes the homepage's core claim untrue. *Owner: Chris · Status: todo · **P1***
+- [ ] **Lemon Squeezy store + products** — live store; products/variants for all six catalog SKUs (Pro monthly, Pro annual, per-event 250/500/1000; Enterprise stays contact-us). Merchant-of-record onboarding asks for tax details (SSN/EIN) and a payout bank account. No monthly fee; 5% + 50¢ per transaction. *Owner: Chris · Status: todo · **P1***
+- [ ] **Lemon Squeezy keys** — `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, all `LEMONSQUEEZY_VARIANT_*`, `BILLING_PROVIDER=lemonsqueezy`. *Owner: Chris · Status: todo*
+- [ ] **Lemon Squeezy webhook registered** — `https://api.ukedl.com/billing/webhooks/lemonsqueezy` with `LEMONSQUEEZY_WEBHOOK_SECRET`; events: order_created, subscription_created/updated/cancelled, subscription_payment_failed/success. *Owner: Chris · Status: todo*
+- [ ] **Billing validated in TEST MODE first** — test purchase with a test card → webhook fires → entitlement updates on the org → plan caps change → receipt arrives. **This code path has never run in production**; validate before going live. *Owner: Chris · Status: todo · **P1***
+- [ ] **VAPID keypair generated** — `npx web-push generate-vapid-keys`; set `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`. Keys are permanent — rotating invalidates all push subscriptions. *Owner: Chris · Status: todo*
+- [ ] **Storage decision** — configure S3/R2 (`STORAGE_*`) or explicitly accept the data-URL-in-Postgres fallback and record the decision here. *Owner: Chris · Status: todo*
+- [ ] **Sentry DSNs** — `SENTRY_DSN` (API) + `NEXT_PUBLIC_SENTRY_DSN` (web); trigger one test error per side and confirm arrival. *Owner: Chris · Status: todo*
+- [ ] **Status page** — stand one up (Better Stack / Instatus free tier) and point `brand.statusPageUrl` at it, or leave the footer link removed (E1 removes it by default). *Owner: Chris · Status: todo*
 
 ## 3. Data safety & first boot
 
-- [ ] **Demo seeded BEFORE first public boot** — run `npm run seed:demo` against production so the internal org owns the `demo` slug before any customer can claim lookalikes (slug is reserved either way; seeding makes the demo actually exist). *Owner: Chris · Status: todo*
-- [ ] **Neon retention window confirmed** — record the PITR window in RUNBOOK §2 and confirm it meets the recovery objective. *Owner: Chris · Status: todo*
-- [ ] **Restore drill performed + dated** — full RUNBOOK §3 procedure against a PITR branch; record the row in the RUNBOOK table. *Owner: Chris · Status: todo*
-- [ ] **`ALLOW_DESTRUCTIVE_DB` absent from all production env** — check Render dashboard explicitly. *Owner: Chris · Status: todo*
+- [x] **Demo seeded before public boot** — `npm run seed:demo` run against production; internal org owns the `demo` slug. *done (2026-07-20)*
+- [ ] **Neon retention window confirmed** — record the PITR window in RUNBOOK §2. *Owner: Chris · Status: todo*
+- [ ] **Restore drill performed + dated** — full RUNBOOK §3 procedure against a PITR branch. *Owner: Chris · Status: todo*
+- [x] **`ALLOW_DESTRUCTIVE_DB` absent from production env** — verified in Render. *done (2026-07-20)*
 
 ## 4. Hardening verification
 
-- [ ] **CSP report-only → enforce** — headers ship report-only by default (`apps/web/lib/securityHeaders.js`). Walk the full demo event (dashboard, scanner, maps, uploads, push, billing) with devtools open and zero CSP violations logged, then set `CSP_ENFORCE=1` in the Netlify build env and redeploy. No `unsafe-inline` in `script-src`, ever. Sentry's ingest origin is added to `connect-src` automatically when `NEXT_PUBLIC_SENTRY_DSN` is set at build — after enforcing, **verify Sentry events still arrive** (trigger a test error and see it in the Sentry dashboard). *Owner: Chris · Status: todo*
-- [ ] **Rate-limit smoke test from a cold IP** — from a network that hasn't hit the API (mobile hotspot/VPS): hammer `POST /auth/login` and one public CFP route; expect 429s at the documented thresholds; confirm normal browsing is unaffected. *Owner: Chris · Status: todo*
-- [ ] **Uptime monitor → `/health/ready`** — external monitor (UptimeRobot or similar) on `https://api.ukedl.com/health/ready` expecting HTTP 200; alert to email/phone. `/health` alone is NOT sufficient (doesn't cover DB/poller). *Owner: Chris · Status: todo*
-- [ ] **Boot-log preflight review** — after the production deploy, read the first screen of API logs; zero unexpected `[preflight]` warnings. *Owner: Chris · Status: todo*
+- [ ] **CSP report-only → enforce** — walk the full demo event with devtools open, zero violations, then `CSP_ENFORCE=1` in the Netlify build env. Never `unsafe-inline` in `script-src`. After enforcing, verify Sentry events still arrive. *Owner: Chris · Status: todo*
+- [ ] **Rate-limit smoke test from a cold IP** — expect 429s at documented thresholds; normal browsing unaffected. *Owner: Chris · Status: todo*
+- [ ] **Uptime monitor → `/health/ready`** — external monitor expecting HTTP 200, alerting to email/phone. `/health` alone is insufficient (doesn't cover DB/poller). *Owner: Chris · Status: todo*
+- [x] **Boot-log preflight review** — API logs read after cutover; warnings are the expected optional-integration set. *done (2026-07-20)*
 
-## 5. Rename & legal
+## 5. Product fixes from the customer test (see FIX_PLAN.md)
 
-- [ ] **Final product name decided** — replaces the "Colloquium" working name; update `packages/config` branding in one commit. *Owner: Chris · Status: todo*
-- [ ] **Post-rename domain purchased + redirects planned** — ukedl.com → new domain strategy (or keep ukedl.com). *Owner: Chris · Status: todo*
-- [ ] **ToS + Privacy Policy legal sign-off** — including the subprocessor list (Neon, Render, Netlify, Resend, Lemon Squeezy, Anthropic, Sentry, storage provider). *Owner: Chris · Status: todo*
+- [ ] **E1 — honesty & unblocking** — verify-link fallback, env preflight warning, Help index, billing-honesty copy, ingest error states, organizer name on public event pages. *Owner: Cursor · Status: todo · **P0/P1***
+- [ ] **E2 — organizer editing** — edit/delete for tracks, rooms, sessions, papers; event settings panel; timezone picker; slug preview; date warnings; publish guard. Web-only (the API already exposes PUT/DELETE). *Owner: Cursor · Status: todo · **P1***
+- [ ] **E3 — CSV import + clarity** — CSV session import, speakers/papers explainer, signup-first CTA, last-updated dates, OG tags for event pages. *Owner: Cursor · Status: todo*
+- [ ] **E4 — wizard robustness** — form state survives remount; Back preserves input; edit-details link after draft creation. *Owner: Cursor · Status: todo*
+
+## 6. Rename & legal
+
+- [ ] **Final product name decided** — replaces the interim UKEDL launch name; one-line change in `packages/config`. Blocked on trademark clearance for "Colloquium." *Owner: Chris + attorney · Status: blocked*
+- [ ] **Post-rename domain purchased + redirects planned**. *Owner: Chris · Status: todo*
+- [ ] **ToS + Privacy legal sign-off** — including the subprocessor list (Neon, Render, Netlify, Resend, Lemon Squeezy, Anthropic, Sentry, storage). The security page currently carries a visible DRAFT chip. *Owner: Chris + attorney · Status: todo*
+- [ ] **FERPA alignment statement** on /security — cheap credibility with education buyers; pursue SOC 2 only when an enterprise deal demands it. *Owner: Chris · Status: todo*
 - [ ] **Support commitment reviewed** — `supportHours` in `packages/config` matches what one person can actually deliver. *Owner: Chris · Status: todo*
 
-## 6. CI / deploy gating
+## 7. CI / deploy gating
 
-- [ ] **CI green on the launch commit** — lint + typecheck + unit + DB tests (`.github/workflows/ci.yml`). *Owner: Chris · Status: todo*
-- [ ] **Render/Netlify deploy only on green** — see "Deploy gating" in `.github/workflows/ci.yml` header comment; verify a red build does not deploy. *Owner: Chris · Status: todo*
+- [x] **CI green on the launch commit** — lint + typecheck + unit; DB suites gated behind the destructive guard by design. *done (2026-07-20)*
+- [ ] **Render/Netlify deploy only on green** — verify a red build does not deploy. *Owner: Chris · Status: todo*
+
+---
+
+## Recommended order
+1. **§0 Resend** — start now; DNS propagates while you do other things. Then run the P0 acceptance test.
+2. **E1 in Cursor, in parallel** — makes the app honest immediately and removes the lock-out failure mode permanently.
+3. **Anthropic key** → re-test Agenda ingest end-to-end with a real program.
+4. **Lemon Squeezy in test mode** → validate purchase → webhook → entitlement → then flip live.
+5. **E2** (organizer editing — the biggest daily-use win), then **E3**, **E4**.
+6. Remaining hardening (§4), Sentry, storage decision, restore drill, status page.

@@ -151,7 +151,7 @@ export default function PricingPage() {
                           Contact us
                         </a>
                       ) : plan.sku === "free" ? (
-                        <Link className="button" href="/login">
+                        <Link className="button" href="/login?intent=create-event">
                           Start free
                         </Link>
                       ) : (

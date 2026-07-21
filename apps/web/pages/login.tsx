@@ -9,10 +9,57 @@ import { readClientStorage, removeClientStorage, writeClientStorage } from "../l
 
 type LinkedEventPayload = { id: string; name: string };
 
+const POST_LOGIN_INTENT_KEY = "postLoginIntent";
+
+/** Persist a "Create your event" CTA intent so it survives register → verify → sign-in. */
+function captureIntentFromUrl() {
+  try {
+    const intent = new URLSearchParams(window.location.search).get("intent");
+    if (intent === "create-event") {
+      window.localStorage.setItem(POST_LOGIN_INTENT_KEY, intent);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Where to send a signed-in user. With a stored create-event intent, route to
+ * organization/event creation instead of the attendee dashboard.
+ */
+async function postLoginDestination(): Promise<string> {
+  let intent: string | null = null;
+  try {
+    intent = window.localStorage.getItem(POST_LOGIN_INTENT_KEY);
+  } catch {
+    /* ignore */
+  }
+  if (intent !== "create-event") return "/dashboard";
+  try {
+    window.localStorage.removeItem(POST_LOGIN_INTENT_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const orgs = await apiFetch<Array<{ id: string }>>("/organizations/mine");
+    if (orgs.length > 0) {
+      return `/organizer/events/new?org=${encodeURIComponent(orgs[0]!.id)}`;
+    }
+  } catch {
+    /* fall through to org creation */
+  }
+  return "/organizer/org/new";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [registerType, setRegisterType] = useState<"participant" | "admin">("participant");
+  /**
+   * Legacy global platform-admin registration (invite code) is never offered
+   * publicly — only via the private /login?admin=1 flag.
+   */
+  const adminMode = router.isReady && router.query.admin === "1";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -25,12 +72,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     let cancelled = false;
+    captureIntentFromUrl();
     (async () => {
       try {
         const me = await apiFetch<AuthResponse["user"]>("/auth/me");
         if (!cancelled && me?.id) {
           window.localStorage.setItem("user", JSON.stringify(me));
-          window.location.href = "/dashboard";
+          window.location.href = await postLoginDestination();
         }
       } catch {
         clearAuthClientState();
@@ -40,6 +88,13 @@ export default function LoginPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (router.query.intent === "create-event" || router.query.mode === "register") {
+      setMode("register");
+    }
+  }, [router.isReady, router.query.intent, router.query.mode]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -108,14 +163,15 @@ export default function LoginPage() {
     const payload = Object.fromEntries(form.entries());
 
     try {
-      const endpoint = mode === "login" ? "/auth/login" : registerType === "admin" ? "/auth/register-admin" : "/auth/register";
+      const endpoint =
+        mode === "login" ? "/auth/login" : adminMode && registerType === "admin" ? "/auth/register-admin" : "/auth/register";
       const headers: Record<string, string> = {};
       const activeEventId = window.localStorage.getItem("activeEventId");
       if (activeEventId && mode === "register") {
         headers["x-event-id"] = activeEventId;
       }
 
-      if (mode === "register" && registerType === "participant") {
+      if (mode === "register" && !(adminMode && registerType === "admin")) {
         const data = await apiFetch<{ ok: true; requiresEmailVerification?: boolean; message?: string }>(
           endpoint,
           { method: "POST", body: JSON.stringify(payload), headers },
@@ -138,7 +194,7 @@ export default function LoginPage() {
       } catch {
         /* ignore */
       }
-      window.location.href = "/dashboard";
+      window.location.href = await postLoginDestination();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -211,16 +267,23 @@ export default function LoginPage() {
           {mode === "register" ? (
             <>
               <div style={{ marginBottom: 12 }}>
-                <label htmlFor="register-type">Account type</label>
-                <select
-                  id="register-type"
-                  className="select"
-                  value={registerType}
-                  onChange={(e) => setRegisterType(e.target.value as "participant" | "admin")}
-                >
-                  <option value="participant">Participant</option>
-                  <option value="admin">Organizer (invite code)</option>
-                </select>
+                {adminMode ? (
+                  <>
+                    <label htmlFor="register-type">Account type</label>
+                    <select
+                      id="register-type"
+                      className="select"
+                      value={registerType}
+                      onChange={(e) => setRegisterType(e.target.value as "participant" | "admin")}
+                    >
+                      <option value="participant">Participant</option>
+                      <option value="admin">Platform admin (invite code)</option>
+                    </select>
+                  </>
+                ) : null}
+                <p className="text-meta" style={{ margin: adminMode ? "8px 0 0" : 0 }}>
+                  Anyone can create events — after you sign in, choose Create your event.
+                </p>
               </div>
               <form onSubmit={handleSubmit}>
                 <label htmlFor="reg-email">Email</label>
@@ -237,7 +300,7 @@ export default function LoginPage() {
                   minLength={8}
                   autoComplete="new-password"
                 />
-                {registerType === "admin" && (
+                {adminMode && registerType === "admin" && (
                   <>
                     <label htmlFor="reg-invite">Admin invite code</label>
                     <input id="reg-invite" className="input" name="inviteCode" type="password" required />

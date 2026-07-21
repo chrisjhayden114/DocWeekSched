@@ -1,7 +1,27 @@
 # GAP_REPORT.md — Phase 0 Codebase Audit
 
-**Repo:** DocWeekSched (EventPilot / ukedl.com)  
-**Audited:** 2026-07-17  
+> ## ⚠️ HISTORICAL DOCUMENT — DO NOT TRUST FOR CURRENT FACTS
+>
+> This is a snapshot of the codebase on **2026-07-17**, taken *before* Phases 1–7
+> were built. It described the starting point so the build could be planned. Nearly
+> every "does not exist" finding below has since been implemented.
+>
+> **Known to be false as of 2026-07-21:** "AI — None, no gateway, no provider SDKs"
+> (an AI gateway and six agent surfaces now exist in `apps/api/src/lib/ai`);
+> "Billing SDKs — None" (Lemon Squeezy is integrated); "Background jobs — None"
+> (`BackgroundJob` model + `lib/jobs`); "Object storage — None" (`lib/storage`);
+> auth via `localStorage` (now httpOnly cookies); "Email — no provider interface"
+> (`lib/email` has one, plus an unconfigured-provider fallback); `packages/shared`
+> as "thin types only" (and `packages/config` did not yet exist). The schema has
+> grown from the entity list below to **80 models across 41 migrations**.
+>
+> For current facts use **`HANDOFF_BRIEF.md`** and **`README.md`**. This file is
+> kept for provenance — it records why the build was sequenced the way it was.
+>
+> *Banner added 2026-07-21.*
+
+**Repo:** DocWeekSched (ukedl.com)
+**Audited:** 2026-07-17
 **Scope:** Entire monorepo at repo root. No code was changed in this session.
 
 This report maps `PRODUCT_SPEC.md` onto the current codebase. Later phases should start every session with: *Read PRODUCT_SPEC.md and GAP_REPORT.md first.*

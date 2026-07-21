@@ -15,21 +15,36 @@ const SAMPLE_PROGRAM = `International Methods Workshop — Day 1
 
 type DraftSession = { time: string; title: string; detail?: string };
 
+/** Display cap only — extraction itself is uncapped; truncation is announced. */
+const DISPLAY_CAP = 20;
+
 function mockExtract(text: string): DraftSession[] {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   const out: DraftSession[] = [];
   for (const line of lines) {
     const m = /^(\d{1,2}:\d{2})\s+(.+)$/.exec(line);
     if (m) {
-      out.push({ time: m[1]!, title: m[2]! });
+      const time = m[1]!;
+      // Parallel sessions on one timed line ("A | B" / "A || B") stay separate rows.
+      const parallel = m[2]!.split(/\s*\|{1,2}\s*/).map((t) => t.trim()).filter(Boolean);
+      for (const title of parallel) {
+        out.push({ time, title });
+      }
       continue;
     }
     if (line.startsWith("•") && out.length) {
       const last = out[out.length - 1]!;
-      last.detail = [last.detail, line.replace(/^•\s*/, "")].filter(Boolean).join(" · ");
+      const item = line.replace(/^•\s*/, "");
+      if (/^paper:/i.test(item)) {
+        // Papers attach to their parent session.
+        last.detail = [last.detail, item].filter(Boolean).join(" · ");
+      } else {
+        // A non-paper bullet under a timed line is a concurrent session, not detail.
+        out.push({ time: last.time, title: item });
+      }
     }
   }
-  return out.slice(0, 8);
+  return out;
 }
 
 export function HeroIngestDemo() {
@@ -70,12 +85,17 @@ export function HeroIngestDemo() {
       </div>
       {ran ? (
         <ol className="mkt-ingest-results">
-          {drafts.map((d) => (
-            <li key={`${d.time}-${d.title}`}>
+          {drafts.slice(0, DISPLAY_CAP).map((d, i) => (
+            <li key={`${d.time}-${d.title}-${i}`}>
               <strong>{d.time}</strong> {d.title}
               {d.detail ? <span className="text-meta"> — {d.detail}</span> : null}
             </li>
           ))}
+          {drafts.length > DISPLAY_CAP ? (
+            <li className="text-meta">
+              Showing {DISPLAY_CAP} of {drafts.length} extracted — the full importer handles the rest.
+            </li>
+          ) : null}
           {drafts.length === 0 ? <li className="text-meta">No timed lines found — try the sample.</li> : null}
         </ol>
       ) : (

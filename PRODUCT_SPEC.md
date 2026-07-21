@@ -1,5 +1,27 @@
 # PRODUCT_SPEC.md — Master Build Package
-## Turning EventPilot (ukedl.com) into a sellable, AI-native, calm event workspace
+## Turning ukedl.com into a sellable, AI-native, calm event workspace
+
+> ## ℹ️ STATUS — mixed. Read this before using the file.
+>
+> **Compiled 2026-07-16. Parts I and IV–V are finished work; Parts II–III are still
+> authoritative.**
+>
+> - **Parts II–III (Product strategy, Global rules) — CURRENT.** Positioning, the five
+>   differentiation theses, the anti-goals, and the global engineering rules still
+>   govern every decision. This remains the best statement of what the product is for.
+> - **Parts I, IV, V (How to use this file, Run order, The phases) — COMPLETE.**
+>   Phases 0 through 7 were all built and merged (`de95c4e`, 2026-07-20) and the product
+>   went live the same day. The phase prompts are a record of work done, not a to-do list.
+> - **Not covered here at all:** Phase D (the full visual redesign, D1–D6 — see
+>   `DESIGN_PHASE_D.md`) and Phase E (the customer-test fixes, E0–E4 — see `FIX_PLAN.md`
+>   and `CUSTOMER_TEST_FINDINGS.md`). Both happened after this file was compiled.
+> - Where this file says "EventPilot," it means *this product* under an old working
+>   name. EventPilot is also the name of a competitor. The current interim name is
+>   **UKEDL**, set in `packages/config`.
+>
+> For current status start with **`HANDOFF_BRIEF.md`**.
+>
+> *Banner added 2026-07-21.*
 
 **Compiled:** July 16, 2026. This single file supersedes and merges: `CURSOR_INSTRUCTIONS.md`, the Design & UX Polish addendum, the Features addendum (parity + AI), the Solo-Founder addendum, and the Differentiation Strategy. All amendments are folded into the phases — no cross-referencing needed.
 

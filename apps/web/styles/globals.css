@@ -5594,6 +5594,14 @@ button.schedule-meta-chip:hover {
   border-color: color-mix(in srgb, var(--track-color, var(--gray-300)) 55%, #ffffff);
 }
 
+/* Read-only surfaces (public event page): a block is a card, not a control. */
+.schedule-grid-block--static,
+.schedule-grid-block--static:hover {
+  cursor: default;
+  filter: none;
+  border-color: color-mix(in srgb, var(--track-color, var(--gray-300)) 40%, #ffffff);
+}
+
 .schedule-grid-block-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;

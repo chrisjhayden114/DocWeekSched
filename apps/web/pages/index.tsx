@@ -97,7 +97,7 @@ export default function LandingPage() {
                   sales-call pricing.
                 </p>
                 <div className="mkt-hero-cta">
-                  <Link className="button" href="/login">
+                  <Link className="button" href="/login?intent=create-event">
                     Create your event
                   </Link>
                   <Link className="button secondary" href={`/e/${brand.demoEventSlug}`}>
@@ -199,7 +199,7 @@ export default function LandingPage() {
                 Start free, or open the public demo schedule first.
               </p>
               <div className="mkt-hero-cta" style={{ marginBottom: 0 }}>
-                <Link className="button" href="/login">
+                <Link className="button" href="/login?intent=create-event">
                   Create your event
                 </Link>
                 <Link className="button secondary" href={`/e/${brand.demoEventSlug}`}>

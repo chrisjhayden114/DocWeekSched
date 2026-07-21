@@ -17,7 +17,7 @@ export function SiteHeader() {
           <Link href="/login" className="mkt-header-signin">
             Sign in
           </Link>
-          <Link href="/login" className="button" style={{ minHeight: 40, padding: "8px 14px" }}>
+          <Link href="/login?intent=create-event" className="button" style={{ minHeight: 40, padding: "8px 14px" }}>
             Create your event
           </Link>
         </nav>

@@ -74,23 +74,39 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   }
 };
 
+/**
+ * Single-day events: "Mon, Jul 20, 2026 · 7:00 AM–2:00 PM (tz)".
+ * Multi-day events: "Mon, Jul 20 – Wed, Jul 22, 2026" (never a single date
+ * plus a time range — that misreads a three-day event as one day).
+ */
 function formatRange(startIso: string, endIso: string, timeZone: string): string {
   try {
     const start = new Date(startIso);
     const end = new Date(endIso);
-    const d = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-    const t = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    return `${d.format(start)} · ${t.format(start)}–${t.format(end)} (${timeZone})`;
+    const sameDay = zonedDayKey(startIso, timeZone) === zonedDayKey(endIso, timeZone);
+    if (sameDay) {
+      const d = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const t = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      return `${d.format(start)} · ${t.format(start)}–${t.format(end)} (${timeZone})`;
+    }
+    const day = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short", month: "short", day: "numeric" });
+    const year = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric" });
+    const startYear = year.format(start);
+    const endYear = year.format(end);
+    if (startYear === endYear) {
+      return `${day.format(start)} – ${day.format(end)}, ${endYear}`;
+    }
+    return `${day.format(start)}, ${startYear} – ${day.format(end)}, ${endYear}`;
   } catch {
     return `${startIso} – ${endIso}`;
   }

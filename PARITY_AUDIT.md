@@ -70,7 +70,12 @@ The "later = more work" worry is mostly unfounded here: every backlog item is an
 **G2 — "Say Hi" intro template (fold into D6):** on attendee profiles/rows, a one-tap greeting that opens the existing DM composer pre-filled: "Hi {firstName} — I'm also at {event.name}. Would love to compare notes on {shared interest if present}." Pure UI over the existing messages API.
 
 **Backlog (post-launch, all additive, ordered by value):**
-- B1 Custom personal agenda items (new table PersonalAgendaItem; UI in My Schedule)
+- B1 Custom personal agenda items — **cheaper than recorded here: NO new table needed.**
+  `PersonalAgendaBlock` already exists and its `source` enum already has a `CUSTOM`
+  value alongside `MEETING`; today only the meetings/matchmaker code writes to it
+  (`lib/ai/matchmaker/freeSlots.ts`, `routes/meetings.ts`) and `routes/ics.ts` already
+  exports these blocks to calendar feeds. B1 is therefore CRUD endpoints + a My Schedule
+  UI over an existing model — no schema change, no migration. *(Verified 2026-07-21.)*
 - B2 Personal notes on sessions + attendees, with export (new Note table; Whova-parity feature academics actually use)
 - B3 Contact-info exchange (consent-gated vCard swap)
 - B4 Analytics additions: attendee search terms, top sessions by saves, per-surface usage

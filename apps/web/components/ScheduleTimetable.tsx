@@ -168,24 +168,37 @@ function TimetableBlock({
   const widthPct = 100 / colCount;
   const leftPct = col * widthPct;
   const interactive = Boolean(onSelect);
+  const style = {
+    top,
+    height,
+    left: `calc(${leftPct}% + ${GUTTER / 2}px)`,
+    width: `calc(${widthPct}% - ${GUTTER}px)`,
+    ["--track-color" as string]: color,
+  };
+  const content = (
+    <>
+      <span className="schedule-grid-block-title">{session.title}</span>
+      {session.roomLabel ? <span className="schedule-grid-block-room">{session.roomLabel}</span> : null}
+    </>
+  );
+  // Where a block cannot be opened (public page), never announce a control:
+  // no button role, no pointer cursor, no focus stop.
+  if (!interactive) {
+    return (
+      <div className="schedule-grid-block schedule-grid-block--static" style={style} title={session.title}>
+        {content}
+      </div>
+    );
+  }
   return (
     <button
       type="button"
       className="schedule-grid-block"
-      style={{
-        top,
-        height,
-        left: `calc(${leftPct}% + ${GUTTER / 2}px)`,
-        width: `calc(${widthPct}% - ${GUTTER}px)`,
-        ["--track-color" as string]: color,
-        cursor: interactive ? "pointer" : "default",
-      }}
+      style={style}
       onClick={() => onSelect?.(session.id)}
       title={session.title}
-      tabIndex={interactive ? 0 : -1}
     >
-      <span className="schedule-grid-block-title">{session.title}</span>
-      {session.roomLabel ? <span className="schedule-grid-block-room">{session.roomLabel}</span> : null}
+      {content}
     </button>
   );
 }
