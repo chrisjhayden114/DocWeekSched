@@ -1,6 +1,14 @@
 /* App service worker — cache agenda / My Agenda / session / maps once visited. */
-const CACHE = "app-shell-v2";
-const PRECACHE = ["/login", "/dashboard", "/api/manifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+const CACHE = "app-shell-v3";
+const PRECACHE = [
+  "/login",
+  "/dashboard",
+  "/offline.html",
+  "/api/manifest",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/apple-touch-icon.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -58,8 +66,12 @@ self.addEventListener("fetch", (event) => {
         if (isNav) {
           const dash = await caches.match("/dashboard");
           if (dash) return dash;
+          const offline = await caches.match("/offline.html");
+          if (offline) return offline;
         }
-        return new Response("Offline — open Agenda, a session, or Maps once while online.", {
+        const offline = await caches.match("/offline.html");
+        if (offline) return offline;
+        return new Response("Offline — open Agenda once while online.", {
           status: 503,
           headers: { "Content-Type": "text/plain; charset=utf-8" },
         });

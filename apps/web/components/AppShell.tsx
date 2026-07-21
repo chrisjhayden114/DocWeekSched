@@ -356,7 +356,9 @@ export function AppShell({
             >
               {item.icon}
               <span>{item.label}</span>
-              {item.badge ? <span className="nav-unread-badge shell-bottombar-badge">{item.badge}</span> : null}
+              {item.badge ? (
+                <span className="shell-unread-dot" aria-label={`${item.badge} unread`} />
+              ) : null}
             </Link>
           ) : (
             <button
@@ -368,7 +370,9 @@ export function AppShell({
             >
               {item.icon}
               <span>{item.label}</span>
-              {item.badge ? <span className="nav-unread-badge shell-bottombar-badge">{item.badge}</span> : null}
+              {item.badge ? (
+                <span className="shell-unread-dot" aria-label={`${item.badge} unread`} />
+              ) : null}
             </button>
           ),
         )}
@@ -386,7 +390,9 @@ export function AppShell({
               <circle cx="19" cy="12" r="1.6" />
             </svg>
             <span>More</span>
-            {moreBadge ? <span className="nav-unread-badge shell-bottombar-badge">{moreBadge}</span> : null}
+            {moreBadge ? (
+              <span className="shell-unread-dot" aria-label={`${moreBadge} unread`} />
+            ) : null}
           </button>
         ) : null}
       </nav>

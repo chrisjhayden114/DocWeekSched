@@ -15,14 +15,20 @@ export type FilterOption = {
   count?: number;
 };
 
-/** "2026-07-20" → short chip label like "Mon, Jul 20" (timezone-safe). */
-export function dayChipLabel(dayKey: string): string {
+/** "2026-07-20" → parts for the mobile date strip (timezone-safe). */
+export function dayChipParts(dayKey: string): { weekday: string; dayNum: string; full: string } {
   const [y, m, d] = dayKey.split("-").map((n) => Number(n));
-  if (!y || !m || !d) return dayKey;
+  if (!y || !m || !d) return { weekday: dayKey, dayNum: "", full: dayKey };
   const date = new Date(Date.UTC(y, m - 1, d, 12));
   const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(date);
+  const dayNum = new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: "UTC" }).format(date);
   const monthDay = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(date);
-  return `${weekday}, ${monthDay}`;
+  return { weekday, dayNum, full: `${weekday}, ${monthDay}` };
+}
+
+/** "2026-07-20" → short chip label like "Mon, Jul 20" (timezone-safe). */
+export function dayChipLabel(dayKey: string): string {
+  return dayChipParts(dayKey).full;
 }
 
 export function DayChips({
@@ -43,23 +49,29 @@ export function DayChips({
         type="button"
         role="tab"
         aria-selected={value === ""}
-        className={`day-chip${value === "" ? " is-active" : ""}`}
+        className={`day-chip day-chip--all${value === "" ? " is-active" : ""}`}
         onClick={() => onChange("")}
       >
-        {allLabel}
+        <span className="day-chip-full">{allLabel}</span>
       </button>
-      {days.map((day) => (
-        <button
-          key={day}
-          type="button"
-          role="tab"
-          aria-selected={value === day}
-          className={`day-chip${value === day ? " is-active" : ""}`}
-          onClick={() => onChange(day)}
-        >
-          {dayChipLabel(day)}
-        </button>
-      ))}
+      {days.map((day) => {
+        const parts = dayChipParts(day);
+        return (
+          <button
+            key={day}
+            type="button"
+            role="tab"
+            aria-selected={value === day}
+            className={`day-chip${value === day ? " is-active" : ""}`}
+            onClick={() => onChange(day)}
+            aria-label={parts.full}
+          >
+            <span className="day-chip-weekday">{parts.weekday}</span>
+            <span className="day-chip-num">{parts.dayNum}</span>
+            <span className="day-chip-full">{parts.full}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

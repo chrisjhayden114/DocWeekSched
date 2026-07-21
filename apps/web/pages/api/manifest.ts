@@ -13,7 +13,7 @@ export default function handler(_req: NextApiRequest, res: NextApiResponse) {
     scope: "/",
     display: "standalone",
     orientation: "any",
-    background_color: "#F7F8FB",
+    background_color: "#fafafa",
     theme_color: brand.colors.primary,
     icons: [
       {

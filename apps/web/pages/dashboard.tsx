@@ -2381,27 +2381,6 @@ function ScheduleBoard({
                       title={s.description || undefined}
                       onClick={() => onGoToSession(s.id)}
                     >
-                      <button
-                        type="button"
-                        className={`attendance-join-dot schedule-event-save ${joining ? "is-on" : ""}`}
-                        aria-pressed={joining}
-                        aria-label={joining ? "Remove from my schedule" : "Add to my schedule"}
-                        title={
-                          joining
-                            ? `On my schedule (${agendaJoinModeLabel(myMode)}) — click to remove`
-                            : sessionAllowsVirtual
-                              ? "Add to my schedule — in person, virtual, or async"
-                              : "Add to my schedule — in person or async"
-                        }
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (joining) {
-                            void onPatchAttendance(s.id, { status: "NOT_JOINING" });
-                          } else {
-                            setAgendaModalSessionId(s.id);
-                          }
-                        }}
-                      />
                       <div className="schedule-event-main">
                         <h4 className="schedule-event-title">
                           <span className="schedule-event-title-text">{s.title}</span>
@@ -2476,6 +2455,27 @@ function ScheduleBoard({
                         )}
                       </div>
                       <div className="schedule-event-side" onClick={(event) => event.stopPropagation()}>
+                        <button
+                          type="button"
+                          className={`attendance-join-dot schedule-event-save ${joining ? "is-on" : ""}`}
+                          aria-pressed={joining}
+                          aria-label={joining ? "Remove from my schedule" : "Add to my schedule"}
+                          title={
+                            joining
+                              ? `On my schedule (${agendaJoinModeLabel(myMode)}) — click to remove`
+                              : sessionAllowsVirtual
+                                ? "Add to my schedule — in person, virtual, or async"
+                                : "Add to my schedule — in person or async"
+                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (joining) {
+                              void onPatchAttendance(s.id, { status: "NOT_JOINING" });
+                            } else {
+                              setAgendaModalSessionId(s.id);
+                            }
+                          }}
+                        />
                         <div className="schedule-row-actions">
                           {qaEnabled ? (
                             <button
@@ -2493,9 +2493,10 @@ function ScheduleBoard({
                               className={`row-action-btn${liked ? " is-active" : ""}`}
                               type="button"
                               aria-pressed={liked}
+                              aria-label={liked ? "Unlike session" : "Like session"}
                               onClick={() => onToggleLike(s.id)}
                             >
-                              ♥{likeCount > 0 ? ` ${likeCount}` : ""}
+                              Like{likeCount > 0 ? ` · ${likeCount}` : ""}
                             </button>
                           ) : null}
                           {onToggleBookmark ? (
@@ -2507,7 +2508,7 @@ function ScheduleBoard({
                               aria-pressed={starred}
                               onClick={() => onToggleBookmark(s.id)}
                             >
-                              {starred ? "★" : "☆"}
+                              {starred ? "Starred" : "Star"}
                             </button>
                           ) : null}
                           {isAdmin && (
@@ -3963,29 +3964,50 @@ function AttendeeDirectory({
           overflow: "hidden",
         } as CSSProperties);
     const hasClampable = Boolean(a.bio?.trim()) || interests.length > 0;
+    const actionButtons =
+      a.id !== currentUserId ? (
+        <>
+          <button className="button attendee-msg-btn" type="button" onClick={() => onMessage(a.id)}>
+            Message
+          </button>
+          {onRequestMeeting ? (
+            <button className="button secondary attendee-msg-btn" type="button" onClick={() => onRequestMeeting(a)}>
+              Meet
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <span className="help-text attendee-you">You</span>
+      );
+
     return (
       <div
-        className="attendee-row"
+        className={`attendee-row${expanded ? " is-expanded" : ""}`}
         key={a.id}
-        id={isNewLetter ? `attendee-letter-${letter}` : undefined}
+        id={`attendee-${a.id}`}
       >
+        {isNewLetter ? <span id={`attendee-letter-${letter}`} className="attendee-letter-anchor" /> : null}
         <div className="attendee-avatar-wrap">
           <AttendeeAvatar photoUrl={a.photoUrl} name={a.name} />
           <span className={`attendee-role-badge role-${a.role.toLowerCase()}`}>{a.role}</span>
         </div>
         <div className="attendee-body">
-          <div className="attendee-name">{a.name}</div>
-          <div className="attendee-meta">{a.email}</div>
-          {(a.title || a.affiliation) && (
-            <div className="attendee-meta">
-              {[a.title, a.affiliation].filter(Boolean).join(" · ")}
-            </div>
-          )}
-          {a.participantType && (
-            <div className="attendee-meta attendee-role-note">
-              {participantTypeLabel(a.participantType)}
-            </div>
-          )}
+          <div className="attendee-identity">
+            <div className="attendee-name">{a.name}</div>
+            {(a.title || a.affiliation) && (
+              <div className="attendee-meta attendee-affiliation">
+                {[a.title, a.affiliation].filter(Boolean).join(" · ")}
+              </div>
+            )}
+            <div className="attendee-meta attendee-email-meta">{a.email}</div>
+            {a.participantType && (
+              <div className="attendee-meta attendee-role-note">
+                {participantTypeLabel(a.participantType)}
+              </div>
+            )}
+            {/* Mobile: Message / Meet under the identity block. */}
+            <div className="attendee-actions attendee-actions--under">{actionButtons}</div>
+          </div>
           {a.bio?.trim() ? (
             <div className={`attendee-meta bio-clamp${expanded ? " is-expanded" : ""}`} style={clampStyle}>
               {a.bio}
@@ -4011,11 +4033,6 @@ function AttendeeDirectory({
                     onClick={() =>
                       setInterestFilter((prev) => (prev?.toLowerCase() === interest.toLowerCase() ? null : interest))
                     }
-                    style={{
-                      cursor: "pointer",
-                      border: active ? "1px solid var(--uk-blue)" : "none",
-                      background: active ? "rgba(0, 51, 160, 0.16)" : undefined,
-                    }}
                   >
                     {interest}
                   </button>
@@ -4026,28 +4043,15 @@ function AttendeeDirectory({
           {hasClampable ? (
             <button
               type="button"
-              className="button secondary"
-              style={{ marginTop: 6, padding: "2px 8px", minHeight: 28, fontSize: 12, alignSelf: "flex-start" }}
+              className="button secondary attendee-more-btn"
               onClick={() => setExpandedIds((prev) => ({ ...prev, [a.id]: !prev[a.id] }))}
             >
               {expanded ? "Less" : "More"}
             </button>
           ) : null}
         </div>
-        {a.id !== currentUserId ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
-            <button className="button attendee-msg-btn" type="button" onClick={() => onMessage(a.id)}>
-              Message
-            </button>
-            {onRequestMeeting ? (
-              <button className="button secondary attendee-msg-btn" type="button" onClick={() => onRequestMeeting(a)}>
-                Request meeting
-              </button>
-            ) : null}
-          </div>
-        ) : (
-          <span className="help-text">You</span>
-        )}
+        {/* ≥768px: actions right-aligned beside the row. */}
+        <div className="attendee-actions attendee-actions--side">{actionButtons}</div>
       </div>
     );
   });
@@ -4065,13 +4069,22 @@ function AttendeeDirectory({
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Search attendees"
         />
-        <div className="attendee-index" aria-label="Jump to letter">
+        <div className="attendee-browse-chips" role="toolbar" aria-label="Browse by letter">
+          <button
+            type="button"
+            className={`attendee-browse-chip${!interestFilter ? " is-active" : ""}`}
+            onClick={() => setInterestFilter(null)}
+          >
+            All
+          </button>
           {letters.map((L) => (
             <button
               key={L}
               type="button"
-              className="attendee-index-letter"
-              onClick={() => document.getElementById(`attendee-letter-${L}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="attendee-browse-chip attendee-index-letter"
+              onClick={() =>
+                document.getElementById(`attendee-letter-${L}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
             >
               {L}
             </button>
@@ -4079,15 +4092,10 @@ function AttendeeDirectory({
         </div>
       </div>
       {interestFilter ? (
-        <div style={{ padding: "8px 16px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="help-text">Filtering by interest:</span>
-          <button
-            type="button"
-            className="chip interest-chip is-active"
-            onClick={() => setInterestFilter(null)}
-            style={{ cursor: "pointer", border: "1px solid var(--uk-blue)" }}
-          >
-            {interestFilter} ×
+        <div className="attendee-browse-chips attendee-interest-filter-bar">
+          <span className="help-text">Interest</span>
+          <button type="button" className="attendee-browse-chip is-active" onClick={() => setInterestFilter(null)}>
+            {interestFilter} · Clear
           </button>
         </div>
       ) : null}

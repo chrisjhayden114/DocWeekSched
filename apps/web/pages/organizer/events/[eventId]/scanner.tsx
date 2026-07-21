@@ -1,6 +1,7 @@
 /**
  * Phase 5 — Staff QR check-in scanner with offline auto-sync.
  * QR payload = membership.checkInCode (never invent a separate code).
+ * D5: full-bleed camera, high-contrast success/danger flash, large hallway result text.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,6 +23,8 @@ type PendingScan = {
   checkInCode: string;
   queuedAt: string;
 };
+
+type FlashKind = "success" | "danger" | null;
 
 const CACHE_KEY = (eventId: string) => `checkin-roster:${eventId}`;
 const QUEUE_KEY = (eventId: string) => `checkin-queue:${eventId}`;
@@ -50,8 +53,12 @@ export default function CheckInScannerPage() {
   const [manualCode, setManualCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<FlashKind>(null);
+  const [resultName, setResultName] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const lastScanRef = useRef<string>("");
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const headers = useCallback(
     (extra?: RequestInit): RequestInit => ({
@@ -65,12 +72,22 @@ export default function CheckInScannerPage() {
     [eventId],
   );
 
+  const triggerFlash = useCallback((kind: FlashKind, label: string | null) => {
+    setFlash(kind);
+    setResultName(label);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(null), 1400);
+  }, []);
+
   useEffect(() => {
     try {
       setToken(window.localStorage.getItem("token"));
     } catch {
       setToken(null);
     }
+    return () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -153,6 +170,12 @@ export default function CheckInScannerPage() {
   async function recordScan(checkInCode: string) {
     const code = checkInCode.trim();
     if (!code || !eventId) return;
+    if (lastScanRef.current === code) return;
+    lastScanRef.current = code;
+    setTimeout(() => {
+      if (lastScanRef.current === code) lastScanRef.current = "";
+    }, 2500);
+
     const clientMutationId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -161,6 +184,7 @@ export default function CheckInScannerPage() {
     const local = attendees.find((a) => a.checkInCode === code);
     if (!local && !online) {
       setError("Code not in cached roster — connect once to refresh the list.");
+      triggerFlash("danger", "Not in roster");
       return;
     }
 
@@ -171,8 +195,10 @@ export default function CheckInScannerPage() {
       setAttendees((prev) =>
         prev.map((a) => (a.checkInCode === code ? { ...a, checkedIn: true, checkedInAt: new Date().toISOString() } : a)),
       );
-      setMessage(`Queued offline check-in for ${local?.name || code}`);
+      const label = local?.name || code;
+      setMessage(`Queued offline check-in for ${label}`);
       setError(null);
+      triggerFlash("success", label);
       return;
     }
 
@@ -185,11 +211,15 @@ export default function CheckInScannerPage() {
         }),
         token,
       );
-      setMessage(`Checked in ${local?.name || code}`);
+      const label = local?.name || code;
+      setMessage(`Checked in ${label}`);
       setError(null);
+      triggerFlash("success", label);
       await refreshRoster();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Scan failed");
+      const msg = e instanceof Error ? e.message : "Scan failed";
+      setError(msg);
+      triggerFlash("danger", msg);
     }
   }
 
@@ -211,7 +241,6 @@ export default function CheckInScannerPage() {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
-        // BarcodeDetector when available
         const BD = (window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => {
           detect: (s: ImageBitmapSource) => Promise<Array<{ rawValue: string }>>;
         } }).BarcodeDetector;
@@ -251,82 +280,90 @@ export default function CheckInScannerPage() {
 
   return (
     <OrganizerShell active="scanner" eventId={eventId}>
-      <header className="console-page-header">
-        <div>
-          <h1>Check-in scanner</h1>
-          <p className="text-meta" style={{ margin: "4px 0 0" }}>
-            Status: {online ? "Online" : "Offline"} · Roster {attendees.length} · Checked in {checkedInCount}
-            {queue.length ? ` · Pending sync ${queue.length}` : ""}
-            {syncing ? " · Syncing…" : ""}
-          </p>
+      <div className="scanner-page">
+        <header className="scanner-status-bar">
+          <div>
+            <h1 className="scanner-title">Check-in</h1>
+            <p className="scanner-meta">
+              <span className={`scanner-online-dot${online ? " is-on" : ""}`} aria-hidden />
+              {online ? "Online" : "Offline"}
+              {" · "}
+              {checkedInCount}/{attendees.length}
+              {queue.length ? ` · ${queue.length} queued` : ""}
+              {syncing ? " · Syncing…" : ""}
+            </p>
+          </div>
+        </header>
+
+        <div className={`scanner-stage${flash === "success" ? " is-success" : ""}${flash === "danger" ? " is-danger" : ""}`}>
+          <video ref={videoRef} className="scanner-video" playsInline muted />
+          <div className="scanner-viewfinder" aria-hidden />
+          {flash ? (
+            <div className={`scanner-flash scanner-flash--${flash}`} role="status">
+              <p className="scanner-flash-label">{flash === "success" ? "Checked in" : "Not checked in"}</p>
+              {resultName ? <p className="scanner-flash-name">{resultName}</p> : null}
+            </div>
+          ) : null}
         </div>
-      </header>
-      {message ? <p role="status">{message}</p> : null}
-      {error ? (
-        <p role="alert" style={{ color: "var(--danger)" }}>
-          {error}
-        </p>
-      ) : null}
 
-      <video
-        ref={videoRef}
-        playsInline
-        muted
-        style={{ width: "100%", maxWidth: 560, maxHeight: 280, background: "#111", borderRadius: "var(--radius-sm)" }}
-      />
+        {message && !flash ? (
+          <p className="scanner-result scanner-result--ok" role="status">
+            {message}
+          </p>
+        ) : null}
+        {error && !flash ? (
+          <p className="scanner-result scanner-result--err" role="alert">
+            {error}
+          </p>
+        ) : null}
 
-      <form
-        className="console-form"
-        style={{ marginTop: 12, gridTemplateColumns: "1fr auto", alignItems: "end", maxWidth: 560 }}
-        onSubmit={(e) => {
-          e.preventDefault();
-          void recordScan(manualCode);
-          setManualCode("");
-        }}
-      >
-        <label style={{ margin: 0 }}>
-          Check-in code
-          <input
-            className="input"
-            value={manualCode}
-            onChange={(e) => setManualCode(e.target.value)}
-            placeholder="Paste or type QR payload"
-          />
-        </label>
-        <button type="submit" className="button">
-          Check in
-        </button>
-      </form>
+        <form
+          className="scanner-manual"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void recordScan(manualCode);
+            setManualCode("");
+          }}
+        >
+          <label className="scanner-manual-label" htmlFor="scanner-manual-code">
+            Check-in code
+            <input
+              id="scanner-manual-code"
+              className="input"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="Paste or type QR payload"
+              autoComplete="off"
+            />
+          </label>
+          <button type="submit" className="button scanner-manual-submit">
+            Check in
+          </button>
+        </form>
 
-      <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button type="button" className="button secondary" onClick={() => void refreshRoster()}>
-          Refresh roster
-        </button>
-        <button type="button" className="button secondary" disabled={!online || !queue.length} onClick={() => void flushQueue()}>
-          Sync queue
-        </button>
-      </div>
-
-      <ul style={{ listStyle: "none", padding: 0, marginTop: 16, maxWidth: 560 }}>
-        {attendees.slice(0, 40).map((a) => (
-          <li
-            key={a.userId}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 8,
-              padding: "8px 0",
-              borderBottom: "1px solid var(--gray-200)",
-            }}
+        <div className="scanner-toolbar">
+          <button type="button" className="button secondary" onClick={() => void refreshRoster()}>
+            Refresh roster
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={!online || !queue.length}
+            onClick={() => void flushQueue()}
           >
-            <span>
-              {a.name}
-              <span className="help-text"> · {a.checkInCode.slice(0, 8)}…</span>
-            </span>
-            <span className="help-text">{a.checkedIn ? "✓ In" : "—"}</span>
-          </li>
-        ))}
-      </ul>
+            Sync queue
+          </button>
+        </div>
+
+        <ul className="scanner-roster">
+          {attendees.slice(0, 40).map((a) => (
+            <li key={a.userId} className={`scanner-roster-row${a.checkedIn ? " is-in" : ""}`}>
+              <span className="scanner-roster-name">{a.name}</span>
+              <span className="scanner-roster-state">{a.checkedIn ? "In" : "—"}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </OrganizerShell>
   );
 }

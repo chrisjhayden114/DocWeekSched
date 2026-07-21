@@ -146,10 +146,19 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   border: 1px solid var(--gray-300);
   background: #ffffff;
   color: var(--gray-900);
-  font-size: 14px;
+  /* ≥16px on small screens prevents iOS focus zoom; desktop stays 14px via media query below. */
+  font-size: 16px;
   font-family: inherit;
   line-height: 1.4;
   transition: var(--transition);
+}
+
+@media (min-width: 768px) {
+  .input,
+  .select,
+  .textarea {
+    font-size: 14px;
+  }
 }
 
 .input::placeholder,
@@ -683,6 +692,12 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 
 .schedule-list {
   min-width: 0;
+  max-width: 100%;
+}
+
+.schedule-day {
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Sticky context bar: segmented view control + day chips + tz controls. */
@@ -698,14 +713,14 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   border-bottom: 1px solid var(--gray-200);
 }
 
-/* Inside the app shell the top bar (56px) is also sticky — pin below it. */
+/* Inside the app shell the top bar (56px) is also sticky — pin below it + notch. */
 .shell .agenda-context-bar {
-  top: 56px;
+  top: calc(56px + env(safe-area-inset-top, 0px));
 }
 
 /* On the public event page the sticky marketing header (~64px) is above it. */
 .mkt-page .agenda-context-bar {
-  top: 64px;
+  top: calc(64px + env(safe-area-inset-top, 0px));
   z-index: 10;
 }
 
@@ -812,11 +827,12 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   box-shadow: none;
 }
 
-/* Day chips — per-day tabs. */
+/* Day chips — per-day tabs (desktop: text pills; mobile: weekday + day-number strip). */
 .day-chips {
   display: flex;
   gap: 6px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: 2px;
   scrollbar-width: none;
 }
@@ -828,9 +844,12 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 .day-chip {
   flex-shrink: 0;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  min-height: 32px;
-  padding: 4px 12px;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 12px;
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-md);
   background: #ffffff;
@@ -838,7 +857,26 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   font: 500 13px/18px var(--font-body);
   white-space: nowrap;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: var(--transition);
+}
+
+.day-chip-weekday {
+  display: none;
+  font: 500 11px/14px var(--font-body);
+  color: var(--gray-500);
+  text-transform: capitalize;
+}
+
+.day-chip-num {
+  display: none;
+  font: 600 16px/20px var(--font-body);
+  color: inherit;
+}
+
+.day-chip-full {
+  display: inline;
 }
 
 .day-chip:hover {
@@ -850,6 +888,60 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   border-color: var(--gray-300);
   color: var(--gray-900);
   font-weight: 600;
+}
+
+@media (max-width: 767.98px) {
+  .day-chips {
+    gap: 4px;
+    margin: 0 -4px;
+    padding: 0 4px 4px;
+  }
+
+  .day-chip:not(.day-chip--all) {
+    min-width: 48px;
+    padding: 6px 8px 8px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    gap: 2px;
+  }
+
+  .day-chip:not(.day-chip--all) .day-chip-weekday,
+  .day-chip:not(.day-chip--all) .day-chip-num {
+    display: block;
+  }
+
+  .day-chip:not(.day-chip--all) .day-chip-full {
+    display: none;
+  }
+
+  .day-chip--all {
+    min-width: auto;
+    padding: 8px 10px;
+    border: 1px solid var(--gray-200);
+    background: #ffffff;
+  }
+
+  .day-chip--all .day-chip-full {
+    font: 500 12px/16px var(--font-body);
+  }
+
+  .day-chip.is-active:not(.day-chip--all) {
+    background: var(--primary-50);
+    color: var(--primary);
+    box-shadow: inset 0 -2px 0 var(--primary);
+    font-weight: 700;
+  }
+
+  .day-chip.is-active:not(.day-chip--all) .day-chip-weekday {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .day-chip--all.is-active {
+    background: var(--gray-200);
+    color: var(--gray-900);
+  }
 }
 
 /* Day headers: bold weekday + regular date. */
@@ -879,6 +971,9 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   gap: 0 var(--space-3);
   align-items: stretch;
   margin-bottom: var(--space-2);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .schedule-time {
@@ -897,23 +992,32 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   color: var(--gray-400);
 }
 
-/* Concurrent sessions: equal-width flex children ≥768px. */
+/* Concurrent sessions: equal-width flex children ≥768px — never wider than the schedule column. */
 .schedule-events {
   display: flex;
   flex-wrap: nowrap;
   gap: 8px;
   align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .schedule-events > .schedule-event {
   flex: 1 1 0;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .schedule-events-wrap {
   display: grid;
   gap: 6px;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 
 .schedule-concurrent-note {
@@ -955,9 +1059,8 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   background: var(--gray-25);
 }
 
-.schedule-event > .attendance-join-dot,
 .schedule-event .schedule-event-save {
-  margin-top: 1px;
+  margin-top: 0;
 }
 
 .schedule-event-main {
@@ -1009,6 +1112,8 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
  * Concurrent (side-by-side) cards: the compact attendance selector must not
  * share the meta line — it steals width and shreds the text one word per line.
  * Meta takes the full first row; selector drops below, right-aligned.
+ * Side actions must shrink so equal-width cards stay inside the schedule column
+ * (never overlapping the ≥1280px filter rail).
  */
 .schedule-events:has(> .schedule-event + .schedule-event) .schedule-event-meta {
   flex: 1 1 100%;
@@ -1016,8 +1121,27 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 }
 
 .schedule-events:has(> .schedule-event + .schedule-event) .join-mode-switch--compact {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   margin-left: auto;
+  max-width: 100%;
+}
+
+.schedule-events:has(> .schedule-event + .schedule-event) .schedule-event-side {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 46%;
+}
+
+.schedule-events:has(> .schedule-event + .schedule-event) .schedule-row-actions {
+  max-width: 100%;
+}
+
+.schedule-events:has(> .schedule-event + .schedule-event) .schedule-event-speakers {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
 }
 
 /* Inline chips on the 12px meta line (Zoom / recording / map). */
@@ -1086,29 +1210,34 @@ button.schedule-meta-chip:hover {
   color: var(--gray-800);
 }
 
-/* Compact quiet row actions (Q&A / like / star / edit). */
+/* Compact quiet row actions (save / Q&A / like / star / edit) — right column, thumb-reachable. */
 .schedule-event-side {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
 .schedule-row-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 2px;
 }
 
 .row-action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  min-height: 44px;
+  min-width: 44px;
   border: 1px solid transparent;
   background: transparent;
   border-radius: var(--radius-sm);
-  padding: 3px 7px;
+  padding: 8px 10px;
   font: 500 12px/16px var(--font-body);
   color: var(--gray-500);
   cursor: pointer;
@@ -1217,6 +1346,19 @@ button.schedule-meta-chip:hover {
 @media (min-width: 1280px) {
   .schedule-layout {
     grid-template-columns: minmax(0, 1fr) 248px;
+    /* Explicit containment: list column cannot grow into the rail track. */
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .schedule-layout > .schedule-list {
+    grid-column: 1;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .schedule-layout > .agenda-rail {
+    grid-column: 2;
   }
 
   .agenda-rail {
@@ -1226,6 +1368,7 @@ button.schedule-meta-chip:hover {
     align-self: start;
     max-height: calc(100vh - 32px);
     overflow: auto;
+    z-index: 1;
   }
 
   .shell .agenda-rail {
@@ -1279,12 +1422,13 @@ button.schedule-meta-chip:hover {
   min-height: 32px;
 }
 
-/* Save-toggle circle: fills gray-900 when saved (Part 2 agenda anatomy). */
+/* Save-toggle: 18px circle visual inside a ≥44px hit target (thumb-reachable). */
 .attendance-join-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid var(--gray-400);
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 0;
   cursor: pointer;
@@ -1294,14 +1438,32 @@ button.schedule-meta-chip:hover {
   transition: var(--transition);
 }
 
-.attendance-join-dot:hover {
+.attendance-join-dot::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  border: 2px solid var(--gray-400);
+  background: transparent;
+  transition: var(--transition);
+}
+
+.attendance-join-dot:hover::after {
   border-color: var(--gray-600);
 }
 
-.attendance-join-dot.is-on {
+.attendance-join-dot.is-on::after {
   background: var(--gray-900);
   border-color: var(--gray-900);
   box-shadow: 0 0 0 3px var(--gray-200);
+}
+
+.attendance-join-dot:hover {
+  background: var(--gray-50);
 }
 
 .attendance-join-text {
@@ -1432,7 +1594,7 @@ button.schedule-meta-chip:hover {
   border: 1px solid var(--gray-200);
 }
 
-/* Attendee directory (mobile reference) */
+/* Attendee directory */
 .attendee-directory {
   padding: 0;
   overflow: hidden;
@@ -1453,27 +1615,56 @@ button.schedule-meta-chip:hover {
   min-width: 220px;
 }
 
-.attendee-index {
+.attendee-browse-chips {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-width: 200px;
-  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
 }
 
+.attendee-browse-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.attendee-browse-chip,
 .attendee-index-letter {
-  background: none;
-  border: none;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 600;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  color: var(--gray-700);
+  font: 500 13px/18px var(--font-body);
   cursor: pointer;
-  padding: 2px 4px;
-  line-height: 1;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
+.attendee-browse-chip:hover,
 .attendee-index-letter:hover {
-  color: var(--primary-600);
+  background: var(--gray-50);
+  color: var(--primary);
+}
+
+.attendee-browse-chip.is-active {
+  background: var(--primary-50);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.attendee-interest-filter-bar {
+  padding: 8px 16px 0;
+  align-items: center;
 }
 
 .attendee-rows {
@@ -1482,12 +1673,36 @@ button.schedule-meta-chip:hover {
 }
 
 .attendee-row {
+  position: relative;
   display: grid;
   grid-template-columns: 80px 1fr auto;
   gap: 16px;
   align-items: center;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.attendee-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.attendee-actions--under {
+  display: none;
+}
+
+.attendee-actions--side {
+  display: flex;
+}
+
+.attendee-more-btn {
+  margin-top: 6px;
+  padding: 8px 12px;
+  min-height: 44px;
+  font-size: 13px;
+  align-self: flex-start;
 }
 
 .attendee-avatar-wrap {
@@ -1565,6 +1780,18 @@ button.schedule-meta-chip:hover {
 
 .attendee-msg-btn {
   white-space: nowrap;
+}
+
+.attendee-email-meta {
+  display: block;
+}
+
+.attendee-letter-anchor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 
 .agenda-add-modal-overlay {
@@ -2267,18 +2494,49 @@ button.schedule-meta-chip:hover {
   }
 
   .attendee-row {
-    grid-template-columns: 72px 1fr;
-    grid-template-rows: auto auto;
+    grid-template-columns: 56px 1fr;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px;
   }
 
-  .attendee-msg-btn {
-    grid-column: 1 / -1;
-    justify-self: stretch;
+  .attendee-avatar-wrap {
+    width: 52px;
+    height: 52px;
   }
 
-  .attendee-index {
-    max-width: none;
-    justify-content: flex-start;
+  .attendee-avatar {
+    width: 52px;
+    height: 52px;
+  }
+
+  .attendee-avatar-placeholder {
+    font-size: 18px;
+  }
+
+  .attendee-actions--side {
+    display: none;
+  }
+
+  .attendee-actions--under {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .attendee-actions--under .attendee-msg-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .attendee-email-meta {
+    display: none;
+  }
+
+  .attendee-browse-chips {
+    width: 100%;
   }
 
   .app-shell-subtitle {
@@ -2820,16 +3078,24 @@ button.schedule-meta-chip:hover {
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   background: var(--gray-50);
   border-bottom: 1px solid var(--gray-200);
-  color: var(--title-color);
+  color: var(--gray-900);
 }
 
 .session-title-banner-label {
   font: var(--text-h3);
-  color: var(--title-color);
+  color: inherit;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Dark / image banners: keep AA contrast on title text. */
+.session-title-banner.on-navy,
+.session-title-banner.has-photo {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  background-color: var(--gray-800);
 }
 
 .hero-banner:not([style*="background-image"]) {
@@ -2942,7 +3208,7 @@ button.schedule-meta-chip:hover {
     overflow-x: hidden;
   }
 
-  /* Agenda below 768px: single column, time inline above rows. */
+  /* Agenda below 768px: time-grouped list, full-width rows, actions on the right. */
   .schedule-slot {
     grid-template-columns: 1fr;
     gap: 4px;
@@ -2952,8 +3218,10 @@ button.schedule-meta-chip:hover {
     flex-direction: row;
     align-items: baseline;
     gap: 6px;
-    padding: 0;
+    padding: 4px 0 2px;
     border-right: none;
+    font: 600 13px/18px var(--font-body);
+    color: var(--gray-600);
   }
 
   .schedule-events {
@@ -2963,10 +3231,15 @@ button.schedule-meta-chip:hover {
 
   .schedule-events > .schedule-event {
     flex: 1 1 auto;
+    width: 100%;
+    padding: 10px 8px 10px 13px;
+    align-items: stretch;
   }
 
   .schedule-event-side {
-    align-items: flex-start;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 2px;
   }
 
   .schedule-event-meta-row {
@@ -2976,6 +3249,49 @@ button.schedule-meta-chip:hover {
 
   .join-mode-switch--compact {
     margin-left: auto;
+  }
+
+  .join-mode-switch--compact button {
+    min-height: 44px;
+  }
+
+  /* Attendee list → compact anatomy; Message/Meet under identity on phones. */
+  .attendee-actions--side {
+    display: none;
+  }
+
+  .attendee-actions--under {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .attendee-actions--under .attendee-msg-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .attendee-row {
+    grid-template-columns: 56px 1fr;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .attendee-avatar-wrap,
+  .attendee-avatar {
+    width: 52px;
+    height: 52px;
+  }
+
+  .attendee-email-meta {
+    display: none;
+  }
+
+  /* Legacy tab strip — shell bottom bar owns mobile nav; hide if still present. */
+  .shell .dashboard-tabs {
+    display: none;
   }
 
   .dashboard-tabs {
@@ -4040,8 +4356,8 @@ button.schedule-meta-chip:hover {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  min-height: 56px;
-  padding: 0 var(--space-5);
+  min-height: calc(56px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) var(--space-5) 0;
   background: #ffffff;
   border-bottom: 1px solid var(--gray-200);
 }
@@ -4452,6 +4768,18 @@ button.schedule-meta-chip:hover {
   right: calc(50% - 18px);
 }
 
+/* Calm unread indicator — quiet dot, not a red FOMO count. */
+.shell-unread-dot {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 14px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
 .shell-sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -4551,4 +4879,243 @@ button.schedule-meta-chip:hover {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* —— D5 QR check-in scanner (hallway-usable) —— */
+.scanner-page {
+  display: grid;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.scanner-title {
+  margin: 0;
+  font: var(--text-h1);
+  color: var(--gray-900);
+}
+
+.scanner-meta {
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--text-meta);
+  color: var(--gray-600);
+}
+
+.scanner-online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gray-400);
+  flex-shrink: 0;
+}
+
+.scanner-online-dot.is-on {
+  background: var(--success);
+}
+
+.scanner-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: min(70vh, 640px);
+  background: #111;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--gray-800);
+}
+
+.scanner-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #111;
+}
+
+.scanner-viewfinder {
+  position: absolute;
+  inset: 18% 14%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.scanner-flash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  animation: scanner-flash-in 0.15s ease;
+}
+
+.scanner-flash--success {
+  background: rgba(30, 122, 52, 0.92);
+  color: #ffffff;
+}
+
+.scanner-flash--danger {
+  background: rgba(194, 47, 47, 0.94);
+  color: #ffffff;
+}
+
+.scanner-flash-label {
+  margin: 0;
+  font: 600 18px/24px var(--font-body);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.scanner-flash-name {
+  margin: 0;
+  font: 700 32px/1.15 var(--font-body);
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.scanner-stage.is-success .scanner-viewfinder,
+.scanner-stage.is-danger .scanner-viewfinder {
+  opacity: 0;
+}
+
+@keyframes scanner-flash-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.scanner-result {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font: 600 18px/1.35 var(--font-body);
+}
+
+.scanner-result--ok {
+  background: var(--success-50);
+  color: var(--success);
+}
+
+.scanner-result--err {
+  background: var(--danger-50);
+  color: var(--danger);
+}
+
+.scanner-manual {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.scanner-manual-label {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font: var(--text-label);
+  color: var(--gray-700);
+}
+
+.scanner-manual-submit {
+  min-height: 44px;
+}
+
+.scanner-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scanner-toolbar .button {
+  min-height: 44px;
+}
+
+.scanner-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.scanner-roster-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--gray-200);
+  font: 400 14px/20px var(--font-body);
+  color: var(--gray-800);
+}
+
+.scanner-roster-row:last-child {
+  border-bottom: none;
+}
+
+.scanner-roster-row.is-in .scanner-roster-state {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.scanner-roster-state {
+  color: var(--gray-400);
+  font-weight: 500;
+}
+
+@media (max-width: 767.98px) {
+  .scanner-page {
+    max-width: none;
+    margin: 0 -12px;
+  }
+
+  .scanner-status-bar {
+    padding: 0 12px;
+  }
+
+  .scanner-stage {
+    aspect-ratio: auto;
+    height: min(62vh, 520px);
+    max-height: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .scanner-manual,
+  .scanner-toolbar,
+  .scanner-result,
+  .scanner-roster {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+
+  .scanner-manual {
+    grid-template-columns: 1fr;
+  }
+
+  .scanner-flash-name {
+    font-size: 36px;
+  }
+
+  .shell-content {
+    overflow-x: hidden;
+  }
+
+  .interest-chip.is-active {
+    border: 1px solid var(--primary);
+    background: var(--primary-50);
+    color: var(--primary);
+  }
 }
