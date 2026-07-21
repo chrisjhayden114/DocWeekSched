@@ -1018,10 +1018,13 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   color: var(--gray-400);
 }
 
-/* Concurrent sessions: equal-width flex children ≥768px — never wider than the schedule column. */
+/*
+ * Concurrent sessions ≥768px: equal-width flex children, max 3 per row.
+ * 4+ wrap; items on a line share width equally (lone wrap-row item grows full width).
+ */
 .schedule-events {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: stretch;
   width: 100%;
@@ -1031,8 +1034,8 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 }
 
 .schedule-events > .schedule-event {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 calc((100% - 16px) / 3);
+  min-width: calc((100% - 16px) / 3);
   max-width: 100%;
   overflow: hidden;
 }
@@ -5386,5 +5389,348 @@ button.schedule-meta-chip:hover {
     border: 1px solid var(--primary);
     background: var(--primary-50);
     color: var(--primary);
+  }
+}
+
+/* ——— Chunk D6: view switcher, grid / by-room, print ——— */
+
+.schedule-view-switcher {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .schedule-view-switcher {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 2px;
+    margin: 0;
+    padding: 3px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    min-height: 40px;
+  }
+
+  .schedule-view-switcher button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    margin: 0;
+    border: none;
+    border-radius: 4px;
+    box-shadow: none;
+    background: transparent;
+    padding: 5px 12px;
+    font: 600 14px/20px var(--font-body);
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .schedule-view-switcher button.active {
+    background: var(--gray-200);
+    color: var(--gray-900);
+  }
+
+  .schedule-view-switcher button:not(.active):hover {
+    background: var(--gray-50);
+  }
+}
+
+.agenda-schedule-tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-grid {
+  margin: 8px 0 24px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+/* By-room: one grid section per day, each with its own time axis. */
+.schedule-byroom-days {
+  display: grid;
+  gap: 4px;
+}
+
+.schedule-byroom-day > .schedule-day-heading {
+  margin-bottom: 4px;
+}
+
+.schedule-byroom-day .schedule-grid {
+  margin-top: 4px;
+}
+
+/* Quiet inline notice when a DM action is rejected (e.g. not opted in). */
+.attendee-dm-notice {
+  margin: 0;
+  color: var(--gray-500);
+  font: 400 12px/16px var(--font-body);
+  max-width: 200px;
+}
+
+.schedule-grid-scroll {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-rows: 40px auto;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.schedule-grid-corner {
+  grid-column: 1;
+  grid-row: 1;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #ffffff;
+  border-bottom: 1px solid var(--gray-200);
+  border-right: 1px solid var(--gray-200);
+}
+
+.schedule-grid-day-headers {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #ffffff;
+  border-bottom: 1px solid var(--gray-200);
+  min-width: min-content;
+}
+
+.schedule-grid-day-header {
+  padding: 10px 10px;
+  font: 600 13px/18px var(--font-body);
+  color: var(--gray-800);
+  border-right: 1px solid var(--gray-100);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #ffffff;
+}
+
+.schedule-grid-axis {
+  grid-column: 1;
+  grid-row: 2;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #ffffff;
+  border-right: 1px solid var(--gray-200);
+}
+
+.schedule-grid-hour-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: 0 6px;
+  font: 400 11px/14px var(--font-body);
+  color: var(--gray-500);
+  transform: translateY(-7px);
+  text-align: right;
+}
+
+.schedule-grid-columns {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  position: relative;
+  min-width: min-content;
+}
+
+.schedule-grid-col {
+  position: relative;
+  border-right: 1px solid var(--gray-100);
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent calc(72px - 1px),
+    var(--gray-100) calc(72px - 1px),
+    var(--gray-100) 72px
+  );
+}
+
+.schedule-grid-hline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.schedule-grid-block {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin: 0;
+  padding: 4px 6px;
+  border: 1px solid color-mix(in srgb, var(--track-color, var(--gray-300)) 40%, #ffffff);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--track-color, var(--gray-300)) 16%, #ffffff);
+  color: color-mix(in srgb, var(--track-color, var(--gray-700)) 72%, #161616);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: none;
+  transition: var(--transition);
+}
+
+.schedule-grid-block:hover {
+  filter: brightness(0.97);
+  border-color: color-mix(in srgb, var(--track-color, var(--gray-300)) 55%, #ffffff);
+}
+
+.schedule-grid-block-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font: 600 12px/1.25 var(--font-body);
+  width: 100%;
+}
+
+.schedule-grid-block-room {
+  font: 400 11px/14px var(--font-body);
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.schedule-print-program {
+  display: none;
+}
+
+/* Mobile always List; desktop can hide list when Grid / By room is active. */
+@media (min-width: 768px) {
+  .schedule-list-screen.is-desktop-hidden {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .schedule-desktop-views {
+    display: none !important;
+  }
+}
+
+.button.ghost .schedule-tool-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+
+@media print {
+  .mkt-header,
+  .mkt-footer,
+  .site-footer,
+  .agenda-rail,
+  .agenda-filters-btn,
+  .agenda-context-bar,
+  .schedule-view-switcher,
+  .agenda-schedule-tools,
+  .concierge-fab,
+  .no-print,
+  .schedule-grid,
+  .schedule-layout > .schedule-list > .button,
+  .mkt-page .mkt-section-inner > p:has(.button),
+  .mkt-speaker-list,
+  .mkt-sponsor-list,
+  .mkt-section-inner > h2 {
+    display: none !important;
+  }
+
+  .schedule-layout,
+  .schedule-list {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .schedule-print-program {
+    display: block !important;
+  }
+
+  .schedule-list-screen {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .schedule-print-header {
+    margin: 0 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #000;
+  }
+
+  .schedule-print-header h1 {
+    margin: 0 0 4px;
+    font: 700 18pt/1.2 Inter, Helvetica, Arial, sans-serif;
+    color: #000;
+  }
+
+  .schedule-print-header p {
+    margin: 0;
+    font: 400 11pt/1.35 Inter, Helvetica, Arial, sans-serif;
+    color: #000;
+  }
+
+  .schedule-print-day {
+    break-inside: avoid;
+    margin: 0 0 14px;
+  }
+
+  .schedule-print-day h2 {
+    margin: 0 0 8px;
+    font: 700 13pt/1.2 Inter, Helvetica, Arial, sans-serif;
+    color: #000;
+  }
+
+  .schedule-print-row {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin: 0 0 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #ccc;
+    color: #000;
+    background: #fff !important;
+  }
+
+  .schedule-print-row-time {
+    font: 400 10pt/1.3 Inter, Helvetica, Arial, sans-serif;
+    color: #000;
+    margin: 0 0 2px;
+  }
+
+  .schedule-print-row-title {
+    margin: 0;
+    font: 600 11pt/1.3 Inter, Helvetica, Arial, sans-serif;
+    color: #000;
+  }
+
+  .schedule-print-row-meta {
+    margin: 2px 0 0;
+    font: 400 9.5pt/1.35 Inter, Helvetica, Arial, sans-serif;
+    color: #000;
   }
 }

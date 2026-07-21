@@ -5,9 +5,12 @@ import type { GetServerSideProps } from "next";
 import { useEffect, useMemo, useState } from "react";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../../components/AgendaFilterPanel";
 import { BrandLogo } from "../../components/BrandLogo";
+import { ScheduleViewSwitcher, type ScheduleViewMode } from "../../components/ScheduleViewSwitcher";
+import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../../components/ScheduleTimetable";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { filterSessions } from "../../lib/agendaFilters";
 import { apiFetch, type AuthResponse, clearAuthClientState } from "../../lib/api";
+import { downloadProgramIcs } from "../../lib/calendarIcs";
 import { loginPathWithEvent } from "../../lib/entryRedirects";
 import { trackColor } from "../../lib/trackColors";
 
@@ -93,8 +96,6 @@ function formatRange(startIso: string, endIso: string, timeZone: string): string
   }
 }
 
-type PublicSession = PublicEventView["sessions"][number];
-
 function zonedDayKey(iso: string, timeZone: string): string {
   try {
     const parts = new Intl.DateTimeFormat("en-CA", {
@@ -141,10 +142,40 @@ function dayHeading(dayKey: string): { weekday: string; rest: string } {
   return { weekday, rest };
 }
 
+function toPublicTimetableSessions(sessions: Array<{
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  trackName: string | null;
+  roomName: string | null;
+  location: string | null;
+}>): TimetableSession[] {
+  return sessions.map((s) => ({
+    id: s.id,
+    title: s.title,
+    startsAt: s.startsAt,
+    endsAt: s.endsAt,
+    roomKey: s.roomName || s.location || null,
+    roomLabel: s.roomName || s.location || null,
+    trackId: s.trackName,
+    trackName: s.trackName,
+  }));
+}
+
+function PrintIcon() {
+  return (
+    <svg className="schedule-tool-icon" viewBox="0 0 24 24" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.75">
+      <path d="M6 9V3h12v6" />
+      <path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
+      <path d="M6 13h12v8H6z" />
+    </svg>
+  );
+}
+
 /**
- * Public schedule (Phase D2): sticky context bar with day chips, 88px time
- * rail, dense session rows with track color bars, papers nested with authors.
- * Filters run client-side on the SSR data — no extra fetches.
+ * Public schedule (Phase D2 + D6): sticky context bar, list/grid/by-room,
+ * print program, ICS download. Filters run client-side on SSR data.
  */
 function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHref: string }) {
   const [query, setQuery] = useState("");
@@ -152,6 +183,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
   const [track, setTrack] = useState("");
   const [room, setRoom] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [scheduleLayout, setScheduleLayout] = useState<ScheduleViewMode>("list");
 
   const timeZone = event.timezone;
 
@@ -179,7 +211,6 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
     () => [...new Set(filterable.map((s) => zonedDayKey(s.startsAt, timeZone)))],
     [filterable, timeZone],
   );
-  /* First-appearance order (sessions already sorted by startsAt). */
   const trackOptions = useMemo(
     () => [...new Set(filterable.map((s) => s.trackName).filter((t): t is string => Boolean(t)))],
     [filterable],
@@ -215,6 +246,23 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
       return { dayKey, slots: [...slots.entries()] };
     });
   }, [filtered, timeZone]);
+
+  /** Full unfiltered program for print (all days). */
+  const printGrouped = useMemo(() => {
+    const byDay = new Map<string, typeof filterable>();
+    for (const s of filterable) {
+      const key = zonedDayKey(s.startsAt, timeZone);
+      byDay.set(key, [...(byDay.get(key) || []), s]);
+    }
+    return [...byDay.entries()].map(([dayKey, daySessions]) => {
+      const slots = new Map<string, typeof filterable>();
+      for (const s of daySessions) {
+        const label = slotTimeLabel(s.startsAt, timeZone);
+        slots.set(label, [...(slots.get(label) || []), s]);
+      }
+      return { dayKey, slots: [...slots.entries()] };
+    });
+  }, [filterable, timeZone]);
 
   const activeFilterCount = (track ? 1 : 0) + (room ? 1 : 0) + (query.trim() ? 1 : 0);
 
@@ -252,15 +300,114 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
     </>
   );
 
+  const listBody =
+    grouped.length === 0 ? (
+      <p className="help-text" style={{ padding: "16px 0" }}>
+        {event.sessions.length === 0
+          ? "Sessions will appear here when published."
+          : "No sessions match these filters."}
+      </p>
+    ) : (
+      grouped.map(({ dayKey, slots }) => {
+        const { weekday, rest } = dayHeading(dayKey);
+        return (
+          <section key={dayKey} className="schedule-day">
+            <h3 className="schedule-day-heading">
+              <strong>{weekday}</strong>
+              {rest ? `, ${rest}` : null}
+            </h3>
+            {slots.map(([timeLabel, slotSessions]) => (
+              <div key={`${dayKey}-${timeLabel}`} className="schedule-slot">
+                <div className="schedule-time">
+                  <span>{timeLabel}</span>
+                  <span className="schedule-time-tz">
+                    {timeZoneAbbrev(slotSessions[0]!.startsAt, timeZone)}
+                  </span>
+                </div>
+                <div className="schedule-events-wrap">
+                  {slotSessions.length > 1 && (
+                    <div className="schedule-concurrent-note">{slotSessions.length} concurrent sessions</div>
+                  )}
+                  <div className="schedule-events">
+                    {slotSessions.map((s) => (
+                      <article
+                        key={s.id}
+                        className="schedule-event"
+                        style={{ ["--track-color" as string]: trackColor(s.trackName, null, orderedTrackIds) }}
+                      >
+                        <div className="schedule-event-main">
+                          <h4 className="schedule-event-title">
+                            <span className="schedule-event-title-text">{s.title}</span>
+                            {s.items.length > 0 ? (
+                              <span className="schedule-option-chip">
+                                {s.items.length} paper{s.items.length === 1 ? "" : "s"}
+                              </span>
+                            ) : null}
+                          </h4>
+                          <p className="schedule-event-meta">
+                            {rowTimeRange(s.startsAt, s.endsAt, timeZone)}
+                            {s.roomName || s.location ? ` · ${s.roomName || s.location}` : ""}
+                            {s.trackName ? ` · ${s.trackName}` : ""}
+                          </p>
+                          {s.speakers ? <p className="schedule-event-speakers">{s.speakers}</p> : null}
+                          {s.items.length > 0 ? (
+                            <ul className="schedule-row-papers">
+                              {s.items.map((it, idx) => (
+                                <li key={`${s.id}-item-${idx}`} className="schedule-row-paper">
+                                  <span className="schedule-row-paper-title">{it.title}</span>
+                                  {it.authors.length ? it.authors.map((a) => a.name).join(", ") : null}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </section>
+        );
+      })
+    );
+
   return (
     <div className="schedule-layout">
       <div className="schedule-list">
-        <div className="agenda-context-bar">
+        <div className="agenda-context-bar no-print">
           <div className="agenda-context-row">
             <h2 className="text-h2" style={{ margin: 0 }}>
               Schedule
             </h2>
             <span className="agenda-context-spacer" aria-hidden />
+            <div className="agenda-schedule-tools">
+              <ScheduleViewSwitcher value={scheduleLayout} onChange={setScheduleLayout} />
+              <button
+                type="button"
+                className="button ghost"
+                onClick={() =>
+                  downloadProgramIcs(
+                    filterable.map((s) => ({
+                      id: s.id,
+                      title: s.title,
+                      startsAt: s.startsAt,
+                      endsAt: s.endsAt,
+                      description: s.description,
+                      location: s.roomName || s.location,
+                    })),
+                    event.name,
+                    timeZone,
+                  )
+                }
+              >
+                Download program (.ics)
+              </button>
+              <button type="button" className="button ghost" onClick={() => window.print()}>
+                <PrintIcon />
+                Print
+              </button>
+            </div>
             <span className="text-meta">{timeZone}</span>
             <button
               type="button"
@@ -275,85 +422,70 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
           <DayChips days={dayOptions} value={day} onChange={setDay} />
         </div>
 
-        {grouped.length === 0 ? (
-          <p className="help-text" style={{ padding: "16px 0" }}>
-            {event.sessions.length === 0
-              ? "Sessions will appear here when published."
-              : "No sessions match these filters."}
-          </p>
-        ) : (
-          grouped.map(({ dayKey, slots }) => {
+        <div className={`schedule-list-screen${scheduleLayout !== "list" ? " is-desktop-hidden" : ""}`}>
+          {listBody}
+        </div>
+
+        {scheduleLayout === "grid" ? (
+          <div className="schedule-desktop-views">
+            <ScheduleGridView
+              sessions={toPublicTimetableSessions(filtered)}
+              timeZone={timeZone}
+              orderedTrackIds={orderedTrackIds}
+            />
+          </div>
+        ) : null}
+        {scheduleLayout === "room" ? (
+          <div className="schedule-desktop-views">
+            <ScheduleByRoomView
+              sessions={toPublicTimetableSessions(filtered)}
+              timeZone={timeZone}
+              orderedTrackIds={orderedTrackIds}
+            />
+          </div>
+        ) : null}
+
+        <div className="schedule-print-program" aria-hidden>
+          <header className="schedule-print-header">
+            <h1>{event.name}</h1>
+            <p>{formatRange(event.startDate, event.endDate, timeZone)}</p>
+          </header>
+          {printGrouped.map(({ dayKey, slots }) => {
             const { weekday, rest } = dayHeading(dayKey);
             return (
-              <section key={dayKey} className="schedule-day">
-                <h3 className="schedule-day-heading">
-                  <strong>{weekday}</strong>
-                  {rest ? `, ${rest}` : null}
-                </h3>
-                {slots.map(([timeLabel, slotSessions]) => (
-                  <div key={`${dayKey}-${timeLabel}`} className="schedule-slot">
-                    <div className="schedule-time">
-                      <span>{timeLabel}</span>
-                      <span className="schedule-time-tz">
-                        {timeZoneAbbrev(slotSessions[0]!.startsAt, timeZone)}
-                      </span>
+              <section key={`print-${dayKey}`} className="schedule-print-day">
+                <h2>
+                  {weekday}
+                  {rest ? `, ${rest}` : ""}
+                </h2>
+                {slots.flatMap(([timeLabel, slotSessions]) =>
+                  slotSessions.map((s) => (
+                    <div key={`print-${s.id}`} className="schedule-print-row">
+                      <p className="schedule-print-row-time">
+                        {rowTimeRange(s.startsAt, s.endsAt, timeZone)} ({timeZone})
+                      </p>
+                      <p className="schedule-print-row-title">{s.title}</p>
+                      <p className="schedule-print-row-meta">
+                        {[s.roomName || s.location, s.trackName ? `Track: ${s.trackName}` : null, s.speakers || null]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
                     </div>
-                    <div className="schedule-events-wrap">
-                      {slotSessions.length > 1 && (
-                        <div className="schedule-concurrent-note">{slotSessions.length} concurrent sessions</div>
-                      )}
-                      <div className="schedule-events">
-                        {slotSessions.map((s) => (
-                          <article
-                            key={s.id}
-                            className="schedule-event"
-                            style={{ ["--track-color" as string]: trackColor(s.trackName, null, orderedTrackIds) }}
-                          >
-                            <div className="schedule-event-main">
-                              <h4 className="schedule-event-title">
-                                <span className="schedule-event-title-text">{s.title}</span>
-                                {s.items.length > 0 ? (
-                                  <span className="schedule-option-chip">
-                                    {s.items.length} paper{s.items.length === 1 ? "" : "s"}
-                                  </span>
-                                ) : null}
-                              </h4>
-                              <p className="schedule-event-meta">
-                                {rowTimeRange(s.startsAt, s.endsAt, timeZone)}
-                                {s.roomName || s.location ? ` · ${s.roomName || s.location}` : ""}
-                                {s.trackName ? ` · ${s.trackName}` : ""}
-                              </p>
-                              {s.speakers ? <p className="schedule-event-speakers">{s.speakers}</p> : null}
-                              {s.items.length > 0 ? (
-                                <ul className="schedule-row-papers">
-                                  {s.items.map((it, idx) => (
-                                    <li key={`${s.id}-item-${idx}`} className="schedule-row-paper">
-                                      <span className="schedule-row-paper-title">{it.title}</span>
-                                      {it.authors.length ? it.authors.map((a) => a.name).join(", ") : null}
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : null}
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  )),
+                )}
               </section>
             );
-          })
-        )}
+          })}
+        </div>
 
-        <p style={{ marginTop: 16 }}>
+        <p className="no-print" style={{ marginTop: 16 }}>
           <Link href={loginHref} className="button secondary">
             Join to build your schedule
           </Link>
         </p>
       </div>
 
-      <aside className="agenda-rail" aria-label="Schedule filters">
+      <aside className="agenda-rail no-print" aria-label="Schedule filters">
         <div className="agenda-rail-panel">{filterControls}</div>
       </aside>
 
@@ -486,41 +618,43 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
 
         <main className="mkt-section" style={{ background: "var(--gray-50)" }}>
           <div className="mkt-section-inner" style={{ maxWidth: 1040 }}>
-            <p className="text-meta" style={{ marginBottom: 8 }}>
-              {formatRange(event.startDate, event.endDate, event.timezone)}
-            </p>
-            <h1 className="text-h1" style={{ marginTop: 0, marginBottom: 8 }}>
-              {event.name}
-            </h1>
-            {(event.venueName || event.venueAddress) && (
-              <p className="text-body" style={{ margin: "0 0 4px" }}>
-                {[event.venueName, event.venueAddress].filter(Boolean).join(" · ")}
+            <div className="no-print">
+              <p className="text-meta" style={{ marginBottom: 8 }}>
+                {formatRange(event.startDate, event.endDate, event.timezone)}
               </p>
-            )}
-            {event.description ? (
-              <p className="text-body" style={{ whiteSpace: "pre-wrap", maxWidth: 720 }}>
-                {event.description}
-              </p>
-            ) : null}
-
-            <p style={{ margin: "16px 0 24px" }}>
-              {viewer ? (
-                <Link href="/dashboard" className="button">
-                  Open event app
-                </Link>
-              ) : (
-                <Link href={loginHref} className="button">
-                  Join this event
-                </Link>
+              <h1 className="text-h1" style={{ marginTop: 0, marginBottom: 8 }}>
+                {event.name}
+              </h1>
+              {(event.venueName || event.venueAddress) && (
+                <p className="text-body" style={{ margin: "0 0 4px" }}>
+                  {[event.venueName, event.venueAddress].filter(Boolean).join(" · ")}
+                </p>
               )}
-            </p>
+              {event.description ? (
+                <p className="text-body" style={{ whiteSpace: "pre-wrap", maxWidth: 720 }}>
+                  {event.description}
+                </p>
+              ) : null}
+
+              <p style={{ margin: "16px 0 24px" }}>
+                {viewer ? (
+                  <Link href="/dashboard" className="button">
+                    Open event app
+                  </Link>
+                ) : (
+                  <Link href={loginHref} className="button">
+                    Join this event
+                  </Link>
+                )}
+              </p>
+            </div>
 
             <PublicSchedule event={event} loginHref={loginHref} />
 
             {event.speakers.length > 0 ? (
               <>
-                <h2 className="text-h2" style={{ marginTop: 40 }}>Speakers</h2>
-                <ul className="mkt-speaker-list">
+                <h2 className="text-h2 no-print" style={{ marginTop: 40 }}>Speakers</h2>
+                <ul className="mkt-speaker-list no-print">
                   {event.speakers.map((sp) => (
                     <li key={sp.name}>
                       <strong>{sp.name}</strong>
@@ -538,8 +672,8 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
 
             {event.sponsors.length > 0 ? (
               <>
-                <h2 className="text-h2" style={{ marginTop: 40 }}>Sponsors</h2>
-                <ul className="mkt-sponsor-list">
+                <h2 className="text-h2 no-print" style={{ marginTop: 40 }}>Sponsors</h2>
+                <ul className="mkt-sponsor-list no-print">
                   {event.sponsors.map((sp) => (
                     <li key={sp.name}>
                       {sp.url ? (

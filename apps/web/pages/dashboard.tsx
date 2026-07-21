@@ -25,6 +25,8 @@ import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 import { trackColor } from "../lib/trackColors";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
+import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/ScheduleViewSwitcher";
+import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
@@ -32,6 +34,7 @@ import { AutolinkText } from "../components/AutolinkText";
 import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
 import { SponsorsStrip } from "../components/SponsorsStrip";
 import { OnboardingPanel } from "../components/OnboardingPanel";
+import { sayHiPrefill } from "../lib/sayHi";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -322,10 +325,12 @@ export default function Dashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messagePrefill, setMessagePrefill] = useState<string | null>(null);
+  const [directoryDmNotice, setDirectoryDmNotice] = useState<{ userId: string; text: string } | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newChatMode, setNewChatMode] = useState<null | "direct" | "group">(null);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
+  const [scheduleLayout, setScheduleLayout] = useState<ScheduleViewMode>("list");
   const [agendaTimeMode, setAgendaTimeMode] = useState<"MY" | "EVENT">("MY");
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
@@ -954,7 +959,7 @@ export default function Dashboard() {
     }
   };
 
-  const startDirectMessage = async (userId: string) => {
+  const startDirectMessage = async (userId: string, prefillBody?: string | null) => {
     if (!token) return;
     const conversation = await apiFetch<Conversation>(
       "/conversations/direct",
@@ -964,8 +969,40 @@ export default function Dashboard() {
     if (!conversations.some((c) => c.id === conversation.id)) {
       setConversations((prev) => [conversation, ...prev]);
     }
+    setMessagePrefill(prefillBody?.trim() ? prefillBody : null);
     setActive("Messages");
     setActiveConversationId(conversation.id);
+  };
+
+  /** Directory-safe DM start: API rejections become a quiet inline row notice. */
+  const messageAttendee = async (attendee: User, prefillBody?: string | null) => {
+    setDirectoryDmNotice(null);
+    try {
+      await startDirectMessage(attendee.id, prefillBody);
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      setDirectoryDmNotice({
+        userId: attendee.id,
+        text:
+          status === 403
+            ? `${attendee.name} hasn't opted into direct messages`
+            : err instanceof Error && err.message
+              ? err.message
+              : "Couldn't start the conversation",
+      });
+    }
+  };
+
+  const sayHiToAttendee = (attendee: User) => {
+    void messageAttendee(
+      attendee,
+      sayHiPrefill({
+        toName: attendee.name,
+        eventName: event?.name || "this event",
+        myInterests: user?.researchInterests,
+        theirInterests: attendee.researchInterests,
+      }),
+    );
   };
 
   const updateCurrentEvent = async (payload: {
@@ -1231,6 +1268,7 @@ export default function Dashboard() {
                   </button>
                 </div>
                 <span className="agenda-context-spacer" aria-hidden />
+                <ScheduleViewSwitcher value={scheduleLayout} onChange={setScheduleLayout} />
                 {timezoneToggleOn ? (
                   <div
                     className="agenda-timezone-toggle agenda-timezone-toggle--desktop"
@@ -1371,56 +1409,104 @@ export default function Dashboard() {
             ) : null}
             {sessionsLoading && sortedSessions.length === 0 ? <ListSkeleton rows={8} /> : null}
             {(!sessionsLoading || sortedSessions.length > 0) && agendaView === "Event Schedule" && (
-              <ScheduleBoard
-                grouped={groupedAgenda}
-                eventName={event?.name || "Event"}
-                eventTimezone={event?.timezone || "UTC"}
-                displayTimezone={agendaDisplayTimezone}
-                orderedTrackIds={orderedTrackIds}
-                isAdmin={isAdmin}
-                myAttendance={myAttendance}
-                likedSessionIds={sessionLikesOn ? likedSessionIds : []}
-                bookmarkedSessionIds={bookmarkedSessionIds}
-                onPatchAttendance={patchSessionAttendance}
-                onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
-                onToggleBookmark={toggleSessionBookmark}
-                likesEnabled={sessionLikesOn}
-                qaEnabled={featureOn("session_qa")}
-                roomPins={venueMapsOn ? roomPins : {}}
-                onViewOnMap={venueMapsOn ? goToRoomOnMap : undefined}
-                onEditSession={(session) => {
-                  setEditingSession(session);
-                  setSessionFormKey((k) => k + 1);
-                  setSessionDrawerOpen(true);
-                }}
-                onGoToSession={goToSessionPage}
-              />
+              <>
+                <div className={`schedule-list-screen${scheduleLayout !== "list" ? " is-desktop-hidden" : ""}`}>
+                  <ScheduleBoard
+                    grouped={groupedAgenda}
+                    eventName={event?.name || "Event"}
+                    eventTimezone={event?.timezone || "UTC"}
+                    displayTimezone={agendaDisplayTimezone}
+                    orderedTrackIds={orderedTrackIds}
+                    isAdmin={isAdmin}
+                    myAttendance={myAttendance}
+                    likedSessionIds={sessionLikesOn ? likedSessionIds : []}
+                    bookmarkedSessionIds={bookmarkedSessionIds}
+                    onPatchAttendance={patchSessionAttendance}
+                    onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
+                    onToggleBookmark={toggleSessionBookmark}
+                    likesEnabled={sessionLikesOn}
+                    qaEnabled={featureOn("session_qa")}
+                    roomPins={venueMapsOn ? roomPins : {}}
+                    onViewOnMap={venueMapsOn ? goToRoomOnMap : undefined}
+                    onEditSession={(session) => {
+                      setEditingSession(session);
+                      setSessionFormKey((k) => k + 1);
+                      setSessionDrawerOpen(true);
+                    }}
+                    onGoToSession={goToSessionPage}
+                  />
+                </div>
+                {scheduleLayout === "grid" ? (
+                  <div className="schedule-desktop-views">
+                    <ScheduleGridView
+                      sessions={toTimetableSessions(filteredSessions)}
+                      timeZone={agendaDisplayTimezone}
+                      orderedTrackIds={orderedTrackIds}
+                      onSelectSession={goToSessionPage}
+                    />
+                  </div>
+                ) : null}
+                {scheduleLayout === "room" ? (
+                  <div className="schedule-desktop-views">
+                    <ScheduleByRoomView
+                      sessions={toTimetableSessions(filteredSessions)}
+                      timeZone={agendaDisplayTimezone}
+                      orderedTrackIds={orderedTrackIds}
+                      onSelectSession={goToSessionPage}
+                    />
+                  </div>
+                ) : null}
+              </>
             )}
             {(!sessionsLoading || sortedSessions.length > 0) && agendaView === "My Schedule" && (
-              <ScheduleBoard
-                grouped={groupedMySchedule}
-                eventName={event?.name || "Event"}
-                eventTimezone={event?.timezone || "UTC"}
-                displayTimezone={agendaDisplayTimezone}
-                orderedTrackIds={orderedTrackIds}
-                isAdmin={isAdmin}
-                myAttendance={myAttendance}
-                likedSessionIds={sessionLikesOn ? likedSessionIds : []}
-                bookmarkedSessionIds={bookmarkedSessionIds}
-                onPatchAttendance={patchSessionAttendance}
-                onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
-                onToggleBookmark={toggleSessionBookmark}
-                likesEnabled={sessionLikesOn}
-                qaEnabled={featureOn("session_qa")}
-                roomPins={venueMapsOn ? roomPins : {}}
-                onViewOnMap={venueMapsOn ? goToRoomOnMap : undefined}
-                onEditSession={(session) => {
-                  setEditingSession(session);
-                  setSessionFormKey((k) => k + 1);
-                  setSessionDrawerOpen(true);
-                }}
-                onGoToSession={goToSessionPage}
-              />
+              <>
+                <div className={`schedule-list-screen${scheduleLayout !== "list" ? " is-desktop-hidden" : ""}`}>
+                  <ScheduleBoard
+                    grouped={groupedMySchedule}
+                    eventName={event?.name || "Event"}
+                    eventTimezone={event?.timezone || "UTC"}
+                    displayTimezone={agendaDisplayTimezone}
+                    orderedTrackIds={orderedTrackIds}
+                    isAdmin={isAdmin}
+                    myAttendance={myAttendance}
+                    likedSessionIds={sessionLikesOn ? likedSessionIds : []}
+                    bookmarkedSessionIds={bookmarkedSessionIds}
+                    onPatchAttendance={patchSessionAttendance}
+                    onToggleLike={sessionLikesOn ? toggleSessionLike : undefined}
+                    onToggleBookmark={toggleSessionBookmark}
+                    likesEnabled={sessionLikesOn}
+                    qaEnabled={featureOn("session_qa")}
+                    roomPins={venueMapsOn ? roomPins : {}}
+                    onViewOnMap={venueMapsOn ? goToRoomOnMap : undefined}
+                    onEditSession={(session) => {
+                      setEditingSession(session);
+                      setSessionFormKey((k) => k + 1);
+                      setSessionDrawerOpen(true);
+                    }}
+                    onGoToSession={goToSessionPage}
+                  />
+                </div>
+                {scheduleLayout === "grid" ? (
+                  <div className="schedule-desktop-views">
+                    <ScheduleGridView
+                      sessions={toTimetableSessions(myScheduledSessions)}
+                      timeZone={agendaDisplayTimezone}
+                      orderedTrackIds={orderedTrackIds}
+                      onSelectSession={goToSessionPage}
+                    />
+                  </div>
+                ) : null}
+                {scheduleLayout === "room" ? (
+                  <div className="schedule-desktop-views">
+                    <ScheduleByRoomView
+                      sessions={toTimetableSessions(myScheduledSessions)}
+                      timeZone={agendaDisplayTimezone}
+                      orderedTrackIds={orderedTrackIds}
+                      onSelectSession={goToSessionPage}
+                    />
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
           <aside className="agenda-rail" aria-label="Agenda filters">
@@ -1486,8 +1572,10 @@ export default function Dashboard() {
             attendees={attendees}
             currentUserId={user.id}
             loading={attendeesLoading}
-            onMessage={startDirectMessage}
+            onMessage={(a) => void messageAttendee(a)}
+            onSayHi={sayHiToAttendee}
             onRequestMeeting={(a) => setMeetingTarget({ id: a.id, name: a.name })}
+            actionNotice={directoryDmNotice}
           />
           {token ? (
             <MeetingRequestsPanel
@@ -3957,17 +4045,35 @@ function notificationKindIcon(kind: UserNotificationRow["kind"] | string) {
   }
 }
 
+function toTimetableSessions(sessions: Session[]): TimetableSession[] {
+  return sessions.map((s) => ({
+    id: s.id,
+    title: s.title,
+    startsAt: s.startsAt,
+    endsAt: s.endsAt,
+    roomKey: s.roomId || s.room?.name || s.location || null,
+    roomLabel: s.room?.name || s.location || null,
+    trackId: s.trackId ?? null,
+    trackName: s.track?.name || null,
+    trackExplicitColor: s.track?.color || null,
+  }));
+}
+
 function AttendeeDirectory({
   attendees,
   currentUserId,
   onMessage,
+  onSayHi,
   onRequestMeeting,
+  actionNotice = null,
   loading = false,
 }: {
   attendees: User[];
   currentUserId: string;
-  onMessage: (userId: string) => void;
+  onMessage: (user: User) => void;
+  onSayHi?: (user: User) => void;
   onRequestMeeting?: (user: User) => void;
+  actionNotice?: { userId: string; text: string } | null;
   loading?: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -4013,13 +4119,23 @@ function AttendeeDirectory({
     const actionButtons =
       a.id !== currentUserId ? (
         <>
-          <button className="button attendee-msg-btn" type="button" onClick={() => onMessage(a.id)}>
+          {onSayHi ? (
+            <button className="button ghost attendee-msg-btn" type="button" onClick={() => onSayHi(a)}>
+              Say hi
+            </button>
+          ) : null}
+          <button className="button secondary attendee-msg-btn" type="button" onClick={() => onMessage(a)}>
             Message
           </button>
           {onRequestMeeting ? (
             <button className="button secondary attendee-msg-btn" type="button" onClick={() => onRequestMeeting(a)}>
               Meet
             </button>
+          ) : null}
+          {actionNotice?.userId === a.id ? (
+            <span className="help-text attendee-dm-notice" role="status">
+              {actionNotice.text}
+            </span>
           ) : null}
         </>
       ) : (
@@ -4845,6 +4961,11 @@ function MessageComposer({
 }) {
   const [sending, setSending] = useState(false);
   const [body, setBody] = useState("");
+  const [sendError, setSendError] = useState<{ text: string; blocked: boolean } | null>(null);
+
+  useEffect(() => {
+    setSendError(null);
+  }, [conversationId]);
 
   useEffect(() => {
     if (initialBody == null) return;
@@ -4858,6 +4979,8 @@ function MessageComposer({
     const trimmed = body.trim();
     if (!trimmed) return;
     setSending(true);
+    setSendError(null);
+    const form = event.currentTarget;
     try {
       const message = await apiFetch<Message>(
         `/conversations/${conversationId}/messages`,
@@ -4866,10 +4989,25 @@ function MessageComposer({
       );
       await onSent(message);
       setBody("");
-      event.currentTarget.reset();
+      form.reset();
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      setSendError({
+        text: err instanceof Error && err.message ? err.message : "Message could not be sent",
+        blocked: status === 403,
+      });
     } finally {
       setSending(false);
     }
+  }
+
+  /* Opt-in style rejections replace the composer with a quiet notice. */
+  if (sendError?.blocked) {
+    return (
+      <p className="help-text" role="status" style={{ margin: "8px 0 0" }}>
+        {sendError.text}
+      </p>
+    );
   }
 
   return (
@@ -4890,6 +5028,11 @@ function MessageComposer({
         value={body}
         onChange={(e) => setBody(e.target.value)}
       />
+      {sendError ? (
+        <p className="help-text" role="status" style={{ margin: 0, color: "var(--danger)" }}>
+          {sendError.text}
+        </p>
+      ) : null}
       <button className="button" disabled={!conversationId || sending || !body.trim()}>
         {sending ? "Sending…" : "Send"}
       </button>
@@ -4911,18 +5054,32 @@ function DirectChatForm({
   onCreated: (c: Conversation) => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const userId = selectedIds[0];
     if (!userId) return;
-    const conversation = await apiFetch<Conversation>(
-      "/conversations/direct",
-      withEventHeaders({ method: "POST", body: JSON.stringify({ userId }) }),
-      token,
-    );
-    onCreated(conversation);
-    setSelectedIds([]);
+    setError(null);
+    try {
+      const conversation = await apiFetch<Conversation>(
+        "/conversations/direct",
+        withEventHeaders({ method: "POST", body: JSON.stringify({ userId }) }),
+        token,
+      );
+      onCreated(conversation);
+      setSelectedIds([]);
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const name = attendees.find((a) => a.id === userId)?.name;
+      setError(
+        status === 403 && name
+          ? `${name} hasn't opted into direct messages`
+          : err instanceof Error && err.message
+            ? err.message
+            : "Couldn't start the conversation",
+      );
+    }
   }
 
   return (
@@ -4939,6 +5096,11 @@ function DirectChatForm({
         placeholder="Search people…"
         onChange={(ids) => setSelectedIds(ids.length <= 1 ? ids : [ids[ids.length - 1]!])}
       />
+      {error ? (
+        <p className="help-text" role="status" style={{ margin: 0 }}>
+          {error}
+        </p>
+      ) : null}
       <button className="button secondary" type="submit" disabled={selectedIds.length !== 1}>
         Start chat
       </button>

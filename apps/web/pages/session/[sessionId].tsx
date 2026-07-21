@@ -1,4 +1,4 @@
-import { brand, icsProductId } from "@event-app/config";
+import { brand } from "@event-app/config";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -9,6 +9,7 @@ import { ListSkeleton } from "../../components/ListState";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { ConciergeChat } from "../../components/ConciergeChat";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
+import { downloadSessionIcs } from "../../lib/calendarIcs";
 import { formatEventTimeRange } from "../../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../../lib/push";
 
@@ -160,29 +161,6 @@ function openGoogleCalendar(session: Session, eventName: string) {
   if (session.location) url.searchParams.set("location", session.location);
   if (details) url.searchParams.set("details", details);
   window.open(url.toString(), "_blank", "noopener,noreferrer");
-}
-
-function downloadSessionIcs(session: Session, eventName: string) {
-  const lines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    `PRODID:${icsProductId()}`,
-    "BEGIN:VEVENT",
-    `UID:${session.id}@${brand.domain}`,
-    `DTSTAMP:${toGoogleCalendarUtc(new Date().toISOString())}`,
-    `DTSTART:${toGoogleCalendarUtc(session.startsAt)}`,
-    `DTEND:${toGoogleCalendarUtc(session.endsAt)}`,
-    `SUMMARY:${session.title.replace(/[,;\\]/g, " ")} (${eventName.replace(/[,;\\]/g, " ")})`,
-    session.location ? `LOCATION:${session.location.replace(/[,;\\]/g, " ")}` : "",
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].filter(Boolean);
-  const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${session.title.slice(0, 40).replace(/[^\w\- ]+/g, "") || "session"}.ics`;
-  a.click();
-  URL.revokeObjectURL(a.href);
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -800,9 +778,23 @@ export default function SessionPage() {
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() => downloadSessionIcs(session, event?.name || "Event")}
+                  onClick={() =>
+                    downloadSessionIcs(
+                      {
+                        id: session.id,
+                        title: session.title,
+                        startsAt: session.startsAt,
+                        endsAt: session.endsAt,
+                        description: session.description,
+                        location: session.location || session.room?.name,
+                        zoomLink: session.zoomLink,
+                      },
+                      event?.name || "Event",
+                      event?.timezone,
+                    )
+                  }
                 >
-                  Download ICS
+                  Add to calendar
                 </button>
               )}
               <button type="button" className={liked ? "button" : "button secondary"} onClick={() => toggleLike()}>
