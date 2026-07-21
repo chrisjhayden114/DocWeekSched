@@ -1052,7 +1052,7 @@ export default function Dashboard() {
     availableTabs.includes(tab),
   );
 
-  /* Filter controls — rendered in the right rail (≥1280px) and the Filters sheet below. */
+  /* Filter controls — right rail (≥1280px) + Filters sheet (timezone lives here on mobile). */
   const agendaFilterControls = (
     <>
       <input
@@ -1063,6 +1063,36 @@ export default function Dashboard() {
         value={agendaSearch}
         onChange={(e) => setAgendaSearch(e.target.value)}
       />
+      {timezoneToggleOn ? (
+        <div className="agenda-filter-group">
+          <span className="agenda-filter-group-label">Timezone</span>
+          <div
+            className="agenda-timezone-toggle"
+            role="tablist"
+            aria-label="Time display mode"
+            title={`Times shown in ${agendaDisplayTimezone}`}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={agendaTimeMode === "MY"}
+              className={agendaTimeMode === "MY" ? "active" : ""}
+              onClick={() => setAgendaTimeMode("MY")}
+            >
+              My timezone
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={agendaTimeMode === "EVENT"}
+              className={agendaTimeMode === "EVENT" ? "active" : ""}
+              onClick={() => setAgendaTimeMode("EVENT")}
+            >
+              Event timezone
+            </button>
+          </div>
+        </div>
+      ) : null}
       <FilterGroup
         label="Day"
         options={dayOptions.map((d) => ({ id: d, label: dayChipLabel(d) }))}
@@ -1176,6 +1206,7 @@ export default function Dashboard() {
           ) : null}
         <div className="schedule-layout">
           <div className="schedule-list">
+            {/* Sticky on mobile: view toggle + day strip (+ Filters opener). TZ / New session live below. */}
             <div className="agenda-context-bar">
               <div className="agenda-context-row">
                 <div className="nav agenda-view-toggle" role="tablist" aria-label="Schedule views">
@@ -1202,7 +1233,7 @@ export default function Dashboard() {
                 <span className="agenda-context-spacer" aria-hidden />
                 {timezoneToggleOn ? (
                   <div
-                    className="agenda-timezone-toggle"
+                    className="agenda-timezone-toggle agenda-timezone-toggle--desktop"
                     role="tablist"
                     aria-label="Time display mode"
                     title={`Times shown in ${agendaDisplayTimezone}`}
@@ -1239,7 +1270,7 @@ export default function Dashboard() {
                 {isAdmin ? (
                   <button
                     type="button"
-                    className="button"
+                    className="button agenda-new-session agenda-new-session--desktop"
                     onClick={() => {
                       setEditingSession(null);
                       setSessionFormKey((k) => k + 1);
@@ -1252,7 +1283,22 @@ export default function Dashboard() {
               </div>
               <DayChips days={dayOptions} value={agendaFilterDay} onChange={setAgendaFilterDay} />
             </div>
-            <p className="text-meta" style={{ margin: "0 0 10px" }}>
+            {isAdmin ? (
+              <div className="agenda-new-session-row">
+                <button
+                  type="button"
+                  className="button agenda-new-session"
+                  onClick={() => {
+                    setEditingSession(null);
+                    setSessionFormKey((k) => k + 1);
+                    setSessionDrawerOpen(true);
+                  }}
+                >
+                  + New session
+                </button>
+              </div>
+            ) : null}
+            <p className="text-meta agenda-tz-caption">
               Times shown in <strong>{agendaDisplayTimezone}</strong>
               {timezoneToggleOn
                 ? ` (${agendaTimeMode === "MY" ? "your device setting" : "event setting"})`
@@ -1279,7 +1325,7 @@ export default function Dashboard() {
               </p>
             ) : null}
             {agendaView === "My Schedule" ? (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <div className="agenda-ics-bar">
                 <button
                   type="button"
                   className="button secondary"
@@ -2373,9 +2419,11 @@ function ScheduleBoard({
                       ),
                     });
                   }
+                  const speakerLabel = s.speakers || s.speaker?.name || "";
+                  const isMinimal = !joining && !speakerLabel;
                   return (
                     <article
-                      className="schedule-event"
+                      className={`schedule-event${isMinimal ? " schedule-event--minimal" : ""}`}
                       key={s.id}
                       style={{ ["--track-color" as string]: trackColor(s.trackId, s.track?.color, orderedTrackIds) }}
                       title={s.description || undefined}
@@ -2393,66 +2441,64 @@ function ScheduleBoard({
                             <span className="schedule-option-chip">Full — waitlist</span>
                           ) : null}
                         </h4>
-                        <div className="schedule-event-meta-row">
-                          <p className="schedule-event-meta">
-                            {formatRowTimeRange(s.startsAt, s.endsAt, displayTimezone)}
-                            {roomLabel ? ` · ${roomLabel}` : ""}
-                            {s.track?.name ? ` · ${s.track.name}` : ""}
-                            {s.zoomLink ? (
-                              <>
-                                {" · "}
-                                <OnlineMeetingLink
-                                  href={s.zoomLink}
-                                  variant="chip"
-                                  onClick={(event) => event.stopPropagation()}
-                                />
-                              </>
-                            ) : null}
-                            {extraLinks.map((link) => (
-                              <span key={link.key}>
-                                {" · "}
-                                {link.node}
-                              </span>
-                            ))}
-                            {isAdmin || joinedCount > 0 ? ` · ${countBits.join(" · ")}` : null}
-                          </p>
-                          {joining ? (
-                            <div
-                              className="join-mode-switch join-mode-switch--compact"
-                              onClick={(event) => event.stopPropagation()}
-                              role="group"
-                              aria-label="Attendance mode"
-                            >
-                              {sessionAllowsVirtual && (
-                                <button
-                                  type="button"
-                                  className={myMode === "VIRTUAL" ? "is-active" : ""}
-                                  onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
-                                >
-                                  Virtual
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                className={myMode === "IN_PERSON" ? "is-active" : ""}
-                                onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "IN_PERSON" })}
-                              >
-                                In person
-                              </button>
-                              <button
-                                type="button"
-                                className={myMode === "ASYNC" ? "is-active" : ""}
-                                onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "ASYNC" })}
-                                title="Asynchronous — join across time zones"
-                              >
-                                Async
-                              </button>
-                            </div>
+                        <p className="schedule-event-meta">
+                          {formatRowTimeRange(s.startsAt, s.endsAt, displayTimezone)}
+                          {roomLabel ? ` · ${roomLabel}` : ""}
+                          {s.track?.name ? ` · ${s.track.name}` : ""}
+                          {s.zoomLink ? (
+                            <>
+                              {" · "}
+                              <OnlineMeetingLink
+                                href={s.zoomLink}
+                                variant="chip"
+                                onClick={(event) => event.stopPropagation()}
+                              />
+                            </>
                           ) : null}
-                        </div>
-                        {(s.speakers || s.speaker?.name) && (
-                          <p className="schedule-event-speakers">{s.speakers || s.speaker?.name}</p>
-                        )}
+                          {extraLinks.map((link) => (
+                            <span key={link.key}>
+                              {" · "}
+                              {link.node}
+                            </span>
+                          ))}
+                          {isAdmin || joinedCount > 0 ? ` · ${countBits.join(" · ")}` : null}
+                        </p>
+                        {joining ? (
+                          <div
+                            className="join-mode-switch join-mode-switch--compact"
+                            onClick={(event) => event.stopPropagation()}
+                            role="group"
+                            aria-label="Attendance mode"
+                          >
+                            {sessionAllowsVirtual && (
+                              <button
+                                type="button"
+                                className={myMode === "VIRTUAL" ? "is-active" : ""}
+                                onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "VIRTUAL" })}
+                              >
+                                Virtual
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className={myMode === "IN_PERSON" ? "is-active" : ""}
+                              onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "IN_PERSON" })}
+                            >
+                              In person
+                            </button>
+                            <button
+                              type="button"
+                              className={myMode === "ASYNC" ? "is-active" : ""}
+                              onClick={() => onPatchAttendance(s.id, { status: "JOINING", joinMode: "ASYNC" })}
+                              title="Asynchronous — join across time zones"
+                            >
+                              Async
+                            </button>
+                          </div>
+                        ) : null}
+                        {speakerLabel ? (
+                          <p className="schedule-event-speakers">{speakerLabel}</p>
+                        ) : null}
                       </div>
                       <div className="schedule-event-side" onClick={(event) => event.stopPropagation()}>
                         <button

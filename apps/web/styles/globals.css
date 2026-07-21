@@ -700,20 +700,21 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   max-width: 100%;
 }
 
-/* Sticky context bar: segmented view control + day chips + tz controls. */
+/* Sticky context bar: view toggle + day chips (mobile). Solid bg so list never shows through. */
 .agenda-context-bar {
+  --agenda-sticky-height: 108px;
   position: sticky;
   top: 0;
   z-index: 20;
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-2) 0 var(--space-3);
-  margin-bottom: var(--space-2);
-  background: var(--gray-50);
+  padding: 8px 0 10px;
+  margin: 0 0 8px;
+  background: #ffffff;
   border-bottom: 1px solid var(--gray-200);
 }
 
-/* Inside the app shell the top bar (56px) is also sticky — pin below it + notch. */
+/* Inside the app shell the top bar is sticky — pin flush below it (includes notch). */
 .shell .agenda-context-bar {
   top: calc(56px + env(safe-area-inset-top, 0px));
 }
@@ -722,6 +723,31 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 .mkt-page .agenda-context-bar {
   top: calc(64px + env(safe-area-inset-top, 0px));
   z-index: 10;
+}
+
+.agenda-new-session-row {
+  display: none;
+  margin: 0 0 8px;
+}
+
+.agenda-tz-caption {
+  margin: 0 0 10px;
+}
+
+.agenda-ics-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* Content must clear the sticky agenda chrome when scrolled into view. */
+.shell .schedule-day,
+.shell .schedule-day-heading,
+.shell .agenda-ics-bar,
+.shell .agenda-tz-caption,
+.shell .agenda-new-session-row {
+  scroll-margin-top: calc(56px + env(safe-area-inset-top, 0px) + var(--agenda-sticky-height, 108px) + 8px);
 }
 
 .agenda-context-row {
@@ -1088,44 +1114,52 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   flex: 1 1 auto;
 }
 
-.schedule-event-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  margin-top: 2px;
-  min-width: 0;
-}
-
 .schedule-event-meta {
-  margin: 0;
-  flex: 1 1 auto;
+  margin: 2px 0 0;
   min-width: 0;
   font: 400 12px/16px var(--font-body);
   color: var(--gray-500);
-  /* Prefer phrase wraps over one-word-per-line shredding in narrow columns. */
   overflow-wrap: break-word;
   word-break: normal;
 }
 
+.schedule-event-main > .join-mode-switch--compact {
+  margin-top: 6px;
+  align-self: flex-start;
+}
+
+/* Desktop (≥768): meta + compact selector can share a row when space allows. */
+@media (min-width: 768px) {
+  .schedule-event-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    align-items: start;
+  }
+
+  .schedule-event-title {
+    grid-column: 1 / -1;
+  }
+
+  .schedule-event-meta {
+    grid-column: 1;
+  }
+
+  .schedule-event-main > .join-mode-switch--compact {
+    grid-column: 2;
+    margin-top: 2px;
+    justify-self: end;
+  }
+
+  .schedule-event-speakers {
+    grid-column: 1 / -1;
+  }
+}
+
 /*
- * Concurrent (side-by-side) cards: the compact attendance selector must not
- * share the meta line — it steals width and shreds the text one word per line.
- * Meta takes the full first row; selector drops below, right-aligned.
- * Side actions must shrink so equal-width cards stay inside the schedule column
- * (never overlapping the ≥1280px filter rail).
+ * Concurrent (side-by-side) cards: selector stays on its own grid cell;
+ * side actions must shrink so cards never overlap the ≥1280px filter rail.
  */
-.schedule-events:has(> .schedule-event + .schedule-event) .schedule-event-meta {
-  flex: 1 1 100%;
-  min-width: 0;
-}
-
-.schedule-events:has(> .schedule-event + .schedule-event) .join-mode-switch--compact {
-  flex: 0 1 auto;
-  margin-left: auto;
-  max-width: 100%;
-}
-
 .schedule-events:has(> .schedule-event + .schedule-event) .schedule-event-side {
   flex-shrink: 1;
   min-width: 0;
@@ -1142,6 +1176,17 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
   overflow: hidden;
+}
+
+/* Lunch / breaks: no selector or speakers — tighter card. */
+.schedule-event--minimal {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  min-height: 0;
+}
+
+.schedule-event--minimal .schedule-event-side {
+  align-self: center;
 }
 
 /* Inline chips on the 12px meta line (Zoom / recording / map). */
@@ -1506,22 +1551,24 @@ button.schedule-meta-chip:hover {
   font-weight: 600;
 }
 
-/* 24px compact attendance mode — joined rows only, right-aligned on meta row. */
+/* Compact attendance mode — joined rows only. No fixed height (clips on mobile). */
 .join-mode-switch--compact {
   flex: 0 0 auto;
   flex-wrap: nowrap;
-  height: 24px;
+  height: auto;
+  min-height: 0;
   border-radius: var(--radius-sm);
-  align-self: center;
+  align-self: flex-start;
+  max-width: 100%;
 }
 
 .join-mode-switch--compact button {
-  padding: 0 7px;
+  padding: 4px 8px;
   font-size: 11px;
   font-weight: 500;
-  line-height: 22px;
-  height: 22px;
-  min-height: 22px;
+  line-height: 16px;
+  height: auto;
+  min-height: 28px;
   white-space: nowrap;
 }
 
@@ -3208,7 +3255,42 @@ button.schedule-meta-chip:hover {
     overflow-x: hidden;
   }
 
-  /* Agenda below 768px: time-grouped list, full-width rows, actions on the right. */
+  /* Agenda below 768px: sticky chrome slim; cards stack title→meta→selector→speakers. */
+  .agenda-context-bar {
+    --agenda-sticky-height: 100px;
+    gap: 6px;
+    padding: 6px 0 8px;
+    margin-bottom: 6px;
+    background: #ffffff;
+  }
+
+  .agenda-timezone-toggle--desktop,
+  .agenda-new-session--desktop {
+    display: none !important;
+  }
+
+  .agenda-new-session-row {
+    display: block;
+  }
+
+  .agenda-new-session-row .agenda-new-session {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .agenda-ics-bar .button {
+    min-height: 44px;
+  }
+
+  .agenda-filter-group .agenda-timezone-toggle {
+    width: 100%;
+  }
+
+  .agenda-filter-group .agenda-timezone-toggle button {
+    flex: 1;
+    min-height: 40px;
+  }
+
   .schedule-slot {
     grid-template-columns: 1fr;
     gap: 4px;
@@ -3233,26 +3315,74 @@ button.schedule-meta-chip:hover {
     flex: 1 1 auto;
     width: 100%;
     padding: 10px 8px 10px 13px;
+    /* Allow selector to grow fully visible — do not clip against fixed heights. */
+    overflow: visible;
+    align-items: flex-start;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 4px;
+    row-gap: 0;
+  }
+
+  .schedule-event-main {
+    display: flex;
+    flex-direction: column;
     align-items: stretch;
+    gap: 0;
+    grid-column: 1;
+    min-width: 0;
   }
 
   .schedule-event-side {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
     align-items: flex-end;
     justify-content: flex-start;
     gap: 2px;
   }
 
-  .schedule-event-meta-row {
-    flex-wrap: wrap;
-    align-items: flex-start;
+  .schedule-event-meta {
+    margin-top: 4px;
+    width: 100%;
   }
 
-  .join-mode-switch--compact {
-    margin-left: auto;
+  /* Own fully-visible line under meta — never share a clipped 24px band. */
+  .schedule-event-main > .join-mode-switch--compact {
+    display: flex;
+    width: 100%;
+    margin-top: 8px;
+    margin-left: 0;
+    height: auto;
+    overflow: visible;
   }
 
-  .join-mode-switch--compact button {
-    min-height: 44px;
+  .schedule-event-main > .join-mode-switch--compact button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 40px;
+    height: auto;
+    padding: 8px 6px;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .schedule-event-speakers {
+    margin-top: 6px;
+    white-space: normal;
+  }
+
+  .schedule-event--minimal {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .schedule-event--minimal .schedule-event-side {
+    align-self: center;
+  }
+
+  .schedule-day-heading {
+    padding-top: 4px;
   }
 
   /* Attendee list → compact anatomy; Message/Meet under identity on phones. */
@@ -3361,7 +3491,11 @@ button.schedule-meta-chip:hover {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  z-index: 40;
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: none;
   border-radius: var(--radius-lg);
   padding: 12px 18px;
@@ -3375,6 +3509,13 @@ button.schedule-meta-chip:hover {
 }
 .concierge-fab:hover {
   background: rgba(0, 51, 160, 0.85);
+}
+.concierge-fab-icon {
+  display: none;
+  line-height: 0;
+}
+.concierge-fab-label {
+  display: inline;
 }
 .concierge-sheet-backdrop {
   position: fixed;
@@ -4822,12 +4963,45 @@ button.schedule-meta-chip:hover {
 }
 
 @media (max-width: 1023.98px) {
+  /* Tight top padding — remove the large gap under the app top bar. */
   .shell-content {
-    padding: 16px 12px calc(72px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 12px calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Keep notch inset (do not zero it out — that created a gap above the sticky agenda). */
   .shell-topbar {
-    padding: 0 var(--space-4);
+    padding: env(safe-area-inset-top, 0px) var(--space-4) 0;
+    min-height: calc(56px + env(safe-area-inset-top, 0px));
+  }
+
+  /* Compact Concierge: icon pill above the bottom tab bar + safe area. */
+  .concierge-fab {
+    right: 12px;
+    bottom: calc(56px + 12px + env(safe-area-inset-bottom, 0px));
+    z-index: 35;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-1);
+  }
+
+  .concierge-fab-icon {
+    display: inline-flex;
+  }
+
+  .concierge-fab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 }
 
