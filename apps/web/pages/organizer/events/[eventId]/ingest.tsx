@@ -9,6 +9,7 @@ import {
   type ReviewAssumption,
   type ReviewChangeRow,
 } from "../../../../components/ReviewChangeset";
+import { SessionCsvImport } from "../../../../components/organizer/SessionCsvImport";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
 type IngestRun = {
@@ -423,6 +424,8 @@ export default function AgendaIngestPage() {
               />
             </label>
           </div>
+
+          {eventId ? <SessionCsvImport eventId={eventId} /> : null}
         </section>
 
         {run && rows.length > 0 && (run.status === "READY_FOR_REVIEW" || run.status === "CONFIRMED") ? (

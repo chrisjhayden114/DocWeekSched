@@ -567,6 +567,30 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
   const ogImage = event.bannerUrl || event.logoUrl || `${brand.primaryUrl}/icons/icon-512.png`;
   const loginHref = loginPathWithEvent(event.slug);
 
+  // schema.org Event structured data so shared links and search results render richly.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: event.name,
+    startDate: event.startDate,
+    endDate: event.endDate,
+    url: canonical,
+    image: ogImage,
+    ...(event.description?.trim() ? { description: event.description.trim().slice(0, 500) } : {}),
+    ...(event.venueName || event.venueAddress
+      ? {
+          location: {
+            "@type": "Place",
+            name: event.venueName || event.venueAddress,
+            ...(event.venueAddress ? { address: event.venueAddress } : {}),
+          },
+        }
+      : {}),
+    ...(event.organizationName
+      ? { organizer: { "@type": "Organization", name: event.organizationName } }
+      : {}),
+  };
+
   return (
     <>
       <Head>
@@ -581,7 +605,13 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={title} />
         <meta name="twitter:description" content={description} />
+        <meta name="twitter:image" content={ogImage} />
         <link rel="canonical" href={canonical} />
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         {/* Customer events are not auto-indexed — opt-in later. Demo may be listed in sitemap. */}
         {slug === brand.demoEventSlug ? null : <meta name="robots" content="noindex, follow" />}
       </Head>

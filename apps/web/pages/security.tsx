@@ -17,6 +17,8 @@ const TOC = [
 export default function SecurityPage() {
   const title = `Security — ${brand.productName}`;
   const description = `Security architecture, downloads, and product principles for ${brand.productName}.`;
+  /** Content date — bump when this page's substance changes. Not the render date. */
+  const updated = "31 July 2026";
   const url = `${brand.primaryUrl}/security`;
 
   return (
@@ -35,6 +37,7 @@ export default function SecurityPage() {
         <main className="mkt-section">
           <article className="mkt-section-inner mkt-prose mkt-legal">
             <h1>Security</h1>
+            <p className="text-meta">Last updated: {updated}.</p>
             <p>
               How {brand.legalEntity} operates {brand.productName} for organizers who need trustworthy
               uptime and honest capability claims.

@@ -11,6 +11,7 @@ import {
 } from "../../lib/eventTimezone";
 import { organizerFetch } from "../../lib/organizerApi";
 import { browserTimezone } from "../../lib/timezones";
+import { SessionCsvImport } from "./SessionCsvImport";
 
 export type Track = { id: string; name: string; color: string };
 export type Room = { id: string; name: string };
@@ -754,10 +755,15 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           </div>
         </div>
 
+        <p className="help-text" style={{ margin: "0 0 8px" }}>
+          Paper authors are listed under each paper inside a session. Speakers (from the Speakers tab) present
+          sessions — a person can be both.
+        </p>
+
         {sessions.length === 0 && !addSessionOpen ? (
           <ListEmpty
             title="No sessions yet"
-            body="Add your first block, or paste a program via Agenda ingest."
+            body="Add your first block, import a CSV below, or paste a program via Agenda ingest."
             actionLabel="Agenda ingest"
             onAction={() => void router.push(`/organizer/events/${eventId}/ingest`)}
           />
@@ -1049,6 +1055,9 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           ))}
         </div>
       </div>
+
+      {/* ——— CSV import (non-AI fallback) ——— */}
+      <SessionCsvImport eventId={eventId} onCreated={onChanged} />
 
       {confirm ? (
         <ConfirmDialog

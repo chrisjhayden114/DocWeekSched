@@ -17,6 +17,7 @@ export type DemoFixtureSpec = {
   startOffsetDays: number;
   endOffsetDays: number;
   tracks: Array<{ name: string; color?: string }>;
+  rooms: Array<{ name: string; capacity?: number }>;
   speakers: Array<{
     key: string;
     name: string;
@@ -35,6 +36,8 @@ export type DemoFixtureSpec = {
     title: string;
     description: string;
     trackIndex: number;
+    /** Index into rooms; omit for no room. */
+    roomIndex?: number;
     /** Minutes from 09:00 on dayOffset. */
     dayOffset: number;
     startMinute: number;
@@ -78,6 +81,14 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       { name: "Plenary", color: "#0033A0" },
       { name: "Research", color: "#0F6B4C" },
       { name: "Practice", color: "#8A4B08" },
+    ],
+    // Realistic rooms so the By-room schedule view demonstrates itself on the
+    // flagship demo instead of grouping everything under "No room".
+    rooms: [
+      { name: "Hall A", capacity: 400 },
+      { name: "Room 214", capacity: 60 },
+      { name: "Room 108", capacity: 40 },
+      { name: "Gallery", capacity: 80 },
     ],
     speakers: [
       {
@@ -123,6 +134,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Opening keynote: Designing calm conferences",
         description: "How organizers reduce noise without losing energy.",
         trackIndex: 0,
+        roomIndex: 0,
         dayOffset: 0,
         startMinute: 0,
         durationMinutes: 60,
@@ -132,6 +144,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Paper session: Mentoring networks",
         description: "Short papers on peer mentoring in doctoral programs.",
         trackIndex: 1,
+        roomIndex: 1,
         dayOffset: 0,
         startMinute: 90,
         durationMinutes: 90,
@@ -156,6 +169,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Workshop: Importing your program in minutes",
         description: "Hands-on walkthrough of agenda ingest patterns.",
         trackIndex: 2,
+        roomIndex: 2,
         dayOffset: 1,
         startMinute: 30,
         durationMinutes: 75,
@@ -165,6 +179,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Closing roundtable",
         description: "What we will change next year.",
         trackIndex: 0,
+        roomIndex: 3,
         dayOffset: 2,
         startMinute: 120,
         durationMinutes: 60,

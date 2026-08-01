@@ -384,6 +384,10 @@ export default function OrganizerEventPage() {
         {tab === "people" ? (
           <section className="console-panel">
             <p className="console-panel-label">Speakers</p>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              Speakers present sessions and appear on the public schedule. Paper authors are listed under each
+              paper inside a session (Program tab) — a person can be both.
+            </p>
             {speakers.length === 0 ? (
               <ListEmpty title="No speakers yet" body="Add speakers to assign them to sessions and papers." />
             ) : (

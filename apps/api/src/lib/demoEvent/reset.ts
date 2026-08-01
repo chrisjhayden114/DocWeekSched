@@ -190,6 +190,16 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
     );
   }
 
+  const rooms = [];
+  for (let i = 0; i < spec.rooms.length; i++) {
+    const r = spec.rooms[i]!;
+    rooms.push(
+      await prisma.room.create({
+        data: { eventId: event.id, name: r.name, capacity: r.capacity ?? null, sortOrder: i },
+      }),
+    );
+  }
+
   const speakerByKey = new Map<string, string>();
   for (let i = 0; i < spec.speakers.length; i++) {
     const s = spec.speakers[i]!;
@@ -223,12 +233,14 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
     const startsAt = sessionWallTime(start, sess.dayOffset, sess.startMinute);
     const endsAt = new Date(startsAt.getTime() + sess.durationMinutes * 60_000);
     const track = tracks[sess.trackIndex];
+    const room = sess.roomIndex != null ? rooms[sess.roomIndex] : undefined;
     const createdSession = await prisma.session.create({
       data: {
         eventId: event.id,
         title: sess.title,
         description: sess.description,
         trackId: track?.id ?? null,
+        roomId: room?.id ?? null,
         startsAt,
         endsAt,
         publishStatus: SessionPublishStatus.PUBLISHED,
@@ -334,6 +346,16 @@ export async function createSampleEventForOrg(input: {
     );
   }
 
+  const rooms = [];
+  for (let i = 0; i < spec.rooms.length; i++) {
+    const r = spec.rooms[i]!;
+    rooms.push(
+      await prisma.room.create({
+        data: { eventId: event.id, name: r.name, capacity: r.capacity ?? null, sortOrder: i },
+      }),
+    );
+  }
+
   const speakerByKey = new Map<string, string>();
   for (let i = 0; i < spec.speakers.length; i++) {
     const s = spec.speakers[i]!;
@@ -367,12 +389,14 @@ export async function createSampleEventForOrg(input: {
     const startsAt = sessionWallTime(start, sess.dayOffset, sess.startMinute);
     const endsAt = new Date(startsAt.getTime() + sess.durationMinutes * 60_000);
     const track = tracks[sess.trackIndex];
+    const room = sess.roomIndex != null ? rooms[sess.roomIndex] : undefined;
     const createdSession = await prisma.session.create({
       data: {
         eventId: event.id,
         title: sess.title,
         description: sess.description,
         trackId: track?.id ?? null,
+        roomId: room?.id ?? null,
         startsAt,
         endsAt,
         publishStatus: SessionPublishStatus.PUBLISHED,
