@@ -95,11 +95,7 @@ export default function TermsPage() {
             <p>
               We do <strong>not</strong> promise 24/7 live human support. On event days we provide{" "}
               <strong>best-effort</strong> assistance during support hours, plus automated resilience
-              (status page, read-only degradation when available). For live incidents, check{" "}
-              <a href={brand.statusPageUrl} rel="noopener noreferrer">
-                {brand.statusPageUrl}
-              </a>{" "}
-              and email {brand.supportEmail}.
+              (read-only degradation when available). For live incidents, email {brand.supportEmail}.
             </p>
 
             <h2 id="acceptable-use">6. Acceptable use and AI features</h2>

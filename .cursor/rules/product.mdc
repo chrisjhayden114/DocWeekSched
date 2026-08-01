@@ -14,3 +14,6 @@ You are working on a multi-tenant event-management SaaS run by a solo founder. F
 - Prefer boring, well-supported libraries already in the repo. Do not introduce a new framework without flagging it and explaining why.
 - When a requirement conflicts with the existing architecture, STOP and present options rather than silently deviating.
 - EventMembership.checkInCode MUST always carry `@default(cuid())` in schema.prisma. It has NO database default — the default is client-side only — so any regeneration or reformat of the schema that drops it silently breaks every event/membership create path. Never remove it. After any edit to schema.prisma, verify the line reads: `checkInCode String @default(cuid())`.
+
+## Database safety (added 2026-07-31 after an agent overrode the guard)
+- NEVER set ALLOW_DESTRUCTIVE_DB, in any form, for any reason. If the destructive-DB guard refuses to run a test suite, that is the correct outcome: report it and stop. Only the founder decides where destructive suites run, and only against a throwaway database branch he created for that purpose. Overriding a safety guard is never in scope, even when the .env comment suggests the database is "only dev."

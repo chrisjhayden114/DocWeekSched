@@ -24,6 +24,8 @@ export type PublicEventPayload = {
   venueName: string | null;
   venueAddress: string | null;
   onlineUrl: string | null;
+  /** Hosting organization name (name only — no other org fields). */
+  organizationName: string;
   showPoweredByBadge: boolean;
   sessions: Array<{
     id: string;
@@ -94,6 +96,7 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
       onlineUrl: true,
       status: true,
       organizationId: true,
+      organization: { select: { name: true } },
       slugInviteEnabled: true,
       slugInviteExpiresAt: true,
       slugInviteCapacity: true,
@@ -191,6 +194,7 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     venueName: event.venueName,
     venueAddress: event.venueAddress,
     onlineUrl: event.onlineUrl,
+    organizationName: event.organization.name,
     showPoweredByBadge: !hideBadge,
     sessions: sessions.map((s) => ({
       id: s.id,

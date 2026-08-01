@@ -48,6 +48,7 @@ import { getRequestId, requestIdMiddleware } from "./lib/requestId";
 import { captureException, initSentry } from "./lib/sentry";
 import { flushQueuedPushes, notifySessionStartingSoon } from "./lib/notifications";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
+import { warnIfAnthropicModelUnavailable } from "./lib/ai/providers/anthropic";
 import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
 import { OPS_DETECT_SWEEP_JOB, registerOpsJobs } from "./lib/ai/ops";
 import { registerRecapJobs } from "./lib/ai/recap";
@@ -267,6 +268,9 @@ app.listen(env.apiPort, () => {
       captureException(err, { tags: { area: "ops_sweep" } });
     });
   }, opsSweepMs);
+
+  // Fire-and-forget: warns when the configured Anthropic model 404s.
+  void warnIfAnthropicModelUnavailable().catch(() => undefined);
 
   registerAgendaIngestJob();
   registerMatchmakerJobs();

@@ -1,11 +1,14 @@
 /**
  * Markdown-driven help articles (Phase 6 seed; S1 expands search/assistant).
  * Front matter: title, description, order (optional).
+ *
+ * Content comes from the bundled HELP_SOURCE module (mirrors content/help/*.md)
+ * rather than runtime fs reads — the content directory is not shipped with the
+ * serverless bundle in production, which made /help render an empty list.
  */
 
-import fs from "fs";
-import path from "path";
 import { brand } from "@event-app/config";
+import { HELP_SOURCE } from "./helpContent";
 
 export type HelpArticleMeta = {
   slug: string;
@@ -18,8 +21,6 @@ export type HelpArticle = HelpArticleMeta & {
   bodyHtml: string;
   bodyMarkdown: string;
 };
-
-const CONTENT_DIR = path.join(__dirname, "../../content/help");
 
 function parseFrontMatter(raw: string): { meta: Record<string, string>; body: string } {
   if (!raw.startsWith("---")) {
@@ -113,12 +114,8 @@ export function markdownToHtml(md: string): string {
 }
 
 export function listHelpArticles(): HelpArticleMeta[] {
-  if (!fs.existsSync(CONTENT_DIR)) return [];
-  const files = fs.readdirSync(CONTENT_DIR).filter((f) => f.endsWith(".md"));
   const articles: HelpArticleMeta[] = [];
-  for (const file of files) {
-    const slug = file.replace(/\.md$/, "");
-    const raw = fs.readFileSync(path.join(CONTENT_DIR, file), "utf8");
+  for (const [slug, raw] of Object.entries(HELP_SOURCE)) {
     const { meta } = parseFrontMatter(raw);
     articles.push({
       slug,
@@ -133,9 +130,8 @@ export function listHelpArticles(): HelpArticleMeta[] {
 export function getHelpArticle(slug: string): HelpArticle | null {
   const safe = slug.replace(/[^a-z0-9-]/gi, "");
   if (!safe || safe !== slug) return null;
-  const file = path.join(CONTENT_DIR, `${safe}.md`);
-  if (!fs.existsSync(file)) return null;
-  const raw = fs.readFileSync(file, "utf8");
+  const raw = HELP_SOURCE[safe];
+  if (!raw) return null;
   const { meta, body } = parseFrontMatter(raw);
   return {
     slug: safe,

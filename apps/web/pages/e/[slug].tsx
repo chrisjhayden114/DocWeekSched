@@ -28,6 +28,7 @@ export type PublicEventView = {
   endDate: string;
   venueName: string | null;
   venueAddress: string | null;
+  organizationName?: string | null;
   showPoweredByBadge: boolean;
   sessions: Array<{
     id: string;
@@ -641,6 +642,11 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
               <h1 className="text-h1" style={{ marginTop: 0, marginBottom: 8 }}>
                 {event.name}
               </h1>
+              {event.organizationName ? (
+                <p className="text-meta" style={{ margin: "0 0 8px" }}>
+                  Hosted by {event.organizationName}
+                </p>
+              ) : null}
               {(event.venueName || event.venueAddress) && (
                 <p className="text-body" style={{ margin: "0 0 4px" }}>
                   {[event.venueName, event.venueAddress].filter(Boolean).join(" · ")}

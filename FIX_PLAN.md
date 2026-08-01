@@ -18,7 +18,7 @@ Key discovery that de-risks everything: the API **already exposes** `PUT`/`DELET
 5. **API Keys → Create API Key** (name: `ukedl-prod`, permission: Sending access). Copy it once.
 6. **Render → docweeksched-api → Environment** → add:
    - `RESEND_API_KEY` = the key
-   - `EMAIL_FROM` = `UKEDL <noreply@ukedl.com>` (must be on the verified domain)
+   - `RESEND_FROM_EMAIL` = `UKEDL <noreply@mail.ukedl.com>` (var name is `RESEND_FROM_EMAIL`, NOT `EMAIL_FROM` — verified in code, `lib/mail.ts`/routes read `RESEND_FROM_EMAIL`; address must be on the verified sending domain, which is `mail.ukedl.com`, already DKIM+SPF verified in Resend)
    - `EMAIL_PROVIDER` = `resend`
    Save → service redeploys.
 7. Verify end-to-end: register a brand-new account with a real inbox → confirm the verification email arrives → click through → sign in. **This is the acceptance test for P0.**
@@ -72,6 +72,8 @@ Chunk E1 — customer-test fixes: honesty and unblocking. Read CUSTOMER_TEST_FIN
 7. FOOTER STATUS LINK (apps/web marketing footer): remove the Status link until a real status page exists — status.ukedl.com currently returns 502 Bad Gateway, which reads to a visitor as "the product is down". Also remove/adjust any reference to it in the security page's incident guidance.
 8. PROCUREMENT DOWNLOADS (apps/web/public/legal/*): /legal/dpa.pdf and /legal/hecvat-lite.pdf are placeholders and may still carry the old "Colloquium" name. Until real documents exist, remove the download links from /security (keep the section heading with "available on request — email support@ukedl.com"). Check both PDFs for stale naming and report what you find.
 9. PRICING CLARITY (pages/pricing.tsx): for the 51–250 attendee band, Pro at $79/mo is both cheaper and more capable than the $149 per-event tier, so the per-event option is currently irrational. Add a short "Which plan?" guidance block (e.g. "Under 50 attendees: Free. One event this year: per-event. Two or more events, or you want the full AI suite: Pro.") and one FAQ line answering what happens to a published event when a Pro subscription is cancelled (it stays published/read-only vs. reverts to Free caps — state whatever the entitlement code actually does; check billing/entitlements.ts and describe it accurately).
+10. AI MODEL FALLBACK + FRIENDLY ERROR (apps/api lib/ai/providers/anthropic.ts + ingest UI): the hardcoded default model "claude-sonnet-4-20250514" is retired — production 404'd until AI_MODEL=claude-sonnet-5 was set in env (2026-07-31). Update the fallback to "claude-sonnet-5" and add a boot-time preflight warning when the configured model 404s. In the ingest UI, never render a raw provider-error JSON blob ({"type":"not_found_error"...}) to the organizer — map provider failures to a plain-English message ("The AI provider rejected the request — the team has been notified. Try again shortly.") while logging the raw error server-side.
+11. CONFIDENCE LABEL (ingest changeset UI): every row currently shows a uniform "(confidence 0.50)" placeholder, which reads as the AI being unsure of everything. Either surface the real per-item confidence if the extraction payload provides one, or remove the label entirely. Do not display a constant.
 
 Acceptance: registering with email unconfigured yields a usable verify link; /help lists real articles; pricing/billing never promise a checkout that cannot complete; a failed or empty ingest always ends in a visible message; public event pages name the host. Run npm test + npm run build in both apps, report, STOP for review.
 ```

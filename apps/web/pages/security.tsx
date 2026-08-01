@@ -74,31 +74,18 @@ export default function SecurityPage() {
 
             <h2 id="status">Status</h2>
             <p>
-              Public status page:{" "}
-              <a href={brand.statusPageUrl} rel="noopener noreferrer">
-                {brand.statusPageUrl}
-              </a>{" "}
-              (placeholder until the S2 provider is wired). Support hours: {brand.supportHours}
+              A public status page is on the roadmap. During an incident, email{" "}
+              <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a> for updates. Support
+              hours: {brand.supportHours}
             </p>
 
             <h2 id="downloads">Downloads</h2>
-            <p className="mkt-draft-banner" role="status">
-              DRAFT — requires legal / security review
+            {/* Download links removed until the real documents exist — the previous
+                PDFs were placeholder drafts still carrying the old product name. */}
+            <p>
+              HECVAT Lite and our Data Processing Agreement are available on request — email{" "}
+              <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>.
             </p>
-            <ul>
-              <li>
-                <a href="/legal/hecvat-lite.pdf" download>
-                  HECVAT Lite (PDF)
-                </a>{" "}
-                — higher-ed vendor questionnaire lite pack (placeholder draft).
-              </li>
-              <li>
-                <a href="/legal/dpa.pdf" download>
-                  Data Processing Agreement (PDF)
-                </a>{" "}
-                — DPA for organizers (placeholder draft).
-              </li>
-            </ul>
 
             <h2 id="export">Data export and continuity</h2>
             <p>

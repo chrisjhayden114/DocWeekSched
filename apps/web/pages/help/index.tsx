@@ -35,9 +35,7 @@ export default function HelpIndexPage({ articles }: Props) {
           <div className="mkt-section-inner mkt-prose">
             <p className="mkt-eyebrow">Resources</p>
             <h1>Help</h1>
-            <p>
-              Guides for organizers and attendees. Full-text search arrives in a later release.
-            </p>
+            <p>Guides for organizers and attendees.</p>
             <ul style={{ paddingLeft: 20, marginTop: 24 }}>
               {articles.map((a) => (
                 <li key={a.slug} style={{ marginBottom: 12 }}>

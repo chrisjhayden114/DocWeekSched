@@ -64,6 +64,20 @@ billingRouter.get(
   }),
 );
 
+/**
+ * Public billing capability flag (no secrets). Lets marketing/pricing pages
+ * stop advertising a checkout that cannot complete when the merchant-of-record
+ * keys are not configured.
+ */
+billingRouter.get(
+  "/config",
+  publicRateLimit(),
+  asyncHandler(async (_req, res) => {
+    const provider = getBillingProvider();
+    return res.json({ checkoutEnabled: provider.isConfigured() });
+  }),
+);
+
 billingRouter.get(
   "/summary",
   requireAuth,

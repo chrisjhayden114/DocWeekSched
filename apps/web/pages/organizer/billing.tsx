@@ -215,19 +215,33 @@ export default function OrganizerBillingPage() {
             <div className="console-panel">
               <p className="console-panel-label">Upgrade / change plan</p>
               <p className="help-text" style={{ marginTop: 0 }}>{PRICE_LOCK.body}</p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {UPGRADE_SKUS.map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
+              {summary.billingConfigured ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {UPGRADE_SKUS.map((s) => (
+                    <button
+                      key={s.key}
+                      type="button"
+                      className="button secondary"
+                      disabled={busy}
+                      onClick={() => void startCheckout(s.key)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <a
                     className="button secondary"
-                    disabled={busy}
-                    onClick={() => void startCheckout(s.key)}
+                    href={`mailto:${brand.supportEmail}?subject=Purchase%20a%20plan`}
                   >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
+                    Contact {brand.supportEmail} to purchase
+                  </a>
+                  <p className="help-text" style={{ margin: "8px 0 0" }}>
+                    Self-serve checkout is opening soon — email us and we&apos;ll set you up.
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="console-panel">

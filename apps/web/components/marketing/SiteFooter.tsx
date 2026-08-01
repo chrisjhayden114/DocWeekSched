@@ -26,9 +26,8 @@ export function SiteFooter() {
               <nav aria-label="Resources">
                 <Link href="/help">Help</Link>
                 <Link href="/security">Security</Link>
-                <a href={brand.statusPageUrl} rel="noopener noreferrer">
-                  Status
-                </a>
+                {/* Status link intentionally removed until a real status page exists —
+                    status.ukedl.com currently 502s, which reads as "the product is down". */}
                 <a href={`mailto:${brand.supportEmail}`}>Support</a>
               </nav>
             </div>

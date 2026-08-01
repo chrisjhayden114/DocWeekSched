@@ -7,6 +7,8 @@ import {
 } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 import { SiteFooter } from "../components/marketing/SiteFooter";
 import { SiteHeader } from "../components/marketing/SiteHeader";
 
@@ -26,6 +28,10 @@ const FAQ = [
   {
     q: "What is the recurring-event price lock?",
     a: PRICE_LOCK.body,
+  },
+  {
+    q: "What happens to a published event if I cancel Pro?",
+    a: "Your organization moves back to the Free plan when the cancellation takes effect. Published events stay published and attendees keep access — nothing is unpublished or deleted. Free limits apply going forward: one active event, up to 50 attendees per event for new joins, and Free-tier AI allowances.",
   },
 ] as const;
 
@@ -85,6 +91,41 @@ const PER_EVENT_SKUS = [
 ] as const;
 
 export default function PricingPage() {
+  /**
+   * null = unknown (keep default CTA); false = checkout cannot complete, so
+   * never advertise it — offer the support mailto instead.
+   */
+  const [checkoutEnabled, setCheckoutEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_URL}/billing/config`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { checkoutEnabled?: boolean } | null) => {
+        if (!cancelled && data && typeof data.checkoutEnabled === "boolean") {
+          setCheckoutEnabled(data.checkoutEnabled);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const purchaseCta = (secondary = false) =>
+    checkoutEnabled === false ? (
+      <a
+        className={`button${secondary ? " secondary" : ""}`}
+        href={`mailto:${brand.supportEmail}?subject=Purchase%20a%20plan`}
+      >
+        Contact {brand.supportEmail} to purchase
+      </a>
+    ) : (
+      <Link className={`button${secondary ? " secondary" : ""}`} href="/login">
+        Sign in to upgrade
+      </Link>
+    );
+
   const title = `Pricing — ${brand.productName}`;
   const description = `Open pricing for ${brand.productName}. Free, Pro, Enterprise, and one-time per-event plans. Recurring-event price lock included.`;
   const url = `${brand.primaryUrl}/pricing`;
@@ -155,14 +196,34 @@ export default function PricingPage() {
                           Start free
                         </Link>
                       ) : (
-                        <Link className="button" href="/login">
-                          Sign in to upgrade
-                        </Link>
+                        purchaseCta()
                       )}
                     </article>
                   );
                 })}
               </div>
+
+              {checkoutEnabled === false ? (
+                <p className="text-meta" style={{ margin: "0 0 24px" }}>
+                  Self-serve checkout is opening soon — email us and we&apos;ll set you up.
+                </p>
+              ) : null}
+
+              <section className="mkt-price-lock" aria-labelledby="which-plan-heading">
+                <h2 id="which-plan-heading" className="mkt-feature-title">
+                  Which plan?
+                </h2>
+                <ul style={{ margin: 0, paddingLeft: 18, maxWidth: 640, color: "var(--gray-700)" }}>
+                  <li>Under 50 attendees: Free covers it.</li>
+                  <li>One event this year: a per-event plan sized to your attendance.</li>
+                  <li>Two or more events a year, or you want the full AI suite: Pro.</li>
+                </ul>
+                <p className="text-meta" style={{ margin: "8px 0 0", maxWidth: 640 }}>
+                  For 51–250 attendees, Pro at $79/month is usually the better buy than the $149
+                  per-event tier — it costs less if your event wraps within a month or two and
+                  includes the full AI suite.
+                </p>
+              </section>
 
               <p className="mkt-eyebrow">One-time options</p>
               <h2 className="mkt-h2" style={{ fontSize: 24 }}>
@@ -187,9 +248,7 @@ export default function PricingPage() {
                         <li key={f}>{f}</li>
                       ))}
                     </ul>
-                    <Link className="button secondary" href="/login">
-                      Sign in to upgrade
-                    </Link>
+                    {purchaseCta(true)}
                   </article>
                 ))}
               </div>

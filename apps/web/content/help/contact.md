@@ -14,7 +14,7 @@ Write to [{{support}}](mailto:{{support}}).
 
 {{hours}}
 
-We do **not** promise 24/7 live human support. On event days we provide **best-effort** assistance during support hours. For platform status, see the [status page]({{status}}).
+We do **not** promise 24/7 live human support. On event days we provide **best-effort** assistance during support hours. For urgent incident updates, email [{{support}}](mailto:{{support}}).
 
 ## What to include
 

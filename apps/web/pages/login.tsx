@@ -69,6 +69,8 @@ export default function LoginPage() {
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [linkedEventName, setLinkedEventName] = useState<string | null>(null);
   const [registerMessage, setRegisterMessage] = useState<string | null>(null);
+  /** Set when the API reports email delivery unavailable — the only way the user can verify. */
+  const [verifyFallbackUrl, setVerifyFallbackUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,11 +174,20 @@ export default function LoginPage() {
       }
 
       if (mode === "register" && !(adminMode && registerType === "admin")) {
-        const data = await apiFetch<{ ok: true; requiresEmailVerification?: boolean; message?: string }>(
-          endpoint,
-          { method: "POST", body: JSON.stringify(payload), headers },
-        );
-        setRegisterMessage(data.message || `Check your email to verify your ${brand.productName} account.`);
+        const data = await apiFetch<{
+          ok: true;
+          requiresEmailVerification?: boolean;
+          message?: string;
+          emailDeliveryUnavailable?: boolean;
+          verifyUrl?: string;
+        }>(endpoint, { method: "POST", body: JSON.stringify(payload), headers });
+        if (data.emailDeliveryUnavailable && data.verifyUrl) {
+          setVerifyFallbackUrl(data.verifyUrl);
+          setRegisterMessage(null);
+        } else {
+          setVerifyFallbackUrl(null);
+          setRegisterMessage(data.message || `Check your email to verify your ${brand.productName} account.`);
+        }
         setMode("login");
         return;
       }
@@ -329,6 +340,27 @@ export default function LoginPage() {
             </>
           ) : (
             <>
+              {verifyFallbackUrl ? (
+                <div
+                  role="status"
+                  style={{
+                    marginBottom: 16,
+                    padding: 12,
+                    borderRadius: "var(--radius-sm)",
+                    background: "var(--warning-50, #fffaeb)",
+                    border: "1px solid var(--gray-200)",
+                  }}
+                >
+                  <strong>One more step to activate your account.</strong>
+                  <p style={{ margin: "6px 0 8px", font: "400 14px/20px var(--font-body)", color: "var(--gray-700)" }}>
+                    Email delivery isn&apos;t configured yet, so we can&apos;t send the verification email —
+                    use this link to verify your account, then sign in.
+                  </p>
+                  <a className="button secondary" href={verifyFallbackUrl} style={{ minHeight: 40 }}>
+                    Verify my account
+                  </a>
+                </div>
+              ) : null}
               <form onSubmit={handleSubmit}>
                 <label htmlFor="login-email">Email</label>
                 <input id="login-email" className="input" name="email" type="email" required autoComplete="email" />

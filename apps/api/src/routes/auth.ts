@@ -126,7 +126,7 @@ authRouter.post(
 
     const base = env.webBaseUrl.replace(/\/$/, "");
     const verifyUrl = `${base}/verify-email/${verifyRaw}`;
-    await sendEmailVerificationEmail({ to: email, name, verifyUrl });
+    const sendResult = await sendEmailVerificationEmail({ to: email, name, verifyUrl });
 
     // Optionally attach to event if client sent x-event-id (attendee self-register via event link).
     const eventId = getRequestedEventId(req);
@@ -146,6 +146,22 @@ authRouter.post(
           update: { deletedAt: null },
         });
       }
+    }
+
+    // Email delivery unavailable (no provider configured): return the verify
+    // URL so the UI can show it — otherwise the user is promised an email the
+    // system knows it cannot send and is permanently locked out (mirrors the
+    // invite copyUrl / EMAIL_COPY_FALLBACK pattern). Never returned when the
+    // provider accepted the message.
+    if (!sendResult.delivered) {
+      return res.status(201).json({
+        ok: true,
+        requiresEmailVerification: true,
+        emailDeliveryUnavailable: true,
+        verifyUrl,
+        message:
+          "Email delivery isn't configured yet — use the verification link below to activate your account.",
+      });
     }
 
     return res.status(201).json({

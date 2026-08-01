@@ -67,6 +67,35 @@ function minConfidence(session: { confidence?: Record<string, number> } | undefi
   return Math.min(...vals);
 }
 
+/**
+ * A confidence value only means something when it varies. Some model runs
+ * emit the same placeholder (e.g. 0.50) on every row — displaying that reads
+ * as "the AI is unsure of everything" while carrying no information. Strip
+ * confidence when it is uniform across multiple rows.
+ */
+function stripUniformConfidence(rows: ReviewChangeRow[]): ReviewChangeRow[] {
+  const values = rows
+    .map((r) => ("confidence" in r ? r.confidence : undefined))
+    .filter((v): v is number => typeof v === "number");
+  if (values.length < 2) return rows;
+  const uniform = values.every((v) => v === values[0]);
+  if (!uniform) return rows;
+  return rows.map((r) => ("confidence" in r ? { ...r, confidence: undefined } : r));
+}
+
+/** Never show a raw provider-error JSON blob to the organizer. */
+function friendlyIngestError(raw: string | null | undefined): string {
+  const text = (raw || "").trim();
+  if (!text) return "Extract failed. Try again shortly.";
+  const looksLikeProviderBlob =
+    /"type"\s*:\s*"(?:error|not_found_error|invalid_request_error|authentication_error)"/.test(text) ||
+    text.startsWith("{");
+  if (looksLikeProviderBlob) {
+    return "The AI provider rejected the request — the team has been notified. Try again shortly.";
+  }
+  return text;
+}
+
 function changesetToRows(raw: unknown): ReviewChangeRow[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((r) => {
@@ -141,6 +170,9 @@ export default function AgendaIngestPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgrade, setUpgrade] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [emptyResult, setEmptyResult] = useState(false);
+  const [lastRequest, setLastRequest] = useState<Record<string, unknown> | null>(null);
   const [run, setRun] = useState<IngestRun | null>(null);
   const [rows, setRows] = useState<ReviewChangeRow[]>([]);
   const [assumptions, setAssumptions] = useState<ReviewAssumption[]>([]);
@@ -170,24 +202,42 @@ export default function AgendaIngestPage() {
     setBusy(true);
     setError(null);
     setUpgrade(null);
+    setEmptyResult(false);
+    setLastRequest(body);
+    setExtracting(true);
     try {
       const res = await organizerFetch<{ run: IngestRun; jobId: string }>("/ai/ingest", eventId, {
         method: "POST",
         body: JSON.stringify({ ...body, processInline: true }),
       });
       let current = res.run;
-      // Poll briefly if still extracting
-      for (let i = 0; i < 20 && (current.status === "PENDING" || current.status === "EXTRACTING"); i += 1) {
+      // Poll while extracting (~40s max) — always end in a visible outcome.
+      for (let i = 0; i < 100 && (current.status === "PENDING" || current.status === "EXTRACTING"); i += 1) {
         await new Promise((r) => setTimeout(r, 400));
         current = await organizerFetch<IngestRun>(`/ai/ingest/${current.id}`, eventId);
       }
+      if (current.status === "PENDING" || current.status === "EXTRACTING") {
+        setRun(current);
+        setError(
+          "Extraction is taking longer than expected and may still be running. Retry, or reopen this run from Ingest history in a minute.",
+        );
+        return;
+      }
       if (current.status === "FAILED") {
-        setError(current.error || "Extract failed");
+        setError(friendlyIngestError(current.error));
         setRun(current);
         return;
       }
+      if (current.error) {
+        // Non-fatal run error text — never swallow it.
+        setError(friendlyIngestError(current.error));
+      }
       setRun(current);
-      setRows(changesetToRows(current.changeset));
+      const nextRows = stripUniformConfidence(changesetToRows(current.changeset));
+      setRows(nextRows);
+      if (current.status === "READY_FOR_REVIEW" && nextRows.length === 0) {
+        setEmptyResult(true);
+      }
       const a = Array.isArray(current.assumptions) ? (current.assumptions as ReviewAssumption[]) : [];
       setAssumptions(a);
       await loadHistory();
@@ -196,9 +246,10 @@ export default function AgendaIngestPage() {
       if (e.status === 402 || e.body?.upgrade) {
         setUpgrade(e.body?.upgrade?.message || e.body?.error || e.message);
       } else {
-        setError(e.body?.error || e.message || "Ingest failed");
+        setError(friendlyIngestError(e.body?.error || e.message || "Ingest failed"));
       }
     } finally {
+      setExtracting(false);
       setBusy(false);
     }
   }
@@ -272,7 +323,56 @@ export default function AgendaIngestPage() {
           <strong>DRAFT</strong> sessions only.
         </p>
 
-        {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
+        {extracting ? (
+          <p role="status" aria-live="polite" style={{ color: "var(--gray-700)" }}>
+            <span aria-hidden style={{ marginRight: 6 }}>⏳</span>
+            Extracting your program… this usually takes under a minute.
+          </p>
+        ) : null}
+        {error ? (
+          <p role="alert" style={{ color: "var(--danger)" }}>
+            {error}
+            {lastRequest && !busy ? (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="button secondary"
+                  style={{ fontSize: 13, padding: "4px 10px", marginLeft: 8 }}
+                  onClick={() => void startIngest(lastRequest)}
+                >
+                  Retry
+                </button>
+              </>
+            ) : null}
+          </p>
+        ) : null}
+        {emptyResult && !error ? (
+          <div
+            role="status"
+            style={{
+              padding: 12,
+              borderRadius: "var(--radius-sm)",
+              background: "var(--warning-50, #fffaeb)",
+              border: "1px solid var(--gray-200)",
+            }}
+          >
+            <strong>No sessions found in that text.</strong>
+            <p className="help-text" style={{ margin: "6px 0 0" }}>
+              Include times like “9:00–10:15” and one session per line, then try again.
+            </p>
+            {lastRequest && !busy ? (
+              <button
+                type="button"
+                className="button secondary"
+                style={{ marginTop: 8 }}
+                onClick={() => void startIngest(lastRequest)}
+              >
+                Try again
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {upgrade ? (
           <p style={{ color: "var(--warning)", background: "var(--warning-50)", padding: 12, borderRadius: "var(--radius-sm)" }}>
             {upgrade}{" "}
@@ -325,7 +425,7 @@ export default function AgendaIngestPage() {
           </div>
         </section>
 
-        {run && (run.status === "READY_FOR_REVIEW" || run.status === "CONFIRMED") ? (
+        {run && rows.length > 0 && (run.status === "READY_FOR_REVIEW" || run.status === "CONFIRMED") ? (
           <ReviewChangeset
             title={run.status === "CONFIRMED" ? "Confirmed drafts" : "Review extracted agenda"}
             sourcePreview={run.sourceTextPreview || undefined}
@@ -368,7 +468,10 @@ export default function AgendaIngestPage() {
                   onClick={async () => {
                     const full = await organizerFetch<IngestRun>(`/ai/ingest/${r.id}`, eventId);
                     setRun(full);
-                    setRows(changesetToRows(full.changeset));
+                    const nextRows = stripUniformConfidence(changesetToRows(full.changeset));
+                    setRows(nextRows);
+                    setError(full.status === "FAILED" || full.error ? friendlyIngestError(full.error) : null);
+                    setEmptyResult(full.status === "READY_FOR_REVIEW" && nextRows.length === 0);
                     setAssumptions(Array.isArray(full.assumptions) ? (full.assumptions as ReviewAssumption[]) : []);
                   }}
                 >

@@ -63,6 +63,9 @@ describe("collectProductionPreflight — degraded-subsystem warnings", () => {
     const { fatal, warnings } = collectProductionPreflight(vars);
     expect(fatal).toEqual([]);
     expect(warnings.some((w) => w.includes("copy-link"))).toBe(true);
+    expect(
+      warnings.some((w) => w.includes("RESEND_API_KEY missing") && w.includes("self-serve registration")),
+    ).toBe(true);
     expect(warnings.some((w) => w.includes("web push disabled"))).toBe(true);
     expect(warnings.some((w) => w.includes("503"))).toBe(true);
     expect(warnings.some((w) => w.includes("mock output"))).toBe(true);

@@ -1,6 +1,7 @@
 import { AgendaIngestRunStatus, type Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { registerJobHandler, type JobHandler } from "../../jobs";
+import { log } from "../../log";
 import { AGENDA_INGEST_JOB_TYPE } from "./constants";
 import { runAgendaExtract } from "./extract";
 import { textFromDataUrl } from "./sourceText";
@@ -106,7 +107,19 @@ const handler: JobHandler = async (job) => {
       fixtureId: extracted.fixtureId,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Extract failed";
+    const raw = err instanceof Error ? err.message : "Extract failed";
+    const code = (err as { code?: string }).code;
+    // Provider failures often carry raw API-error JSON (e.g.
+    // {"type":"not_found_error"...}) — log that server-side, but store a
+    // plain-English message the organizer can act on.
+    const looksLikeProviderBlob =
+      code === "PROVIDER_ERROR" || /"type"\s*:\s*"(?:error|not_found_error|invalid_request_error)"/.test(raw);
+    const message = looksLikeProviderBlob
+      ? "The AI provider rejected the request — the team has been notified. Try again shortly."
+      : raw;
+    if (looksLikeProviderBlob) {
+      log("error", "agenda ingest provider error", { runId, detail: raw });
+    }
     await prisma.agendaIngestRun.update({
       where: { id: runId },
       data: {

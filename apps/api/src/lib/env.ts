@@ -118,7 +118,9 @@ export function collectProductionPreflight(vars: NodeJS.ProcessEnv): PreflightRe
   }
 
   if (!vars.RESEND_API_KEY?.trim() || (vars.EMAIL_PROVIDER || "").trim().toLowerCase() === "none") {
-    warnings.push("email disabled: invites/password-reset/verification fall back to copy-link only (set RESEND_API_KEY).");
+    warnings.push(
+      "email disabled: RESEND_API_KEY missing — self-serve registration cannot complete without the in-response verify-link fallback; invites/password-reset/verification fall back to copy-link only (set RESEND_API_KEY).",
+    );
   }
   if (!vars.VAPID_PUBLIC_KEY?.trim() || !vars.VAPID_PRIVATE_KEY?.trim()) {
     warnings.push("web push disabled: no VAPID keypair (set VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY + VAPID_SUBJECT).");

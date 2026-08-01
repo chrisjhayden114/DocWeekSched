@@ -17,9 +17,9 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 
 ## 0. BLOCKERS — the product does not work for new users until these are done
 
-- [ ] **Resend key + verified sending domain** — `RESEND_API_KEY`, `EMAIL_FROM` on `ukedl.com`, `EMAIL_PROVIDER=resend` in Render. Without this, self-serve registration is a dead end (`CUSTOMER_TEST_FINDINGS.md` #1). *Owner: Chris · Status: todo · **P0***
-- [ ] **SPF / DKIM / DMARC published + verified** — Resend dashboard shows Verified; a real invite lands in the inbox (not spam) for Gmail **and** Outlook. *Owner: Chris · Status: todo · **P0***
-- [ ] **P0 acceptance test** — register a brand-new account with a real inbox → verification email arrives → click through → sign in successfully. *Owner: Chris · Status: todo · **P0***
+- [x] **Resend key + Render env** *(done 2026-07-21)* — `RESEND_API_KEY`, `RESEND_FROM_EMAIL` on `mail.ukedl.com` (var is `RESEND_FROM_EMAIL`, not `EMAIL_FROM`), `EMAIL_PROVIDER=resend` in Render. **Sending domain `mail.ukedl.com` is ALREADY DKIM+SPF verified in Resend (set up 3mo ago); no new DNS needed.** The only "Failed" record is inbound-receiving MX, which UKEDL doesn't use — ignore it. Without the Render env vars, self-serve registration is a dead end (`CUSTOMER_TEST_FINDINGS.md` #1). *Owner: Chris · Status: todo · **P0***
+- [x] **SPF / DKIM / DMARC published + verified** *(done 2026-07-21 — DKIM+SPF verified on mail.ukedl.com; real email landed in Gmail inbox)* — Resend dashboard shows Verified; a real invite lands in the inbox (not spam) for Gmail **and** Outlook. *Owner: Chris · Status: todo · **P0***
+- [x] **P0 acceptance test** *(done 2026-07-21 — stranger registered on prod → verification email arrived → verified → signed in → landed on org creation)* — register a brand-new account with a real inbox → verification email arrives → click through → sign in successfully. *Owner: Chris · Status: todo · **P0***
 - [ ] **Verify-link fallback shipped** (FIX_PLAN chunk E1 item 1) — so an unconfigured or failing email provider can never silently lock users out again. *Owner: Cursor · Status: todo · **P0***
 
 ## 1. Domains, cookies, CORS
@@ -33,8 +33,8 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 
 ## 2. Providers
 
-- [ ] **Resend** — see §0. *Status: todo · **P0***
-- [ ] **AI provider key** — `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`; confirm `AI_HARD_CAP_*` values are acceptable. Until this is set the product runs the **mock** provider: Agenda ingest, Setup copilot, Concierge, Matchmaker, Ops and Recap all return canned output, which makes the homepage's core claim untrue. *Owner: Chris · Status: todo · **P1***
+- [x] **Resend** — see §0. *done (2026-07-21)***
+- [x] **AI provider key** *(done 2026-07-31)* — `ANTHROPIC_API_KEY` + `AI_PROVIDER=anthropic` + `AI_MODEL=claude-sonnet-5` set in Render (the code's hardcoded fallback model was retired — AI_MODEL env var required; E1 updates the fallback). Acceptance test passed: 14-line program pasted on production → real changeset, 9 sessions incl. parallel 10:15 pair, 4 papers nested with ordered authors, rooms auto-created, assumptions surfaced, 0 errors. *Owner: Chris***
 - [ ] **Lemon Squeezy store + products** — live store; products/variants for all six catalog SKUs (Pro monthly, Pro annual, per-event 250/500/1000; Enterprise stays contact-us). Merchant-of-record onboarding asks for tax details (SSN/EIN) and a payout bank account. No monthly fee; 5% + 50¢ per transaction. *Owner: Chris · Status: todo · **P1***
 - [ ] **Lemon Squeezy keys** — `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, all `LEMONSQUEEZY_VARIANT_*`, `BILLING_PROVIDER=lemonsqueezy`. *Owner: Chris · Status: todo*
 - [ ] **Lemon Squeezy webhook registered** — `https://api.ukedl.com/billing/webhooks/lemonsqueezy` with `LEMONSQUEEZY_WEBHOOK_SECRET`; events: order_created, subscription_created/updated/cancelled, subscription_payment_failed/success. *Owner: Chris · Status: todo*
@@ -55,6 +55,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 
 - [ ] **CSP report-only → enforce** — walk the full demo event with devtools open, zero violations, then `CSP_ENFORCE=1` in the Netlify build env. Never `unsafe-inline` in `script-src`. After enforcing, verify Sentry events still arrive. *Owner: Chris · Status: todo*
 - [ ] **Rate-limit smoke test from a cold IP** — expect 429s at documented thresholds; normal browsing unaffected. *Owner: Chris · Status: todo*
+- [ ] **Triage `npm audit` (8 findings incl. 1 critical printing on every build)** — identify which are in runtime deps vs dev tooling; patch what's real. Do before taking customer data at scale. *Owner: Chris + Cursor · Status: todo*
 - [ ] **Uptime monitor → `/health/ready`** — external monitor expecting HTTP 200, alerting to email/phone. `/health` alone is insufficient (doesn't cover DB/poller). *Owner: Chris · Status: todo*
 - [x] **Boot-log preflight review** — API logs read after cutover; warnings are the expected optional-integration set. *done (2026-07-20)*
 

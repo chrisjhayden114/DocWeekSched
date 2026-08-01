@@ -2,11 +2,47 @@ import type { AiChatMessage, AiEmbedResult, AiProvider, AiProviderResult } from 
 import { MockAiProvider } from "./mock";
 
 /**
+ * Fallback when AI_MODEL is unset. "claude-sonnet-4-20250514" was retired and
+ * 404'd in production (2026-07-31); the dateless alias tracks the current
+ * Sonnet release.
+ */
+export const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
+
+/**
  * Real Anthropic provider. Only imported from lib/ai/** (ESLint enforced).
  * Requires ANTHROPIC_API_KEY when AI_PROVIDER=anthropic.
  * Embeddings: Anthropic has no public embeddings API yet — fall back to deterministic mock vectors
  * so matchmaker still works when chat uses Anthropic.
  */
+/**
+ * Boot-time preflight: warn loudly (never throw) when AI_PROVIDER=anthropic
+ * and the configured model does not exist — a retired/mistyped model otherwise
+ * only surfaces as per-request 404s deep in ingest runs.
+ */
+export async function warnIfAnthropicModelUnavailable(): Promise<void> {
+  const providerName = (process.env.AI_PROVIDER || "mock").trim().toLowerCase();
+  const apiKey = (process.env.ANTHROPIC_API_KEY || "").trim();
+  if (providerName !== "anthropic" || !apiKey) return;
+  const model = (process.env.AI_MODEL || DEFAULT_ANTHROPIC_MODEL).trim();
+  try {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey });
+    await client.models.retrieve(model);
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    if (status === 404) {
+      console.warn(
+        `[preflight] Anthropic model "${model}" not found (404) — AI features (ingest/concierge/etc.) will fail. Set AI_MODEL to a valid model (default: ${DEFAULT_ANTHROPIC_MODEL}).`,
+      );
+    } else if (status === 401 || status === 403) {
+      console.warn(
+        "[preflight] Anthropic API key was rejected — AI features will fail until ANTHROPIC_API_KEY is fixed.",
+      );
+    }
+    // Network/transient errors: stay silent — this check must never block or noise boot.
+  }
+}
+
 export class AnthropicAiProvider implements AiProvider {
   readonly name = "anthropic" as const;
   private readonly apiKey: string;
@@ -15,7 +51,7 @@ export class AnthropicAiProvider implements AiProvider {
 
   constructor(opts?: { apiKey?: string; model?: string }) {
     this.apiKey = (opts?.apiKey || process.env.ANTHROPIC_API_KEY || "").trim();
-    this.model = (opts?.model || process.env.AI_MODEL || "claude-sonnet-4-20250514").trim();
+    this.model = (opts?.model || process.env.AI_MODEL || DEFAULT_ANTHROPIC_MODEL).trim();
   }
 
   async embed(text: string): Promise<AiEmbedResult> {
