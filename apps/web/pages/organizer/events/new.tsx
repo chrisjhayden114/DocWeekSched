@@ -9,6 +9,7 @@ import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../component
 import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
 import { AiGeneratedChip } from "../../../components/AiGeneratedChip";
+import { TimezoneSelect } from "../../../components/TimezoneSelect";
 import { apiFetch } from "../../../lib/api";
 import { OrgSummary } from "../../../lib/organizerApi";
 
@@ -77,6 +78,12 @@ export default function NewEventWizard() {
     joinUrl?: string;
     handoffIngestPath?: string | null;
   } | null>(null);
+  // Host for the live slug preview; set client-side to avoid hydration mismatch.
+  const [linkHost, setLinkHost] = useState("");
+
+  useEffect(() => {
+    setLinkHost(window.location.host);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -447,6 +454,11 @@ export default function NewEventWizard() {
                 <label>
                   Event name
                   <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+                  {name.trim() && !slugTouched ? (
+                    <span className="help-text">
+                      Link will be {linkHost || "…"}/e/{slug || "…"}
+                    </span>
+                  ) : null}
                 </label>
                 <label>
                   Description
@@ -462,7 +474,10 @@ export default function NewEventWizard() {
                       setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"));
                     }}
                   />
-                  <span className="help-text">Link will be /e/{slug || "…"}</span>
+                  <span className="help-text">
+                    Link will be {linkHost || "…"}/e/{slug || "…"}
+                    {!slugTouched ? " — generated from the event name until you edit it" : ""}
+                  </span>
                 </label>
                 <button type="button" className="button" onClick={() => setStep(1)} disabled={!name.trim()}>
                   Next: dates &amp; place
@@ -474,7 +489,10 @@ export default function NewEventWizard() {
               <>
                 <label>
                   Timezone
-                  <input className="input" required value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+                  <TimezoneSelect value={timezone} onChange={setTimezone} required />
+                  <span className="help-text">
+                    Every session time attendees see follows this zone. Defaults to your browser&apos;s timezone.
+                  </span>
                 </label>
                 <label>
                   Starts

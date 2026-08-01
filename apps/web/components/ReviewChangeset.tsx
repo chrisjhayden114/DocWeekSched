@@ -117,10 +117,54 @@ export function ReviewChangeset({
   );
   const acceptedCount = useMemo(() => rows.filter(rowAccepted).length, [rows]);
   const canConfirm = acceptedCount > 0 && !busy && Boolean(onConfirm);
+  // A run that creates nothing but proposes deletions reads as data loss if
+  // the deletions lead. Lead with the empty-state explanation instead and
+  // tuck the delete list behind a disclosure.
+  const zeroCreateWithDeletes = creates.length === 0 && updates.length === 0 && deletes.length > 0;
+
+  const deletesList = (
+    <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14 }}>
+      {deletes.map((row) => (
+        <li key={`delete-${row.rowIndex}`} style={{ marginBottom: 6 }}>
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            {onAcceptChange ? (
+              <input
+                type="checkbox"
+                checked={row.accepted === true}
+                onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
+              />
+            ) : null}
+            <span>
+              {row.title || `Session ${row.rowIndex + 1}`}
+              {row.message ? ` — ${row.message}` : null}
+            </span>
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
 
   const body = (
     <>
       <h4 style={{ margin: "0 0 8px" }}>{title}</h4>
+      {zeroCreateWithDeletes ? (
+        <div
+          role="status"
+          style={{
+            padding: 12,
+            marginBottom: 12,
+            borderRadius: "var(--radius-sm)",
+            background: "var(--warning-50, #fffaeb)",
+            border: "1px solid var(--gray-200)",
+          }}
+        >
+          <strong>No new sessions were found in this import.</strong>
+          <p className="help-text" style={{ margin: "6px 0 0" }}>
+            Include times like “9:00–10:15” and one session per line, then try again. Nothing is deleted unless
+            you tick it below and confirm.
+          </p>
+        </div>
+      ) : null}
       {summary ? (
         <p className="help-text" style={{ marginTop: 0 }}>
           {summary.creates != null ? (
@@ -290,28 +334,23 @@ export function ReviewChangeset({
       ) : null}
 
       {deletes.length > 0 ? (
-        <div style={{ marginBottom: 12 }}>
-          <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Propose delete (unchecked by default)</p>
-          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14 }}>
-            {deletes.map((row) => (
-              <li key={`delete-${row.rowIndex}`} style={{ marginBottom: 6 }}>
-                <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  {onAcceptChange ? (
-                    <input
-                      type="checkbox"
-                      checked={row.accepted === true}
-                      onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
-                    />
-                  ) : null}
-                  <span>
-                    {row.title || `Session ${row.rowIndex + 1}`}
-                    {row.message ? ` — ${row.message}` : null}
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
+        zeroCreateWithDeletes ? (
+          <details style={{ marginBottom: 12 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
+              {deletes.length} existing session{deletes.length === 1 ? "" : "s"} not found in this import — review
+              deletions
+            </summary>
+            <p className="help-text" style={{ margin: "6px 0" }}>
+              Unchecked by default. Only ticked sessions are deleted when you confirm.
+            </p>
+            {deletesList}
+          </details>
+        ) : (
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Propose delete (unchecked by default)</p>
+            {deletesList}
+          </div>
+        )
       ) : null}
 
       {creates.length === 0 && updates.length === 0 && deletes.length === 0 ? (

@@ -20,7 +20,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 - [x] **Resend key + Render env** *(done 2026-07-21)* — `RESEND_API_KEY`, `RESEND_FROM_EMAIL` on `mail.ukedl.com` (var is `RESEND_FROM_EMAIL`, not `EMAIL_FROM`), `EMAIL_PROVIDER=resend` in Render. **Sending domain `mail.ukedl.com` is ALREADY DKIM+SPF verified in Resend (set up 3mo ago); no new DNS needed.** The only "Failed" record is inbound-receiving MX, which UKEDL doesn't use — ignore it. Without the Render env vars, self-serve registration is a dead end (`CUSTOMER_TEST_FINDINGS.md` #1). *Owner: Chris · Status: todo · **P0***
 - [x] **SPF / DKIM / DMARC published + verified** *(done 2026-07-21 — DKIM+SPF verified on mail.ukedl.com; real email landed in Gmail inbox)* — Resend dashboard shows Verified; a real invite lands in the inbox (not spam) for Gmail **and** Outlook. *Owner: Chris · Status: todo · **P0***
 - [x] **P0 acceptance test** *(done 2026-07-21 — stranger registered on prod → verification email arrived → verified → signed in → landed on org creation)* — register a brand-new account with a real inbox → verification email arrives → click through → sign in successfully. *Owner: Chris · Status: todo · **P0***
-- [ ] **Verify-link fallback shipped** (FIX_PLAN chunk E1 item 1) — so an unconfigured or failing email provider can never silently lock users out again. *Owner: Cursor · Status: todo · **P0***
+- [x] **Verify-link fallback shipped** *(done 2026-07-31, commit 8955444 — verified locally: register with unconfigured provider shows verify-link panel; panel survives failed sign-in)* — an unconfigured or failing email provider can never silently lock users out again.
 
 ## 1. Domains, cookies, CORS
 
@@ -61,7 +61,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 
 ## 5. Product fixes from the customer test (see FIX_PLAN.md)
 
-- [ ] **E1 — honesty & unblocking** — verify-link fallback, env preflight warning, Help index, billing-honesty copy, ingest error states, organizer name on public event pages. *Owner: Cursor · Status: todo · **P0/P1***
+- [x] **E1 — honesty & unblocking** *(done 2026-07-31, commit 8955444, 11 items; verified on production: billing-honesty CTAs live on /pricing, /help article index renders on Netlify (root cause was __dirname in the compiled bundle), ingest always ends in a visible outcome, hosted-by on public pages, status link removed, stale-branded placeholder PDFs deleted, AI model fallback now claude-sonnet-5 + friendly provider-error copy, placeholder confidence label suppressed)*
 - [ ] **E2 — organizer editing** — edit/delete for tracks, rooms, sessions, papers; event settings panel; timezone picker; slug preview; date warnings; publish guard. Web-only (the API already exposes PUT/DELETE). *Owner: Cursor · Status: todo · **P1***
 - [ ] **E3 — CSV import + clarity** — CSV session import, speakers/papers explainer, signup-first CTA, last-updated dates, OG tags for event pages. *Owner: Cursor · Status: todo*
 - [ ] **E4 — wizard robustness** — form state survives remount; Back preserves input; edit-details link after draft creation. *Owner: Cursor · Status: todo*

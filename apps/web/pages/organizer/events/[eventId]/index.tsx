@@ -11,8 +11,16 @@ import { AnnouncementComposer } from "../../../../components/AnnouncementCompose
 import { EventFaqEditor } from "../../../../components/EventFaqEditor";
 import { OpsInboxPanel } from "../../../../components/OpsInboxPanel";
 import { RecapPanel } from "../../../../components/RecapPanel";
+import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListState";
 import { StatusChip } from "../../../../components/StatusChip";
+import { EventSettingsPanel } from "../../../../components/organizer/EventSettingsPanel";
+import {
+  ProgramTab,
+  type ProgramSession,
+  type Room,
+  type Track,
+} from "../../../../components/organizer/ProgramTab";
 import { apiFetch } from "../../../../lib/api";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
@@ -27,24 +35,16 @@ type EventDetail = {
   startDate: string;
   endDate: string;
   venueName?: string | null;
+  venueAddress?: string | null;
   onlineUrl?: string | null;
   brandColor?: string | null;
+  bannerUrl?: string | null;
+  logoUrl?: string | null;
   organizationId: string;
   seriesId?: string | null;
 };
 
-type Track = { id: string; name: string; color: string };
-type Room = { id: string; name: string };
 type Speaker = { id: string; name: string; title?: string | null; affiliation?: string | null };
-type SessionRow = {
-  id: string;
-  title: string;
-  startsAt: string;
-  endsAt: string;
-  trackId?: string | null;
-  roomId?: string | null;
-  items?: { id: string; title: string; sortOrder: number; authors: { name: string; sortOrder: number }[] }[];
-};
 type DryRun = {
   headers: string[];
   mapping: Record<string, string>;
@@ -75,24 +75,14 @@ export default function OrganizerEventPage() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
-  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [sessions, setSessions] = useState<ProgramSession[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [publishConfirm, setPublishConfirm] = useState(false);
 
-  // Program forms
-  const [trackName, setTrackName] = useState("");
-  const [trackColor, setTrackColor] = useState("#0033A0");
-  const [roomName, setRoomName] = useState("");
+  // People form
   const [speakerName, setSpeakerName] = useState("");
-  const [sessionTitle, setSessionTitle] = useState("");
-  const [sessionStart, setSessionStart] = useState("");
-  const [sessionEnd, setSessionEnd] = useState("");
-  const [sessionTrackId, setSessionTrackId] = useState("");
-  const [sessionRoomId, setSessionRoomId] = useState("");
-  const [itemSessionId, setItemSessionId] = useState("");
-  const [itemTitle, setItemTitle] = useState("");
-  const [itemAuthors, setItemAuthors] = useState("Author One\nAuthor Two\nAuthor Three");
 
   // Series
   const [nextStart, setNextStart] = useState("");
@@ -112,7 +102,7 @@ export default function OrganizerEventPage() {
       organizerFetch<Track[]>("/tracks/", eventId),
       organizerFetch<Room[]>("/rooms/", eventId),
       organizerFetch<Speaker[]>("/speakers/", eventId),
-      organizerFetch<SessionRow[]>("/sessions/", eventId),
+      organizerFetch<ProgramSession[]>("/sessions/", eventId),
       organizerFetch<{ slugUrl?: string; joinUrl?: string }>("/event/invite-links", eventId).catch(() => null),
       organizerFetch<{ overrides: FeatureOverridesMap }>("/event/features", eventId).catch(() => ({ overrides: {} })),
     ]);
@@ -147,28 +137,6 @@ export default function OrganizerEventPage() {
     }
   }
 
-  async function addTrack(e: FormEvent) {
-    e.preventDefault();
-    if (!eventId || !trackName.trim()) return;
-    await organizerFetch("/tracks/", eventId, {
-      method: "POST",
-      body: JSON.stringify({ name: trackName.trim(), color: trackColor }),
-    });
-    setTrackName("");
-    await refresh();
-  }
-
-  async function addRoom(e: FormEvent) {
-    e.preventDefault();
-    if (!eventId || !roomName.trim()) return;
-    await organizerFetch("/rooms/", eventId, {
-      method: "POST",
-      body: JSON.stringify({ name: roomName.trim() }),
-    });
-    setRoomName("");
-    await refresh();
-  }
-
   async function addSpeaker(e: FormEvent) {
     e.preventDefault();
     if (!eventId || !speakerName.trim()) return;
@@ -177,39 +145,6 @@ export default function OrganizerEventPage() {
       body: JSON.stringify({ name: speakerName.trim() }),
     });
     setSpeakerName("");
-    await refresh();
-  }
-
-  async function addSession(e: FormEvent) {
-    e.preventDefault();
-    if (!eventId || !sessionTitle.trim() || !sessionStart || !sessionEnd) return;
-    await organizerFetch("/sessions/", eventId, {
-      method: "POST",
-      body: JSON.stringify({
-        title: sessionTitle.trim(),
-        startsAt: new Date(sessionStart).toISOString(),
-        endsAt: new Date(sessionEnd).toISOString(),
-        trackId: sessionTrackId || null,
-        roomId: sessionRoomId || null,
-      }),
-    });
-    setSessionTitle("");
-    await refresh();
-  }
-
-  async function addPaper(e: FormEvent) {
-    e.preventDefault();
-    if (!eventId || !itemSessionId || !itemTitle.trim()) return;
-    const authors = itemAuthors
-      .split("\n")
-      .map((n) => n.trim())
-      .filter(Boolean)
-      .map((name, i) => ({ name, isPresenter: i === 0, sortOrder: i }));
-    await organizerFetch(`/sessions/${itemSessionId}/items`, eventId, {
-      method: "POST",
-      body: JSON.stringify({ title: itemTitle.trim(), authors }),
-    });
-    setItemTitle("");
     await refresh();
   }
 
@@ -364,7 +299,15 @@ export default function OrganizerEventPage() {
               </p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {event.status !== "ACTIVE" ? (
-                  <button type="button" className="button" disabled={busy} onClick={() => void runStatus("/event/publish")}>
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={busy}
+                    onClick={() => {
+                      if (sessions.length === 0) setPublishConfirm(true);
+                      else void runStatus("/event/publish");
+                    }}
+                  >
                     Publish
                   </button>
                 ) : (
@@ -399,6 +342,8 @@ export default function OrganizerEventPage() {
               </div>
             </div>
 
+            <EventSettingsPanel key={event.id} eventId={eventId} event={event} onSaved={refresh} />
+
             <div className="console-panel">
               <p className="console-panel-label">Create next edition</p>
               <p className="help-text" style={{ marginTop: 0 }}>
@@ -422,155 +367,18 @@ export default function OrganizerEventPage() {
               </form>
             </div>
 
-            {event.description ? (
-              <div className="console-panel">
-                <p className="console-panel-label">About</p>
-                <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{event.description}</p>
-              </div>
-            ) : null}
           </section>
         ) : null}
 
-        {tab === "program" ? (
-          <section style={{ display: "grid", gap: 16 }}>
-            <div className="console-panel">
-              <p className="console-panel-label">Tracks</p>
-              <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
-                {tracks.map((t) => (
-                  <li key={t.id}>
-                    <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: t.color, marginRight: 6 }} />
-                    {t.name}
-                  </li>
-                ))}
-              </ul>
-              <form onSubmit={addTrack} className="console-form" style={{ gridTemplateColumns: "1fr auto auto", alignItems: "end" }}>
-                <label style={{ margin: 0 }}>
-                  Track name
-                  <input className="input" placeholder="Track name" value={trackName} onChange={(e) => setTrackName(e.target.value)} />
-                </label>
-                <input className="input" type="color" value={trackColor} onChange={(e) => setTrackColor(e.target.value)} style={{ width: 56 }} aria-label="Track color" />
-                <button className="button" type="submit">
-                  Add track
-                </button>
-              </form>
-            </div>
-
-            <div className="console-panel">
-              <p className="console-panel-label">Rooms</p>
-              <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
-                {rooms.map((r) => (
-                  <li key={r.id}>{r.name}</li>
-                ))}
-              </ul>
-              <form onSubmit={addRoom} className="console-form" style={{ gridTemplateColumns: "1fr auto", alignItems: "end" }}>
-                <label style={{ margin: 0 }}>
-                  Room name
-                  <input className="input" placeholder="Room name" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
-                </label>
-                <button className="button" type="submit">
-                  Add room
-                </button>
-              </form>
-            </div>
-
-            <div className="console-panel">
-              <p className="console-panel-label">Sessions</p>
-              {sessions.length === 0 ? (
-                <ListEmpty
-                  title="No sessions yet"
-                  body="Add your first block below, or paste a program via Agenda ingest."
-                  actionLabel="Agenda ingest"
-                  onAction={() => void router.push(`/organizer/events/${eventId}/ingest`)}
-                />
-              ) : (
-                <ul style={{ paddingLeft: 18, margin: 0 }}>
-                  {sessions.map((s) => (
-                    <li key={s.id} style={{ marginBottom: 12 }}>
-                      <strong>{s.title}</strong>
-                      <span className="help-text">
-                        {" "}
-                        · {new Date(s.startsAt).toLocaleString()}
-                      </span>
-                      {s.items && s.items.length > 0 ? (
-                        <ol style={{ margin: "6px 0 0" }}>
-                          {s.items.map((it) => (
-                            <li key={it.id}>
-                              {it.title}
-                              {it.authors?.length ? (
-                                <span className="help-text">
-                                  {" "}
-                                  — {it.authors.map((a) => a.name).join(", ")}
-                                </span>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ol>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <form onSubmit={addSession} style={{ display: "grid", gap: 8, maxWidth: 480 }}>
-                <input className="input" placeholder="Session title" required value={sessionTitle} onChange={(e) => setSessionTitle(e.target.value)} />
-                <input className="input" type="datetime-local" required value={sessionStart} onChange={(e) => setSessionStart(e.target.value)} />
-                <input className="input" type="datetime-local" required value={sessionEnd} onChange={(e) => setSessionEnd(e.target.value)} />
-                <select className="input" value={sessionTrackId} onChange={(e) => setSessionTrackId(e.target.value)}>
-                  <option value="">No track</option>
-                  {tracks.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-                <select className="input" value={sessionRoomId} onChange={(e) => setSessionRoomId(e.target.value)}>
-                  <option value="">No room</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-                <button className="button" type="submit">
-                  Add session
-                </button>
-              </form>
-            </div>
-
-            <div className="console-panel">
-              <p className="console-panel-label">Papers</p>
-              <p className="help-text" style={{ marginTop: 0 }}>Authors stay in the order you enter them — never alphabetized.</p>
-              <form onSubmit={addPaper} className="console-form">
-                <label>
-                  Session
-                  <select className="input" required value={itemSessionId} onChange={(e) => setItemSessionId(e.target.value)}>
-                    <option value="">Choose session</option>
-                    {sessions.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Paper title
-                  <input className="input" placeholder="Paper title" required value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} />
-                </label>
-                <label>
-                  Authors
-                  <textarea
-                    className="input"
-                    rows={4}
-                    value={itemAuthors}
-                    onChange={(e) => setItemAuthors(e.target.value)}
-                    placeholder="One author per line (first = presenter)"
-                  />
-                </label>
-                <button className="button" type="submit" style={{ justifySelf: "start" }}>
-                  Add paper
-                </button>
-              </form>
-            </div>
-          </section>
+        {tab === "program" && event ? (
+          <ProgramTab
+            eventId={eventId}
+            event={event}
+            tracks={tracks}
+            rooms={rooms}
+            sessions={sessions}
+            onChanged={refresh}
+          />
         ) : null}
 
         {tab === "people" ? (
@@ -727,6 +535,20 @@ export default function OrganizerEventPage() {
             {eventId ? <EventFaqEditor eventId={eventId} /> : null}
           </section>
         ) : null}
+
+        <ConfirmDialog
+          open={publishConfirm}
+          title="Publish with no sessions?"
+          body="This event has no sessions yet. Attendees will see an empty schedule. Publish anyway?"
+          confirmLabel="Publish anyway"
+          tone="default"
+          busy={busy}
+          onCancel={() => setPublishConfirm(false)}
+          onConfirm={async () => {
+            await runStatus("/event/publish");
+            setPublishConfirm(false);
+          }}
+        />
       </OrganizerShell>
     </>
   );
