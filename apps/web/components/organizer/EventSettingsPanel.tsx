@@ -120,7 +120,7 @@ export function EventSettingsPanel({ eventId, event, onSaved }: Props) {
   }
 
   return (
-    <div className="console-panel">
+    <div className="console-panel" id="event-settings">
       <p className="console-panel-label">Event settings</p>
       <p className="help-text" style={{ marginTop: 0 }}>
         Everything from the create wizard, editable after the fact. Changing the timezone keeps the wall-clock

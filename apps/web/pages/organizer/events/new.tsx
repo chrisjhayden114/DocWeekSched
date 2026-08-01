@@ -2,7 +2,7 @@ import { brand } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { SetupCopilotFormState } from "@event-app/shared";
 import { emptySetupFormState } from "@event-app/shared";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../components/FeatureConfigPanel";
@@ -12,6 +12,13 @@ import { AiGeneratedChip } from "../../../components/AiGeneratedChip";
 import { TimezoneSelect } from "../../../components/TimezoneSelect";
 import { apiFetch } from "../../../lib/api";
 import { OrgSummary } from "../../../lib/organizerApi";
+import {
+  WIZARD_DRAFT_STORAGE_KEY,
+  isEmptyWizardDraft,
+  parseWizardDraft,
+  serializeWizardDraft,
+  type WizardDraft,
+} from "../../../lib/wizardDraft";
 
 const MANUAL_STORAGE_KEY = "setupCopilot.manualForm";
 
@@ -52,6 +59,7 @@ export default function NewEventWizard() {
   const handoffIngest = router.query.handoff === "ingest";
 
   const [orgs, setOrgs] = useState<OrgSummary[]>([]);
+  const [orgsLoaded, setOrgsLoaded] = useState(false);
   const [organizationId, setOrganizationId] = useState("");
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -85,18 +93,49 @@ export default function NewEventWizard() {
     setLinkHost(window.location.host);
   }, []);
 
+  // Fetch orgs once the query is hydrated. Runs a single time: re-running on
+  // router identity changes used to re-set organizationId (and could redirect
+  // on a transient failure) while the user was mid-entry.
+  const orgsFetchedRef = useRef(false);
   useEffect(() => {
+    if (!router.isReady || orgsFetchedRef.current) return;
+    orgsFetchedRef.current = true;
     void (async () => {
       try {
         const mine = await apiFetch<OrgSummary[]>("/organizations/mine");
         setOrgs(mine);
         const preferred = orgFromQuery || window.localStorage.getItem("organizerOrgId") || mine[0]?.id || "";
-        setOrganizationId(preferred);
+        // Keep an org already chosen (e.g. restored from a draft) if it's still valid.
+        setOrganizationId((prev) => (prev && mine.some((o) => o.id === prev) ? prev : preferred));
+        setOrgsLoaded(true);
       } catch {
         void router.push("/");
       }
     })();
-  }, [orgFromQuery, router]);
+  }, [router.isReady, orgFromQuery, router]);
+
+  // Restore the in-progress draft so a remount mid-entry (query hydration,
+  // auth settling) never loses typed input. Declared before the AI→manual
+  // restore so an explicit handoff overrides the draft.
+  useEffect(() => {
+    const draft = parseWizardDraft(window.sessionStorage.getItem(WIZARD_DRAFT_STORAGE_KEY));
+    if (!draft) return;
+    setStep(draft.step);
+    if (draft.organizationId) setOrganizationId((prev) => prev || draft.organizationId);
+    setName(draft.name);
+    setSlug(draft.slug);
+    setSlugTouched(draft.slugTouched);
+    setDescription(draft.description);
+    if (draft.timezone) setTimezone(draft.timezone);
+    setStartDate(draft.startDate);
+    setEndDate(draft.endDate);
+    setVenueName(draft.venueName);
+    setVenueAddress(draft.venueAddress);
+    setOnlineUrl(draft.onlineUrl);
+    if (draft.brandColor) setBrandColor(draft.brandColor);
+    setFeatureOverrides(draft.featureOverrides as FeatureOverridesMap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Restore form when switching from AI → manual
   useEffect(() => {
@@ -115,6 +154,59 @@ export default function NewEventWizard() {
   useEffect(() => {
     if (!slugTouched && name) setSlug(slugify(name));
   }, [name, slugTouched]);
+
+  // Persist the draft on every change. Empty drafts are never written (there
+  // is nothing to lose), so the initial mount can't clobber a stored draft
+  // before the restore effect's state lands.
+  useEffect(() => {
+    if (created) return;
+    const draft: WizardDraft = {
+      step,
+      organizationId,
+      name,
+      slug,
+      slugTouched,
+      description,
+      timezone,
+      startDate,
+      endDate,
+      venueName,
+      venueAddress,
+      onlineUrl,
+      brandColor,
+      featureOverrides,
+    };
+    if (isEmptyWizardDraft(draft)) return;
+    try {
+      window.sessionStorage.setItem(WIZARD_DRAFT_STORAGE_KEY, serializeWizardDraft(draft));
+    } catch {
+      /* storage unavailable — degrade to in-memory state only */
+    }
+  }, [
+    created,
+    step,
+    organizationId,
+    name,
+    slug,
+    slugTouched,
+    description,
+    timezone,
+    startDate,
+    endDate,
+    venueName,
+    venueAddress,
+    onlineUrl,
+    brandColor,
+    featureOverrides,
+  ]);
+
+  function clearWizardDraft() {
+    try {
+      window.sessionStorage.removeItem(WIZARD_DRAFT_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 
   function applyCopilotForm(form: SetupCopilotFormState) {
     setCopilotForm(form);
@@ -184,6 +276,7 @@ export default function NewEventWizard() {
         body: JSON.stringify({ organizationId, form }),
       });
       window.localStorage.setItem("activeEventId", result.eventId);
+      clearWizardDraft();
       setCreated({
         id: result.eventId,
         slug: result.slug,
@@ -233,6 +326,7 @@ export default function NewEventWizard() {
         }),
       });
       window.localStorage.setItem("activeEventId", ev.id);
+      clearWizardDraft();
       if (Object.keys(featureOverrides).length > 0) {
         await apiFetch("/event/features", {
           method: "PUT",
@@ -273,7 +367,13 @@ export default function NewEventWizard() {
             : "New events start as Draft — only your org can see them until you publish."}
         </p>
 
-        {orgs.length === 0 ? (
+        {!orgsLoaded ? (
+          // Don't mount the form (or claim there's no organization) until the
+          // org list has resolved — the form renders exactly once, settled.
+          <p className="help-text" role="status">
+            Loading your organizations…
+          </p>
+        ) : orgs.length === 0 ? (
           <p>
             You need an organization first. <Link href="/organizer/org/new">Create one</Link>.
           </p>
@@ -321,6 +421,7 @@ export default function NewEventWizard() {
                           body: JSON.stringify({ organizationId, form }),
                         });
                         window.localStorage.setItem("activeEventId", result.eventId);
+                        clearWizardDraft();
                         setCreated({
                           id: result.eventId,
                           slug: result.slug,
@@ -602,6 +703,9 @@ export default function NewEventWizard() {
                       Import program document
                     </Link>
                   ) : null}
+                  <Link className="button secondary" href={`/organizer/events/${created.id}#event-settings`}>
+                    Edit event details
+                  </Link>
                   <Link className="button secondary" href="/organizer">
                     Back to dashboard
                   </Link>
@@ -626,6 +730,9 @@ export default function NewEventWizard() {
                   Import program document
                 </Link>
               ) : null}
+              <Link className="button secondary" href={`/organizer/events/${created.id}#event-settings`}>
+                Edit event details
+              </Link>
               <Link className="button secondary" href="/organizer">
                 Back to dashboard
               </Link>
