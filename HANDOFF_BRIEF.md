@@ -1,7 +1,7 @@
 # HANDOFF_BRIEF.md
 
 **One-page orientation for a new collaborator — human or AI.**
-Last verified against the codebase: **2026-07-21**. Branch `main`, HEAD `fc2d061`.
+Last verified against the codebase: **2026-07-31**. Branch `main`, HEAD `5121afd`.
 
 If you read only one file before starting work, read this one. It tells you what
 the product is, what is actually true today, what is broken, and which of the
@@ -59,6 +59,16 @@ a prototype — the gaps below are configuration and polish, not missing substan
 ## 3. Status: what is actually true today
 
 **Live in production since 2026-07-20.** Public demo event: `ukedl.com/e/demo`.
+
+> **Status update 2026-07-31 — Phase E complete.** Everything in the "three things
+> configured off" list below has since been resolved except billing: **email works**
+> (Resend live, P0 acceptance test passed on production) and **AI is real**
+> (`AI_PROVIDER=anthropic`, `AI_MODEL=claude-sonnet-5`; a 14-line program extracted
+> correctly on production). The signup invite-code wall and ingest-demo truncation
+> were fixed in chunk E0; E1–E4 shipped honesty fixes, full organizer editing, CSV
+> import, and wizard robustness (commits `f3eaa06`→`5121afd`). **Only Lemon Squeezy
+> remains unconfigured — no one can pay yet.** The sections below are kept for
+> context on what the July customer test found.
 
 Working and verified by end-to-end test: organisation → event → tracks → rooms →
 sessions → papers with author ordering → publish → public page → archive. Plus
