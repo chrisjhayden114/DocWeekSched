@@ -201,3 +201,20 @@ Chunk E7 — dependency vulnerability triage. Scope: package.json/package-lock.j
 3. For anything unfixable-today (no patched version, or fix requires a major bump), document it in a new SECURITY_NOTES.md section: what it is, why it's acceptable for now (e.g., dev-only, unreachable code path), and the trigger for revisiting.
 4. Acceptance: `npm audit` output after your changes shows the critical resolved or documented-as-not-reachable; all 231+ unit tests pass in apps/api, 56+ in apps/web; both builds green. Do NOT set ALLOW_DESTRUCTIVE_DB. Report the before/after audit summary and STOP.
 ```
+
+
+### Chunk E8 — fix detached-event crash in dashboard upload handlers (found by Sentry, 2026-08-02)
+
+```
+Chunk E8 — small bug fix. Sentry caught a real production error while the founder used /dashboard: "TypeError: Cannot read properties of null (reading 'form')" at onChange, unhandled, ukedl-web, production.
+
+Root cause (verified): apps/web/pages/dashboard.tsx has three handlers that read `ev.currentTarget.form?.elements.namedItem(...)` — around lines 2942 (invitePhotoUrl), 3612 (eventLogoUrl), 3631 (eventBannerUrl). These onChange handlers are ASYNC. React pools/detaches the synthetic event, so by the time the async continuation runs, `currentTarget` is null and `.form` throws BEFORE the optional chain on `.form` can help. The `?.` is on the wrong link of the chain.
+
+Fix:
+1. In each of the three handlers, capture what you need from the event SYNCHRONOUSLY on the first line, before any await: e.g. `const formEl = ev.currentTarget.form; const fileInput = ev.currentTarget;` then use `formEl?.elements.namedItem(...)` afterwards. Do not rely on ev.currentTarget after an await.
+2. Audit the whole file for the same pattern — any async onChange/onSubmit/onClick that touches ev.currentTarget or ev.target after an await — and apply the same capture-first fix. Report every location you change.
+3. Guard the element lookups: if the captured form or named element is missing, fail quietly (no throw) and surface the existing user-facing error state if one exists.
+4. Add a regression test if the surrounding code is testable; if these handlers aren't reachable from the existing web test setup, say so rather than inventing scaffolding.
+
+Scope: apps/web only. No API, no schema. Run npm test + npm run build in both apps, report the list of fixed locations, and STOP.
+```

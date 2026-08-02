@@ -2881,7 +2881,9 @@ function AdminParticipantInviteCard({
           setInviteBusy(true);
           setInviteError(null);
           setInviteMessage(null);
-          const form = new FormData(e.currentTarget);
+          // Capture before any await: React detaches currentTarget after dispatch.
+          const formEl = e.currentTarget;
+          const form = new FormData(formEl);
           try {
             const res = await apiFetch<{ inviteUrl: string }>(
               "/attendees/invite",
@@ -2897,7 +2899,7 @@ function AdminParticipantInviteCard({
               token,
             );
             setInviteMessage(`Invite sent. Link (also in email): ${res.inviteUrl}`);
-            e.currentTarget.reset();
+            formEl?.reset();
             await onInvited?.();
           } catch (err) {
             setInviteError(err instanceof Error ? err.message : "Invite failed.");
@@ -2936,10 +2938,12 @@ function AdminParticipantInviteCard({
             accept="image/*"
             disabled={!canInvite || inviteBusy}
             onChange={async (ev) => {
+              // Capture before any await: React detaches currentTarget after dispatch.
+              const formEl = ev.currentTarget.form;
               const file = ev.currentTarget.files?.[0];
               if (!file) return;
               const data = await fileToDataUrl(file, { maxWidth: 800, maxHeight: 800, quality: 0.82 });
-              const target = ev.currentTarget.form?.elements.namedItem("invitePhotoUrl");
+              const target = formEl?.elements.namedItem("invitePhotoUrl");
               if (target instanceof HTMLInputElement) target.value = data;
             }}
           />
@@ -3309,7 +3313,9 @@ function ProfileEditor({
 
   const createEvent = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    // Capture before any await: React detaches currentTarget after dispatch.
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     const payload = {
       name: String(form.get("eventName") || ""),
       bannerUrl: String(form.get("eventBannerUrl") || ""),
@@ -3329,7 +3335,7 @@ function ProfileEditor({
       body: JSON.stringify(payload),
     }, token);
     onEventCreated(created);
-    event.currentTarget.reset();
+    formEl?.reset();
   };
 
   return (
@@ -3606,10 +3612,12 @@ function ProfileEditor({
                 type="file"
                 accept="image/*"
                 onChange={async (e) => {
-                  const file = e.target.files?.[0];
+                  // Capture before any await: React detaches currentTarget after dispatch.
+                  const formEl = e.currentTarget.form;
+                  const file = e.currentTarget.files?.[0];
                   if (!file) return;
                   const data = await fileToDataUrl(file, { maxWidth: 512, maxHeight: 512, quality: 0.88 });
-                  const el = e.currentTarget.form?.elements.namedItem("eventLogoUrl");
+                  const el = formEl?.elements.namedItem("eventLogoUrl");
                   if (el instanceof HTMLInputElement) el.value = data;
                 }}
               />
@@ -3625,10 +3633,12 @@ function ProfileEditor({
                 type="file"
                 accept="image/*"
                 onChange={async (e) => {
-                  const file = e.target.files?.[0];
+                  // Capture before any await: React detaches currentTarget after dispatch.
+                  const formEl = e.currentTarget.form;
+                  const file = e.currentTarget.files?.[0];
                   if (!file) return;
                   const data = await fileToDataUrl(file, { maxWidth: 1920, maxHeight: 720, quality: 0.82 });
-                  const el = e.currentTarget.form?.elements.namedItem("eventBannerUrl");
+                  const el = formEl?.elements.namedItem("eventBannerUrl");
                   if (el instanceof HTMLInputElement) el.value = data;
                 }}
               />
@@ -3702,9 +3712,11 @@ function SessionForm({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
+    // Capture before any await: React detaches currentTarget after dispatch.
+    const formEl = event.currentTarget;
     setSubmitting(true);
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(formEl);
       const payload = {
         title: String(form.get("title") || ""),
         description: String(form.get("description") || ""),
@@ -3739,7 +3751,7 @@ function SessionForm({
         await apiFetch("/sessions", eventHeaders({ method: "POST", body: JSON.stringify(payload) }), token);
       }
 
-      if (!editing) event.currentTarget.reset();
+      if (!editing) formEl?.reset();
       onSaved();
     } finally {
       setSubmitting(false);
@@ -4380,7 +4392,9 @@ function CommunityBoard({
   async function createThread(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (postingThread) return;
-    const form = new FormData(event.currentTarget);
+    // Capture before any await: React detaches currentTarget after dispatch.
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     const title = String(form.get("title") || "").trim();
     const body = String(form.get("body") || "").trim();
     const payload: Record<string, unknown> = {
@@ -4425,7 +4439,7 @@ function CommunityBoard({
     setPostingThread(true);
     try {
       await apiFetch("/network/threads", withEventHeaders({ method: "POST", body: JSON.stringify(payload) }), token);
-      event.currentTarget.reset();
+      formEl?.reset();
       setMeetupInviteEveryone(false);
       setMeetupParticipantIds([]);
       setMeetupComposeMode("IN_PERSON");
@@ -4688,13 +4702,15 @@ function CommunityBoard({
                 accept="image/*"
                 multiple
                 onChange={async (ev) => {
-                  const files = [...(ev.target.files || [])].slice(0, 12);
+                  // Capture before any await: React detaches currentTarget after dispatch.
+                  const inputEl = ev.currentTarget;
+                  const files = [...(inputEl.files || [])].slice(0, 12);
                   const next: string[] = [];
                   for (const file of files) {
                     next.push(await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 }));
                   }
                   setMomentImageUrls((prev) => [...prev, ...next].slice(0, 12));
-                  ev.target.value = "";
+                  if (inputEl) inputEl.value = "";
                 }}
               />
             </label>
@@ -4892,12 +4908,14 @@ function CommunityBoard({
                       onSubmit={async (e) => {
                         e.preventDefault();
                         if (replyingToId) return;
-                        const form = new FormData(e.currentTarget);
+                        // Capture before any await: React detaches currentTarget after dispatch.
+                        const formEl = e.currentTarget;
+                        const form = new FormData(formEl);
                         const body = String(form.get("body") || "");
                         setReplyingToId(t.id);
                         try {
                           await sendReply(t.id, body);
-                          e.currentTarget.reset();
+                          formEl?.reset();
                         } finally {
                           setReplyingToId(null);
                         }
