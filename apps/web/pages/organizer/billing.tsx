@@ -247,7 +247,7 @@ export default function OrganizerBillingPage() {
             <div className="console-panel">
               <p className="console-panel-label">Invoices</p>
               {summary.invoices.length === 0 ? (
-                <p className="help-text" style={{ margin: 0 }}>Invoices appear here from Lemon Squeezy after purchases.</p>
+                <p className="help-text" style={{ margin: 0 }}>Invoices appear here after purchases.</p>
               ) : (
                 <ul style={{ margin: 0 }}>
                   {summary.invoices.map((inv) => (

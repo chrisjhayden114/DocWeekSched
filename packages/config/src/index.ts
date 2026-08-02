@@ -40,20 +40,22 @@ export const brand = {
     "No attendee-data monetization",
     "No engagement bait",
   ],
-  /** Placeholder until S2 wires a real status provider. */
-  statusPageUrl: "https://status.ukedl.com",
+  /** Live Better Stack status page (uptime monitoring configured 2026-08-02). */
+  statusPageUrl: "https://ukedl.betteruptime.com",
   social: {
     x: "https://x.com/ukedl",
     linkedin: "https://www.linkedin.com/company/ukedl",
   },
   /** Subprocessors named in the privacy policy (Chunk B). */
   subprocessors: [
-    { name: "Lemon Squeezy", role: "Merchant of record (payments, tax)" },
     { name: "Neon", role: "PostgreSQL hosting" },
     { name: "Render", role: "API hosting" },
     { name: "Netlify", role: "Web hosting" },
-    { name: "Resend", role: "Transactional email (when configured)" },
-    { name: "Sentry", role: "Error tracking (when configured)" },
+    { name: "Resend", role: "Transactional email" },
+    { name: "Stripe", role: "Merchant of record (payments, tax)" },
+    { name: "Anthropic", role: "AI processing for organizer-initiated features" },
+    { name: "Sentry", role: "Error tracking" },
+    { name: "Better Stack", role: "Uptime monitoring and status page" },
   ],
   colors: {
     ink: "#18253F",

@@ -175,3 +175,17 @@ Fix:
 
 Acceptance: after deploy, a fresh Pro Monthly test purchase renders "Pro · Monthly · $79/mo" on the billing page; existing orgs' labels unchanged. npm test + builds green in both apps, report, STOP.
 ```
+
+
+### Chunk E6 — post-provider polish sweep (unlocked by the 2026-08-02 config work)
+
+```
+Chunk E6 — small web-side sweep now that Stripe, the status page, and monitoring are live. Scope: apps/web + packages/config ONLY (remember both packages compile to dist; the api build script already rebuilds them — do not point main at src). No API routes, no schema. Tests + builds green in both apps.
+
+1. LEMON SQUEEZY COPY SWEEP: replace every remaining customer-facing "Lemon Squeezy" mention with provider-neutral or Stripe wording. Known locations: pricing.tsx FAQ ("Checkout and refunds are handled by Lemon Squeezy (merchant of record)…" → "Checkout, tax, and refunds are handled by Stripe (merchant of record)…"), organizer/billing.tsx Invoices box ("Invoices appear here from Lemon Squeezy after purchases." → "Invoices appear here after purchases."), and terms.tsx / any legal or help copy naming the payment processor. Grep the whole of apps/web for "Lemon" and fix every hit; report the list.
+2. STATUS PAGE RETURNS: in packages/config, set statusPageUrl to "https://ukedl.betteruptime.com" (it currently points at the dead status.ukedl.com). Restore the footer Status link in SiteFooter.tsx (E1 removed it with an explanatory comment — the real page now exists). Re-add the status-page reference in the security page's incident section and the help Contact article where E1 removed them.
+3. SIGNED-IN PRICING CTAs (customer-test finding #17): on /pricing, when the visitor is signed in (the page already knows checkout state via /billing/config; detect auth via the existing session/user hook used elsewhere in the app — inspect how the header decides logged-in state and reuse it), paid-tier CTAs should read "Upgrade" and link to /organizer/billing (org context chooser lives there) instead of "Sign in to upgrade" → /login. Signed-out behavior unchanged.
+4. SUBPROCESSOR LIST: anywhere legal/security copy lists subprocessors (security.tsx, privacy/terms if present), ensure the list reflects reality: Neon, Render, Netlify, Resend, Stripe, Anthropic, Sentry, Better Stack. Remove Lemon Squeezy.
+
+Acceptance: `grep -ri "lemon" apps/web/pages apps/web/components` returns zero customer-facing hits; footer Status link opens ukedl.betteruptime.com; a signed-in owner on /pricing sees Upgrade → /organizer/billing; subprocessor lists are accurate. Run npm test + npm run build in both apps, report, STOP for review.
+```

@@ -8,7 +8,7 @@ import {
 import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { API_URL } from "../lib/api";
+import { API_URL, apiFetch } from "../lib/api";
 import { SiteFooter } from "../components/marketing/SiteFooter";
 import { SiteHeader } from "../components/marketing/SiteHeader";
 
@@ -19,7 +19,7 @@ const FAQ = [
   },
   {
     q: "How do refunds work?",
-    a: "Checkout and refunds are handled by Lemon Squeezy (merchant of record). Contact support with your order ID.",
+    a: "Checkout, tax, and refunds are handled by Stripe (merchant of record). Contact support with your order ID.",
   },
   {
     q: "What happens when I archive an event?",
@@ -96,6 +96,8 @@ export default function PricingPage() {
    * never advertise it — offer the support mailto instead.
    */
   const [checkoutEnabled, setCheckoutEnabled] = useState<boolean | null>(null);
+  /** true = active session cookie (same /auth/me check the app pages use); false/null = treat as signed out. */
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +107,11 @@ export default function PricingPage() {
         if (!cancelled && data && typeof data.checkoutEnabled === "boolean") {
           setCheckoutEnabled(data.checkoutEnabled);
         }
+      })
+      .catch(() => undefined);
+    apiFetch<{ id: string }>("/auth/me")
+      .then((me) => {
+        if (!cancelled && me?.id) setSignedIn(true);
       })
       .catch(() => undefined);
     return () => {
@@ -120,6 +127,10 @@ export default function PricingPage() {
       >
         Contact {brand.supportEmail} to purchase
       </a>
+    ) : signedIn ? (
+      <Link className={`button${secondary ? " secondary" : ""}`} href="/organizer/billing">
+        Upgrade
+      </Link>
     ) : (
       <Link className={`button${secondary ? " secondary" : ""}`} href="/login">
         Sign in to upgrade
@@ -152,7 +163,7 @@ export default function PricingPage() {
                 Open pricing
               </h1>
               <p className="mkt-standfirst">
-                Catalog amounts match what we charge before tax. Checkout is handled by Lemon Squeezy
+                Catalog amounts match what we charge before tax. Checkout is handled by Stripe
                 (merchant of record) — they collect payment and applicable sales tax/VAT.
               </p>
 
@@ -267,7 +278,7 @@ export default function PricingPage() {
               </div>
 
               <p className="text-meta" style={{ marginTop: 28 }}>
-                Tax note: Lemon Squeezy adds applicable sales tax/VAT at checkout where required. Displayed
+                Tax note: Stripe adds applicable sales tax/VAT at checkout where required. Displayed
                 catalog prices are the pre-tax amounts from our plan config.
               </p>
             </div>

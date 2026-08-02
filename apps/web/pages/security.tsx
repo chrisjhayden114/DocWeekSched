@@ -18,7 +18,7 @@ export default function SecurityPage() {
   const title = `Security — ${brand.productName}`;
   const description = `Security architecture, downloads, and product principles for ${brand.productName}.`;
   /** Content date — bump when this page's substance changes. Not the render date. */
-  const updated = "31 July 2026";
+  const updated = "2 August 2026";
   const url = `${brand.primaryUrl}/security`;
 
   return (
@@ -77,7 +77,11 @@ export default function SecurityPage() {
 
             <h2 id="status">Status</h2>
             <p>
-              A public status page is on the roadmap. During an incident, email{" "}
+              Live service status is published at{" "}
+              <a href={brand.statusPageUrl} rel="noopener noreferrer">
+                {brand.statusPageUrl}
+              </a>
+              . During an incident, check the status page first, then email{" "}
               <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a> for updates. Support
               hours: {brand.supportHours}
             </p>

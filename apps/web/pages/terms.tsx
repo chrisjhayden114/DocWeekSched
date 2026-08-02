@@ -27,7 +27,7 @@ const TOC = [
 export default function TermsPage() {
   const title = `Terms of Service — ${brand.productName}`;
   const description = `Terms of Service for ${brand.productName} (draft).`;
-  const updated = "18 July 2026";
+  const updated = "2 August 2026";
   const url = `${brand.primaryUrl}/terms`;
 
   return (
@@ -82,7 +82,7 @@ export default function TermsPage() {
 
             <h2 id="billing">4. Plans, billing, and merchant of record</h2>
             <p>
-              Paid plans are billed through our merchant of record (Lemon Squeezy). Taxes and refunds follow
+              Paid plans are billed through our merchant of record (Stripe). Taxes and refunds follow
               their checkout and policies. Public pricing is listed at{" "}
               <Link href="/pricing">/pricing</Link>. Hitting a plan limit shows an upgrade prompt; we do not
               silently fail critical actions.

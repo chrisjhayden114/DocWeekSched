@@ -12,7 +12,8 @@ function applyBrandTokens(html: string): string {
   return html
     .replace(/\{\{product\}\}/g, brand.productName)
     .replace(/\{\{support\}\}/g, brand.supportEmail)
-    .replace(/\{\{hours\}\}/g, brand.supportHours);
+    .replace(/\{\{hours\}\}/g, brand.supportHours)
+    .replace(/\{\{status\}\}/g, brand.statusPageUrl);
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {

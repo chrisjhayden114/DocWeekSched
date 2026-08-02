@@ -30,7 +30,7 @@ const TOC = [
 export default function PrivacyPage() {
   const title = `Privacy Policy — ${brand.productName}`;
   const description = `Privacy Policy for ${brand.productName} (draft).`;
-  const updated = "18 July 2026";
+  const updated = "2 August 2026";
   const url = `${brand.primaryUrl}/privacy`;
 
   return (
