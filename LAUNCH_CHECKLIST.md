@@ -54,7 +54,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 ## 4. Hardening verification
 
 - [ ] **CSP report-only → enforce** — walk the full demo event with devtools open, zero violations, then `CSP_ENFORCE=1` in the Netlify build env. Never `unsafe-inline` in `script-src`. After enforcing, verify Sentry events still arrive. *Owner: Chris · Status: todo*
-- [ ] **Rate-limit smoke test from a cold IP** — expect 429s at documented thresholds; normal browsing unaffected. *Owner: Chris · Status: todo*
+- [x] **Rate-limit smoke test** *(done 2026-08-02)* — two runs of 8 rapid bad-credential POSTs to /auth/login: run 1 = 401,401,401,429,401,401,429,429; run 2 (no deploy in flight, fresh fake email) = 401,401,429,401,401,401,429,429. **Security property holds: sustained brute force is blocked.** OPEN QUESTION (not a blocker): the stutter — 429s that release and re-trip — is not a simple 5/min window. Two mechanisms interact: the fixed-window counter in `authRateLimit` middleware AND `noteAuthFailure()` in the route handler, which sets short escalating blocks (5s × failures). Deploy-overlap and multi-instance theories were both tested and rejected. Worth a small investigation chunk to confirm the intended behaviour is what's happening (and that `noteAuthFailure`'s bucket key really matches the middleware's — the code comments warn about exactly that mismatch). RUNBOOK §7 already flags limits are per-process and must move to a shared store before scaling out.
 - [x] **`npm audit` triage** *(done 2026-08-02, chunk E7)* — 9 findings → 1. Fixed: tar (critical, scoped override to 7.x under @mapbox/node-pre-gyp, bcrypt verified), postcss (override to 8.5.x), brace-expansion, body-parser/express, qs, esbuild via tsx. **Open + documented in SECURITY_NOTES.md:** next@14.2.35 — patched only in 15.5.21+/16.2.12+ (major bump). Accepted because apps/web is Pages Router with no middleware/i18n (App-Router advisories don't apply) and image optimization runs through Netlify's CDN, not the self-hosted optimizer. Revisit triggers documented: adding middleware/i18n, moving off Netlify, or a new Pages-Router advisory. **Deliberate future chunk: Next 15/16 upgrade (breaking — touches React 18→19 + Netlify runtime plugin).**
 - [x] **Uptime monitor → `/health/ready`** *(done 2026-08-02)* — Better Stack free tier: monitors on api.ukedl.com/health/ready (covers DB) + ukedl.com (covers Netlify), 3-min checks, email alerts to cjhayden114@gmail.com.
 - [x] **Boot-log preflight review** — API logs read after cutover; warnings are the expected optional-integration set. *done (2026-07-20)*
@@ -88,3 +88,61 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 4. **Lemon Squeezy in test mode** → validate purchase → webhook → entitlement → then flip live.
 5. **E2** (organizer editing — the biggest daily-use win), then **E3**, **E4**.
 6. Remaining hardening (§4), Sentry, storage decision, restore drill, status page.
+
+---
+
+## 8. Console walkthrough, 2026-08-02 (CSP audit + what it turned up)
+
+**CSP: clean.** Full logged-in walkthrough of `/e/demo`, six session pages, the
+dashboard Messages tab, and the organizer Agenda-ingest page with the Chrome
+console open produced **zero Content Security Policy violation messages**. The
+report-only header is emitting nothing. `CSP_ENFORCE=1` is safe to set.
+
+The walkthrough did surface three unrelated defects:
+
+### 8a. P0 REGRESSION — PDF/DOCX/XLSX upload ingest is broken by the R2 switch
+
+Uploading `2026 DocWeek Schedule and Session Overview.pdf` produced
+`0 create · 5 delete proposed` with the assumption *"The source provided only
+references a stored file name … with no extractable text content."*
+
+Root cause, confirmed by reading the code:
+
+- `apps/api/src/routes/agendaIngest.ts` ~L210–230: for a file upload it calls
+  `getStorageProvider().acceptUpload()`. It only extracts text when
+  `stored.url.startsWith("data:")`; otherwise it falls through to the stub
+  `` `[Stored file ${sourceFileName}]` ``.
+- `apps/api/src/lib/ai/ingest/job.ts` L37–47: it only attaches the PDF as a
+  multimodal document when `run.sourceUrl?.startsWith("data:")`.
+
+Both branches keyed on the **Postgres data-URL fallback**. Now that
+`STORAGE_PROVIDER=r2` returns an `https://…r2.dev/…` URL, both are false, so the
+model receives the literal string `[Stored file …pdf]` and nothing else. Paste
+and CSV ingest are unaffected; **URL and file upload of PDFs are the broken paths.**
+
+This is a self-inflicted regression from configuring R2 — the storage change was
+correct, but neither call site was updated to fetch bytes back from object
+storage. Fix: after `acceptUpload`, fetch the stored object's bytes (or keep the
+buffer in hand) and drive both `sourceText` and the multimodal `attachment` from
+the bytes, not from the URL scheme.
+
+### 8b. P1 — an empty extract proposes deleting the whole programme
+
+The same run reported `0 create · 5 delete proposed`. An extract that yields zero
+sessions must never propose deleting every existing session; that is a
+data-loss-shaped default one mis-click away. Guard: if the extract returns no
+sessions, propose **no** deletions and fail the run visibly.
+
+### 8c. P2 — console noise (cosmetic, not security)
+
+Repeating red HTTP errors on every session page, logged in:
+
+- `GET /sessions/:id/resources` → **401** (the route's own guard is a 403
+  "Join this session to view resources", so the 401 is coming from earlier in the
+  chain — **not root-caused**, do not assume)
+- `GET /event/maps/by-room/:roomId` → **404** when the room has no map
+- `GET /attendees?take=500` → **404** on the dashboard Messages tab
+
+None of these break a visible feature, but they are the kind of noise that makes
+a real error invisible during an incident, and 8c's third item suggests a caller
+pointing at a path that no longer exists.
