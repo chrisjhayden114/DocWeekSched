@@ -189,3 +189,15 @@ Chunk E6 — small web-side sweep now that Stripe, the status page, and monitori
 
 Acceptance: `grep -ri "lemon" apps/web/pages apps/web/components` returns zero customer-facing hits; footer Status link opens ukedl.betteruptime.com; a signed-in owner on /pricing sees Upgrade → /organizer/billing; subprocessor lists are accurate. Run npm test + npm run build in both apps, report, STOP for review.
 ```
+
+
+### Chunk E7 — npm audit triage (8 findings incl. 1 critical, printing on every deploy)
+
+```
+Chunk E7 — dependency vulnerability triage. Scope: package.json/package-lock.json changes only; no application-code changes unless a dependency bump forces a trivial API adjustment (flag it if so). Tests + builds green in both apps.
+
+1. Run `npm audit` at the repo root and produce a table: package, severity, advisory, and — the important column — WHERE it sits: runtime dependency of apps/api or apps/web (reachable in production), vs devDependency/build tooling (not shipped). Trace the dependency path for each (npm ls <pkg>).
+2. Fix what is safely fixable: `npm audit fix` (NEVER --force), targeted version bumps within semver ranges, or `overrides` in the root package.json for transitive pins. No major-version bumps of direct dependencies without stopping to flag the breaking-change risk.
+3. For anything unfixable-today (no patched version, or fix requires a major bump), document it in a new SECURITY_NOTES.md section: what it is, why it's acceptable for now (e.g., dev-only, unreachable code path), and the trigger for revisiting.
+4. Acceptance: `npm audit` output after your changes shows the critical resolved or documented-as-not-reachable; all 231+ unit tests pass in apps/api, 56+ in apps/web; both builds green. Do NOT set ALLOW_DESTRUCTIVE_DB. Report the before/after audit summary and STOP.
+```

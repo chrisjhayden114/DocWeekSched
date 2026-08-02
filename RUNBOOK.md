@@ -26,10 +26,12 @@ There is no separate worker process: stopping/restarting the API stops all jobs 
   history; you can create a branch of the database as of any timestamp inside the
   retention window. There is no separate nightly dump job yet (Phase S2 adds an
   automated weekly restore drill).
-- **Retention window:** depends on the Neon plan — verify in the Neon console under
-  Project → Settings → History retention (free tier is on the order of 1 day; paid
-  plans allow multi-day windows). **Before launch, confirm the retention window
-  meets the recovery objective and record it here.**
+- **Retention window: 7 DAYS** (confirmed + set 2026-08-02; was 1 day). Neon console →
+  Project → Settings → History window, slider set to 7d and saved. At current DB size
+  (~0.2 GB data, ~0.01 GB history) the storage cost of the longer window is negligible.
+  UI note (2026): time-travel branch creation moved — the Create-branch dialog makes
+  current-point copies; point-in-time restore lives under **Backup & Restore** in the
+  branch sidebar.
 - **What is NOT covered:** anything outside Postgres. Object storage (if configured)
   and provider-side state (Lemon Squeezy orders, Resend logs) have their own retention.
 
@@ -52,7 +54,7 @@ An untested backup doesn't count. Procedure:
 
 | Date | Restored-to timestamp | Checks | Result |
 |---|---|---|---|
-| _none yet_ | | | |
+| 2026-08-02 | current point (branch `restore-drill-2026-08-02`, auto-delete 1h) | SQL Editor on branch: `SELECT count(*) FROM "Event"` = 5 (matches prod: demo, Sample Academic Conference, QA Test Symposium, EDL DocWeek, Test); `SELECT count(*) FROM "User"` ran OK | **PASS** — full prod copy stood up and queried in <1 min via console (no CLI needed) |
 
 ## 4. Deploy
 

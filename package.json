@@ -9,6 +9,14 @@
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5.15.9"
   },
+  "overrides": {
+    "@mapbox/node-pre-gyp": {
+      "tar": "^7.5.22"
+    },
+    "next": {
+      "postcss": "^8.5.19"
+    }
+  },
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
     "dev:api": "npm --workspace apps/api run dev",
