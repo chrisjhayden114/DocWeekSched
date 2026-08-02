@@ -39,10 +39,10 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 - [x] **Billing validated in TEST MODE — full lifecycle on production** *(2026-08-02)*: Pro Monthly purchase with 4242 → checkout.session.completed + invoice.payment_succeeded delivered 200 → org → Pro, correct "Pro · Monthly" label after E5.1 → invoice listed → customer portal opens → cancel-at-period-end keeps plan active (correct) → immediate cancels via Workbench shell → customer.subscription.deleted → org reverts to Free → re-purchase works. Tax $0.00 for CA SaaS (MoR calculating correctly).
 - [ ] **Billing GO-LIVE (the only step left before real revenue)** — Stripe "Verify your business" (EIN/SSN + payout bank), then swap Render env to live: STRIPE_SECRET_KEY=sk_live_..., new LIVE-mode webhook endpoint + its whsec_, five LIVE-mode products/prices (test-mode objects don't exist in live) → re-run one real-card $79 purchase + refund it. *Owner: Chris · Status: todo · **P1***
 - [ ] **Web copy still says "Lemon Squeezy"** (pricing FAQ, billing Invoices box, terms) — fold into next web chunk. *Owner: Cursor · Status: todo*
-- [ ] **VAPID keypair generated** — `npx web-push generate-vapid-keys`; set `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`. Keys are permanent — rotating invalidates all push subscriptions. *Owner: Chris · Status: todo*
+- [x] **VAPID keypair** *(verified already configured, 2026-08-02)* — all three vars were set in Render from an earlier phase (public key verified real). DO NOT ROTATE — rotating invalidates every push subscription. Minor: VAPID_SUBJECT is mailto:cjhayden114@gmail.com; switch to mailto:support@ukedl.com opportunistically with a future env change (safe, non-breaking).
 - [ ] **Storage decision** — configure S3/R2 (`STORAGE_*`) or explicitly accept the data-URL-in-Postgres fallback and record the decision here. *Owner: Chris · Status: todo*
 - [x] **Sentry DSNs** *(done 2026-08-02)* — org `ukedl.sentry.io` (free tier; ignore Business-trial upsells — it downgrades automatically), projects `ukedl-api` + `ukedl-web`, `SENTRY_DSN` on Render + `NEXT_PUBLIC_SENTRY_DSN` on Netlify, both deployed. **Web side verified end-to-end**: test error thrown on production ukedl.com arrived in Issues within seconds. API side config-verified (clean boot with DSN; no throwing route exists to force a test 500 — it will prove itself on first real error).
-- [ ] **Status page** — stand one up (Better Stack / Instatus free tier) and point `brand.statusPageUrl` at it, or leave the footer link removed (E1 removes it by default). *Owner: Chris · Status: todo*
+- [x] **Status page** *(done 2026-08-02)* — https://ukedl.betteruptime.com live with "Website" + "API" resources. REMAINING (next web chunk): point brand.statusPageUrl at it and restore the footer Status link; optionally CNAME status.ukedl.com → statuspage.betteruptime.com later.
 
 ## 3. Data safety & first boot
 
@@ -56,7 +56,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 - [ ] **CSP report-only → enforce** — walk the full demo event with devtools open, zero violations, then `CSP_ENFORCE=1` in the Netlify build env. Never `unsafe-inline` in `script-src`. After enforcing, verify Sentry events still arrive. *Owner: Chris · Status: todo*
 - [ ] **Rate-limit smoke test from a cold IP** — expect 429s at documented thresholds; normal browsing unaffected. *Owner: Chris · Status: todo*
 - [ ] **Triage `npm audit` (8 findings incl. 1 critical printing on every build)** — identify which are in runtime deps vs dev tooling; patch what's real. Do before taking customer data at scale. *Owner: Chris + Cursor · Status: todo*
-- [ ] **Uptime monitor → `/health/ready`** — external monitor expecting HTTP 200, alerting to email/phone. `/health` alone is insufficient (doesn't cover DB/poller). *Owner: Chris · Status: todo*
+- [x] **Uptime monitor → `/health/ready`** *(done 2026-08-02)* — Better Stack free tier: monitors on api.ukedl.com/health/ready (covers DB) + ukedl.com (covers Netlify), 3-min checks, email alerts to cjhayden114@gmail.com.
 - [x] **Boot-log preflight review** — API logs read after cutover; warnings are the expected optional-integration set. *done (2026-07-20)*
 
 ## 5. Product fixes from the customer test (see FIX_PLAN.md)
