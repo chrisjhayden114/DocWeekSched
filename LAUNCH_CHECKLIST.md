@@ -41,7 +41,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 - [ ] **Billing validated in TEST MODE first** — test purchase with a test card → webhook fires → entitlement updates on the org → plan caps change → receipt arrives. **This code path has never run in production**; validate before going live. *Owner: Chris · Status: todo · **P1***
 - [ ] **VAPID keypair generated** — `npx web-push generate-vapid-keys`; set `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`. Keys are permanent — rotating invalidates all push subscriptions. *Owner: Chris · Status: todo*
 - [ ] **Storage decision** — configure S3/R2 (`STORAGE_*`) or explicitly accept the data-URL-in-Postgres fallback and record the decision here. *Owner: Chris · Status: todo*
-- [ ] **Sentry DSNs** — `SENTRY_DSN` (API) + `NEXT_PUBLIC_SENTRY_DSN` (web); trigger one test error per side and confirm arrival. *Owner: Chris · Status: todo*
+- [x] **Sentry DSNs** *(done 2026-08-02)* — org `ukedl.sentry.io` (free tier; ignore Business-trial upsells — it downgrades automatically), projects `ukedl-api` + `ukedl-web`, `SENTRY_DSN` on Render + `NEXT_PUBLIC_SENTRY_DSN` on Netlify, both deployed. **Web side verified end-to-end**: test error thrown on production ukedl.com arrived in Issues within seconds. API side config-verified (clean boot with DSN; no throwing route exists to force a test 500 — it will prove itself on first real error).
 - [ ] **Status page** — stand one up (Better Stack / Instatus free tier) and point `brand.statusPageUrl` at it, or leave the footer link removed (E1 removes it by default). *Owner: Chris · Status: todo*
 
 ## 3. Data safety & first boot
