@@ -61,10 +61,12 @@ export async function loadOrgBilling(orgId: string): Promise<OrgBillingSnapshot>
     },
   });
   const plan = asTier(org.plan);
+  // Prefer the SKU actually purchased; NULL (pre-E5.1 orgs) falls back to the tier default.
+  const storedSku = org.planSku && org.planSku in PLAN_BY_SKU ? (org.planSku as PlanSkuKey) : null;
   return {
     orgId,
     plan,
-    planSku: defaultSkuForTier(plan),
+    planSku: storedSku ?? defaultSkuForTier(plan),
     subscriptionStatus: org.subscriptionStatus,
     billingProvider: org.billingProvider,
     billingCustomerId: org.billingCustomerId,
@@ -218,6 +220,7 @@ export async function applyPlanSkuToOrg(
     where: { id: orgId },
     data: {
       plan: def.tier,
+      planSku: sku,
       eventAllowance: def.limits.activeEvents,
       subscriptionStatus: extra?.subscriptionStatus ?? (def.tier === "FREE" ? "NONE" : "ACTIVE"),
       billingCustomerId: extra?.billingCustomerId === undefined ? undefined : extra.billingCustomerId,

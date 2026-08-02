@@ -159,3 +159,19 @@ Chunk E5 — implement a Stripe billing provider behind the existing BillingProv
 
 Acceptance: with BILLING_PROVIDER=stripe and test keys set, /billing/config reports checkoutEnabled true; createCheckout returns a session URL for every SKU; a simulated signed webhook flips org entitlements exactly as the LS path did; all existing LS tests still pass (the LS provider remains intact and selectable). Run npm test + npm run build in both apps, report, STOP for review.
 ```
+
+
+### Chunk E5.1 — persist the purchased SKU (label bug found in live billing test, 2026-08-02)
+
+```
+Chunk E5.1 — small, surgical. Bug found during the production test-mode billing test: buying Pro Monthly ($79, correct charge, correct entitlements) renders as "Pro · Annual" on /organizer/billing. Root cause (verified): applyPlanSkuToOrg (lib/billing/entitlements.ts) stores only def.tier on the Organization; the billing snapshot then reconstructs planSku via defaultSkuForTier(plan), which returns pro_annual for PRO. The purchased SKU is never persisted.
+
+Fix:
+1. ADDITIVE migration: add nullable `planSku String?` to the Organization model (expand-then-deploy; no backfill required — null falls back to the old derivation).
+2. applyPlanSkuToOrg: persist the sku it was called with.
+3. Entitlements snapshot: use the stored planSku when present; fall back to defaultSkuForTier(plan) when null (grandfathers all existing orgs).
+4. Tests: applySubscriptionActive with pro_monthly → snapshot.planSku === "pro_monthly"; same for pro_annual and per_event_500 via applyOrderPaid; null-column fallback still returns defaultSkuForTier.
+5. Do NOT touch checkout, webhooks' event handling, or the LS path beyond what applyPlanSkuToOrg already shares. Do NOT set ALLOW_DESTRUCTIVE_DB.
+
+Acceptance: after deploy, a fresh Pro Monthly test purchase renders "Pro · Monthly · $79/mo" on the billing page; existing orgs' labels unchanged. npm test + builds green in both apps, report, STOP.
+```

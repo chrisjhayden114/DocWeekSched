@@ -344,6 +344,8 @@ model Organization {
   billingSubscriptionId     String?              @unique
   billingSubscriptionItemId String?
   plan                      PlanTier?            @default(FREE)
+  /// Purchased SKU key (e.g. pro_monthly, per_event_500). NULL = derive display default from plan tier.
+  planSku                   String?
   subscriptionStatus        SubscriptionStatus   @default(NONE)
   /// NULL = unlimited active events. limit() must treat NULL as no cap.
   eventAllowance            Int?
