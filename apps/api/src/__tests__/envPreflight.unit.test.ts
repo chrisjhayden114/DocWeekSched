@@ -87,6 +87,49 @@ describe("collectProductionPreflight — degraded-subsystem warnings", () => {
   });
 });
 
+describe("collectProductionPreflight — Stripe billing (Chunk E5)", () => {
+  function stripeVars(): NodeJS.ProcessEnv {
+    const vars = fullProdVars();
+    delete vars.LEMONSQUEEZY_API_KEY;
+    return {
+      ...vars,
+      BILLING_PROVIDER: "stripe",
+      STRIPE_SECRET_KEY: "sk_test_x",
+      STRIPE_WEBHOOK_SECRET: "whsec_x",
+      STRIPE_PRICE_PER_EVENT_250: "price_a",
+      STRIPE_PRICE_PER_EVENT_500: "price_b",
+      STRIPE_PRICE_PER_EVENT_1000: "price_c",
+      STRIPE_PRICE_PRO_MONTHLY: "price_d",
+      STRIPE_PRICE_PRO_ANNUAL: "price_e",
+    };
+  }
+
+  it("fully configured stripe billing produces no warnings (LS vars not required)", () => {
+    const { fatal, warnings } = collectProductionPreflight(stripeVars());
+    expect(fatal).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("warns naming each missing stripe var", () => {
+    const vars = stripeVars();
+    delete vars.STRIPE_WEBHOOK_SECRET;
+    delete vars.STRIPE_PRICE_PRO_ANNUAL;
+    const { warnings } = collectProductionPreflight(vars);
+    const warning = warnings.find((w) => w.includes("billing (stripe)"));
+    expect(warning).toBeTruthy();
+    expect(warning).toContain("STRIPE_WEBHOOK_SECRET");
+    expect(warning).toContain("STRIPE_PRICE_PRO_ANNUAL");
+    expect(warning).not.toContain("STRIPE_SECRET_KEY");
+  });
+
+  it("keeps the Lemon Squeezy warning when BILLING_PROVIDER is not stripe", () => {
+    const vars = fullProdVars();
+    delete vars.LEMONSQUEEZY_API_KEY;
+    const { warnings } = collectProductionPreflight(vars);
+    expect(warnings.some((w) => w.includes("503"))).toBe(true);
+  });
+});
+
 describe("module boot behavior", () => {
   const saved: Record<string, string | undefined> = {};
   const KEYS = ["NODE_ENV", "DATABASE_URL", "JWT_SECRET", "WEB_BASE_URL", "API_PUBLIC_URL"];

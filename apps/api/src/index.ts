@@ -111,6 +111,15 @@ app.post(
   asyncHandler(handleBillingWebhook),
 );
 app.post(
+  "/billing/webhooks/stripe",
+  express.raw({ type: "*/*" }),
+  (req, _res, next) => {
+    (req as { rawBody?: Buffer }).rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body || ""));
+    next();
+  },
+  asyncHandler(handleBillingWebhook),
+);
+app.post(
   "/billing/webhooks/mock",
   express.raw({ type: "*/*" }),
   (req, _res, next) => {

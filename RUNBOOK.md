@@ -97,7 +97,7 @@ Interval loops inside the API process (not `BackgroundJob` rows): push-queue flu
 | All AI features | `AI_PROVIDER=mock` (deterministic mock, no external calls) + restart |
 | Email delivery | `EMAIL_PROVIDER=none` (UI falls back to copy-link) + restart |
 | Web push | Unset `VAPID_PRIVATE_KEY`/`VAPID_PUBLIC_KEY` + restart |
-| Billing checkout | Unset Lemon Squeezy vars (checkout returns unconfigured) + restart |
+| Billing checkout | Unset the active provider's vars — Stripe (`STRIPE_*`) or Lemon Squeezy — (checkout returns unconfigured) + restart |
 | Nightly demo reset | Mark the pending `demo.event.reset` row `DEAD`; note it reschedules on next API boot |
 
 ## 6. Destructive-DB guard (`apps/api/src/lib/destructiveGuard.ts`)
@@ -134,7 +134,8 @@ Buckets are keyed by route pattern (not concrete path) and by `req.ip` only
 | Render | API hosting | dashboard-managed | Single instance (see §7) |
 | Netlify | Web hosting | `NODE_VERSION` | Next.js plugin |
 | Resend | Transactional email | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Unset → copy-link fallback |
-| Lemon Squeezy | Billing (merchant of record) | `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_WEBHOOK_SECRET`, `LEMONSQUEEZY_VARIANT_*` | Webhooks are the entitlement source of truth |
+| Stripe | Billing (merchant of record via Managed Payments; current — supersedes LS) | `BILLING_PROVIDER=stripe`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*` | Webhook: `/billing/webhooks/stripe`; webhooks are the entitlement source of truth |
+| Lemon Squeezy | Billing (legacy MoR, provider still selectable) | `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_WEBHOOK_SECRET`, `LEMONSQUEEZY_VARIANT_*` | Webhooks are the entitlement source of truth |
 | Anthropic | AI gateway provider | `ANTHROPIC_API_KEY`, `AI_PROVIDER=anthropic` | `mock` = kill switch |
 | S3/R2-compatible storage | Uploads (optional) | `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, … | Unset → data-URL fallback in Postgres |
 | Web push (VAPID) | Self-generated keypair, no vendor account | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Rotating keys invalidates subscriptions |
@@ -172,7 +173,8 @@ warning line each (`[preflight] …`). Full var-by-var documentation lives in th
 |---|---|
 | `RESEND_API_KEY` (+ `RESEND_FROM_EMAIL`) | No email: invites, password reset, verification, CFP + decision emails all fall back to copy-link in the UI |
 | `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (+ `VAPID_SUBJECT`) | Web push disabled; notification delivery is inbox-only |
-| `LEMONSQUEEZY_API_KEY` + `LEMONSQUEEZY_STORE_ID` + `LEMONSQUEEZY_WEBHOOK_SECRET` + `LEMONSQUEEZY_VARIANT_*` | Billing checkout/portal return 503; no paid upgrades; webhooks (entitlement source of truth) never arrive |
+| With `BILLING_PROVIDER=stripe`: `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` + `STRIPE_PRICE_PER_EVENT_250/500/1000` + `STRIPE_PRICE_PRO_MONTHLY` + `STRIPE_PRICE_PRO_ANNUAL` | Billing checkout/portal return 503; no paid upgrades; Stripe webhooks (entitlement source of truth) never verify |
+| Without `BILLING_PROVIDER=stripe`: `LEMONSQUEEZY_API_KEY` + `LEMONSQUEEZY_STORE_ID` + `LEMONSQUEEZY_WEBHOOK_SECRET` + `LEMONSQUEEZY_VARIANT_*` | Billing checkout/portal return 503; no paid upgrades; webhooks (entitlement source of truth) never arrive |
 | `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` | All agents (agenda ingest, concierge, matchmaker, ops inbox, recap) return deterministic mock output |
 | `STORAGE_BUCKET` + `STORAGE_ACCESS_KEY_ID` + `STORAGE_SECRET_ACCESS_KEY` | Uploads (session resources, maps, photos, CFP attachments) stored as data-URLs in Postgres — works but bloats rows and backups |
 

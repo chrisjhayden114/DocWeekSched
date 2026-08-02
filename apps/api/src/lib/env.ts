@@ -125,8 +125,25 @@ export function collectProductionPreflight(vars: NodeJS.ProcessEnv): PreflightRe
   if (!vars.VAPID_PUBLIC_KEY?.trim() || !vars.VAPID_PRIVATE_KEY?.trim()) {
     warnings.push("web push disabled: no VAPID keypair (set VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY + VAPID_SUBJECT).");
   }
-  if (!vars.LEMONSQUEEZY_API_KEY?.trim()) {
-    warnings.push("billing unconfigured: checkout/portal return 503 (set LEMONSQUEEZY_API_KEY + LEMONSQUEEZY_STORE_ID + LEMONSQUEEZY_WEBHOOK_SECRET + variants).");
+  const billingProvider = (vars.BILLING_PROVIDER || "").trim().toLowerCase();
+  if (billingProvider === "stripe") {
+    const requiredStripeVars = [
+      "STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET",
+      "STRIPE_PRICE_PER_EVENT_250",
+      "STRIPE_PRICE_PER_EVENT_500",
+      "STRIPE_PRICE_PER_EVENT_1000",
+      "STRIPE_PRICE_PRO_MONTHLY",
+      "STRIPE_PRICE_PRO_ANNUAL",
+    ];
+    const missingStripe = requiredStripeVars.filter((name) => !vars[name]?.trim());
+    if (missingStripe.length > 0) {
+      warnings.push(
+        `billing (stripe) misconfigured: checkout/portal return 503 and webhooks cannot verify — missing ${missingStripe.join(", ")}.`,
+      );
+    }
+  } else if (!vars.LEMONSQUEEZY_API_KEY?.trim()) {
+    warnings.push("billing unconfigured: checkout/portal return 503 (set LEMONSQUEEZY_API_KEY + LEMONSQUEEZY_STORE_ID + LEMONSQUEEZY_WEBHOOK_SECRET + variants, or BILLING_PROVIDER=stripe with STRIPE_* keys).");
   }
   const aiProvider = (vars.AI_PROVIDER || "mock").trim().toLowerCase();
   if (aiProvider !== "anthropic") {

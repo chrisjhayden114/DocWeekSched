@@ -25,7 +25,7 @@ export type PortalResult = {
 };
 
 export type VerifiedWebhook = {
-  provider: "LEMON_SQUEEZY" | "MOCK" | "NONE";
+  provider: "LEMON_SQUEEZY" | "STRIPE" | "MOCK" | "NONE";
   externalEventId: string;
   type: string;
   payload: Record<string, unknown>;

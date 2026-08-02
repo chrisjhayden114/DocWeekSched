@@ -29,8 +29,9 @@ Key discovery that de-risks everything: the API **already exposes** `PUT`/`DELET
 3. Test: organizer → Agenda ingest → paste a real program → confirm a review changeset appears with sessions/papers.
 4. Watch cost via the existing AI usage page; per-plan caps/metering are already implemented.
 
-### A3. Lemon Squeezy (P0 #2) — only when you're ready to accept money
-Store + products matching the six catalog SKUs, live keys, webhook → `https://api.ukedl.com/billing/webhook`, then env: `LEMON_SQUEEZY_API_KEY`, `LEMON_SQUEEZY_STORE_ID`, `LEMON_SQUEEZY_WEBHOOK_SECRET`. Until then E1 ships the honest interim copy.
+### A3. Billing — NOW STRIPE MANAGED PAYMENTS (decided 2026-08-02; supersedes Lemon Squeezy)
+Lemon Squeezy is in wind-down after the Stripe acquisition (LS's own Jan-2026 update: slower support, migration paths prioritized). Building a new integration there = signing up for a forced migration. Decision: **Stripe Managed Payments** (Stripe as merchant of record — tax in 80+ countries, disputes, fraud; publicly available in preview; enabled per Checkout Session via `managed_payments.enabled`). Chris already has the Stripe account (sandbox created 2026-08-02 — rename the auto-named "Fundly" account to UKEDL in Settings → Business details).
+Steps: (1) Cursor implements chunk E5 below; (2) in the Stripe TEST dashboard create 5 products/prices matching the catalog in `packages/shared/src/plans.ts` — Per-event 250 $149 one-time, Per-event 500 $249 one-time, Per-event 1000 $399 one-time, Pro Monthly $79/mo recurring, Pro Annual $790/yr recurring — and record each `price_...` ID; (3) register a TEST webhook endpoint → `https://api.ukedl.com/billing/webhooks/stripe` (events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed), record the `whsec_...`; (4) Render env: `BILLING_PROVIDER=stripe`, `STRIPE_SECRET_KEY` (sk_test_... for now), `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PER_EVENT_250/500/1000`, `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`; (5) acceptance test: buy Pro Monthly with card 4242 4242 4242 4242 on production → webhook fires → org entitlements flip to Pro → portal opens → then swap to live keys + live webhook after Stripe business activation (EIN/SSN + bank).
 
 ### A4. Status page (P3 #18)
 Either stand up a real status page (Better Stack / Instatus free tiers) and point `statusPageUrl` at it, or remove the footer link until it exists. E1 removes it by default.
@@ -137,3 +138,24 @@ Acceptance: filling the wizard while the page is still settling never loses inpu
 4. **E2** — the biggest organizer quality-of-life win.
 5. **E3**, then **E4**.
 6. **A3 Lemon Squeezy** whenever you're ready to charge; **A4** status page anytime.
+
+
+### Chunk E5 — Stripe Managed Payments provider (replaces Lemon Squeezy; decided 2026-08-02)
+
+```
+Chunk E5 — implement a Stripe billing provider behind the existing BillingProvider interface. Read apps/api/src/lib/billing/types.ts, index.ts, lemonSqueezy.ts, webhooks.ts, entitlements.ts and apps/api/src/routes/billing.ts FIRST — the abstraction was built for exactly this ("Stripe/Paddle can implement the same surface later"). Scope: apps/api only; apps/web should need no changes (it consumes /billing/config and /billing/summary). Prefer NO new npm dependency: use fetch against the Stripe API and node:crypto for webhook signature verification, mirroring how the Lemon Squeezy provider works; if you conclude the official `stripe` package is genuinely necessary, STOP and say why before adding it.
+
+1. StripeBillingProvider (new file lib/billing/stripe.ts) implementing BillingProvider:
+   - isConfigured(): STRIPE_SECRET_KEY + all five STRIPE_PRICE_* env vars present.
+   - createCheckout(): POST /v1/checkout/sessions with the price for input.planKey (map per_event_250/500/1000 → mode=payment, pro_monthly/pro_annual → mode=subscription), managed_payments[enabled]=true, success/cancel URLs from input, customer_email, and metadata orgId/planKey/eventId (also into subscription_data.metadata / payment_intent_data.metadata so webhooks can recover them). Return session url + id.
+   - createCustomerPortal(): POST /v1/billing_portal/sessions.
+   - verifyWebhook(): implement Stripe-Signature verification manually (parse t= and v1=, HMAC-SHA256 of `${t}.${rawBody}` with STRIPE_WEBHOOK_SECRET, constant-time compare, reject stale timestamps >5min). Return VerifiedWebhook with provider "STRIPE".
+   - listInvoices(): GET /v1/invoices?customer=... mapped to the interface shape (best effort).
+2. Provider selection (lib/billing/index.ts): BILLING_PROVIDER=stripe → StripeBillingProvider (unconfigured → UnconfiguredBillingProvider in production, mock in dev, same pattern as LS).
+3. Webhook route + mapping: add POST /billing/webhooks/stripe (raw-body route, same middleware approach as the LS webhook). In webhooks.ts, map checkout.session.completed / customer.subscription.updated / customer.subscription.deleted / invoice.payment_succeeded / invoice.payment_failed onto the SAME entitlement transitions the LS events drive today (purchase recorded, org plan set, cancellation → revert to Free per existing behavior). Reuse the existing idempotency store (BillingWebhookEvent) keyed on Stripe's event id.
+4. Types: extend VerifiedWebhook.provider union with "STRIPE". If the Prisma BillingWebhookEvent.provider column is an enum requiring a new value, that is an ADDITIVE migration — create it (ALTER TYPE ... ADD VALUE), flag it clearly in your report, and follow expand-then-deploy discipline. If it's a string column, no migration.
+5. Env documentation: add the six new vars to .env.example with the same comment style; preflight (lib/env.ts) warning for production-with-BILLING_PROVIDER=stripe-but-missing-keys, mirroring existing billing warnings.
+6. Tests: unit-test the signature verifier (valid, tampered body, stale timestamp), the planKey→price/mode mapping, and the webhook→entitlement mapping for checkout.session.completed and customer.subscription.deleted, mirroring the existing LS webhook tests. Do NOT set ALLOW_DESTRUCTIVE_DB (per .cursor/rules).
+
+Acceptance: with BILLING_PROVIDER=stripe and test keys set, /billing/config reports checkoutEnabled true; createCheckout returns a session URL for every SKU; a simulated signed webhook flips org entitlements exactly as the LS path did; all existing LS tests still pass (the LS provider remains intact and selectable). Run npm test + npm run build in both apps, report, STOP for review.
+```

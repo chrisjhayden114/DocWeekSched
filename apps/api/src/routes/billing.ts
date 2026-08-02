@@ -43,6 +43,8 @@ billingRouter.get(
   "/pricing",
   publicRateLimit(),
   asyncHandler(async (_req, res) => {
+    // Label the active merchant of record so pricing copy stays honest across providers.
+    const merchantOfRecord = getBillingProvider().name === "stripe" ? "Stripe" : "Lemon Squeezy";
     const plans = publicPricingPlans().map((p) => ({
       sku: p.sku,
       tier: p.tier,
@@ -54,12 +56,12 @@ billingRouter.get(
       interval: p.interval,
       limits: p.limits,
       contactOnly: Boolean(p.contactOnly),
-      taxNote: "Prices shown are the catalog amounts; Lemon Squeezy (merchant of record) adds applicable sales tax/VAT at checkout.",
+      taxNote: `Prices shown are the catalog amounts; ${merchantOfRecord} (merchant of record) adds applicable sales tax/VAT at checkout.`,
     }));
     return res.json({
       plans,
       priceLock: PRICE_LOCK,
-      merchantOfRecord: "Lemon Squeezy",
+      merchantOfRecord,
     });
   }),
 );
@@ -193,12 +195,14 @@ billingRouter.post(
 );
 
 /**
- * Lemon Squeezy (and mock) webhook. Mounted with express.raw in index.ts.
- * Signature: HMAC-SHA256 hex of raw body in X-Signature.
+ * Billing webhook (Lemon Squeezy, Stripe, and mock). Mounted with express.raw in index.ts.
+ * Lemon Squeezy/mock sign the raw body into X-Signature (HMAC-SHA256 hex);
+ * Stripe uses Stripe-Signature (t=...,v1=... over `${t}.${rawBody}`).
  */
 export async function handleBillingWebhook(req: AuthedRequest, res: import("express").Response) {
   const provider = getBillingProvider();
-  const signature = req.header("x-signature") || req.header("X-Signature") || undefined;
+  const signature =
+    req.header("stripe-signature") || req.header("x-signature") || req.header("X-Signature") || undefined;
   const raw = (req as { rawBody?: Buffer }).rawBody || (Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body ?? {})));
   let verified;
   try {

@@ -1,4 +1,5 @@
 import { LemonSqueezyBillingProvider } from "./lemonSqueezy";
+import { StripeBillingProvider } from "./stripe";
 import { MockBillingProvider, UnconfiguredBillingProvider } from "./mock";
 import type { BillingProvider } from "./types";
 
@@ -28,6 +29,7 @@ export {
   mockSubscriptionPayload,
 } from "./mock";
 export { LemonSqueezyBillingProvider } from "./lemonSqueezy";
+export { StripeBillingProvider, stripeModeForPlan, STRIPE_WEBHOOK_TOLERANCE_SECONDS } from "./stripe";
 
 let cached: BillingProvider | null = null;
 
@@ -37,6 +39,15 @@ export function getBillingProvider(): BillingProvider {
   if (name === "lemonsqueezy" || name === "lemon_squeezy" || name === "lemon-squeezy") {
     const ls = new LemonSqueezyBillingProvider();
     cached = ls.isConfigured() ? ls : new UnconfiguredBillingProvider();
+    return cached;
+  }
+  if (name === "stripe") {
+    const stripe = new StripeBillingProvider();
+    cached = stripe.isConfigured()
+      ? stripe
+      : process.env.NODE_ENV === "production"
+        ? new UnconfiguredBillingProvider()
+        : new MockBillingProvider();
     return cached;
   }
   if (name === "mock" || name === "test" || process.env.NODE_ENV === "test") {
