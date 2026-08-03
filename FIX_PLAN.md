@@ -811,3 +811,350 @@ Do not apply `.input` to `type="color"` anywhere.
 - Design values come from the token module — no hardcoded hex or px in components.
 - Stop the web dev server first; reset ritual after (see README).
 - No migration expected.
+
+---
+
+# Chunk E16 — organizer efficiency and clarity
+
+Raised by the founder after walking the console on production, 2026-08-03.
+Five separate items, grouped because they are all "the organiser can see the
+thing but cannot work with it efficiently."
+
+## E16.1 — Ingest review: stack Source above the changeset (P3)
+
+`components/ReviewChangeset.tsx:444–445` uses
+`gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr)"`. For a file-sourced run
+the Source column holds four short lines (filename, mime · size · timestamp, and
+"No text preview…") and then several hundred pixels of dead white space beside a
+long scrolling changeset.
+
+**Fix:** for **file** sources, render Source as a compact horizontal band
+**above** the review — filename, type, size, time on one or two lines, full
+width. Keep the side-by-side two-column layout only for **paste/URL** runs, where
+the source preview is genuinely long enough to be worth a column. The review
+column then gets the full content width, which also relieves the density problem
+(C3 in the UX audit).
+
+## E16.2 — Assigning sessions to tracks is one-at-a-time (P1)
+
+Founder: *"each session has to be edited to be added to a track — in a big
+conference, there could be 50 or even more manual clicks."* Correct: the Program
+tab's only path is Edit → Track dropdown → Save, per session. For the DocWeek
+programme that is 21 sessions; for a real 5-track conference it is hundreds of
+interactions.
+
+This is the single biggest time cost in the console.
+
+**Fix — bulk assignment on the Program tab:**
+1. A checkbox on each session row, plus "select all" per day heading.
+2. When ≥1 session is selected, show a compact action bar: **Assign track ▾** ·
+   **Assign room ▾** · **Clear selection**, with a count ("6 selected").
+3. Applying issues one batched request, not N requests, and reports what it did
+   ("6 sessions assigned to PhD").
+4. Selection survives filtering/scrolling within the tab; it does not survive a
+   tab change (do not over-engineer persistence).
+
+Do **not** build drag-and-drop. It is expensive, fiddly for large lists, and
+inaccessible by default.
+
+## E16.3 — Sent announcements have no record (P1)
+
+Founder: *"if I sent 10 announcements, I don't see a record of what was sent."*
+
+**The data already exists.** `schema.prisma:931` — the `Announcement` model
+stores `title`, `body`, `createdAt`, `createdById`, `audience`, `audienceRole`,
+`sessionId`, `attendanceMode`, `sendEmail`, `isEmergency`, `isPreview`,
+`publishedAt`. There is also an `AnnouncementAuditLog` model (`schema.prisma:1348`).
+Nothing renders any of it. This is a UI gap, not a feature build.
+
+**Fix:** below the composer, a **"Sent announcements"** list, newest first: title,
+a body excerpt, when it was sent, who sent it, the audience it went to, and chips
+for "Email" / "Emergency" where those applied. Previews (`isPreview: true`) are
+excluded or clearly marked. If a `GET` route does not exist yet, add one, scoped
+to the event and manage access.
+
+## E16.4 — Ops Inbox is unexplained (P2)
+
+Founder: *"it's unclear to me what the Ops Inbox does."* The panel opens straight
+into "Review-and-send only — nothing is delivered until you click Send/Apply",
+a community blocklist field, and a `DAILY_DIGEST · DIGEST_NOTE` card. The label
+`DAILY_DIGEST · DIGEST_NOTE` is an internal enum shown to the user.
+
+**Fix:** a short plain-English intro at the top of the tab — what the Ops Inbox
+is (AI-drafted operational suggestions during your event: digests, stale
+questions, sessions at capacity), that nothing ever goes out without the
+organiser clicking, and what "Run detectors" does. Replace the raw enum pair with
+a human label ("Daily digest") and keep the type as a small chip if it is useful.
+Also move the community blocklist out of the card flow — it is settings, not an
+inbox item.
+
+## E16.5 — Features tab reads as a raw checkbox list (P2)
+
+Founder: *"the Features tab with all the click boxes looks very basic."* It is a
+long vertical list of native checkboxes, each with a description and the line
+"Attendees see: this feature in the app" repeated on every row.
+
+**Fix:**
+- Group features under existing headings with the group's purpose stated once.
+- Replace the native checkbox with the same toggle/switch treatment used
+  elsewhere, right-aligned, so the row reads name → description → state.
+- Delete the repeated "Attendees see: this feature in the app" line where it says
+  nothing; keep it only where a feature has a non-obvious attendee-side effect.
+- Keep the presets row (Everything on / Focused / Academic program) — it is good
+  and should stay at the top.
+
+Design values come from the token module. No hardcoded hex or px.
+
+## Acceptance
+- A file-sourced ingest review has no large empty column.
+- Six sessions can be assigned to a track in one action, and the UI says so.
+- Every announcement previously sent for an event is listed with audience and time.
+- A first-time organiser can read the Ops Inbox intro and say what it is for.
+- The Features tab groups related toggles and does not repeat the same line 20×.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Multi-tenancy: any new route is scoped to the event/org, never a bare client id.
+- Stop the web dev server first; reset ritual after (see README).
+- A migration is not expected. If you think one is needed, stop and explain why.
+
+---
+
+# Chunk E17 — one Select control, used everywhere
+
+Founder: *"I'm just not a fan of the drop-down selections — is there a way to
+review all aspects of the site and think about a more professional way for users
+to select things?"*
+
+**Measured:** 26 native `<select>` elements across 15 files — `EventSettingsModal`,
+`VenueMapEditor`, `AnnouncementComposer`, `ProgramTab`, `AgendaFilterPanel`,
+`ReviewChangeset`, `login`, `dashboard`, `organizer/index`, `ai-usage`, `billing`,
+`events/new`, both CFP pages, `styleguide`.
+
+Native `<select>` renders as the OS control, so it ignores the design system
+entirely — that grey macOS popup in the founder's screenshot is the browser, not
+the product. It is the single loudest "unfinished" signal in the console.
+
+**You already have the answer:** `components/SearchableMultiSelect.tsx` and
+`components/TimezoneSelect.tsx` exist and are styled. The pattern is present and
+applied in 2 places out of 15.
+
+**Fix:**
+1. Build one shared **`Select`** component (single-select sibling of the existing
+   multi-select): trigger styled from design tokens, listbox popup, keyboard
+   support (arrows, Home/End, type-ahead, Esc, Enter), correct ARIA
+   (`role="combobox"`/`listbox`, `aria-expanded`, `aria-activedescendant`),
+   focus returned to the trigger on close, and a disabled state.
+2. Replace all 26 native selects with it, **except** where a native control is
+   genuinely better — keep native on inputs inside the public attendee agenda if
+   testing shows the OS picker is faster on touch. State which you kept and why.
+3. Add it to `pages/styleguide.tsx` so the pattern is discoverable.
+4. Do not build a combobox that allows free text unless the field already allows
+   it (timezone already has its own control — leave it alone).
+
+**Do this as its own chunk.** It touches 15 files and should not be mixed with
+behavioural changes.
+
+## Acceptance
+- No native `<select>` remains in the organizer console.
+- Every replaced control is operable by keyboard alone and announces correctly.
+- The styleguide page shows the new control.
+
+## Standing rules
+- Design tokens only — no hardcoded hex or px in the component.
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.**
+- Stop the web dev server first; reset ritual after.
+
+---
+
+# Chunk E18 — Messages, phase 1
+
+Founder: *"the messages page looks super basic — review how other high quality
+event platforms manage messages and model this after that; I want it to be really
+good and high quality, indicating the professionalism of the site."*
+
+Research, with sources: `ux-audit-capture/RESEARCH_MESSAGING.md`. Read it before
+starting — the reasoning matters more than the checklist below.
+
+## The thesis
+
+**Messages is not a chat app.** The audience uses this three days a year. The
+right model is low-volume private correspondence, not Slack. Density, read
+receipts and typing indicators are wrong here; clarity, provenance and calm are
+right.
+
+**Founder decisions taken 2026-08-03:**
+- **"Everyone — event chat" is removed.** It duplicated Community (event-wide
+  posting) and Announcements (organizer broadcast), was the source of the
+  notification volume competitors are criticised for, and left the tab looking
+  like a stub with one row. Messages now owns exactly one job: **1:1 and small
+  named group conversations.**
+- **Scope is phase 1 only.** The message-request/consent gate, block, mute,
+  report-to-organizers, and digest email are documented in the research file and
+  are a **later chunk** — do not build them now.
+
+## In scope for this chunk (frontend-first)
+
+### E18.1 — Remove event chat
+Delete "Everyone — event chat" from the Messages surface and from `+ New`.
+Community and Announcements keep their existing roles. If existing event-chat
+data exists, do **not** hard-delete it — hide the entry point and leave the rows.
+Report what you find.
+
+### E18.2 — Real conversation rows
+Each row: avatar (initial fallback), display name, `Affiliation · Role` as a
+secondary line, a one-line preview of the last message, a relative timestamp, and
+an unread indicator.
+
+**Unread counts by conversation, never by message.** (Research: counting messages
+is the specific, documented complaint about Whova — a badge reading "47" is
+useless and stressful.)
+
+### E18.3 — Message thread
+Group consecutive messages from the same sender; show the sender once per group.
+Day dividers ("Today", "Yesterday", then the date). Timestamps per group, not per
+message. The thread scrolls to the newest message on open.
+
+### E18.4 — Composer
+Pinned to the bottom of the thread. **Enter sends, Shift+Enter newlines** (state
+this in placeholder or helper text). Optimistic send with explicit
+**sending → sent → failed** states and a **Retry** on failure — a message that
+silently fails to send is the "errors must name the real cause" rule violated in
+the most damaging place. Persist an unsent draft per conversation.
+
+### E18.5 — States and copy
+- Empty inbox: say what Messages is for and how to start one — not "No messages yet".
+- Empty thread, sending, failed, and offline all get honest copy.
+- Rename `+ New` → **New message**; `Filter chats` → **Search names or messages**.
+- Delete both current explainer paragraphs — the interface should not need them.
+
+### E18.6 — Accessibility
+Conversation list is a keyboard-navigable list; the thread is a labelled region;
+new incoming messages announce via a polite live region (not per keystroke);
+focus moves sensibly between list, thread and composer; visible focus rings.
+
+### E18.7 — Polling, not sockets
+Reuse the existing Q&A polling approach. Poll on a slow interval, **pause when
+the tab is hidden**, resume on focus. Do not introduce websockets.
+
+## Explicitly NOT in this chunk
+Request/consent gate · block · mute · report-to-organizers · digest email ·
+cross-conversation search · attachments · read receipts · typing indicators ·
+AI-drafted replies · sponsor bulk messaging. Several of these are permanently
+rejected on anti-goal grounds — see the research file's rejected-patterns
+section before proposing any of them.
+
+## Acceptance
+- The Messages tab with two real conversations looks like a product, not a stub.
+- Unread shows a conversation count, not a message count.
+- A failed send is visible and retryable; a draft survives switching conversations.
+- Keyboard-only: reach the list, open a conversation, type, send.
+- Nothing polls while the tab is hidden.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Multi-tenancy: every query scoped to event/org, never a bare client id.
+- Design tokens only. Stop the web dev server first; reset ritual after.
+- If a migration seems necessary, stop and explain why before writing one.
+
+---
+
+# Chunk E19 — concurrent sessions at scale, and the two assistants
+
+Raised by the founder, 2026-08-03.
+
+## E19.1 — Three or more concurrent sessions will not fit (P1)
+
+`pages/dashboard.tsx:2434` renders "{n} concurrent sessions" and then lays the
+sessions out side by side. With two, each card is already narrow enough that
+titles truncate ("Research Design Workshop - PhD…"). A five-track conference —
+squarely inside the stated 50–2,000 target band — puts five cards in that row.
+
+This is the "what breaks at scale" risk the veteran persona raised
+(`UX_AUDIT_MERGED.md` §3).
+
+**Fix:**
+1. Set a minimum readable card width. Above the count that fits, **stop adding
+   columns** — wrap to a second line, or switch that time slot to a compact
+   stacked list with the track colour and name carried on each row.
+2. Never truncate a session title to fewer than roughly 40 characters; wrap to two
+   lines instead. Titles are how people choose.
+3. Test with **five** concurrent sessions, not two. Add a fixture.
+4. The Grid and By-room views already handle parallelism with columns — check
+   they degrade sensibly at five tracks too, and say what you found.
+
+## E19.2 — The attendee Concierge wears organizer language (P1)
+
+`components/ConciergeChat.tsx:247` renders `<AiGeneratedChip />`, whose text is
+**"AI-generated — review before publishing."** The Concierge is an
+**attendee-facing** assistant. An attendee publishes nothing. The founder read
+the chip and reasonably concluded the Concierge was an organizer setup tool.
+
+**Fix:** the attendee surface gets an honest label — e.g. **"AI answer — based on
+this event's schedule"** — conveying that it is AI and what it is grounded in,
+without implying a publishing workflow. Keep `AiGeneratedChip` as-is wherever an
+organizer really is reviewing before publishing. Audit for any other
+attendee-facing use of the publish-language chip.
+
+Also observed: asked "What's on this morning?" for an event whose sessions are in
+June, it replied **"No matching sessions in this event's schedule."** True but
+misleading — it sounds like the schedule is empty. It should say there is nothing
+today and name when the event actually runs. Same rule as everywhere else: the
+message must name the real reason.
+
+## E19.3 — Two assistants, both real, both findable (P2)
+
+**Both already exist:**
+- `components/SetupCopilotChat.tsx` (256 lines) — organizer-side, mounted at
+  `pages/organizer/events/new.tsx:399` ("Set up with AI") and
+  `pages/organizer/events/[eventId]/index.tsx:526` (Features tab, "Ask the
+  assistant").
+- `components/ConciergeChat.tsx` (306 lines) — attendee-side, a floating button on
+  attendee pages.
+
+The founder — who built this product — did not know the organizer one existed and
+thought the attendee one was it. That is a discoverability failure, not a missing
+feature. (The novice persona independently found the help article referencing
+"Setup Copilot" with no such control visible on screen.)
+
+**Fix — make the split explicit and each one actually useful:**
+
+1. **Name them distinctly and consistently** everywhere, including help articles.
+   Suggested: **Setup assistant** (organizer) and **Event assistant** (attendee).
+   Names come from the config/copy layer, not hardcoded.
+2. **Organizer — make it a real setup companion, not a chat box.** It should know
+   the state of the event and drive it forward: what is still missing (no rooms,
+   no speakers, sessions still draft, event unpublished, no venue), what to do
+   next, and a link that navigates straight to the tab and control that fixes it.
+   A checklist that reads live event state and deep-links is worth more than
+   conversational ability.
+3. **Attendee — make it a real wayfinder.** Grounded strictly in this event's
+   published schedule, rooms, maps and FAQ: answer "when is X", "where is room
+   201", "what's on after lunch", "who is presenting Y", and offer a link that
+   navigates to the session, map or page. When it cannot answer, say why
+   specifically ("this event runs 8–10 June; there is nothing scheduled today")
+   rather than a flat no-match.
+4. **Both keep the existing gateway guarantees** — all calls through
+   `apps/api/src/lib/ai`, grounded per event, metered, labelled, audited. No
+   agent output reaches an attendee without an organizer approving it; the
+   attendee assistant answers *from published data* and never publishes.
+5. Surface the organizer assistant somewhere persistent in the console, not only
+   inside the create-event flow and one Features-tab button.
+
+**Do not** build a general-purpose chatbot. Both must refuse questions outside
+their event's data rather than improvising — an assistant that invents a room
+number is worse than none.
+
+## Acceptance
+- Five concurrent sessions render readably; no title truncated below ~40 chars.
+- No attendee-facing surface says "review before publishing".
+- The attendee assistant, asked about a day with no sessions, states when the
+  event actually runs.
+- A new organizer can find the setup assistant without being told it exists, and
+  it names the next incomplete step and links to it.
+- Both assistants decline out-of-scope questions rather than guessing.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- All AI calls via the gateway. Agents draft, humans publish.
+- Design tokens only. Stop the web dev server first; reset ritual after.
