@@ -41,6 +41,30 @@ export function textFromDataUrl(dataUrl: string): string {
   return asText;
 }
 
+export type IngestAttachment = { type: "document" | "image"; mediaType: string; base64: string };
+
+/**
+ * Build a multimodal attachment (PDF/image only — the provider types the
+ * gateway supports) from a data: URL. Returns null for other mimes.
+ * Throws when the decoded payload exceeds AGENDA_INGEST_MAX_BYTES.
+ */
+export function attachmentFromDataUrl(dataUrl: string): IngestAttachment | null {
+  const m = /^data:([^;,]+)?(?:;charset=[^;,]+)?;base64,(.+)$/i.exec(dataUrl.trim());
+  if (!m?.[2]) return null;
+  const mime = (m[1] || "application/octet-stream").toLowerCase();
+  const bytes = Buffer.from(m[2], "base64");
+  if (bytes.length > AGENDA_INGEST_MAX_BYTES) {
+    throw new Error(`File exceeds max size of ${AGENDA_INGEST_MAX_BYTES} bytes`);
+  }
+  if (mime === "application/pdf") {
+    return { type: "document", mediaType: "application/pdf", base64: m[2] };
+  }
+  if (mime.startsWith("image/")) {
+    return { type: "image", mediaType: mime, base64: m[2] };
+  }
+  return null;
+}
+
 export async function fetchUrlText(url: string): Promise<{ text: string; mime: string | null }> {
   if (!/^https?:\/\//i.test(url)) {
     throw new Error("URL must be http(s)");

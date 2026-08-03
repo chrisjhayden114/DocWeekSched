@@ -2,13 +2,19 @@ import { AgendaIngestRunStatus, type Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { registerJobHandler, type JobHandler } from "../../jobs";
 import { log } from "../../log";
-import { AGENDA_INGEST_JOB_TYPE } from "./constants";
+import { AGENDA_INGEST_JOB_TYPE, AGENDA_INGEST_MAX_BYTES } from "./constants";
 import { runAgendaExtract } from "./extract";
-import { textFromDataUrl } from "./sourceText";
+import { attachmentFromDataUrl, textFromDataUrl, type IngestAttachment } from "./sourceText";
 
 type JobPayload = {
   runId: string;
   sourceText?: string;
+  /**
+   * E9.1: base64 source (PDF/image) passed by the ingest route so the job can
+   * build the multimodal attachment without re-reading storage — the stored
+   * URL may be an opaque object-store address with no read API.
+   */
+  attachment?: IngestAttachment;
 };
 
 const handler: JobHandler = async (job) => {
@@ -34,17 +40,16 @@ const handler: JobHandler = async (job) => {
     throw new Error("No source text available for extract");
   }
 
-  let attachment: { type: "document" | "image"; mediaType: string; base64: string } | undefined;
-  if (run.sourceUrl?.startsWith("data:")) {
-    const m = /^data:([^;,]+)?(?:;charset=[^;,]+)?;base64,(.+)$/i.exec(run.sourceUrl.trim());
-    if (m?.[2]) {
-      const mime = (m[1] || "application/octet-stream").toLowerCase();
-      if (mime === "application/pdf") {
-        attachment = { type: "document", mediaType: "application/pdf", base64: m[2] };
-      } else if (mime.startsWith("image/")) {
-        attachment = { type: "image", mediaType: mime, base64: m[2] };
-      }
+  let attachment: IngestAttachment | undefined;
+  const fromPayload = payload.attachment;
+  if (fromPayload?.base64 && (fromPayload.type === "document" || fromPayload.type === "image")) {
+    if (Buffer.from(fromPayload.base64, "base64").length > AGENDA_INGEST_MAX_BYTES) {
+      throw new Error(`File exceeds max size of ${AGENDA_INGEST_MAX_BYTES} bytes`);
     }
+    attachment = fromPayload;
+  } else if (run.sourceUrl?.startsWith("data:")) {
+    // Legacy/dev path: the data-URL storage fallback keeps the bytes on the run.
+    attachment = attachmentFromDataUrl(run.sourceUrl) ?? undefined;
   }
 
   const event = await prisma.event.findUniqueOrThrow({
@@ -86,6 +91,26 @@ const handler: JobHandler = async (job) => {
       })),
       attachment,
     });
+
+    // E9.2: a zero-session extract is evidence the parse failed, never
+    // evidence the organizer deleted their programme. End the run visibly
+    // empty/failed and propose nothing (buildReimportChangeset also refuses
+    // to emit delete rows for an empty extract).
+    if (extracted.extraction.sessions.length === 0) {
+      await prisma.agendaIngestRun.update({
+        where: { id: runId },
+        data: {
+          status: AgendaIngestRunStatus.FAILED,
+          extraction: extracted.extraction as unknown as Prisma.InputJsonValue,
+          assumptions: extracted.assumptions as unknown as Prisma.InputJsonValue,
+          changeset: [] as unknown as Prisma.InputJsonValue,
+          sourceTextPreview: extracted.sourcePreview,
+          error:
+            "No sessions found in the source — nothing was changed. Include times like '9:00–10:15' and one session per line, then try again.",
+        },
+      });
+      return { runId, sessionCount: 0, fixtureId: extracted.fixtureId };
+    }
 
     await job.updateProgress(90, "Saving review changeset");
 

@@ -48,6 +48,10 @@ export function buildReimportChangeset(
   existing: ExistingSessionLite[],
   eventTimezone: string,
 ): ChangesetRow[] {
+  // E9.2: an empty extract means the parse failed — never propose deleting
+  // the existing programme on the strength of it.
+  if (extract.sessions.length === 0) return [];
+
   const rows: ChangesetRow[] = [];
   const matchedExisting = new Set<string>();
   let rowIndex = 0;

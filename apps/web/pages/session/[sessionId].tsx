@@ -13,7 +13,6 @@ import { downloadSessionIcs } from "../../lib/calendarIcs";
 import { formatEventTimeRange } from "../../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../../lib/push";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const RESOURCE_DATA_URL_MAX_CHARS = 4_500_000;
 
 type User = {
@@ -178,19 +177,19 @@ function fileToDataUrl(file: File): Promise<string> {
 
 async function fetchSessionResources(token: string, sessionId: string): Promise<SessionResource[]> {
   const evId = window.localStorage.getItem("activeEventId");
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/resources`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(evId ? { "x-event-id": evId } : {}),
-    },
-  });
-  if (res.status === 403) {
+  try {
+    // E9.3: must go through apiFetch — it sends the httpOnly auth cookie
+    // (credentials: "include"); a raw fetch with only a Bearer header never
+    // authenticates cross-origin, so this 401'd for everyone.
+    return await apiFetch<SessionResource[]>(
+      `/sessions/${sessionId}/resources`,
+      withEventHeaders(evId),
+      token,
+    );
+  } catch {
+    // 403 = not joined this session; the panel shows its join hint instead.
     return [];
   }
-  if (!res.ok) {
-    return [];
-  }
-  return (await res.json()) as SessionResource[];
 }
 
 export default function SessionPage() {

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  AGENDA_INGEST_MAX_BYTES,
   FIXTURES,
   INJECTION_PHRASE,
   REIMPORT_TITLE_THRESHOLD,
+  attachmentFromDataUrl,
   buildReimportChangeset,
   chunkSourceText,
   loadFixtureExpected,
@@ -97,6 +99,71 @@ describe("Agenda ingest (unit)", () => {
     expect(deletes.every((d) => d.kind === "delete" && d.accepted === false)).toBe(true);
     // Matched existing should not also appear as creates with same id titles duplicated unboundedly
     expect(creates.filter((c) => c.session.title === extract.sessions[0].title).length).toBe(0);
+  });
+
+  it("empty extract proposes NO deletions (E9.2)", () => {
+    const empty = agendaExtractSchema.parse({ sessions: [], assumptions: [] });
+    const existing = [
+      {
+        id: "sess-1",
+        title: "Keynote",
+        startsAt: new Date("2027-06-12T09:00:00Z"),
+        endsAt: new Date("2027-06-12T10:00:00Z"),
+      },
+      {
+        id: "sess-2",
+        title: "Lunch",
+        startsAt: new Date("2027-06-12T12:00:00Z"),
+        endsAt: new Date("2027-06-12T13:00:00Z"),
+      },
+    ];
+    const rows = buildReimportChangeset(empty, existing, "UTC");
+    expect(rows).toEqual([]);
+  });
+
+  it("empty extract through runAgendaExtract yields no delete proposals (E9.2)", async () => {
+    process.env.AI_PROVIDER = "mock";
+    resetAiProviderForTests(new MockAiProvider());
+    // Non-fixture source → mock provider returns zero sessions.
+    const result = await runAgendaExtract({
+      organizationId: "org_test",
+      eventId: "evt_test",
+      sourceText: "random text that matches no fixture",
+      eventTimezone: "UTC",
+      existingSessions: [
+        {
+          id: "sess-1",
+          title: "Keynote",
+          startsAt: new Date("2027-06-12T09:00:00Z"),
+          endsAt: new Date("2027-06-12T10:00:00Z"),
+        },
+      ],
+      skipCap: true,
+      skipMetering: true,
+      skipAudit: true,
+    });
+    expect(result.extraction.sessions).toHaveLength(0);
+    expect(result.changeset).toEqual([]);
+  });
+
+  it("attachmentFromDataUrl builds PDF/image attachments, rejects others, enforces max bytes (E9.1)", () => {
+    const pdfB64 = Buffer.from("%PDF-1.4 fake").toString("base64");
+    const pdf = attachmentFromDataUrl(`data:application/pdf;base64,${pdfB64}`);
+    expect(pdf).toEqual({ type: "document", mediaType: "application/pdf", base64: pdfB64 });
+
+    const pngB64 = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString("base64");
+    const png = attachmentFromDataUrl(`data:image/png;base64,${pngB64}`);
+    expect(png).toEqual({ type: "image", mediaType: "image/png", base64: pngB64 });
+
+    const txtB64 = Buffer.from("plain text").toString("base64");
+    expect(attachmentFromDataUrl(`data:text/plain;base64,${txtB64}`)).toBeNull();
+    expect(attachmentFromDataUrl("not a data url")).toBeNull();
+
+    // 3 base64 chars ≈ ceil(n/3)*4 — build a payload just over the cap.
+    const overCap = Buffer.alloc(AGENDA_INGEST_MAX_BYTES + 1).toString("base64");
+    expect(() => attachmentFromDataUrl(`data:application/pdf;base64,${overCap}`)).toThrow(
+      /exceeds max size/,
+    );
   });
 
   it("mock extract hits ≥90% of unambiguous fixture fields + keeps author order; injection inert", async () => {

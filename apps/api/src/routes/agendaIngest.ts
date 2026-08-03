@@ -11,11 +11,13 @@ import {
   AGENDA_INGEST_JOB_TYPE,
   AGENDA_INGEST_MAX_BYTES,
   INGEST_ALLOWED_MIME,
+  attachmentFromDataUrl,
   confirmAgendaChangeset,
   fetchUrlText,
   previewText,
   textFromDataUrl,
   type ChangesetRow,
+  type IngestAttachment,
 } from "../lib/ai/ingest";
 import { extractedSessionSchema } from "../lib/ai/ingest/schema";
 import { prisma } from "../lib/db";
@@ -193,6 +195,7 @@ agendaIngestRouter.post(
     let sourceMime = parsed.data.mime || null;
     let sourceBytes: number | null = null;
     let sourceFileName = parsed.data.fileName || null;
+    let sourceAttachment: IngestAttachment | null = null;
 
     if (parsed.data.sourceKind === AgendaIngestSourceKind.PASTE) {
       sourceText = (parsed.data.text || "").trim();
@@ -216,16 +219,21 @@ agendaIngestRouter.post(
       });
       sourceUrl = stored.url;
       sourceStorageKey = stored.storageKey;
-      if (stored.url.startsWith("data:")) {
-        sourceText = textFromDataUrl(stored.url);
-        const m = /^data:([^;,]+)/i.exec(stored.url);
+      // E9.1: derive text/mime/bytes from the INBOUND payload, not the stored
+      // URL — with a real object store the stored URL is an opaque https://
+      // address with no read API, while the browser posts the bytes as a
+      // data: URL in fileUrl. Storage remains the audit trail only.
+      if (parsed.data.fileUrl.startsWith("data:")) {
+        sourceText = textFromDataUrl(parsed.data.fileUrl);
+        const m = /^data:([^;,]+)/i.exec(parsed.data.fileUrl);
         sourceMime = sourceMime || m?.[1] || null;
-        const b64 = stored.url.split(",")[1] || "";
+        const b64 = parsed.data.fileUrl.split(",")[1] || "";
         sourceBytes = Buffer.from(b64, "base64").length;
+        sourceAttachment = attachmentFromDataUrl(parsed.data.fileUrl);
       } else if (parsed.data.text) {
         sourceText = parsed.data.text;
       } else {
-        sourceText = parsed.data.text || `[Stored file ${sourceFileName || "upload"}]`;
+        sourceText = `[Stored file ${sourceFileName || "upload"}]`;
       }
     } else if (parsed.data.text) {
       sourceText = parsed.data.text;
@@ -262,7 +270,13 @@ agendaIngestRouter.post(
       organizationId: event.organizationId,
       eventId: event.id,
       createdById: req.user!.id,
-      payload: { runId: run.id, sourceText },
+      payload: {
+        runId: run.id,
+        sourceText,
+        // E9.1: base64 + mime travel on the job payload so the worker can
+        // rebuild the multimodal attachment without re-reading storage.
+        ...(sourceAttachment ? { attachment: sourceAttachment } : {}),
+      },
       maxAttempts: 1,
     });
 

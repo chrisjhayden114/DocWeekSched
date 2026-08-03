@@ -17,5 +17,12 @@ export {
   matchFixtureId,
   INJECTION_PHRASE,
 } from "./fixtures";
-export { htmlToText, textFromDataUrl, fetchUrlText, previewText } from "./sourceText";
+export {
+  htmlToText,
+  textFromDataUrl,
+  fetchUrlText,
+  previewText,
+  attachmentFromDataUrl,
+  type IngestAttachment,
+} from "./sourceText";
 export { sessionVisibilityWhere, isSessionAttendeeVisible } from "./visibility";

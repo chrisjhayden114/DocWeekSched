@@ -571,7 +571,9 @@ export default function Dashboard() {
             setActiveConversationId(preferred.id);
           }
           if (attendees.length === 0) {
-            setAttendees(await apiFetchAll<User>("/attendees", {}, token).catch(() => []));
+            // E9.4: GET /attendees requires the x-event-id header —
+            // resolveEventFromRequest 404s without it.
+            setAttendees(await apiFetchAll<User>("/attendees", withEventHeaders(), token).catch(() => []));
           }
         }
         const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
