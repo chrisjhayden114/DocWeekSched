@@ -443,3 +443,75 @@ Founder overruled it with evidence from a real programme.
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
 - Stop the web dev server first; reset ritual after (see README). No migrations
   expected — all fields in E11.1 already exist on `AgendaIngestRun`.
+
+---
+
+# Chunk E12 — after the action, show the result (UX)
+
+Found 2026-08-02 walking the full ingest → confirm → add-resource → attendee path
+on production, immediately after E11 shipped. E11 fixed what the review screen
+*says*; E12 fixes what happens *after you act*. Common theme: the app confirms an
+action in green text and then leaves the user to find the consequence themselves.
+
+## E12.1 — "Confirm drafts" is a dead end (P1)
+
+Confirming 22 sessions leaves you on the ingest page with
+"Created 18 draft session(s), updated 4, deleted 0." There is no link to the
+program. The founder had to navigate Overview → Program manually to see what he
+had just created — after a two-minute wait.
+
+**Fix:** the success message gets a primary action, **"View program"**, linking to
+the Program tab of that event (and a secondary "Import another"). Keep the
+counts. Drafts-stay-hidden wording stays — it is genuinely useful.
+
+## E12.2 — the organizer cannot see the resource they just added (P1)
+
+Adding a resource from the Program tab shows "Resource added — attendees who join
+this session can open it from the session page." and then **nothing**. The Program
+tab does not list existing resources, so there is no way to confirm what was
+attached, spot a duplicate, or remove a mistake without leaving for the public
+session page.
+
+A confirmation that cannot be verified in place is barely a confirmation.
+
+**Fix:** list existing resources inline under each session in the Program tab —
+title, type (link/file), who added it, and a Remove action — reusing the
+endpoints from E9.3. Papers already list this way; resources should match.
+
+## E12.3 — resources are buried on the attendee session page (P2)
+
+On `/session/:id` the *add-resource form* renders above the resource list, and an
+attached file appears as small plain text ("Test") below it. For an attendee whose
+only goal is opening the slides, the page leads with a form they mostly do not
+need.
+
+**Fix:** invert the panel — existing resources first, as a legible list with a
+clear affordance to open; the add form below, secondary (collapsed behind
+"+ Add a resource" is acceptable). Empty state keeps the current hint.
+
+## E12.4 — resource upload copy leaks implementation detail (P2)
+
+`apps/web/pages/session/[sessionId].tsx` L868: *"Uploads are sent as data URLs and
+must stay under about 4.5 MB so the server can accept them."*
+
+"Data URLs" is meaningless to an academic organizer, and it is the same class of
+defect as the `[Binary application/pdf …]` stub fixed in E11.1 — an internal
+mechanism shown where a fact belongs. It is also confusingly inconsistent with the
+ingest page's "≤20 MB".
+
+**Fix:** plain English — e.g. *"Add a link, or upload a file up to 4.5 MB.
+Anyone who joins this session can open it."* Do not explain the transport. Keep
+the real limit. Wording via the config/copy layer. Note for whoever does this: the
+4.5 MB ceiling is a browser request-encoding limit
+(`RESOURCE_DATA_URL_MAX_CHARS`), not an R2 limit — if it is ever worth raising,
+that is a separate change to how the browser uploads, not a copy edit.
+
+## Acceptance
+- After Confirm drafts, one click reaches the created sessions.
+- A resource added from the Program tab is visible in the Program tab.
+- An attendee opening a session sees attached resources before any form.
+- No user-facing string contains "data URL".
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Stop the web dev server first; reset ritual after (see README). No migrations.
