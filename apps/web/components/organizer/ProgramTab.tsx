@@ -1,3 +1,4 @@
+import { programCopy } from "@event-app/config";
 import { useRouter } from "next/router";
 import { FormEvent, useMemo, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -67,6 +68,18 @@ type SessionDraft = {
 };
 
 const smallButton = { fontSize: 13, padding: "2px 10px" } as const;
+
+/** Same encoding ceiling as the session-page resource form (server accepts ~4.5 MB). */
+const RESOURCE_DATA_URL_MAX_CHARS = 4_500_000;
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 function errorMessage(err: unknown): string {
   const e = err as Error & { body?: { error?: string } };
@@ -165,12 +178,20 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
   const [addRoomOpen, setAddRoomOpen] = useState(false);
   const [addSessionOpen, setAddSessionOpen] = useState(false);
   const [addPaperSessionId, setAddPaperSessionId] = useState<string | null>(null);
+  // E11.3: one combined "+ Add" entry point per session. The chooser opens
+  // either the paper form (unchanged) or the resource form (SessionResource —
+  // a separate model with its own endpoints).
+  const [addChooserSessionId, setAddChooserSessionId] = useState<string | null>(null);
+  const [addResourceSessionId, setAddResourceSessionId] = useState<string | null>(null);
 
   const [trackDraft, setTrackDraft] = useState({ name: "", color: "#0033A0" });
   const [roomDraft, setRoomDraft] = useState({ name: "" });
   const emptySessionDraft: SessionDraft = { title: "", startLocal: "", endLocal: "", trackId: "", roomId: "" };
   const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySessionDraft);
   const [paperDraft, setPaperDraft] = useState({ title: "", authorsText: "" });
+  const emptyResourceDraft = { title: "", kind: "LINK" as "LINK" | "FILE", url: "", file: null as File | null };
+  const [resourceDraft, setResourceDraft] = useState(emptyResourceDraft);
+  const [resourceNotices, setResourceNotices] = useState<Record<string, string>>({});
 
   const [editTrack, setEditTrack] = useState<{ id: string; name: string; color: string } | null>(null);
   const [editRoom, setEditRoom] = useState<{ id: string; name: string } | null>(null);
@@ -356,6 +377,46 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
     if (ok) {
       setPaperDraft({ title: "", authorsText: "" });
       setAddPaperSessionId(null);
+    }
+  }
+
+  // ——— Session resources (E11.3 — reuses the endpoints fixed in E9.3) ———
+
+  async function submitAddResource(e: FormEvent, sessionId: string) {
+    e.preventDefault();
+    const key = `add-resource-${sessionId}`;
+    if (!resourceDraft.title.trim()) return;
+    let url = "";
+    if (resourceDraft.kind === "LINK") {
+      url = resourceDraft.url.trim();
+      if (!url) {
+        setRowError(key, "Paste a link URL.");
+        return;
+      }
+    } else {
+      if (!resourceDraft.file) {
+        setRowError(key, "Choose a file to upload.");
+        return;
+      }
+      url = await fileToDataUrl(resourceDraft.file);
+      if (url.length > RESOURCE_DATA_URL_MAX_CHARS) {
+        setRowError(key, "That file is too large after encoding. Try a smaller file or share a link instead.");
+        return;
+      }
+    }
+    const ok = await run(key, async () => {
+      await organizerFetch(`/sessions/${sessionId}/resources`, eventId, {
+        method: "POST",
+        body: JSON.stringify({ title: resourceDraft.title.trim(), kind: resourceDraft.kind, url }),
+      });
+    });
+    if (ok) {
+      setResourceDraft(emptyResourceDraft);
+      setAddResourceSessionId(null);
+      setResourceNotices((prev) => ({
+        ...prev,
+        [sessionId]: "Resource added — attendees who join this session can open it from the session page.",
+      }));
     }
   }
 
@@ -756,8 +817,8 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
         </div>
 
         <p className="help-text" style={{ margin: "0 0 8px" }}>
-          Paper authors are listed under each paper inside a session. Speakers (from the Speakers tab) present
-          sessions — a person can be both.
+          A session can hold papers (with author lists) and resources (slides, links, files). Speakers (from the
+          Speakers tab) present sessions — a person can be both.
         </p>
 
         {sessions.length === 0 && !addSessionOpen ? (
@@ -1032,18 +1093,153 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                               ) : null}
                             </div>
                           ) : null}
-                          {addPaperSessionId !== s.id ? (
-                            <button
-                              type="button"
-                              className="button ghost"
-                              style={{ ...smallButton, marginTop: 4 }}
-                              onClick={() => {
-                                setPaperDraft({ title: "", authorsText: "" });
-                                setAddPaperSessionId(s.id);
-                              }}
+                          {addResourceSessionId === s.id ? (
+                            <form
+                              onSubmit={(e) => void submitAddResource(e, s.id)}
+                              className="console-form"
+                              style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid var(--gray-100)" }}
                             >
-                              + Add paper
-                            </button>
+                              <label>
+                                Resource title
+                                <input
+                                  className="input"
+                                  required
+                                  value={resourceDraft.title}
+                                  onChange={(e) => setResourceDraft((d) => ({ ...d, title: e.target.value }))}
+                                  placeholder="e.g. Slides, reading list"
+                                />
+                              </label>
+                              <div
+                                role="group"
+                                aria-label="Resource type"
+                                style={{ display: "flex", gap: 16, alignItems: "center" }}
+                              >
+                                <label
+                                  style={{ display: "inline-flex", gap: 6, alignItems: "center", cursor: "pointer" }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`resource-kind-${s.id}`}
+                                    checked={resourceDraft.kind === "LINK"}
+                                    onChange={() => setResourceDraft((d) => ({ ...d, kind: "LINK" }))}
+                                  />
+                                  Link
+                                </label>
+                                <label
+                                  style={{ display: "inline-flex", gap: 6, alignItems: "center", cursor: "pointer" }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`resource-kind-${s.id}`}
+                                    checked={resourceDraft.kind === "FILE"}
+                                    onChange={() => setResourceDraft((d) => ({ ...d, kind: "FILE" }))}
+                                  />
+                                  File
+                                </label>
+                              </div>
+                              {resourceDraft.kind === "LINK" ? (
+                                <label>
+                                  Link URL
+                                  <input
+                                    className="input"
+                                    type="url"
+                                    required
+                                    value={resourceDraft.url}
+                                    onChange={(e) => setResourceDraft((d) => ({ ...d, url: e.target.value }))}
+                                    placeholder="https://…"
+                                  />
+                                </label>
+                              ) : (
+                                <label>
+                                  File (up to ~4.5 MB)
+                                  <input
+                                    className="input"
+                                    type="file"
+                                    onChange={(e) =>
+                                      setResourceDraft((d) => ({ ...d, file: e.target.files?.[0] || null }))
+                                    }
+                                  />
+                                </label>
+                              )}
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button className="button" type="submit" style={smallButton} disabled={busy}>
+                                  Add resource
+                                </button>
+                                <button
+                                  className="button secondary"
+                                  type="button"
+                                  style={smallButton}
+                                  disabled={busy}
+                                  onClick={() => setAddResourceSessionId(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              {rowError(`add-resource-${s.id}`)}
+                            </form>
+                          ) : null}
+                          {resourceNotices[s.id] ? (
+                            <p
+                              role="status"
+                              style={{ margin: "6px 0 0", color: "var(--success)", font: "var(--text-body)" }}
+                            >
+                              {resourceNotices[s.id]}
+                            </p>
+                          ) : null}
+                          {/* E11.3: one combined entry point; Paper and SessionResource stay separate models. */}
+                          {addPaperSessionId !== s.id && addResourceSessionId !== s.id ? (
+                            addChooserSessionId === s.id ? (
+                              <div style={{ marginTop: 8, display: "grid", gap: 6, justifyItems: "start" }}>
+                                <button
+                                  type="button"
+                                  className="button ghost"
+                                  style={{ ...smallButton, textAlign: "left" }}
+                                  onClick={() => {
+                                    setPaperDraft({ title: "", authorsText: "" });
+                                    setAddPaperSessionId(s.id);
+                                    setAddChooserSessionId(null);
+                                  }}
+                                >
+                                  <strong>{programCopy.paper.noun}</strong> — {programCopy.paper.hint}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="button ghost"
+                                  style={{ ...smallButton, textAlign: "left" }}
+                                  onClick={() => {
+                                    setResourceDraft(emptyResourceDraft);
+                                    setAddResourceSessionId(s.id);
+                                    setAddChooserSessionId(null);
+                                  }}
+                                >
+                                  <strong>{programCopy.resource.noun}</strong> — {programCopy.resource.hint}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="button secondary"
+                                  style={smallButton}
+                                  onClick={() => setAddChooserSessionId(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="button ghost"
+                                style={{ ...smallButton, marginTop: 4 }}
+                                onClick={() => {
+                                  setResourceNotices((prev) => {
+                                    const next = { ...prev };
+                                    delete next[s.id];
+                                    return next;
+                                  });
+                                  setAddChooserSessionId(s.id);
+                                }}
+                              >
+                                + {programCopy.addEntryLabel}
+                              </button>
+                            )
                           ) : null}
                         </>
                       )}

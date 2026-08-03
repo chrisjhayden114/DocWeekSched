@@ -2,7 +2,7 @@ import { brand } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import {
   ReviewChangeset,
@@ -10,12 +10,15 @@ import {
   type ReviewChangeRow,
 } from "../../../../components/ReviewChangeset";
 import { SessionCsvImport } from "../../../../components/organizer/SessionCsvImport";
+import { describeIngestSource, ingestReviewHeading } from "../../../../lib/ingestSource";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
 type IngestRun = {
   id: string;
   sourceKind: string;
   sourceFileName?: string | null;
+  sourceMime?: string | null;
+  sourceBytes?: number | null;
   sourceTextPreview?: string | null;
   status: string;
   extraction?: unknown;
@@ -178,6 +181,17 @@ export default function AgendaIngestPage() {
   const [rows, setRows] = useState<ReviewChangeRow[]>([]);
   const [assumptions, setAssumptions] = useState<ReviewAssumption[]>([]);
   const [history, setHistory] = useState<HistoryResponse | null>(null);
+  const reviewRef = useRef<HTMLDivElement | null>(null);
+
+  // E11.2: after a multi-minute extraction the result must not sit invisibly
+  // below the upload widgets — bring the review panel into view.
+  useEffect(() => {
+    // The ref is only attached while the review panel renders, so this is a
+    // no-op for failed/empty runs.
+    if (run?.status === "READY_FOR_REVIEW") {
+      reviewRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }
+  }, [run?.id, run?.status]);
 
   const loadHistory = useCallback(async () => {
     if (!eventId) return;
@@ -198,6 +212,10 @@ export default function AgendaIngestPage() {
     }),
     [rows],
   );
+
+  // E11.1: file-sourced runs show real metadata in the Source panel — never
+  // the internal "[Binary …]" placeholder that sourceTextPreview holds for them.
+  const sourceDisplay = useMemo(() => (run ? describeIngestSource(run) : null), [run]);
 
   async function startIngest(body: Record<string, unknown>) {
     setBusy(true);
@@ -428,10 +446,36 @@ export default function AgendaIngestPage() {
           {eventId ? <SessionCsvImport eventId={eventId} /> : null}
         </section>
 
-        {run && rows.length > 0 && (run.status === "READY_FOR_REVIEW" || run.status === "CONFIRMED") ? (
+        {run && sourceDisplay && rows.length > 0 && (run.status === "READY_FOR_REVIEW" || run.status === "CONFIRMED") ? (
+          <div ref={reviewRef}>
           <ReviewChangeset
-            title={run.status === "CONFIRMED" ? "Confirmed drafts" : "Review extracted agenda"}
-            sourcePreview={run.sourceTextPreview || undefined}
+            title={ingestReviewHeading({
+              confirmed: run.status === "CONFIRMED",
+              creates: summary.creates,
+              updates: summary.updates,
+              sourceKind: run.sourceKind,
+              fileName: run.sourceFileName,
+            })}
+            sourcePreview={sourceDisplay.previewText || undefined}
+            sourceInfo={
+              sourceDisplay.isFile ? (
+                <div style={{ display: "grid", gap: 4, marginBottom: sourceDisplay.previewText ? 8 : 0 }}>
+                  {sourceDisplay.fileName ? (
+                    <p style={{ margin: 0, fontWeight: 600, overflowWrap: "anywhere" }}>{sourceDisplay.fileName}</p>
+                  ) : null}
+                  <p className="help-text" style={{ margin: 0 }}>
+                    {[sourceDisplay.mime, sourceDisplay.sizeLabel, new Date(run.createdAt).toLocaleString()]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                  {sourceDisplay.previewNote ? (
+                    <p className="help-text" style={{ margin: 0, fontStyle: "italic" }}>
+                      {sourceDisplay.previewNote}
+                    </p>
+                  ) : null}
+                </div>
+              ) : undefined
+            }
             rows={rows}
             summary={summary}
             assumptions={assumptions}
@@ -456,6 +500,7 @@ export default function AgendaIngestPage() {
               setRows([]);
             }}
           />
+          </div>
         ) : null}
 
         <section style={{ marginTop: 32 }}>

@@ -78,6 +78,25 @@ export const brand = {
 
 export type BrandConfig = typeof brand;
 
+/**
+ * Organizer-console copy for what a session can hold (Chunk E11.3).
+ * One combined "+ Add" entry point, two preserved models — Paper and
+ * SessionResource stay separate models with separate endpoints; only the
+ * wording lives here. Edit this module, not the components.
+ */
+export const programCopy = {
+  /** Rendered as "+ {addEntryLabel}" under each session in the Program tab. */
+  addEntryLabel: "Add paper or resource",
+  paper: {
+    noun: "Paper",
+    hint: "A submission with authors and an abstract — appears in the program under the session.",
+  },
+  resource: {
+    noun: "Resource",
+    hint: "A link or file, e.g. slides, a reading list, a Drive folder.",
+  },
+} as const;
+
 /** ICS PRODID / calendar identity derived from brand (never hardcode product name). */
 export function icsProductId(calendar = "Agenda"): string {
   return `-//${brand.productName}//${calendar}//EN`;

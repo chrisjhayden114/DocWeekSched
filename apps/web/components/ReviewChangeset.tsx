@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 export type ReviewChangeRow =
   | {
@@ -68,6 +68,12 @@ export type ReviewChangesetProps = {
   lowConfidence?: number;
   /** Optional left-column source preview (ingest). */
   sourcePreview?: string;
+  /**
+   * Optional structured source description (file name, type, size) rendered
+   * above the text preview — used instead of a preview for binary uploads
+   * (E11.1: never show internal placeholders as provenance).
+   */
+  sourceInfo?: ReactNode;
 };
 
 function rowAccepted(row: ReviewChangeRow): boolean {
@@ -98,6 +104,7 @@ export function ReviewChangeset({
   onAssumptionAnswer,
   lowConfidence = 0.8,
   sourcePreview,
+  sourceInfo,
 }: ReviewChangesetProps) {
   const creates = useMemo(
     () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "create" }> => r.kind === "create"),
@@ -372,7 +379,7 @@ export function ReviewChangeset({
     </>
   );
 
-  if (sourcePreview) {
+  if (sourcePreview || sourceInfo) {
     return (
       <div className="review-changeset" style={{ marginTop: 16 }}>
         <div
@@ -385,20 +392,23 @@ export function ReviewChangeset({
         >
           <div>
             <h4 style={{ margin: "0 0 8px" }}>Source</h4>
-            <pre
-              style={{
-                margin: 0,
-                padding: 12,
-                maxHeight: 480,
-                overflow: "auto",
-                fontSize: 12,
-                whiteSpace: "pre-wrap",
-                background: "var(--surface-muted, #f4f6f9)",
-                borderRadius: 8,
-              }}
-            >
-              {sourcePreview}
-            </pre>
+            {sourceInfo}
+            {sourcePreview ? (
+              <pre
+                style={{
+                  margin: 0,
+                  padding: 12,
+                  maxHeight: 480,
+                  overflow: "auto",
+                  fontSize: 12,
+                  whiteSpace: "pre-wrap",
+                  background: "var(--surface-muted, #f4f6f9)",
+                  borderRadius: 8,
+                }}
+              >
+                {sourcePreview}
+              </pre>
+            ) : null}
           </div>
           <div>{body}</div>
         </div>
