@@ -182,6 +182,7 @@ export default function AgendaIngestPage() {
   const [assumptions, setAssumptions] = useState<ReviewAssumption[]>([]);
   const [history, setHistory] = useState<HistoryResponse | null>(null);
   const reviewRef = useRef<HTMLDivElement | null>(null);
+  const messageRef = useRef<HTMLDivElement | null>(null);
 
   // E11.2: after a multi-minute extraction the result must not sit invisibly
   // below the upload widgets — bring the review panel into view.
@@ -192,6 +193,16 @@ export default function AgendaIngestPage() {
       reviewRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     }
   }, [run?.id, run?.status]);
+
+  const [message, setMessageSafe] = useState<string | null>(null);
+
+  // E12.1: the user confirms at the review panel far down the page; the
+  // success message (with its View program action) renders near the top.
+  useEffect(() => {
+    if (message) {
+      messageRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    }
+  }, [message]);
 
   const loadHistory = useCallback(async () => {
     if (!eventId) return;
@@ -222,6 +233,7 @@ export default function AgendaIngestPage() {
     setError(null);
     setUpgrade(null);
     setEmptyResult(false);
+    setMessageSafe(null);
     setLastRequest(body);
     setExtracting(true);
     try {
@@ -328,8 +340,6 @@ export default function AgendaIngestPage() {
     }
   }
 
-  const [message, setMessageSafe] = useState<string | null>(null);
-
   return (
     <>
       <Head>
@@ -398,7 +408,42 @@ export default function AgendaIngestPage() {
             <Link href="/organizer/billing">Upgrade plan</Link>
           </p>
         ) : null}
-        {message ? <p style={{ color: "var(--success)" }}>{message}</p> : null}
+        {message ? (
+          // E12.1: confirming drafts must not be a dead end — the success
+          // message carries a primary route to the sessions it just created.
+          <div
+            ref={messageRef}
+            role="status"
+            style={{
+              padding: 12,
+              borderRadius: "var(--radius-sm)",
+              background: "var(--success-50, #f0fdf4)",
+              border: "1px solid var(--gray-200)",
+            }}
+          >
+            <p style={{ margin: 0, color: "var(--success)" }}>{message}</p>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <Link href={`/organizer/events/${eventId}?tab=program`} className="button">
+                View program
+              </Link>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  setMessageSafe(null);
+                  setRun(null);
+                  setRows([]);
+                  setAssumptions([]);
+                  setEmptyResult(false);
+                  setError(null);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              >
+                Import another
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <section style={{ display: "grid", gap: 16, marginTop: 16 }}>
           <form onSubmit={onPaste} className="console-form console-panel">

@@ -6,6 +6,9 @@
     "apps/web",
     "packages/*"
   ],
+  "engines": {
+    "node": ">=20 <21"
+  },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5.15.9"
   },

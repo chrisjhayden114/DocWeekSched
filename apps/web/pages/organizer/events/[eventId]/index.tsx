@@ -52,6 +52,29 @@ type DryRun = {
   summary: { creates: number; errors: number; skipped: number };
 };
 
+type EventTab =
+  | "overview"
+  | "program"
+  | "people"
+  | "invites"
+  | "maps"
+  | "announcements"
+  | "features"
+  | "ops"
+  | "recap";
+
+const EVENT_TABS: readonly EventTab[] = [
+  "overview",
+  "program",
+  "people",
+  "invites",
+  "maps",
+  "announcements",
+  "features",
+  "ops",
+  "recap",
+];
+
 const MAPPING_OPTIONS = [
   { value: "email", label: "Email" },
   { value: "name", label: "Name" },
@@ -64,9 +87,16 @@ const MAPPING_OPTIONS = [
 export default function OrganizerEventPage() {
   const router = useRouter();
   const eventId = typeof router.query.eventId === "string" ? router.query.eventId : "";
-  const [tab, setTab] = useState<
-    "overview" | "program" | "people" | "invites" | "maps" | "announcements" | "features" | "ops" | "recap"
-  >("overview");
+  const [tab, setTab] = useState<EventTab>("overview");
+
+  // E12.1: honor deep links like ?tab=program (used by "View program" after
+  // an ingest confirm). Unknown values fall back to the default tab.
+  useEffect(() => {
+    const q = router.query.tab;
+    if (typeof q === "string" && (EVENT_TABS as readonly string[]).includes(q)) {
+      setTab(q as EventTab);
+    }
+  }, [router.query.tab]);
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [featuresDirty, setFeaturesDirty] = useState(false);

@@ -64,7 +64,14 @@ API bundles as CommonJS and will fail to boot on Render otherwise.
 
 ## Local setup
 
-Requires Node 20+ and a PostgreSQL database (a Neon dev branch works well).
+Requires **Node 20** and a PostgreSQL database (a Neon dev branch works well).
+
+Node 20 specifically — not "20 or newer". Render (`render.yaml`) and Netlify
+(`netlify.toml`) both build on Node 20, and `.nvmrc` pins it here so local
+matches production. If you use nvm, `nvm use` in the repo root picks it up.
+Running a newer major locally is a known source of "works on my machine"
+divergence — a Node 24 shell crashed the API dev server with
+`spawn Unknown system error -88` from esbuild on 2026-08-02.
 
 ```bash
 git clone <repo> && cd DocWeekSched

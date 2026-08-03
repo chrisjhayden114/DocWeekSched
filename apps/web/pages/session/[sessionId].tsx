@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, programCopy } from "@event-app/config";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -221,6 +221,8 @@ export default function SessionPage() {
     }
   }, []);
   const [resourceKind, setResourceKind] = useState<"LINK" | "FILE">("LINK");
+  // E12.3: the add form is secondary — collapsed until asked for.
+  const [addResourceOpen, setAddResourceOpen] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -865,7 +867,7 @@ export default function SessionPage() {
           <div className="card" style={{ marginBottom: 16 }}>
             <h3 style={{ marginTop: 0 }}>Session resources</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Links (for example Google Drive folders) or files you upload are visible to others who have joined this session. Uploads are sent as data URLs and must stay under about 4.5 MB so the server can accept them.
+              {programCopy.resource.shareHint}
             </p>
             {!canShareResources && (
               <p className="help-text">Join this session to see shared resources and add your own.</p>
@@ -875,7 +877,58 @@ export default function SessionPage() {
                 {resourceError}
               </p>
             )}
-            {canShareResources && (
+            {/* E12.3: existing resources come first — the attendee's goal is opening
+                the slides, not filling in a form. The add form follows, collapsed. */}
+            <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0" }}>
+              {resources.length === 0 && <li className="help-text">No resources yet.</li>}
+              {resources.map((r) => {
+                const canDelete = user.role === "ADMIN" || r.user.id === user.id;
+                return (
+                  <li
+                    key={r.id}
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px 0",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                      <strong style={{ display: "block" }}>{r.title}</strong>
+                      <span className="help-text">
+                        {r.user.name} · {r.kind === "LINK" ? "Link" : "File"} · {new Date(r.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <a
+                      className="button secondary"
+                      href={r.url}
+                      {...(r.kind === "LINK" ? { target: "_blank", rel: "noreferrer" } : { download: r.title })}
+                      style={{ display: "inline-block", textAlign: "center", textDecoration: "none" }}
+                    >
+                      Open
+                    </a>
+                    {canDelete && (
+                      <button type="button" className="button secondary" onClick={() => deleteResource(r.id)}>
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {canShareResources && !addResourceOpen && (
+              <button
+                type="button"
+                className="button secondary"
+                style={{ marginTop: 12 }}
+                onClick={() => setAddResourceOpen(true)}
+              >
+                + Add a resource
+              </button>
+            )}
+            {canShareResources && addResourceOpen && (
               <form
                 className="grid"
                 style={{ gap: 10, marginTop: 12 }}
@@ -923,6 +976,7 @@ export default function SessionPage() {
                     );
                     form.reset();
                     setResourceKind("LINK");
+                    setAddResourceOpen(false);
                     await refreshUser(token);
                     setResources(await fetchSessionResources(token, sessionId));
                   } catch (err) {
@@ -958,50 +1012,23 @@ export default function SessionPage() {
                 ) : (
                   <input className="input" name="resFile" type="file" />
                 )}
-                <button type="submit" className="button secondary">
-                  Add resource
-                </button>
-              </form>
-            )}
-            <ul style={{ listStyle: "none", padding: 0, margin: "16px 0 0" }}>
-              {resources.length === 0 && <li className="help-text">No resources yet.</li>}
-              {resources.map((r) => {
-                const canDelete = user.role === "ADMIN" || r.user.id === user.id;
-                return (
-                  <li
-                    key={r.id}
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "10px 0",
-                      borderBottom: "1px solid var(--border)",
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="submit" className="button secondary">
+                    Add resource
+                  </button>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => {
+                      setResourceError(null);
+                      setAddResourceOpen(false);
                     }}
                   >
-                    <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                      <strong style={{ display: "block" }}>{r.title}</strong>
-                      <span className="help-text">
-                        {r.user.name} · {r.kind === "LINK" ? "Link" : "File"} · {new Date(r.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <a
-                      className="button secondary"
-                      href={r.url}
-                      {...(r.kind === "LINK" ? { target: "_blank", rel: "noreferrer" } : { download: r.title })}
-                      style={{ display: "inline-block", textAlign: "center", textDecoration: "none" }}
-                    >
-                      Open
-                    </a>
-                    {canDelete && (
-                      <button type="button" className="button secondary" onClick={() => deleteResource(r.id)}>
-                        Remove
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
 
           <div className="card session-conversation-card">

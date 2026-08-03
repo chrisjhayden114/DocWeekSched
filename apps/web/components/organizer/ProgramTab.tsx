@@ -1,6 +1,6 @@
 import { programCopy } from "@event-app/config";
 import { useRouter } from "next/router";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { ListEmpty } from "../ListState";
 import { timeZoneAbbrev } from "../../lib/dateFormat";
@@ -15,6 +15,14 @@ import { browserTimezone } from "../../lib/timezones";
 import { SessionCsvImport } from "./SessionCsvImport";
 
 export type Track = { id: string; name: string; color: string };
+export type SessionResourceRow = {
+  id: string;
+  title: string;
+  kind: "LINK" | "FILE";
+  url: string;
+  createdAt: string;
+  user: { id: string; name: string };
+};
 export type Room = { id: string; name: string };
 export type PaperAuthor = { name: string; sortOrder: number };
 export type Paper = { id: string; title: string; sortOrder: number; authors: PaperAuthor[] };
@@ -57,6 +65,7 @@ type ConfirmState =
   | { kind: "room"; id: string; name: string }
   | { kind: "session"; id: string; title: string; paperCount: number }
   | { kind: "paper"; sessionId: string; itemId: string; title: string; sessionTitle: string }
+  | { kind: "resource"; sessionId: string; resourceId: string; title: string; sessionTitle: string }
   | null;
 
 type SessionDraft = {
@@ -192,6 +201,10 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
   const emptyResourceDraft = { title: "", kind: "LINK" as "LINK" | "FILE", url: "", file: null as File | null };
   const [resourceDraft, setResourceDraft] = useState(emptyResourceDraft);
   const [resourceNotices, setResourceNotices] = useState<Record<string, string>>({});
+  // E12.2: existing resources per session, shown inline like papers so the
+  // organizer can verify what was attached without leaving the console.
+  // null = load failed for that session (rendered as an explicit note).
+  const [resourcesBySession, setResourcesBySession] = useState<Record<string, SessionResourceRow[] | null>>({});
 
   const [editTrack, setEditTrack] = useState<{ id: string; name: string; color: string } | null>(null);
   const [editRoom, setEditRoom] = useState<{ id: string; name: string } | null>(null);
@@ -205,6 +218,47 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
 
   const trackById = useMemo(() => new Map(tracks.map((t) => [t.id, t])), [tracks]);
   const roomById = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
+
+  // Resources are not part of the sessions payload — fetch them per session
+  // via the endpoints from E9.3 (organizer manage access always passes).
+  const sessionIdsKey = useMemo(
+    () =>
+      sessions
+        .map((s) => s.id)
+        .sort()
+        .join(","),
+    [sessions],
+  );
+
+  useEffect(() => {
+    if (!eventId || !sessionIdsKey) return;
+    let cancelled = false;
+    void (async () => {
+      const ids = sessionIdsKey.split(",");
+      const entries = await Promise.all(
+        ids.map(async (id): Promise<[string, SessionResourceRow[] | null]> => {
+          try {
+            return [id, await organizerFetch<SessionResourceRow[]>(`/sessions/${id}/resources`, eventId)];
+          } catch {
+            return [id, null];
+          }
+        }),
+      );
+      if (!cancelled) setResourcesBySession(Object.fromEntries(entries));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, sessionIdsKey]);
+
+  async function refreshSessionResources(sessionId: string) {
+    try {
+      const list = await organizerFetch<SessionResourceRow[]>(`/sessions/${sessionId}/resources`, eventId);
+      setResourcesBySession((prev) => ({ ...prev, [sessionId]: list }));
+    } catch {
+      setResourcesBySession((prev) => ({ ...prev, [sessionId]: null }));
+    }
+  }
 
   const dayGroups = useMemo(() => {
     const sorted = sessions
@@ -413,6 +467,9 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
     if (ok) {
       setResourceDraft(emptyResourceDraft);
       setAddResourceSessionId(null);
+      // E12.2: the confirmation must be verifiable in place — refresh the
+      // inline list so the new resource is visible right away.
+      await refreshSessionResources(sessionId);
       setResourceNotices((prev) => ({
         ...prev,
         [sessionId]: "Resource added — attendees who join this session can open it from the session page.",
@@ -450,14 +507,22 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
     } else if (confirm.kind === "session") {
       key = confirm.id;
       path = `/sessions/${confirm.id}`;
+    } else if (confirm.kind === "resource") {
+      key = confirm.resourceId;
+      path = `/sessions/${confirm.sessionId}/resources/${confirm.resourceId}`;
     } else {
       key = confirm.itemId;
       path = `/sessions/${confirm.sessionId}/items/${confirm.itemId}`;
     }
+    const resourceSessionId = confirm.kind === "resource" ? confirm.sessionId : null;
     const ok = await run(key, async () => {
       await organizerFetch(path, eventId, { method: "DELETE" });
     });
-    if (ok) setConfirm(null);
+    if (ok) {
+      setConfirm(null);
+      // Resources aren't in the sessions payload onChanged() refetches.
+      if (resourceSessionId) await refreshSessionResources(resourceSessionId);
+    }
   }
 
   function confirmCopy(c: NonNullable<ConfirmState>): { title: string; body: string } {
@@ -490,6 +555,12 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           `This permanently removes the session` +
           (c.paperCount > 0 ? ` and its ${c.paperCount} paper${c.paperCount === 1 ? "" : "s"}` : "") +
           `. Attendee schedules and attendance records for this session are removed with it.`,
+      };
+    }
+    if (c.kind === "resource") {
+      return {
+        title: `Remove resource “${c.title}”?`,
+        body: `This removes it from “${c.sessionTitle}”. Attendees will no longer see it on the session page.`,
       };
     }
     return {
@@ -867,6 +938,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                   const track = s.trackId ? trackById.get(s.trackId) : undefined;
                   const room = s.roomId ? roomById.get(s.roomId) : undefined;
                   const papers = (s.items || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
+                  const sessionResources = resourcesBySession[s.id];
                   return (
                     <div
                       key={s.id}
@@ -1093,6 +1165,60 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                               ) : null}
                             </div>
                           ) : null}
+
+                          {/* Resources under the session (E12.2) — listed like papers,
+                              with Open and Remove, so an added resource is verifiable
+                              in place. */}
+                          {sessionResources === null || (sessionResources || []).length > 0 ? (
+                            <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid var(--gray-100)" }}>
+                              {sessionResources === null ? (
+                                <p className="help-text" style={{ margin: "3px 0", color: "var(--danger)" }}>
+                                  Couldn’t load this session’s resources — reload the page to retry.
+                                </p>
+                              ) : (
+                                (sessionResources || []).map((r) => (
+                                  <div key={r.id} style={{ padding: "3px 0" }}>
+                                    <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                                      <span style={{ flex: 1, minWidth: 0, font: "var(--text-body)" }}>
+                                        {r.title}
+                                        <span className="help-text">
+                                          {" "}
+                                          — {r.kind === "LINK" ? "Link" : "File"} · added by {r.user.name}
+                                        </span>
+                                      </span>
+                                      <a
+                                        className="button ghost"
+                                        style={{ ...smallButton, textDecoration: "none" }}
+                                        href={r.url}
+                                        {...(r.kind === "LINK"
+                                          ? { target: "_blank", rel: "noreferrer" }
+                                          : { download: r.title })}
+                                      >
+                                        Open
+                                      </a>
+                                      <button
+                                        type="button"
+                                        className="button ghost"
+                                        style={{ ...smallButton, color: "var(--danger)" }}
+                                        onClick={() =>
+                                          setConfirm({
+                                            kind: "resource",
+                                            sessionId: s.id,
+                                            resourceId: r.id,
+                                            title: r.title,
+                                            sessionTitle: s.title,
+                                          })
+                                        }
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                    {rowError(r.id)}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          ) : null}
                           {addResourceSessionId === s.id ? (
                             <form
                               onSubmit={(e) => void submitAddResource(e, s.id)}
@@ -1260,7 +1386,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           open
           title={confirmCopy(confirm).title}
           body={confirmCopy(confirm).body}
-          confirmLabel="Delete"
+          confirmLabel={confirm.kind === "resource" ? "Remove" : "Delete"}
           tone="danger"
           busy={busy}
           onCancel={() => setConfirm(null)}

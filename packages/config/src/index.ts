@@ -94,6 +94,12 @@ export const programCopy = {
   resource: {
     noun: "Resource",
     hint: "A link or file, e.g. slides, a reading list, a Drive folder.",
+    /**
+     * Shown above the add-resource form (Chunk E12.4). Plain English only —
+     * never mention the transport (the 4.5 MB ceiling is the browser
+     * request-encoding limit, RESOURCE_DATA_URL_MAX_CHARS, not a storage limit).
+     */
+    shareHint: "Add a link, or upload a file up to 4.5 MB. Anyone who joins this session can open it.",
   },
 } as const;
 
