@@ -230,6 +230,23 @@ export async function gatewayExtract<T>(
       };
     }
 
+    // E10: a reply cut off at the output-token ceiling is not a JSON-format
+    // problem, and retrying (which re-sends the truncated assistant message)
+    // fails identically while doubling cost. Fail honestly, once.
+    if (result.stopReason === "max_tokens") {
+      await meterAndAudit(ctx, {
+        action: "AI_EXTRACT",
+        result,
+        latencyMs,
+        payload: { ok: false, code: "TRUNCATED", preview: result.text.slice(0, 500), retried },
+      });
+      return {
+        ok: false,
+        code: "TRUNCATED",
+        message: "The programme was too long to process in one pass.",
+      };
+    }
+
     let parsed: unknown;
     try {
       parsed = parseJsonObject(result.text);

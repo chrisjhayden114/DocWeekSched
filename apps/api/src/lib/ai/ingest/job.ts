@@ -139,9 +139,13 @@ const handler: JobHandler = async (job) => {
     // plain-English message the organizer can act on.
     const looksLikeProviderBlob =
       code === "PROVIDER_ERROR" || /"type"\s*:\s*"(?:error|not_found_error|invalid_request_error)"/.test(raw);
-    const message = looksLikeProviderBlob
-      ? "The AI provider rejected the request — the team has been notified. Try again shortly."
-      : raw;
+    // E10: truncation is honest and actionable — never blame JSON formatting.
+    const message =
+      code === "TRUNCATED"
+        ? "The programme was too long to process in one pass. Split it into smaller sections and ingest each one separately, or use the CSV import instead."
+        : looksLikeProviderBlob
+          ? "The AI provider rejected the request — the team has been notified. Try again shortly."
+          : raw;
     if (looksLikeProviderBlob) {
       log("error", "agenda ingest provider error", { runId, detail: raw });
     }

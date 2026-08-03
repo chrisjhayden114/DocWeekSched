@@ -188,3 +188,19 @@ return mock output, and prevents purchases. `LAUNCH_CHECKLIST.md` §0 tracks the
 
 The product name is interim, pending trademark clearance. Changing it is a one-line edit
 in `packages/config`.
+
+### The reset ritual
+
+The Next dev server and an agent editing files will corrupt each other's `.next`
+cache. Stop the dev server before letting an agent work in `apps/web`, and run
+this afterwards in the terminal running the web dev server:
+
+```bash
+# Ctrl-C to stop the dev server first, then:
+cd ~/Documents/DocWeekSched/apps/web && rm -rf .next && npm run dev
+```
+
+Symptoms that mean you need it: module-not-found errors for files that plainly
+exist, stale UI after a confirmed code change, or hydration errors that vanish on
+a hard reload. It is always safe — `.next` is a build cache, not source, and
+touches no database.

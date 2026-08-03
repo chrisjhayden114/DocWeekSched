@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
 import { NotificationClass, NotificationKind } from "@prisma/client";
 import { readFileSync } from "fs";
@@ -14,6 +14,10 @@ import {
   AI_GENERATED_CHIP_LABEL,
 } from "../lib/ai";
 import type { GroundingContext } from "../lib/ai/types";
+import {
+  DEFAULT_AI_MAX_OUTPUT_TOKENS,
+  resolveMaxOutputTokens,
+} from "../lib/ai/providers/anthropic";
 import { PLAN_BY_SKU } from "@event-app/shared";
 
 describe("plan AI caps (catalog)", () => {
@@ -25,6 +29,30 @@ describe("plan AI caps (catalog)", () => {
   it("PRO has generous soft concierge cap", () => {
     expect(PLAN_BY_SKU.pro_annual.limits.aiConciergePerEvent).toBe(5000);
     expect(PLAN_BY_SKU.pro_annual.limits.aiIngestPerEvent).toBeNull();
+  });
+});
+
+describe("output-token ceiling (E10)", () => {
+  const saved = process.env.AI_MAX_OUTPUT_TOKENS;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.AI_MAX_OUTPUT_TOKENS;
+    else process.env.AI_MAX_OUTPUT_TOKENS = saved;
+  });
+
+  it("defaults to 16384", () => {
+    delete process.env.AI_MAX_OUTPUT_TOKENS;
+    expect(DEFAULT_AI_MAX_OUTPUT_TOKENS).toBe(16384);
+    expect(resolveMaxOutputTokens()).toBe(16384);
+  });
+
+  it("honours AI_MAX_OUTPUT_TOKENS", () => {
+    process.env.AI_MAX_OUTPUT_TOKENS = "32000";
+    expect(resolveMaxOutputTokens()).toBe(32000);
+  });
+
+  it("falls back to the default on a non-numeric value", () => {
+    process.env.AI_MAX_OUTPUT_TOKENS = "lots";
+    expect(resolveMaxOutputTokens()).toBe(DEFAULT_AI_MAX_OUTPUT_TOKENS);
   });
 });
 
@@ -75,6 +103,41 @@ describe("AI gateway (mock provider, no DB)", () => {
       expect(result.aiGenerated).toBe(true);
     }
     expect(calls).toBe(2);
+  });
+
+  it("returns TRUNCATED without retrying when the reply hit the output-token ceiling (E10)", async () => {
+    const mock = new MockAiProvider();
+    let calls = 0;
+    mock.chat = async () => {
+      calls += 1;
+      return {
+        text: '{"title": "Opening keyn', // cut off mid-object
+        tokensIn: 500,
+        tokensOut: 16384,
+        model: "mock-extract-v1",
+        provider: "mock",
+        stopReason: "max_tokens",
+      };
+    };
+    resetAiProviderForTests(mock);
+
+    const schema = z.object({ title: z.string().min(1) });
+    const result = await gatewayExtract(schema, [{ role: "user", content: "Extract session" }], {
+      organizationId: "org_test",
+      eventId: "evt_test",
+      feature: "AGENDA_INGEST",
+      skipCap: true,
+      skipMetering: true,
+      skipAudit: true,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("TRUNCATED");
+      expect(result.message).toMatch(/too long/i);
+      expect(result.message).not.toMatch(/JSON/i);
+    }
+    expect(calls).toBe(1);
   });
 
   it("chat returns aiGenerated text via mock", async () => {

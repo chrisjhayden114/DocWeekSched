@@ -9,6 +9,26 @@ import { MockAiProvider } from "./mock";
 export const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 /**
+ * Output-token ceiling. 4096 truncated every real conference programme
+ * mid-JSON (E10, 2026-08-02) — Claude Sonnet supports far more. Overridable
+ * via AI_MAX_OUTPUT_TOKENS; never silently capped below this default.
+ */
+export const DEFAULT_AI_MAX_OUTPUT_TOKENS = 16384;
+
+export function resolveMaxOutputTokens(): number {
+  const raw = (process.env.AI_MAX_OUTPUT_TOKENS || "").trim();
+  if (!raw) return DEFAULT_AI_MAX_OUTPUT_TOKENS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.warn(
+      `[ai] AI_MAX_OUTPUT_TOKENS="${raw}" is not a positive integer — using default ${DEFAULT_AI_MAX_OUTPUT_TOKENS}.`,
+    );
+    return DEFAULT_AI_MAX_OUTPUT_TOKENS;
+  }
+  return parsed;
+}
+
+/**
  * Real Anthropic provider. Only imported from lib/ai/** (ESLint enforced).
  * Requires ANTHROPIC_API_KEY when AI_PROVIDER=anthropic.
  * Embeddings: Anthropic has no public embeddings API yet — fall back to deterministic mock vectors
@@ -76,7 +96,7 @@ export class AnthropicAiProvider implements AiProvider {
 
     const response = await client.messages.create({
       model: this.model,
-      max_tokens: 4096,
+      max_tokens: resolveMaxOutputTokens(),
       system: system || undefined,
       messages: rest.map((m) => {
         const parts: Array<
@@ -127,6 +147,7 @@ export class AnthropicAiProvider implements AiProvider {
       tokensOut: response.usage?.output_tokens ?? 0,
       model: this.model,
       provider: "anthropic",
+      stopReason: response.stop_reason ?? undefined,
     };
   }
 }

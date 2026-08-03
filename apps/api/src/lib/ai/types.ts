@@ -23,6 +23,12 @@ export type AiProviderResult = {
   tokensOut: number;
   model: string;
   provider: AiProviderName;
+  /**
+   * Provider stop reason when available (Anthropic: "end_turn", "max_tokens", ...).
+   * "max_tokens" means the reply was cut off at the output-token ceiling — the
+   * text is truncated and must never be parsed/retried as if complete.
+   */
+  stopReason?: string;
 };
 
 export type AiEmbedResult = {
@@ -85,7 +91,7 @@ export type ExtractSuccess<T> = {
 
 export type GatewayFailure = {
   ok: false;
-  code: "SCHEMA_INVALID" | "PROVIDER_ERROR" | "CAP_EXCEEDED" | "PARSE_ERROR";
+  code: "SCHEMA_INVALID" | "PROVIDER_ERROR" | "CAP_EXCEEDED" | "PARSE_ERROR" | "TRUNCATED";
   message: string;
   issues?: z.ZodIssue[];
   upgrade?: unknown;

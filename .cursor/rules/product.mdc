@@ -17,3 +17,35 @@ You are working on a multi-tenant event-management SaaS run by a solo founder. F
 
 ## Database safety (added 2026-07-31 after an agent overrode the guard)
 - NEVER set ALLOW_DESTRUCTIVE_DB, in any form, for any reason. If the destructive-DB guard refuses to run a test suite, that is the correct outcome: report it and stop. Only the founder decides where destructive suites run, and only against a throwaway database branch he created for that purpose. Overriding a safety guard is never in scope, even when the .env comment suggests the database is "only dev."
+
+## Error messages must name the real cause (added 2026-08-02 after three silent failures in one evening)
+
+A misleading error costs a solo founder an entire debugging session. Three bugs
+found on 2026-08-02 were all invisible for weeks for this reason:
+
+- session resources returned `[]` on a 401, rendering as "No resources yet"
+- an empty AI extract proposed deleting the organiser's entire programme
+- a response truncated by `max_tokens` was reported as "Model did not return valid JSON"
+
+In every case the code had the information needed to say what actually went wrong,
+and said something else. Therefore:
+
+- **Never swallow an error into an empty value.** `catch { return [] }`, `?? []`
+  and `.catch(() => null)` are only acceptable when empty is a genuine, expected
+  result. If the cause is auth, network, or a bad response, surface it — an empty
+  list that means "broken" is a bug that hides itself.
+- **Never report a symptom as the cause.** If a reply was cut off, say it was cut
+  off. If a request was unauthenticated, say so. Do not describe a downstream
+  parse failure as a formatting problem when the real cause is length, auth, or
+  configuration.
+- **Distinguish "nothing found" from "could not look".** These must never share a
+  code path or a message. A zero-result parse is evidence the parse failed, never
+  evidence the user's data should be deleted.
+- **User-facing text says what happened and what to do next**, in plain English,
+  with no provider blobs or stack traces. The internal error keeps full detail
+  for Sentry.
+- **A failure that destroys or proposes destroying user data must fail closed.**
+  When uncertain, change nothing and say why.
+
+When you add a `catch`, a fallback value, or an error string, state in your
+summary which of these applies and why it is safe.
