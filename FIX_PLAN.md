@@ -357,3 +357,89 @@ normal programmes work and make the failure honest when they don't.
 ## Standing rules
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
 - Stop the web dev server first; reset ritual after. No migrations expected.
+
+---
+
+# Chunk E11 — make the ingest review screen legible (UX)
+
+Written 2026-08-02 after the first fully successful PDF ingest (22 sessions from
+a 7-page programme). The extraction is now correct; the **review screen does not
+communicate what happened.**
+
+## E11.1 — the "Source" panel shows a debug stub, not the file (P1)
+
+`apps/web/pages/organizer/events/[eventId]/ingest.tsx` L434 renders
+`run.sourceTextPreview`. For a PDF that value is
+`[Binary application/pdf upload, 188181 bytes — extract from stored bytes / OCR stub]`
+— an internal artifact from `textFromDataUrl`, shown to the customer as the
+provenance of their entire programme.
+
+This violates the "errors and status must name the real cause" rule in
+`.cursor/rules/product.mdc`: the UI is displaying an implementation detail where
+the user needs a fact.
+
+**Fix:** for file-sourced runs, the Source panel shows the real metadata already
+stored on `AgendaIngestRun` — `sourceFileName`, `sourceMime`, `sourceBytes`
+(human-readable), the run timestamp, and for PASTE/URL runs the existing text
+preview (which is genuinely useful there). Never render the binary stub. If a
+text preview is unavailable for a binary format, say "No text preview — the file
+was read directly by the model", which is true.
+
+## E11.2 — the result is invisible below the fold (P2)
+
+After a multi-minute extraction the page still shows the upload widgets at the
+top; the changeset is far below. Users do not know it finished.
+
+**Fix:** when a run reaches READY_FOR_REVIEW, scroll the review panel into view
+and give it a heading that states the outcome plainly, e.g. **"Review 22 sessions
+found in 2026 DocWeek Schedule and Session Overview.pdf"**. The counts line
+(`22 create · 5 delete proposed · 0 errors`) stays, but the filename must appear
+in the heading so the connection to the upload is unmistakable.
+
+## E11.3 — one welcoming "+ Add" entry point per session (P2)
+
+Two problems, one fix.
+
+**(a)** The organizer console Program tab offers only **+ Add paper**. Session
+*resources* (links/files) can currently be added only from the public session
+page, so an organizer has no console path to attach a programme PDF, slide deck
+or reading list to a session.
+
+**(b)** "+ Add paper" is the wrong single prompt for this market. In the 22
+sessions extracted from the real DocWeek programme — Welcome, Program Updates,
+Hot Topics, Technology Toolkit, Lunch, Masterclass, Wrap-Up, Program Dinner,
+Research Design Workshop — **almost none will ever have a paper.** Doctoral
+programme weeks, education programmes and society meetings are mostly sessions
+with slides and readings, not paper tracks. Offering "+ Add paper" as the only
+action under every session mislabels what a session usually contains.
+
+**Fix — a single combined entry point, two preserved models.** Replace
+"+ Add paper" with **"+ Add paper or resource"**. Clicking it reveals a small
+choice with one line of explanation each:
+
+- **Paper** — a submission with authors and an abstract (appears in the programme
+  under the session)
+- **Resource** — a link or file, e.g. slides, a reading list, a Drive folder
+
+`Paper` and `SessionResource` remain **separate models with separate endpoints** —
+this changes the entry point and the wording, not the schema. Resources reuse the
+endpoints fixed in E9.3. Wording comes from the config/copy layer, not hardcoded.
+
+Rationale for the record: an earlier draft of this plan said not to broaden the
+label, on the grounds that "paper" is a precise academic term. That reasoning was
+sound about the data model and wrong about the UI — precision in the schema does
+not require the button to name only one of the two things a session can hold.
+Founder overruled it with evidence from a real programme.
+
+## Acceptance
+- Upload a PDF → Source panel names the file, type and size; no `[Binary …]` text
+  anywhere in the UI.
+- On completion the review panel is in view and its heading names the file.
+- An organizer can add a link resource to a session from the Program tab via
+  "+ Add paper or resource", and it appears on the public session page.
+- The paper flow is unchanged in behaviour — same fields, same authors ordering.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Stop the web dev server first; reset ritual after (see README). No migrations
+  expected — all fields in E11.1 already exist on `AgendaIngestRun`.
