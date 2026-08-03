@@ -12,6 +12,14 @@ import {
 import { SessionCsvImport } from "../../../../components/organizer/SessionCsvImport";
 import { describeIngestSource, ingestReviewHeading } from "../../../../lib/ingestSource";
 import { rowsToApiChangeset, toggleRemoval } from "../../../../lib/ingestReview";
+import {
+  INGEST_POLL_HARD_STOP_MS,
+  INGEST_POLL_OVERTIME_MS,
+  formatElapsed,
+  ingestPollDelayMs,
+  ingestStageLabel,
+  isIngestRunActive,
+} from "../../../../lib/ingestStatus";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
 type IngestRun = {
@@ -101,6 +109,16 @@ function friendlyIngestError(raw: string | null | undefined): string {
   return text;
 }
 
+type InputMode = "paste" | "upload" | "url" | "csv";
+
+/** E15.3: one input at a time behind a chooser; Upload file is the default. */
+const INPUT_MODES: { id: InputMode; label: string }[] = [
+  { id: "paste", label: "Paste text" },
+  { id: "upload", label: "Upload file" },
+  { id: "url", label: "Fetch URL" },
+  { id: "csv", label: "Import CSV" },
+];
+
 function changesetToRows(raw: unknown): ReviewChangeRow[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((r) => {
@@ -162,6 +180,14 @@ export default function AgendaIngestPage() {
   const [error, setError] = useState<string | null>(null);
   const [upgrade, setUpgrade] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [inputMode, setInputMode] = useState<InputMode>("upload");
+  // E15.2: live status while a run is going — the stage the run reports and
+  // a counting elapsed timer. The job reports no percent complete, so no
+  // progress bar: an honest timer beats a lying bar.
+  const [stage, setStage] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const aliveRef = useRef(true);
   const [emptyResult, setEmptyResult] = useState(false);
   const [lastRequest, setLastRequest] = useState<Record<string, unknown> | null>(null);
   const [run, setRun] = useState<IngestRun | null>(null);
@@ -182,6 +208,23 @@ export default function AgendaIngestPage() {
   }, [run?.id, run?.status]);
 
   const [message, setMessageSafe] = useState<string | null>(null);
+
+  // Stop the poll loop if the page unmounts mid-run; the run itself keeps
+  // going server-side and stays reachable from Ingest history.
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  // Tick the elapsed timer once a second while a run is extracting.
+  useEffect(() => {
+    if (!extracting || startedAt == null) return;
+    setElapsedMs(Date.now() - startedAt);
+    const timer = setInterval(() => setElapsedMs(Date.now() - startedAt), 1000);
+    return () => clearInterval(timer);
+  }, [extracting, startedAt]);
 
   // E12.1: the user confirms at the review panel far down the page; the
   // success message (with its View program action) renders near the top.
@@ -215,6 +258,15 @@ export default function AgendaIngestPage() {
   // the internal "[Binary …]" placeholder that sourceTextPreview holds for them.
   const sourceDisplay = useMemo(() => (run ? describeIngestSource(run) : null), [run]);
 
+  // E15.3: when a run completes, the review replaces the input panel;
+  // "Import another" (or Cancel) brings the input panel back.
+  const reviewVisible = Boolean(
+    run &&
+      sourceDisplay &&
+      rows.length > 0 &&
+      (run.status === "READY_FOR_REVIEW" || run.status === "CONFIRMED"),
+  );
+
   async function startIngest(body: Record<string, unknown>) {
     setBusy(true);
     setError(null);
@@ -223,22 +275,38 @@ export default function AgendaIngestPage() {
     setMessageSafe(null);
     setLastRequest(body);
     setExtracting(true);
+    setStage("PENDING");
+    const startedAtMs = Date.now();
+    setStartedAt(startedAtMs);
     try {
       const res = await organizerFetch<{ run: IngestRun; jobId: string }>("/ai/ingest", eventId, {
         method: "POST",
         body: JSON.stringify({ ...body, processInline: true }),
       });
       let current = res.run;
-      // Poll while extracting (~40s max) — always end in a visible outcome.
-      for (let i = 0; i < 100 && (current.status === "PENDING" || current.status === "EXTRACTING"); i += 1) {
-        await new Promise((r) => setTimeout(r, 400));
+      setStage(current.status);
+      // E15.1: poll until the run reaches a terminal status, backing off as
+      // time passes (400ms → 1s → 2s → 5s). Real runs on multi-page PDFs
+      // have exceeded two minutes, so the ceiling is ~30 minutes
+      // (INGEST_POLL_HARD_STOP_MS); past ~5 minutes the status block says
+      // the run is taking longer than usual while polling continues. Only
+      // the stage is pushed into state here — `run` is set together with
+      // `rows` below so the review panel and its scroll-into-view arrive in
+      // one render.
+      while (isIngestRunActive(current.status) && Date.now() - startedAtMs < INGEST_POLL_HARD_STOP_MS) {
+        await new Promise((r) => setTimeout(r, ingestPollDelayMs(Date.now() - startedAtMs)));
+        if (!aliveRef.current) return;
         current = await organizerFetch<IngestRun>(`/ai/ingest/${current.id}`, eventId);
+        setStage(current.status);
       }
-      if (current.status === "PENDING" || current.status === "EXTRACTING") {
+      if (isIngestRunActive(current.status)) {
+        // Only after the 30-minute ceiling — something is genuinely wrong.
         setRun(current);
         setError(
-          "Extraction is taking longer than expected and may still be running. Retry, or reopen this run from Ingest history in a minute.",
+          "Extraction is still running after 30 minutes, which usually means something went wrong. " +
+            "The run stays in Ingest history — reopen it there, or retry.",
         );
+        await loadHistory();
         return;
       }
       if (current.status === "FAILED") {
@@ -268,6 +336,7 @@ export default function AgendaIngestPage() {
       }
     } finally {
       setExtracting(false);
+      setStage(null);
       setBusy(false);
     }
   }
@@ -337,6 +406,9 @@ export default function AgendaIngestPage() {
         <title>{`Agenda ingest · ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="ingest" eventId={eventId}>
+        {/* E15.3: one column of work — the input panel and the review area
+            share this width and left edge. */}
+        <div className="ingest-work">
         <h1 style={{ marginTop: 0, font: "var(--text-h1)" }}>Agenda ingest</h1>
         <p className="help-text">
           Upload a program (≤20 MB), paste text, or fetch a URL. Review the changeset, then confirm to create{" "}
@@ -344,10 +416,26 @@ export default function AgendaIngestPage() {
         </p>
 
         {extracting ? (
-          <p role="status" aria-live="polite" style={{ color: "var(--gray-700)" }}>
-            <span aria-hidden style={{ marginRight: 6 }}>⏳</span>
-            Extracting your program… this usually takes under a minute.
-          </p>
+          // E15.2: during the run the input area is replaced by a live status
+          // block — spinner, reported stage, counting elapsed timer. No
+          // percentage bar: the job reports no percent complete.
+          <section className="console-panel" style={{ marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="ingest-spinner" aria-hidden />
+              <strong role="status" aria-live="polite">
+                {ingestStageLabel(stage)}…
+              </strong>
+              {/* Hidden from screen readers: announcing a per-second timer is noise. */}
+              <span aria-hidden style={{ fontVariantNumeric: "tabular-nums", color: "var(--gray-600)" }}>
+                {formatElapsed(elapsedMs)}
+              </span>
+            </div>
+            <p className="help-text" style={{ margin: "8px 0 0" }}>
+              {elapsedMs >= INGEST_POLL_OVERTIME_MS
+                ? "Still working — this run is taking longer than usual. We keep checking, and the run also appears in Ingest history."
+                : "Large programs can take 2–3 minutes. You can leave this page — the run keeps going and appears in Ingest history."}
+            </p>
+          </section>
         ) : null}
         {error ? (
           <p role="alert" style={{ color: "var(--danger)" }}>
@@ -436,53 +524,98 @@ export default function AgendaIngestPage() {
           </div>
         ) : null}
 
-        <section style={{ display: "grid", gap: 16, marginTop: 16 }}>
-          <form onSubmit={onPaste} className="console-form console-panel">
-            <p className="console-panel-label">Paste program text</p>
-            <label>
-              Program text
-              <textarea
-                className="input"
-                rows={6}
-                value={paste}
-                onChange={(e) => setPaste(e.target.value)}
-                placeholder="Paste agenda text…"
-              />
-            </label>
-            <button type="submit" className="button" disabled={busy || !paste.trim()} style={{ justifySelf: "start" }}>
-              {busy ? "Working…" : "Extract from paste"}
-            </button>
-          </form>
+        {/* E15.3: one panel, one visible input, behind a chooser. Hidden while
+            a run is extracting (the status block stands in) and while a
+            completed run's review is on screen (the review replaces it). */}
+        {!extracting && !reviewVisible ? (
+          <section className="console-panel ingest-input-panel" style={{ marginTop: 16 }}>
+            <div className="ingest-mode-toggle" role="group" aria-label="Import method">
+              {INPUT_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={inputMode === m.id ? "active" : undefined}
+                  aria-pressed={inputMode === m.id}
+                  onClick={() => setInputMode(m.id)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
 
-          <form onSubmit={onUrl} className="console-form console-panel">
-            <p className="console-panel-label">Fetch URL</p>
-            <label>
-              URL
-              <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
-            </label>
-            <button type="submit" className="button" disabled={busy || !url.trim()} style={{ justifySelf: "start" }}>
-              Extract from URL
-            </button>
-          </form>
+            {inputMode !== "csv" ? (
+              // E15.2: set the honest expectation before the wait begins.
+              <p className="help-text" style={{ marginTop: 0 }}>
+                Large programs can take 2–3 minutes. You can leave this page — the run keeps going and appears
+                in Ingest history.
+              </p>
+            ) : null}
 
-          <div className="console-form console-panel">
-            <p className="console-panel-label">Upload file</p>
-            <label>
-              PDF / DOCX / XLSX / CSV / image
-              <input
-                className="input"
-                type="file"
-                accept=".pdf,.docx,.xlsx,.csv,.html,.htm,image/*"
-                disabled={busy}
-                onChange={(e) => void onFile(e.target.files?.[0] || null)}
-              />
-            </label>
-          </div>
+            {inputMode === "paste" ? (
+              <form onSubmit={onPaste} className="console-form">
+                <label>
+                  Program text
+                  <textarea
+                    className="input"
+                    rows={6}
+                    value={paste}
+                    onChange={(e) => setPaste(e.target.value)}
+                    placeholder="Paste agenda text…"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={busy || !paste.trim()}
+                  style={{ justifySelf: "start" }}
+                >
+                  {busy ? "Working…" : "Extract from paste"}
+                </button>
+              </form>
+            ) : null}
 
-          {eventId ? <SessionCsvImport eventId={eventId} /> : null}
-        </section>
+            {inputMode === "upload" ? (
+              <div className="console-form">
+                <label>
+                  PDF / DOCX / XLSX / CSV / image
+                  <input
+                    className="input"
+                    type="file"
+                    accept=".pdf,.docx,.xlsx,.csv,.html,.htm,image/*"
+                    disabled={busy}
+                    onChange={(e) => void onFile(e.target.files?.[0] || null)}
+                  />
+                </label>
+              </div>
+            ) : null}
 
-        {run && sourceDisplay && rows.length > 0 && (run.status === "READY_FOR_REVIEW" || run.status === "CONFIRMED") ? (
+            {inputMode === "url" ? (
+              <form onSubmit={onUrl} className="console-form">
+                <label>
+                  URL
+                  <input
+                    className="input"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://…"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={busy || !url.trim()}
+                  style={{ justifySelf: "start" }}
+                >
+                  Extract from URL
+                </button>
+              </form>
+            ) : null}
+
+            {inputMode === "csv" && eventId ? <SessionCsvImport eventId={eventId} bare /> : null}
+          </section>
+        ) : null}
+
+        {reviewVisible && run && sourceDisplay ? (
           <div ref={reviewRef}>
           <ReviewChangeset
             title={ingestReviewHeading({
@@ -583,6 +716,7 @@ export default function AgendaIngestPage() {
             </details>
           ) : null}
         </section>
+        </div>
       </OrganizerShell>
     </>
   );

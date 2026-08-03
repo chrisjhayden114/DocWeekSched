@@ -9,6 +9,7 @@ import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../component
 import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
 import { AiGeneratedChip } from "../../../components/AiGeneratedChip";
+import { ColorSwatchInput } from "../../../components/ColorSwatchInput";
 import { TimezoneSelect } from "../../../components/TimezoneSelect";
 import { apiFetch } from "../../../lib/api";
 import { OrgSummary } from "../../../lib/organizerApi";
@@ -642,7 +643,7 @@ export default function NewEventWizard() {
               <>
                 <label>
                   Brand color
-                  <input className="input" type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} />
+                  <ColorSwatchInput label="Brand color" value={brandColor} onChange={setBrandColor} />
                 </label>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button type="button" className="button secondary" onClick={() => setStep(1)}>

@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { ColorSwatchInput } from "../ColorSwatchInput";
 import { TimezoneSelect } from "../TimezoneSelect";
 import { toLocalInputValueInTimeZone, zonedDateTimeLocalToIso } from "../../lib/eventTimezone";
 import { organizerFetch } from "../../lib/organizerApi";
@@ -187,12 +188,10 @@ export function EventSettingsPanel({ eventId, event, onSaved }: Props) {
         </label>
         <label>
           Brand color
-          <input
-            className="input"
-            type="color"
+          <ColorSwatchInput
+            label="Brand color"
             value={form.brandColor}
-            onChange={(e) => set("brandColor", e.target.value)}
-            style={{ width: 56, padding: 2, height: 36 }}
+            onChange={(hex) => set("brandColor", hex)}
           />
         </label>
         {fieldError ? (

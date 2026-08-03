@@ -17,6 +17,11 @@ type Props = {
   eventId: string;
   /** Called after sessions were created, so the parent can refetch. */
   onCreated?: () => Promise<void> | void;
+  /**
+   * Render without the console-panel chrome — for embedding inside an
+   * existing panel (the ingest page's single input panel, E15.3).
+   */
+  bare?: boolean;
 };
 
 /**
@@ -25,7 +30,7 @@ type Props = {
  * only then create sessions via POST /sessions. Nothing is created without
  * the explicit confirm step.
  */
-export function SessionCsvImport({ eventId, onCreated }: Props) {
+export function SessionCsvImport({ eventId, onCreated, bare }: Props) {
   const [event, setEvent] = useState<EventWindow | null>(null);
   const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
@@ -156,7 +161,7 @@ export function SessionCsvImport({ eventId, onCreated }: Props) {
   const outsideCount = results.filter((r) => r.kind === "create" && r.outsideEventDates).length;
 
   return (
-    <div className="console-panel">
+    <div className={bare ? undefined : "console-panel"}>
       <div className="console-panel-head">
         <p className="console-panel-label">Import sessions from CSV</p>
         <button

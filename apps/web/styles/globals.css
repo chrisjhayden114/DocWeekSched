@@ -4731,6 +4731,93 @@ button.schedule-meta-chip:hover {
   max-width: 560px;
 }
 
+/* —— Agenda ingest (Chunk E15.3): one column of work, one input panel —— */
+.ingest-work {
+  max-width: 960px;
+}
+
+/* Inside the single input panel the forms span the panel; the 560px
+   console-form cap would re-create the old narrow stack. */
+.ingest-input-panel .console-form {
+  max-width: none;
+}
+
+/* Paste / Upload / URL / CSV chooser — same language as .agenda-view-toggle. */
+.ingest-mode-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 3px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+}
+
+.ingest-mode-toggle button {
+  border: none;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  background: transparent;
+  padding: 5px 14px;
+  font: 600 13px/20px var(--font-body);
+  color: var(--gray-600);
+}
+
+.ingest-mode-toggle button.active {
+  background: var(--gray-200);
+  color: var(--gray-900);
+}
+
+.ingest-mode-toggle button:not(.active):hover:not(:disabled) {
+  background: var(--gray-50);
+}
+
+/* Honest live status while a run is extracting (Chunk E15.2). */
+.ingest-spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--gray-300);
+  border-top-color: var(--primary);
+  border-radius: 999px;
+  animation: ingest-spin 0.8s linear infinite;
+}
+
+@keyframes ingest-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ingest-spinner {
+    animation: none;
+  }
+}
+
+/* —— Colour inputs (Chunk E15.4): fixed-size swatch, never .input —— */
+.color-swatch {
+  width: 44px;
+  height: 44px;
+  padding: 2px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.color-swatch-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.color-swatch-row .input {
+  max-width: 120px;
+}
+
 .console-table-wrap {
   width: 100%;
   overflow-x: auto;

@@ -690,11 +690,10 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                 style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "4px 0" }}
               >
                 <input
-                  className="input"
+                  className="color-swatch"
                   type="color"
                   value={editTrack.color}
                   onChange={(e) => setEditTrack({ ...editTrack, color: e.target.value })}
-                  style={{ width: 44, padding: 2, height: 32 }}
                   aria-label="Track color"
                 />
                 <input
@@ -762,11 +761,10 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
             style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}
           >
             <input
-              className="input"
+              className="color-swatch"
               type="color"
               value={trackDraft.color}
               onChange={(e) => setTrackDraft((d) => ({ ...d, color: e.target.value }))}
-              style={{ width: 44, padding: 2, height: 32 }}
               aria-label="Track color"
             />
             <input
