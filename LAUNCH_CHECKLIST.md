@@ -133,15 +133,41 @@ sessions must never propose deleting every existing session; that is a
 data-loss-shaped default one mis-click away. Guard: if the extract returns no
 sessions, propose **no** deletions and fail the run visibly.
 
-### 8c. P2 — console noise (cosmetic, not security)
+### 8c. P1 (was P2) — `/resources` 401 loop: ROOT-CAUSED
+
+Confirmed by reading both call sites. Two facts, both verified:
+
+1. **It is a polling loop, not many bugs.** `apps/web/pages/session/[sessionId].tsx`
+   L389–396 runs `reloadSessionAndMessages()` on a `setInterval(..., 8000)`. Every
+   tick re-fires the failing request, so the red-line count grows with time spent
+   on the page — 13, 11 and 22 occurrences were observed on single pages.
+2. **The 401 is an auth-scheme leftover.** `fetchSessionResources` (L179–193) uses
+   a **raw `fetch`** with only `Authorization: Bearer ${token}` and **no
+   `credentials: "include"`**. Every other call on the page goes through
+   `apiFetch` (`apps/web/lib/api.ts` L47–63), which sets `credentials: "include"`
+   so the httpOnly cookie is sent cross-origin to `api.ukedl.com`. `apiFetch`
+   ignores its token argument entirely (the parameter is literally named
+   `_token`) — the app moved to cookie auth and this one call site was never
+   migrated. So `requireAuth` sees no credential and returns 401 before the
+   route's own 403 "Join this session" guard is ever reached.
+
+Not user-visible: the client swallows the failure (`if (!res.ok) return []`), which
+is why the panel just reads "No resources yet." But it means **session resources
+are invisible to everyone, always** — a silently dead feature, plus ~8 needless
+authenticated API calls per minute per open session page.
+
+Fix: add `credentials: "include"` to `fetchSessionResources`, or better, route it
+through `apiFetch` like everything else. Then re-test that a joined attendee can
+actually see resources — that path has probably never worked in production.
+
+### 8d. P2 — remaining console noise
 
 Repeating red HTTP errors on every session page, logged in:
 
-- `GET /sessions/:id/resources` → **401** (the route's own guard is a 403
-  "Join this session to view resources", so the 401 is coming from earlier in the
-  chain — **not root-caused**, do not assume)
 - `GET /event/maps/by-room/:roomId` → **404** when the room has no map
-- `GET /attendees?take=500` → **404** on the dashboard Messages tab
+- `GET /attendees?take=500` → **404** on the dashboard Messages tab. Built by
+  `apiFetchAll`, but no `/attendees` route is mounted at the API root — the caller
+  is very likely pointing at a path that moved. **Not verified — find the caller.**
 
 None of these break a visible feature, but they are the kind of noise that makes
 a real error invisible during an incident, and 8c's third item suggests a caller

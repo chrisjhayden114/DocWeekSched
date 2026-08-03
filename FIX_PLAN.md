@@ -218,3 +218,85 @@ Fix:
 
 Scope: apps/web only. No API, no schema. Run npm test + npm run build in both apps, report the list of fixed locations, and STOP.
 ```
+
+---
+
+# Chunk E9 — ingest regression + dead resources feature
+
+Found 2026-08-02 during the CSP console walkthrough. Two independent defects,
+both silent failures — nothing crashed, features just quietly did nothing.
+
+## E9.1 — PDF/DOCX/XLSX ingest returns nothing (P0 regression)
+
+**Symptom:** uploading a real PDF yields `0 create · 5 delete proposed` and the
+assumption *"The source provided only references a stored file name … with no
+extractable text content."*
+
+**Cause:** two call sites branch on the storage URL's *scheme*, which used to be
+`data:` under the Postgres fallback and is now `https://…r2.dev/…`:
+
+- `apps/api/src/routes/agendaIngest.ts` (~L210–230) — only extracts text when
+  `stored.url.startsWith("data:")`; else falls through to the stub
+  `` `[Stored file ${sourceFileName}]` ``.
+- `apps/api/src/lib/ai/ingest/job.ts` (L36–47) — only builds the multimodal
+  `attachment` when `run.sourceUrl?.startsWith("data:")`.
+
+`StorageProvider` (`apps/api/src/lib/storage/types.ts`) has `put` and
+`acceptUpload` but **no read method**, so bytes cannot be fetched back after
+upload. Do not add one for this fix.
+
+**Fix — derive from the inbound payload, not the stored URL.** The browser posts
+the file as a `data:` URL in `parsed.data.fileUrl`, so the bytes are already in
+hand before `acceptUpload` runs:
+
+1. In `agendaIngest.ts`, decode `parsed.data.fileUrl` (not `stored.url`) for
+   `sourceText`, `sourceMime` and `sourceBytes`. Keep storing to R2 for the
+   audit trail / re-runs — just stop depending on what comes back.
+2. Persist enough for the job to rebuild the attachment without re-reading
+   storage. Simplest: pass the base64 + mime on the job payload alongside
+   `runId`/`sourceText`. If that makes the payload too large for the jobs table,
+   say so and propose an alternative rather than silently truncating.
+3. In `job.ts`, build `attachment` from that payload, falling back to the
+   existing `data:`-URL branch so the local/dev data-URL path still works.
+4. Both paths must keep honouring `AGENDA_INGEST_MAX_BYTES`.
+
+**Acceptance:** upload a real multi-session PDF on a dev event → sessions are
+proposed with real titles and times. Re-run the same PDF → near-zero diff, not a
+wall of deletes.
+
+## E9.2 — an empty extract must not propose deleting everything (P1)
+
+The same run reported `0 create · 5 delete proposed`. If an extract yields zero
+sessions, propose **no** deletions and end the run in a visible failed/empty
+state. A zero-result parse is evidence the parse failed, never evidence the
+organiser deleted their programme. Add a unit test for it.
+
+## E9.3 — session resources are invisible to everyone (P1)
+
+`apps/web/pages/session/[sessionId].tsx` L179–193 `fetchSessionResources` uses a
+raw `fetch` with `Authorization: Bearer ${token}` and **no
+`credentials: "include"`**, so the httpOnly cookie is never sent cross-origin to
+`api.ukedl.com`. `requireAuth` returns 401 before the route's own 403 "Join this
+session" guard is reached. The client swallows it (`if (!res.ok) return []`), so
+the panel reads "No resources yet" — for everyone, always. The 8-second poll at
+L389–396 re-fires it, producing 10–20 console errors per page visit.
+
+**Fix:** route the call through `apiFetch` (`apps/web/lib/api.ts`) like every
+other request on the page — it already sets `credentials: "include"` and ignores
+the token argument. Then **audit for other raw `fetch(` calls to `API_URL`** in
+`apps/web` with the same missing-credentials bug; the E8 pattern says where
+there is one there are several.
+
+**Acceptance:** as a joined attendee, add a link resource and see it listed after
+reload. Console clean on the session page.
+
+## E9.4 — `GET /attendees?take=500` → 404 (P2)
+
+Fires on the dashboard Messages tab via `apiFetchAll`. No `/attendees` route is
+mounted at the API root. Find the caller, point it at the real path (or delete
+the call if the data is unused). Not yet root-caused — investigate, don't assume.
+
+## Standing rules for this chunk
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Stop the web dev server before starting; run the reset ritual after.
+- Migrations: none expected. If you think one is needed, stop and explain why.
