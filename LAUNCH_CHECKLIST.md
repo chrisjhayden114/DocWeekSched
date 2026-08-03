@@ -172,3 +172,42 @@ Repeating red HTTP errors on every session page, logged in:
 None of these break a visible feature, but they are the kind of noise that makes
 a real error invisible during an incident, and 8c's third item suggests a caller
 pointing at a path that no longer exists.
+
+---
+
+## 9. Chunks E9–E12 — shipped and verified on production, 2026-08-02
+
+| Chunk | What it fixed | Verified |
+|---|---|---|
+| **E9** | PDF/file ingest regression from the R2 switch; empty-extract delete guard; session-resources 401 loop; `/attendees` 404 | ✅ prod |
+| **E10** | `max_tokens: 4096` truncating every real programme; truncation now detected via `stop_reason` and reported honestly instead of as "invalid JSON" | ✅ prod |
+| **E11** | Ingest Source panel showed a `[Binary …]` debug stub; result heading now names the file; combined "+ Add paper or resource" entry point | ✅ prod |
+| **E12** | Confirm-drafts dead end (now "View program"); resources invisible in the Program tab; resource panel inverted on the session page; "data URLs" copy removed | ✅ prod |
+
+**Headline result:** file ingest works end to end for the first time. A 7-page
+DocWeek programme PDF produced 22 correct sessions with tracks and rooms, and a
+re-run of the same file proposed `18 create · 4 update · 5 delete` — recognising
+survivors and updating rather than duplicating them. Session resources also work
+for the first time (they had returned 401 silently since the cookie-auth
+migration).
+
+**Also landed:** `.cursor/rules` now requires error messages to name the real
+cause; README documents the reset ritual and pins **Node 20** (`.nvmrc` +
+`engines`), which nothing enforced before.
+
+### Verification gotcha worth remembering
+The first E12 verification pass appeared to show *every* item failing. The deploy
+was green and the code was correct — it was **browser cache**. A hard reload
+(⌘⇧R) fixed it. Before debugging a deploy that "didn't take", confirm the
+published commit in Netlify **and** hard-reload. Corollary worth considering
+later: if stale HTML can fool the person who wrote the fix, it can fool an
+organiser mid-conference.
+
+### Still open after tonight
+- **DOCX/XLSX ingest** — advertised in the upload UI, silently produces nothing.
+  Same failure class as the PDF bug; a Word programme is common for this market.
+- **Billing go-live** — Stripe business verification → live keys → live webhook →
+  five live products → one real purchase, refunded. Last gate before revenue.
+- Ingest takes 2+ minutes with no progress indication.
+- Rate-limit stutter (open question, §8 above); HSTS preload (post-launch);
+  Siap rename (awaiting attorney).
