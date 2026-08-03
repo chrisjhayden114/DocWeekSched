@@ -341,13 +341,21 @@ eventRouter.post(
     if (event.status === EventStatus.ARCHIVED) {
       return res.status(400).json({ error: "Unarchive before publishing" });
     }
-    const updated = await prisma.event.update({
-      where: { id: event.id },
-      data: { status: EventStatus.ACTIVE, activatedAt: event.activatedAt ?? new Date() },
+    // E13.1: publishing the event publishes its draft sessions too, in the
+    // same transaction — otherwise an ingested programme stays invisible on
+    // the public page while looking complete to the organizer.
+    const { publishEventDraftSessions } = await import("../lib/ai/ingest/publish");
+    const [updated, publishedSessionCount] = await prisma.$transaction(async (tx) => {
+      const ev = await tx.event.update({
+        where: { id: event.id },
+        data: { status: EventStatus.ACTIVE, activatedAt: event.activatedAt ?? new Date() },
+      });
+      const count = await publishEventDraftSessions(tx, event.id);
+      return [ev, count] as const;
     });
     const { markEventChecklistDone } = await import("../lib/onboarding/checklist");
     await markEventChecklistDone(event.id, "publish").catch(() => undefined);
-    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+    return res.json({ ...updated, uiStatus: uiEventStatus(updated), publishedSessionCount });
   }),
 );
 

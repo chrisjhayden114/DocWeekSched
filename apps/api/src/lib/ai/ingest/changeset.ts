@@ -1,6 +1,11 @@
 import { localDayKey } from "../../notifications/timezone";
 import type { AgendaExtract, ExtractedSession } from "./schema";
+import { normalizeTitle } from "./schema";
 import { REIMPORT_TITLE_THRESHOLD, titleSimilarity } from "./similarity";
+
+/** E13.3: existing children of a matched session, so a re-import can PROPOSE removals instead of forcing them. */
+export type ExistingSpeakerLite = { speakerId: string; name: string };
+export type ExistingItemLite = { itemId: string; title: string };
 
 export type ExistingSessionLite = {
   id: string;
@@ -10,7 +15,13 @@ export type ExistingSessionLite = {
   location?: string | null;
   trackName?: string | null;
   roomName?: string | null;
+  speakers?: ExistingSpeakerLite[];
+  items?: ExistingItemLite[];
 };
+
+/** E13.3: a child the source no longer mentions. Removal defaults unchecked — nothing hand-entered disappears without a tick. */
+export type SpeakerRemoval = { speakerId: string; name: string; accepted: boolean };
+export type ItemRemoval = { itemId: string; title: string; accepted: boolean };
 
 export type ChangesetRow =
   | {
@@ -28,6 +39,10 @@ export type ChangesetRow =
       message: string;
       similarity: number;
       accepted: boolean;
+      /** Existing speakers not in this import (unchecked by default). */
+      speakerRemovals?: SpeakerRemoval[];
+      /** Existing papers not in this import (unchecked by default). */
+      itemRemovals?: ItemRemoval[];
     }
   | {
       kind: "delete";
@@ -82,6 +97,17 @@ export function buildReimportChangeset(
       if (titleSimilarity(session.title, best.ex.title) < 1) {
         changes.push("update title");
       }
+      // E13.3: children the source does not mention become explicit,
+      // unchecked-by-default removal proposals — confirm never deletes them
+      // on its own.
+      const extractedSpeakerKeys = new Set(session.speakers.map((n) => normalizeTitle(n)));
+      const speakerRemovals: SpeakerRemoval[] = (best.ex.speakers || [])
+        .filter((sp) => !extractedSpeakerKeys.has(normalizeTitle(sp.name)))
+        .map((sp) => ({ speakerId: sp.speakerId, name: sp.name, accepted: false }));
+      const extractedItemKeys = new Set((session.items || []).map((it) => normalizeTitle(it.title)));
+      const itemRemovals: ItemRemoval[] = (best.ex.items || [])
+        .filter((it) => !extractedItemKeys.has(normalizeTitle(it.title)))
+        .map((it) => ({ itemId: it.itemId, title: it.title, accepted: false }));
       rows.push({
         kind: "update",
         rowIndex: rowIndex++,
@@ -91,6 +117,8 @@ export function buildReimportChangeset(
         message: changes.length ? changes.join(", ") : "update fields",
         similarity: best.sim,
         accepted: true,
+        ...(speakerRemovals.length ? { speakerRemovals } : {}),
+        ...(itemRemovals.length ? { itemRemovals } : {}),
       });
     } else {
       rows.push({

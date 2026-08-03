@@ -235,6 +235,25 @@ sessionsRouter.get(
   }),
 );
 
+/**
+ * E13.1: publish all DRAFT sessions on the event. Publishing the event does
+ * this automatically; this route covers drafts added AFTER the event went
+ * ACTIVE (e.g. a second ingest), surfaced as "Publish N draft sessions" on
+ * the Program tab.
+ */
+sessionsRouter.post(
+  "/publish-drafts",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    const { publishEventDraftSessions } = await import("../lib/ai/ingest/publish");
+    const publishedCount = await publishEventDraftSessions(prisma, event.id);
+    return res.json({ publishedCount });
+  }),
+);
+
 sessionsRouter.get(
   "/:id/resources",
   requireAuth,

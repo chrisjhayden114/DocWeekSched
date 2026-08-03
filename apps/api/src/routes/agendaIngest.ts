@@ -59,6 +59,26 @@ const changesetRowSchema = z.discriminatedUnion("kind", [
       message: z.string(),
       similarity: z.number().optional().default(0),
       accepted: z.boolean(),
+      // E13.3: explicit child-removal proposals (unchecked by default) —
+      // confirm deletes a speaker link/paper only when accepted is true.
+      speakerRemovals: z
+        .array(
+          z.object({
+            speakerId: z.string().min(1),
+            name: z.string(),
+            accepted: z.boolean(),
+          }),
+        )
+        .optional(),
+      itemRemovals: z
+        .array(
+          z.object({
+            itemId: z.string().min(1),
+            title: z.string(),
+            accepted: z.boolean(),
+          }),
+        )
+        .optional(),
     })
     .passthrough(),
   z

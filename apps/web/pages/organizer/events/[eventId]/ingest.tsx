@@ -11,6 +11,7 @@ import {
 } from "../../../../components/ReviewChangeset";
 import { SessionCsvImport } from "../../../../components/organizer/SessionCsvImport";
 import { describeIngestSource, ingestReviewHeading } from "../../../../lib/ingestSource";
+import { rowsToApiChangeset, toggleRemoval } from "../../../../lib/ingestReview";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
 type IngestRun = {
@@ -127,6 +128,10 @@ function changesetToRows(raw: unknown): ReviewChangeRow[] {
         accepted: row.accepted !== false,
         sessionId: row.sessionId,
         session,
+        // E13.3: child-removal proposals ride along so the review UI can
+        // offer them as unchecked checkboxes.
+        speakerRemovals: row.speakerRemovals,
+        itemRemovals: row.itemRemovals,
       };
     }
     if (kind === "error") {
@@ -144,24 +149,6 @@ function changesetToRows(raw: unknown): ReviewChangeRow[] {
       confidence: minConfidence(session),
       accepted: row.accepted !== false,
       session,
-    };
-  });
-}
-
-function rowsToApiChangeset(rows: ReviewChangeRow[], original: unknown): unknown[] {
-  const orig = Array.isArray(original) ? (original as Record<string, unknown>[]) : [];
-  return rows.map((row) => {
-    const base = orig.find((o) => Number(o.rowIndex) === row.rowIndex) || {};
-    return {
-      ...base,
-      kind: row.kind,
-      rowIndex: row.rowIndex,
-      accepted: "accepted" in row ? row.accepted : undefined,
-      title: "title" in row ? row.title : undefined,
-      message: "message" in row ? row.message : undefined,
-      session: "session" in row ? row.session : base.session,
-      sessionId: "sessionId" in row ? row.sessionId : base.sessionId,
-      existingTitle: base.existingTitle,
     };
   });
 }
@@ -318,10 +305,12 @@ export default function AgendaIngestPage() {
     setBusy(true);
     setError(null);
     try {
+      // E13.2: assumptions are read-only display now — only the changeset
+      // (with accept ticks and removal ticks) is persisted before confirm.
       const changeset = rowsToApiChangeset(rows, run.changeset);
       await organizerFetch(`/ai/ingest/${run.id}`, eventId, {
         method: "PATCH",
-        body: JSON.stringify({ changeset, assumptions }),
+        body: JSON.stringify({ changeset }),
       });
       const res = await organizerFetch<ConfirmResponse>(`/ai/ingest/${run.id}/confirm`, eventId, {
         method: "POST",
@@ -329,7 +318,9 @@ export default function AgendaIngestPage() {
       });
       setRun(res.run);
       setMessageSafe(
-        `Created ${res.createdCount} draft session(s), updated ${res.updatedCount}, deleted ${res.deletedCount}. Drafts stay hidden from attendees until published.`,
+        `Created ${res.createdCount} draft session(s), updated ${res.updatedCount}, deleted ${res.deletedCount}. ` +
+          `Drafts stay hidden from attendees until published — publishing the event publishes them, ` +
+          `or use “Publish draft sessions” on the Program tab if the event is already live.`,
       );
       await loadHistory();
     } catch (err) {
@@ -524,11 +515,11 @@ export default function AgendaIngestPage() {
             rows={rows}
             summary={summary}
             assumptions={assumptions}
-            onAssumptionAnswer={(id, answer) =>
-              setAssumptions((prev) => prev.map((a) => (a.id === id ? { ...a, answer } : a)))
-            }
             onAcceptChange={(rowIndex, accepted) =>
               setRows((prev) => prev.map((r) => (r.rowIndex === rowIndex ? { ...r, accepted } : r)))
+            }
+            onRemovalChange={(rowIndex, kind, id, accepted) =>
+              setRows((prev) => toggleRemoval(prev, rowIndex, kind, id, accepted))
             }
             renderCreateSummary={(row) => {
               const session = "session" in row ? (row.session as { title?: string; startTime?: string; room?: string } | undefined) : undefined;

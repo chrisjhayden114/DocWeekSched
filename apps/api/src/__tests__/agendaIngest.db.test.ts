@@ -11,11 +11,13 @@ import { MockAiProvider, resetAiProviderForTests } from "../lib/ai";
 import {
   confirmAgendaChangeset,
   loadFixtureSource,
+  publishEventDraftSessions,
   runAgendaExtract,
   isSessionAttendeeVisible,
+  type ChangesetRow,
 } from "../lib/ai/ingest";
 import { applyPlanSkuToOrg } from "../lib/billing/entitlements";
-import { HttpError } from "../lib/authorization";
+import { HttpError, requireEventAccess } from "../lib/authorization";
 import { assertAiCap } from "../lib/ai";
 import { enqueueJob, processDueJobs } from "../lib/jobs";
 import { AGENDA_INGEST_JOB_TYPE } from "../lib/ai/ingest/constants";
@@ -267,6 +269,190 @@ describe("Agenda ingest (DB)", () => {
     );
     expect(updates.length).toBeGreaterThan(0);
     expect(createsForExistingTitles.length).toBe(0);
+  });
+
+  it("hand-added paper and speaker survive a re-import; ticked removals delete exactly them (E13.3)", async () => {
+    if (!dbReady) return;
+    const session = await prisma.session.create({
+      data: {
+        eventId: ids.eventId!,
+        title: "Reconcile Target",
+        startsAt: new Date("2027-09-08T15:00:00Z"),
+        endsAt: new Date("2027-09-08T16:00:00Z"),
+        publishStatus: SessionPublishStatus.DRAFT,
+      },
+    });
+    const handSpeaker = await prisma.speaker.create({
+      data: { eventId: ids.eventId!, name: "Hand Added Speaker", sortOrder: 90 },
+    });
+    await prisma.sessionSpeaker.create({
+      data: { sessionId: session.id, speakerId: handSpeaker.id, sortOrder: 0 },
+    });
+    const handPaper = await prisma.sessionItem.create({
+      data: { sessionId: session.id, title: "Hand Added Paper", sortOrder: 0 },
+    });
+
+    const updateRow: ChangesetRow = {
+      kind: "update",
+      rowIndex: 0,
+      sessionId: session.id,
+      session: {
+        title: "Reconcile Target",
+        date: "2027-09-08",
+        startTime: "15:00",
+        endTime: "16:00",
+        speakers: ["Imported Speaker"],
+        items: [{ title: "Imported Paper", authors: ["Imported Author"] }],
+      },
+      existingTitle: "Reconcile Target",
+      message: "update fields",
+      similarity: 1,
+      accepted: true,
+      speakerRemovals: [
+        { speakerId: handSpeaker.id, name: "Hand Added Speaker", accepted: false },
+      ],
+      itemRemovals: [{ itemId: handPaper.id, title: "Hand Added Paper", accepted: false }],
+    };
+
+    const run = await prisma.agendaIngestRun.create({
+      data: {
+        organizationId: ids.orgId!,
+        eventId: ids.eventId!,
+        createdById: ids.managerId,
+        sourceKind: "PASTE",
+        status: "READY_FOR_REVIEW",
+        changeset: [updateRow] as unknown as object[],
+      },
+    });
+
+    // Unchecked removals: everything hand-entered survives the re-import.
+    await confirmAgendaChangeset({
+      prisma,
+      organizationId: ids.orgId!,
+      eventId: ids.eventId!,
+      timezone: "UTC",
+      actorUserId: ids.managerId,
+      runId: run.id,
+      rows: [updateRow],
+    });
+
+    const after = await prisma.session.findUniqueOrThrow({
+      where: { id: session.id },
+      include: {
+        items: true,
+        sessionSpeakers: { include: { speaker: { select: { name: true } } } },
+      },
+    });
+    expect(after.items.map((i) => i.title).sort()).toEqual([
+      "Hand Added Paper",
+      "Imported Paper",
+    ]);
+    expect(after.sessionSpeakers.map((l) => l.speaker.name).sort()).toEqual([
+      "Hand Added Speaker",
+      "Imported Speaker",
+    ]);
+
+    // Ticked removals delete exactly the ticked children — nothing else.
+    const run2 = await prisma.agendaIngestRun.create({
+      data: {
+        organizationId: ids.orgId!,
+        eventId: ids.eventId!,
+        createdById: ids.managerId,
+        sourceKind: "PASTE",
+        status: "READY_FOR_REVIEW",
+        changeset: [] as unknown as object[],
+      },
+    });
+    await confirmAgendaChangeset({
+      prisma,
+      organizationId: ids.orgId!,
+      eventId: ids.eventId!,
+      timezone: "UTC",
+      actorUserId: ids.managerId,
+      runId: run2.id,
+      rows: [
+        {
+          ...updateRow,
+          speakerRemovals: [
+            { speakerId: handSpeaker.id, name: "Hand Added Speaker", accepted: true },
+          ],
+          itemRemovals: [{ itemId: handPaper.id, title: "Hand Added Paper", accepted: true }],
+        },
+      ],
+    });
+
+    const after2 = await prisma.session.findUniqueOrThrow({
+      where: { id: session.id },
+      include: {
+        items: true,
+        sessionSpeakers: { include: { speaker: { select: { name: true } } } },
+      },
+    });
+    expect(after2.items.map((i) => i.title)).toEqual(["Imported Paper"]);
+    expect(after2.sessionSpeakers.map((l) => l.speaker.name)).toEqual(["Imported Speaker"]);
+  });
+
+  it("publishing drafts promotes only this event's sessions and requires manage access (E13.1)", async () => {
+    if (!dbReady) return;
+    const stamp = Date.now();
+    const draft = await prisma.session.create({
+      data: {
+        eventId: ids.eventId!,
+        title: "Draft Awaiting Publish",
+        startsAt: new Date("2027-09-09T10:00:00Z"),
+        endsAt: new Date("2027-09-09T11:00:00Z"),
+        publishStatus: SessionPublishStatus.DRAFT,
+      },
+    });
+    // Tenancy: a sibling event's draft must be untouched.
+    const otherEvent = await prisma.event.create({
+      data: {
+        name: `Publish Scope ${stamp}`,
+        slug: `publish-scope-${stamp}`,
+        timezone: "UTC",
+        startDate: new Date("2027-11-01T14:00:00Z"),
+        endDate: new Date("2027-11-02T22:00:00Z"),
+        status: EventStatus.ACTIVE,
+        organizationId: ids.orgId!,
+        createdById: ids.managerId!,
+        memberships: { create: { userId: ids.managerId!, role: EventMemberRole.ADMIN } },
+      },
+    });
+    const otherDraft = await prisma.session.create({
+      data: {
+        eventId: otherEvent.id,
+        title: "Other Event Draft",
+        startsAt: new Date("2027-11-01T15:00:00Z"),
+        endsAt: new Date("2027-11-01T16:00:00Z"),
+        publishStatus: SessionPublishStatus.DRAFT,
+      },
+    });
+
+    // Authorization for POST /sessions/publish-drafts and /event/publish:
+    // manage access is required; a plain attendee is rejected.
+    await expect(
+      requireEventAccess(ids.attendeeId!, ids.eventId!, { manage: true }),
+    ).rejects.toBeInstanceOf(HttpError);
+
+    const count = await publishEventDraftSessions(prisma, ids.eventId!);
+    expect(count).toBeGreaterThanOrEqual(1);
+
+    const published = await prisma.session.findUniqueOrThrow({ where: { id: draft.id } });
+    expect(published.publishStatus).toBe(SessionPublishStatus.PUBLISHED);
+    expect(
+      isSessionAttendeeVisible({
+        canManageEvent: false,
+        eventStatus: EventStatus.ACTIVE,
+        publishStatus: published.publishStatus,
+      }),
+    ).toBe(true);
+
+    const untouched = await prisma.session.findUniqueOrThrow({ where: { id: otherDraft.id } });
+    expect(untouched.publishStatus).toBe(SessionPublishStatus.DRAFT);
+
+    await prisma.session.deleteMany({ where: { eventId: otherEvent.id } });
+    await prisma.eventMembership.deleteMany({ where: { eventId: otherEvent.id } });
+    await prisma.event.delete({ where: { id: otherEvent.id } });
   });
 
   it("job handler extracts fixture and FREE second ingest shows upgrade", async () => {

@@ -157,9 +157,19 @@ export default function OrganizerEventPage() {
     setBusy(true);
     setError(null);
     try {
-      await organizerFetch(path, eventId, { method: "POST", body: "{}" });
+      const res = await organizerFetch<{ publishedSessionCount?: number }>(path, eventId, {
+        method: "POST",
+        body: "{}",
+      });
       await refresh();
-      setMessage("Status updated");
+      // E13.1: publishing reports what it did — the event AND its draft
+      // sessions go live together.
+      if (path === "/event/publish") {
+        const n = res?.publishedSessionCount ?? 0;
+        setMessage(n > 0 ? `Published event and ${n} session${n === 1 ? "" : "s"}.` : "Published event.");
+      } else {
+        setMessage("Status updated");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Status change failed");
     } finally {

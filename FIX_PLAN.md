@@ -515,3 +515,101 @@ that is a separate change to how the browser uploads, not a copy edit.
 ## Standing rules
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
 - Stop the web dev server first; reset ritual after (see README). No migrations.
+
+---
+
+# Chunk E13 — the ingest publish path (three P0s)
+
+Found 2026-08-02 by the three-persona UX audit; all three **verified against
+source** before being written here. See `ux-audit-capture/UX_AUDIT_MERGED.md` §1.
+
+These are one chunk because they are one workflow: ingest → review → confirm →
+publish. Today that workflow produces an empty public page, silently discards the
+organiser's corrections, and destroys hand-entered data on re-import.
+
+## E13.1 — Ingested sessions can never become attendee-visible (P0)
+
+- `prisma/schema.prisma:800` — `publishStatus @default(PUBLISHED)`
+- `lib/ai/ingest/confirm.ts:213` — ingest **overrides** it to `DRAFT`
+- `lib/ai/ingest/visibility.ts` — non-managers see only `PUBLISHED` on an
+  `ACTIVE` event
+- **No route in `src/routes/` ever writes `PUBLISHED`.** Only the demo seed
+  (`lib/demoEvent/reset.ts`) and test fixtures do. `apps/web` has **zero**
+  references to `publishStatus` — there is no control anywhere.
+
+So: paste programme → confirm 22 sessions → Publish → public page shows the event
+with **no sessions**. Invisible to the organiser because managers see drafts, and
+invisible in the demo because the seed writes `PUBLISHED` directly.
+
+**Decision taken by the founder:** keep DRAFT-on-ingest (the review gate stays),
+and make **publishing the event publish its sessions too.**
+
+**Fix:**
+1. `POST /event/publish` also promotes that event's `DRAFT` sessions to
+   `PUBLISHED`, in the same transaction as the event status change.
+2. The Program tab shows a visible **Draft** badge on any session that is not
+   PUBLISHED, so the state is never invisible again.
+3. Publishing an event reports what it did: "Published event and 22 sessions."
+4. If an event is already ACTIVE and later gains draft sessions (a second
+   ingest), the organiser needs a way to publish those too — surface a
+   **"Publish N draft sessions"** action on the Program tab when any exist. This
+   is the minimum; do not build per-session toggles.
+
+## E13.2 — Edited assumptions are stored and then discarded (P0)
+
+- `routes/agendaIngest.ts:345` — `PATCH /ai/ingest/:id` persists `assumptions`
+  onto the run row.
+- `lib/ai/ingest/confirm.ts:164` — `confirmAgendaChangeset({ prisma,
+  organizationId, eventId, timezone, actorUserId, runId, rows })`. **No
+  `assumptions` parameter**; nothing downstream reads them.
+
+The Assumptions panel is the clearest expression of "agents draft, humans
+publish" in the whole product — and editing it does nothing.
+
+**Fix:** thread the edited assumptions through to confirm and apply them to the
+rows they affect (name spellings, timezone, inclusion/exclusion decisions).
+**If applying an assumption to the changeset is genuinely not tractable, say so
+and make the field read-only instead** — an editable control that silently does
+nothing is worse than no control. Do not leave it as-is.
+
+## E13.3 — Update rows destroy hand-entered speakers and papers (P0)
+
+`lib/ai/ingest/confirm.ts:233–234`, on the update branch:
+```ts
+await prisma.sessionSpeaker.deleteMany({ where: { sessionId: row.sessionId } });
+await prisma.sessionItem.deleteMany({ where: { sessionId: row.sessionId } });
+```
+then rewrites both from the AI extraction. Any paper, speaker link, author
+ordering or discussant the organiser added by hand — and that the source document
+does not contain — is **hard-deleted with no undo**.
+
+Re-import is the product's core workflow (tonight's own run: `18 create ·
+4 update · 5 delete proposed`). This turns "re-upload the revised programme" into
+silent data loss.
+
+**Fix:** stop blind-replacing. Reconcile instead — match existing items, update
+what the source covers, leave what it does not mention alone. Where an update
+genuinely would remove something the organiser added, **surface it in the
+changeset as an explicit, unchecked-by-default removal**, exactly like the
+existing delete rows. Nothing the organiser typed disappears without them
+ticking a box.
+
+## Acceptance
+- Ingest 3+ sessions on a draft event → Publish → sign out (or use a private
+  window) → the public `/e/{slug}` page lists those sessions.
+- Program tab shows a Draft badge before publishing and none after.
+- Ingest into an already-published event → a "Publish N draft sessions" action
+  appears and works.
+- Edit an assumption answer (e.g. a name spelling) → confirm → the created
+  session reflects the edit. Or the field is read-only with an explanation.
+- Add a paper by hand to an ingested session → re-import the same source → the
+  hand-added paper still exists, or its removal appears as an unchecked row.
+- Unit tests for all three; the E13.3 test must assert that a hand-added item
+  survives a re-import.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Follow the "errors must name the real cause" rule in `.cursor/rules/product.mdc` —
+  all three of these are that rule violated in data form.
+- Stop the web dev server first; reset ritual after (see README).
+- A migration is not expected. If you think one is needed, stop and explain why.

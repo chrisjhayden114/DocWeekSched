@@ -5,7 +5,11 @@ export {
   buildReimportChangeset,
   extractToCreateChangeset,
   type ChangesetRow,
+  type ExistingSessionLite,
+  type ItemRemoval,
+  type SpeakerRemoval,
 } from "./changeset";
+export { publishEventDraftSessions } from "./publish";
 export { runAgendaExtract } from "./extract";
 export { confirmAgendaChangeset } from "./confirm";
 export { registerAgendaIngestJob } from "./job";

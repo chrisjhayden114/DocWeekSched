@@ -31,6 +31,8 @@ export type ProgramSession = {
   title: string;
   startsAt: string;
   endsAt: string;
+  /** E13.1: DRAFT sessions carry a visible badge and can be bulk-published. */
+  publishStatus?: string | null;
   trackId?: string | null;
   roomId?: string | null;
   // Round-tripped on PUT (the API nulls omitted optional fields).
@@ -49,7 +51,7 @@ export type ProgramSession = {
   items?: Paper[];
 };
 
-type EventWindow = { timezone: string; startDate: string; endDate: string };
+type EventWindow = { timezone: string; startDate: string; endDate: string; status: string };
 
 type Props = {
   eventId: string;
@@ -181,6 +183,29 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
   const [busy, setBusy] = useState(false);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<ConfirmState>(null);
+
+  // E13.1: drafts (from ingest) must never be invisible state.
+  const draftCount = useMemo(
+    () => sessions.filter((s) => s.publishStatus === "DRAFT").length,
+    [sessions],
+  );
+  const [publishNotice, setPublishNotice] = useState<string | null>(null);
+
+  async function publishDrafts() {
+    const ok = await run("publish-drafts", async () => {
+      const res = await organizerFetch<{ publishedCount: number }>(
+        "/sessions/publish-drafts",
+        eventId,
+        { method: "POST", body: "{}" },
+      );
+      setPublishNotice(
+        `Published ${res.publishedCount} session${res.publishedCount === 1 ? "" : "s"} — attendees can see ${
+          res.publishedCount === 1 ? "it" : "them"
+        } now.`,
+      );
+    });
+    if (!ok) setPublishNotice(null);
+  }
 
   // Collapsed add-forms (item 7: no always-open forms mid-page).
   const [addTrackOpen, setAddTrackOpen] = useState(false);
@@ -892,6 +917,46 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           Speakers tab) present sessions — a person can be both.
         </p>
 
+        {/* E13.1: draft sessions are labelled below; when the event is already
+            live they also need their own publish action, because event publish
+            (which promotes drafts) has already happened. */}
+        {draftCount > 0 ? (
+          event.status === "ACTIVE" ? (
+            <div
+              role="status"
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "center",
+                flexWrap: "wrap",
+                padding: "8px 12px",
+                marginBottom: 12,
+                borderRadius: "var(--radius-sm)",
+                background: "var(--warning-50, #fffaeb)",
+                border: "1px solid var(--gray-200)",
+              }}
+            >
+              <span style={{ font: "var(--text-body)" }}>
+                {draftCount} draft session{draftCount === 1 ? " is" : "s are"} hidden from attendees.
+              </span>
+              <button type="button" className="button" style={smallButton} disabled={busy} onClick={() => void publishDrafts()}>
+                Publish {draftCount} draft session{draftCount === 1 ? "" : "s"}
+              </button>
+              {rowError("publish-drafts")}
+            </div>
+          ) : (
+            <p className="help-text" style={{ margin: "0 0 12px" }}>
+              {draftCount} draft session{draftCount === 1 ? "" : "s"} — hidden from attendees. Publishing the
+              event (Overview tab) publishes them too.
+            </p>
+          )
+        ) : null}
+        {publishNotice ? (
+          <p role="status" style={{ margin: "0 0 12px", color: "var(--success)", font: "var(--text-body)" }}>
+            {publishNotice}
+          </p>
+        ) : null}
+
         {sessions.length === 0 && !addSessionOpen ? (
           <ListEmpty
             title="No sessions yet"
@@ -975,6 +1040,22 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ margin: 0, font: "600 15px/20px inherit", color: "var(--gray-900)" }}>
                                 {s.title}
+                                {s.publishStatus === "DRAFT" ? (
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      marginLeft: 8,
+                                      padding: "0 8px",
+                                      borderRadius: 999,
+                                      background: "var(--warning-50, #fffaeb)",
+                                      color: "var(--warning, #b54708)",
+                                      font: "600 11px/18px inherit",
+                                      verticalAlign: "middle",
+                                    }}
+                                  >
+                                    Draft
+                                  </span>
+                                ) : null}
                               </p>
                               <p className="help-text" style={{ margin: "2px 0 0" }}>
                                 {timeRange(s.startsAt, s.endsAt)}

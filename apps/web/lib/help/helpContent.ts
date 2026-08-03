@@ -41,7 +41,7 @@ From the dashboard, use **Invite** to send links (email when configured). Inviti
 
 ## 4. Publish
 
-When the agenda looks right, publish the event so \`/e/your-slug\` is public. Publishing marks **Publish** on the checklist.
+When the agenda looks right, publish the event so \`/e/your-slug\` is public. Publishing the event also publishes any **draft sessions** (for example, sessions created by Agenda ingest), so attendees see the full program. Draft sessions are labelled **Draft** on the Program tab; if you import more sessions after the event is live, use **Publish draft sessions** there to make them visible. Publishing marks **Publish** on the checklist.
 
 ## Try the public demo
 

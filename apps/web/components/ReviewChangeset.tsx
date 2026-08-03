@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from "react";
+import { removalsOf, type RemovalKind } from "../lib/ingestReview";
 
 export type ReviewChangeRow =
   | {
@@ -46,6 +47,12 @@ export type ReviewAssumption = {
   appliesTo?: string;
 };
 
+/**
+ * E13.2: assumptions are displayed read-only. Editing them here used to be
+ * offered but the edits were never applied to the changeset — an editable
+ * control that silently does nothing is worse than no control.
+ */
+
 export type ReviewChangesetProps = {
   title?: string;
   headers?: string[];
@@ -62,8 +69,13 @@ export type ReviewChangesetProps = {
   renderCreateSummary?: (row: ReviewChangeRow) => string;
   /** Toggle accept for update/delete/create rows (ingest). */
   onAcceptChange?: (rowIndex: number, accepted: boolean) => void;
+  /**
+   * E13.3: toggle one child-removal proposal on an update row
+   * (kind "item" = paper, "speaker" = speaker link).
+   */
+  onRemovalChange?: (rowIndex: number, kind: RemovalKind, id: string, accepted: boolean) => void;
+  /** Read-only (E13.2). */
   assumptions?: ReviewAssumption[];
-  onAssumptionAnswer?: (id: string, answer: string) => void;
   /** Amber threshold for confidence (default 0.8). */
   lowConfidence?: number;
   /** Optional left-column source preview (ingest). */
@@ -100,8 +112,8 @@ export function ReviewChangeset({
   busy,
   renderCreateSummary,
   onAcceptChange,
+  onRemovalChange,
   assumptions,
-  onAssumptionAnswer,
   lowConfidence = 0.8,
   sourcePreview,
   sourceInfo,
@@ -235,19 +247,19 @@ export function ReviewChangeset({
 
       {assumptions && assumptions.length > 0 ? (
         <div style={{ marginBottom: 16 }}>
-          <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Assumptions</p>
-          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "grid", gap: 8 }}>
+          <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Assumptions the AI made</p>
+          <p className="help-text" style={{ margin: "0 0 8px" }}>
+            These can’t be edited here — the extraction has already happened. If one is wrong, untick the
+            affected rows and correct the source before re-importing, or fix the sessions in the Program tab
+            after confirming.
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "grid", gap: 6 }}>
             {assumptions.map((a) => (
               <li key={a.id} style={{ fontSize: 14 }}>
-                <label style={{ display: "grid", gap: 4 }}>
-                  <span>{a.question}</span>
-                  <input
-                    className="input"
-                    value={a.answer ?? a.defaultAnswer ?? ""}
-                    onChange={(e) => onAssumptionAnswer?.(a.id, e.target.value)}
-                    placeholder="Your answer"
-                  />
-                </label>
+                {a.question}
+                {a.answer || a.defaultAnswer ? (
+                  <span className="help-text"> — assumed: {a.answer ?? a.defaultAnswer}</span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -318,24 +330,69 @@ export function ReviewChangeset({
         <div style={{ marginBottom: 12 }}>
           <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Will update</p>
           <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14, maxHeight: 200, overflow: "auto" }}>
-            {updates.map((row) => (
-              <li key={`update-${row.rowIndex}`} style={{ marginBottom: 6 }}>
-                <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  {onAcceptChange ? (
-                    <input
-                      type="checkbox"
-                      checked={row.accepted !== false}
-                      onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
-                    />
+            {updates.map((row) => {
+              const itemRemovals = removalsOf(row, "item");
+              const speakerRemovals = removalsOf(row, "speaker");
+              return (
+                <li key={`update-${row.rowIndex}`} style={{ marginBottom: 6 }}>
+                  <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    {onAcceptChange ? (
+                      <input
+                        type="checkbox"
+                        checked={row.accepted !== false}
+                        onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
+                      />
+                    ) : null}
+                    <span>
+                      {row.day ? <span className="help-text">{row.day} · </span> : null}
+                      <strong>{row.title || `Row ${row.rowIndex + 1}`}</strong>
+                      {row.message ? ` — ${row.message}` : null}
+                    </span>
+                  </label>
+                  {/* E13.3: children the import doesn't mention. Nothing is
+                      removed unless the organiser ticks it here. */}
+                  {itemRemovals.length > 0 || speakerRemovals.length > 0 ? (
+                    <div style={{ margin: "4px 0 0 26px", display: "grid", gap: 4 }}>
+                      <span className="help-text">
+                        Not in this import — kept unless you tick to remove:
+                      </span>
+                      {itemRemovals.map((r) => (
+                        <label
+                          key={`item-removal-${row.rowIndex}-${r.itemId}`}
+                          style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={r.accepted === true}
+                            disabled={!onRemovalChange}
+                            onChange={(e) =>
+                              onRemovalChange?.(row.rowIndex, "item", r.itemId || "", e.target.checked)
+                            }
+                          />
+                          <span>Remove paper “{r.title}”</span>
+                        </label>
+                      ))}
+                      {speakerRemovals.map((r) => (
+                        <label
+                          key={`speaker-removal-${row.rowIndex}-${r.speakerId}`}
+                          style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={r.accepted === true}
+                            disabled={!onRemovalChange}
+                            onChange={(e) =>
+                              onRemovalChange?.(row.rowIndex, "speaker", r.speakerId || "", e.target.checked)
+                            }
+                          />
+                          <span>Remove speaker {r.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   ) : null}
-                  <span>
-                    {row.day ? <span className="help-text">{row.day} · </span> : null}
-                    <strong>{row.title || `Row ${row.rowIndex + 1}`}</strong>
-                    {row.message ? ` — ${row.message}` : null}
-                  </span>
-                </label>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}

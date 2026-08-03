@@ -67,6 +67,16 @@ const handler: JobHandler = async (job) => {
       location: true,
       track: { select: { name: true } },
       room: { select: { name: true } },
+      // E13.3: children travel with the diff so a re-import proposes
+      // removals explicitly instead of confirm silently rewriting them.
+      sessionSpeakers: {
+        orderBy: { sortOrder: "asc" },
+        select: { speakerId: true, speaker: { select: { name: true } } },
+      },
+      items: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, title: true },
+      },
     },
   });
 
@@ -88,6 +98,8 @@ const handler: JobHandler = async (job) => {
         location: s.location,
         trackName: s.track?.name,
         roomName: s.room?.name,
+        speakers: s.sessionSpeakers.map((l) => ({ speakerId: l.speakerId, name: l.speaker.name })),
+        items: s.items.map((it) => ({ itemId: it.id, title: it.title })),
       })),
       attachment,
     });

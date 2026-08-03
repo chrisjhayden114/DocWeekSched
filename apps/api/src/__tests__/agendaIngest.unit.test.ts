@@ -14,6 +14,7 @@ import {
   titleSimilarity,
   agendaExtractSchema,
 } from "../lib/ai/ingest";
+import { publishEventDraftSessions } from "../lib/ai/ingest";
 import { runAgendaExtract } from "../lib/ai/ingest/extract";
 import { MockAiProvider, resetAiProviderForTests } from "../lib/ai";
 
@@ -99,6 +100,101 @@ describe("Agenda ingest (unit)", () => {
     expect(deletes.every((d) => d.kind === "delete" && d.accepted === false)).toBe(true);
     // Matched existing should not also appear as creates with same id titles duplicated unboundedly
     expect(creates.filter((c) => c.session.title === extract.sessions[0].title).length).toBe(0);
+  });
+
+  it("re-import proposes unchecked child removals instead of forcing them (E13.3)", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        {
+          title: "Methods Workshop",
+          date: "2027-06-12",
+          startTime: "09:00",
+          endTime: "10:00",
+          speakers: ["Alice Chen"],
+          items: [{ title: "Imported Paper", authors: ["Alice Chen"] }],
+        },
+      ],
+      assumptions: [],
+    });
+    const existing = [
+      {
+        id: "sess-1",
+        title: "Methods Workshop",
+        startsAt: new Date("2027-06-12T09:00:00Z"),
+        endsAt: new Date("2027-06-12T10:00:00Z"),
+        speakers: [
+          { speakerId: "spk-alice", name: "Alice Chen" },
+          { speakerId: "spk-hand", name: "Hand Added" },
+        ],
+        items: [
+          { itemId: "item-imported", title: "Imported Paper" },
+          { itemId: "item-hand", title: "Hand-Added Paper" },
+        ],
+      },
+    ];
+    const rows = buildReimportChangeset(extract, existing, "UTC");
+    const update = rows.find((r) => r.kind === "update");
+    expect(update?.kind).toBe("update");
+    if (update?.kind !== "update") throw new Error("expected update row");
+    // Children the import covers are NOT proposed for removal; children it
+    // does not mention become unchecked-by-default proposals.
+    expect(update.speakerRemovals).toEqual([
+      { speakerId: "spk-hand", name: "Hand Added", accepted: false },
+    ]);
+    expect(update.itemRemovals).toEqual([
+      { itemId: "item-hand", title: "Hand-Added Paper", accepted: false },
+    ]);
+  });
+
+  it("re-import with all children covered proposes no removals (E13.3)", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        {
+          title: "Methods Workshop",
+          date: "2027-06-12",
+          startTime: "09:00",
+          speakers: ["Alice Chen"],
+          items: [{ title: "Imported Paper", authors: [] }],
+        },
+      ],
+      assumptions: [],
+    });
+    const existing = [
+      {
+        id: "sess-1",
+        title: "Methods Workshop",
+        startsAt: new Date("2027-06-12T09:00:00Z"),
+        endsAt: new Date("2027-06-12T10:00:00Z"),
+        // Matching is normalized — case/punctuation differences still match.
+        speakers: [{ speakerId: "spk-alice", name: "alice chen" }],
+        items: [{ itemId: "item-imported", title: "Imported  Paper!" }],
+      },
+    ];
+    const rows = buildReimportChangeset(extract, existing, "UTC");
+    const update = rows.find((r) => r.kind === "update");
+    if (update?.kind !== "update") throw new Error("expected update row");
+    expect(update.speakerRemovals).toBeUndefined();
+    expect(update.itemRemovals).toBeUndefined();
+  });
+
+  it("publishEventDraftSessions scopes to the event's DRAFT sessions (E13.1)", async () => {
+    const calls: unknown[] = [];
+    const db = {
+      session: {
+        updateMany: async (args: unknown) => {
+          calls.push(args);
+          return { count: 3 };
+        },
+      },
+    };
+    const count = await publishEventDraftSessions(db as never, "evt-1");
+    expect(count).toBe(3);
+    expect(calls).toEqual([
+      {
+        where: { eventId: "evt-1", publishStatus: "DRAFT" },
+        data: { publishStatus: "PUBLISHED" },
+      },
+    ]);
   });
 
   it("empty extract proposes NO deletions (E9.2)", () => {

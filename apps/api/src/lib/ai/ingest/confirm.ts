@@ -5,7 +5,8 @@ import {
 } from "@prisma/client";
 import { zonedWallTimeToUtc } from "../../notifications/timezone";
 import type { ChangesetRow } from "./changeset";
-import type { ExtractedSession } from "./schema";
+import type { ExtractedItem, ExtractedSession } from "./schema";
+import { normalizeTitle } from "./schema";
 import { writeAuditLog } from "../audit";
 
 export type ConfirmResult = {
@@ -103,6 +104,47 @@ async function ensureSpeaker(
   return created.id;
 }
 
+async function writeItemAuthors(
+  prisma: PrismaClient,
+  sessionItemId: string,
+  eventId: string,
+  item: ExtractedItem,
+  speakerCache: Map<string, string>,
+): Promise<void> {
+  for (let a = 0; a < item.authors.length; a += 1) {
+    const authorName = item.authors[a];
+    const speakerId = await ensureSpeaker(prisma, eventId, authorName, speakerCache);
+    await prisma.sessionItemAuthor.create({
+      data: {
+        sessionItemId,
+        speakerId,
+        name: authorName,
+        sortOrder: a,
+        isPresenter: item.presenterIndex === a,
+      },
+    });
+  }
+}
+
+async function createSessionItem(
+  prisma: PrismaClient,
+  sessionId: string,
+  eventId: string,
+  item: ExtractedItem,
+  sortOrder: number,
+  speakerCache: Map<string, string>,
+): Promise<void> {
+  const created = await prisma.sessionItem.create({
+    data: {
+      sessionId,
+      title: item.title,
+      sortOrder,
+      discussantName: item.discussant || null,
+    },
+  });
+  await writeItemAuthors(prisma, created.id, eventId, item, speakerCache);
+}
+
 async function writeSessionItems(
   prisma: PrismaClient,
   sessionId: string,
@@ -111,33 +153,10 @@ async function writeSessionItems(
   speakerCache: Map<string, string>,
 ): Promise<number> {
   if (!session.items?.length) return 0;
-  let count = 0;
   for (let i = 0; i < session.items.length; i += 1) {
-    const item = session.items[i];
-    const created = await prisma.sessionItem.create({
-      data: {
-        sessionId,
-        title: item.title,
-        sortOrder: i,
-        discussantName: item.discussant || null,
-      },
-    });
-    count += 1;
-    for (let a = 0; a < item.authors.length; a += 1) {
-      const authorName = item.authors[a];
-      const speakerId = await ensureSpeaker(prisma, eventId, authorName, speakerCache);
-      await prisma.sessionItemAuthor.create({
-        data: {
-          sessionItemId: created.id,
-          speakerId,
-          name: authorName,
-          sortOrder: a,
-          isPresenter: item.presenterIndex === a,
-        },
-      });
-    }
+    await createSessionItem(prisma, sessionId, eventId, session.items[i], i, speakerCache);
   }
-  return count;
+  return session.items.length;
 }
 
 async function linkSessionSpeakers(
@@ -188,8 +207,12 @@ export async function confirmAgendaChangeset(input: {
 
   for (const row of accepted) {
     if (row.kind === "delete") {
-      await input.prisma.session.delete({ where: { id: row.sessionId } });
-      result.deletedCount += 1;
+      // Scoped to the event: the changeset can arrive from the client, so a
+      // sessionId belonging to another event must be a no-op.
+      const deleted = await input.prisma.session.deleteMany({
+        where: { id: row.sessionId, eventId: input.eventId },
+      });
+      result.deletedCount += deleted.count;
       continue;
     }
 
@@ -230,38 +253,131 @@ export async function confirmAgendaChangeset(input: {
         speakerCache,
       );
     } else {
-      await input.prisma.sessionSpeaker.deleteMany({ where: { sessionId: row.sessionId } });
-      await input.prisma.sessionItem.deleteMany({ where: { sessionId: row.sessionId } });
+      // E13.3: reconcile instead of blind-replacing. Update what the source
+      // covers, add what it introduces, and delete ONLY children whose
+      // removal the organiser explicitly ticked. Hand-entered speakers and
+      // papers the source does not mention survive untouched.
+      const sessionId = row.sessionId;
+      const existing = await input.prisma.session.findFirst({
+        where: { id: sessionId, eventId: input.eventId },
+        select: { id: true, speakers: true },
+      });
+      if (!existing) continue; // Not this event's session — ignore the row.
+
+      const tickedSpeakerIds = (row.speakerRemovals || [])
+        .filter((r) => r.accepted === true)
+        .map((r) => r.speakerId);
+      if (tickedSpeakerIds.length) {
+        await input.prisma.sessionSpeaker.deleteMany({
+          where: { sessionId, speakerId: { in: tickedSpeakerIds } },
+        });
+      }
+      const tickedItemIds = (row.itemRemovals || [])
+        .filter((r) => r.accepted === true)
+        .map((r) => r.itemId);
+      if (tickedItemIds.length) {
+        await input.prisma.sessionItem.deleteMany({
+          where: { sessionId, id: { in: tickedItemIds } },
+        });
+      }
+
+      // Speakers: link extracted names that are not already linked.
+      const links = await input.prisma.sessionSpeaker.findMany({
+        where: { sessionId },
+        orderBy: { sortOrder: "asc" },
+        select: { speaker: { select: { name: true } } },
+      });
+      const linkedKeys = new Set(links.map((l) => normalizeTitle(l.speaker.name)));
+      let nextSpeakerSort = links.length;
+      for (const name of row.session.speakers) {
+        const key = normalizeTitle(name);
+        if (linkedKeys.has(key)) continue;
+        const speakerId = await ensureSpeaker(input.prisma, input.eventId, name, speakerCache);
+        await input.prisma.sessionSpeaker.create({
+          data: { sessionId, speakerId, sortOrder: nextSpeakerSort++ },
+        });
+        linkedKeys.add(key);
+        result.speakerCount += 1;
+      }
+
+      // The free-text speakers column merges rather than overwrites: names
+      // the organiser typed stay unless their removal was ticked.
+      const removedKeys = new Set(
+        (row.speakerRemovals || [])
+          .filter((r) => r.accepted === true)
+          .map((r) => normalizeTitle(r.name)),
+      );
+      const textNames = (existing.speakers || "")
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean)
+        .filter((n) => !removedKeys.has(normalizeTitle(n)));
+      const textKeys = new Set(textNames.map((n) => normalizeTitle(n)));
+      for (const name of row.session.speakers) {
+        if (textKeys.has(normalizeTitle(name))) continue;
+        textNames.push(name.trim());
+        textKeys.add(normalizeTitle(name));
+      }
+      const mergedSpeakersText = textNames.join(", ") || null;
+
       await input.prisma.session.update({
-        where: { id: row.sessionId },
+        where: { id: sessionId },
         data: {
           title: row.session.title,
-          description: row.session.description || null,
-          location: row.session.room || null,
-          speakers: speakersText,
-          trackId,
-          roomId,
+          // Only overwrite fields the source actually provides — a missing
+          // description/room in the import must not erase a hand-typed one.
+          ...(row.session.description ? { description: row.session.description } : {}),
+          ...(row.session.room ? { location: row.session.room } : {}),
+          speakers: mergedSpeakersText,
+          ...(trackId ? { trackId } : {}),
+          ...(roomId ? { roomId } : {}),
           startsAt,
           endsAt,
           // Keep existing publishStatus on update — do not force PUBLISHED
         },
       });
       result.updatedCount += 1;
-      result.sessionIds.push(row.sessionId);
-      result.speakerCount += await linkSessionSpeakers(
-        input.prisma,
-        row.sessionId,
-        input.eventId,
-        row.session.speakers,
-        speakerCache,
-      );
-      result.itemCount += await writeSessionItems(
-        input.prisma,
-        row.sessionId,
-        input.eventId,
-        row.session,
-        speakerCache,
-      );
+      result.sessionIds.push(sessionId);
+
+      // Papers: match by normalized title. Matched items update in place
+      // (authors rewritten only when the source names authors); unmatched
+      // source items are created; unmatched existing items are left alone.
+      const existingItems = await input.prisma.sessionItem.findMany({
+        where: { sessionId },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, title: true },
+      });
+      const itemsByKey = new Map(existingItems.map((it) => [normalizeTitle(it.title), it]));
+      let nextItemSort = existingItems.length;
+      for (const item of row.session.items || []) {
+        const match = itemsByKey.get(normalizeTitle(item.title));
+        if (match) {
+          await input.prisma.sessionItem.update({
+            where: { id: match.id },
+            data: {
+              title: item.title,
+              ...(item.discussant ? { discussantName: item.discussant } : {}),
+            },
+          });
+          if (item.authors.length) {
+            await input.prisma.sessionItemAuthor.deleteMany({
+              where: { sessionItemId: match.id },
+            });
+            await writeItemAuthors(input.prisma, match.id, input.eventId, item, speakerCache);
+          }
+          result.itemCount += 1;
+        } else {
+          await createSessionItem(
+            input.prisma,
+            sessionId,
+            input.eventId,
+            item,
+            nextItemSort++,
+            speakerCache,
+          );
+          result.itemCount += 1;
+        }
+      }
     }
   }
 
