@@ -613,3 +613,201 @@ ticking a box.
   all three of these are that rule violated in data form.
 - Stop the web dev server first; reset ritual after (see README).
 - A migration is not expected. If you think one is needed, stop and explain why.
+
+---
+
+# Chunk E14 — create-event wizard: explain what blocks progress
+
+Source: an independent AI review of `/organizer/events/new` (2026-08-02), plus
+verification against the code. The wizard was the one surface the three-persona
+audit could not capture, so this is genuinely new ground.
+
+## First: what was reported and is NOT true
+
+The review's headline P0 was that date values cleared when other fields changed,
+leaving **Next: branding** permanently disabled. **Disproved by manual test on
+production**: dates entered by hand survived edits to Venue name and Venue
+address, and the Next button was enabled. Screenshots on file.
+
+The review itself flagged that it observed this through browser automation and
+that `datetime-local` behaves differently under automation — that caveat was
+correct. Two supporting hypotheses are also ruled out by the code:
+
+- *"Form state is replaced rather than merged."* The wizard uses **18 separate
+  `useState` calls**, one per field (`new.tsx:61–90`). Independent state cannot
+  clobber siblings. The review's suggested fix — consolidate into one
+  `EventDraft` object — would move toward the failure mode it warns about.
+- *"Dates round-trip through `toISOString()` into the input."* They do not.
+  `value={startDate}` holds the raw local string (`new.tsx:603`); `startIso` is
+  derived separately at line 227 for submission only. This is already the
+  recommended pattern.
+
+The E4 sessionStorage restore also looks sound: it runs once on mount and never
+writes empty drafts.
+
+**Do not "fix" the date state. There is nothing wrong with it.**
+
+## What IS true and worth fixing
+
+### E14.1 — A disabled button with no explanation (P1)
+
+`new.tsx` — `disabled={!startDate || !endDate}` on **Next: branding**, with no
+message anywhere saying why. A user who has not filled the dates sees a dead
+control and no recovery path.
+
+**Fix:** prefer keeping the button enabled and validating on click, so the user
+gets a reason. If it stays disabled, show the blocking reason continuously next
+to it ("Enter a start and end time to continue"). Apply the same rule to any
+other disabled control in the wizard.
+
+### E14.2 — No end-after-start validation (P1)
+
+The only check is presence. An event can be created that ends before it starts,
+which will then render nonsensically in every schedule view.
+
+**Fix:** validate end > start, with an inline message. Do not clear either field
+on failure — show the error and keep the input.
+
+### E14.3 — No field-level validation or required marking (P2)
+
+No inline errors, no visual/semantic required marking, no `aria-describedby`
+linking errors to fields, no live region. Keyboard and screen-reader users get no
+feedback about what is wrong.
+
+**Fix:** inline error text per field; mark required fields; associate errors with
+`aria-describedby`; announce via a polite live region. Validation must return an
+error map and never mutate the entered values.
+
+### E14.4 — No wizard orientation (P2)
+
+The user cannot see how many steps remain or what comes after. Show the sequence
+(Basics → Dates & place → Branding → Review) with the current step marked, and
+state that everything is editable after creation.
+
+### Explicitly NOT in scope
+
+- The slug/publication confusion the review raised is largely already handled:
+  "New events start as Draft — only your org can see them until you publish"
+  renders directly under the H1 on every step. Optionally move it nearer the slug
+  field; do not rebuild anything.
+- The review's P2 "expectations for experienced organizers" (templates,
+  registration, integrations, attendee import) is product strategy, not a wizard
+  defect. Not a chunk.
+
+## Acceptance
+- With dates empty, the user can see — without guessing — why they cannot advance.
+- End-before-start produces a clear inline error and clears neither field.
+- Editing any Step 2 field leaves the dates untouched (regression guard for the
+  behaviour verified today).
+- Keyboard-only completion of Step 2 is possible, with errors announced.
+- Component tests: validation returns messages without mutating the draft; dates
+  persist across sibling-field updates.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Stop the web dev server first; reset ritual after (see README).
+- No migration expected.
+
+---
+
+**Note on numbering:** the remaining chunks proposed in
+`ux-audit-capture/UX_AUDIT_MERGED.md` §6 (ingest review screen; console
+truthfulness and chrome; copy and help) become **E15, E16, E17** and should be
+written up here when they are picked up.
+
+---
+
+# Chunk E15 — Agenda ingest: make the wait honest and the page legible
+
+Raised by the founder after using the page on production, 2026-08-02. Confirms
+consensus findings C1 and C3 from `ux-audit-capture/UX_AUDIT_MERGED.md` §2.
+Founder's words: *"the agenda ingest takes forever… a user may think it is just
+not working and leave before it is done"* and *"boxes on the left at the top and
+boxes off to the right on the bottom — it's super ugly."*
+
+## E15.1 — The poll gives up before the job finishes (P1, verified)
+
+`pages/organizer/events/[eventId]/ingest.tsx:233` —
+`for (let i = 0; i < 100 && ...) { await sleep(400); await fetch(...) }`.
+The comment says "~40s max"; the real ceiling is 100 × (400ms + a network
+round-trip) ≈ **60–80 seconds**. A 7-page PDF has been observed taking **over two
+minutes**. So a normal-sized programme can outlive the page's willingness to
+watch it, at which point the user is told extraction "may still be running" and
+sent to Ingest history to find their own run.
+
+**Fix:**
+1. Raise the ceiling well past real-world runs (target ~5 minutes) and back off
+   the interval as time passes (e.g. 400ms → 1s → 2s) so it is not hammering the
+   API for five minutes.
+2. Correct the stale comment. It has been wrong since it was written.
+3. If the ceiling is genuinely hit, keep the run visible and keep polling in the
+   background rather than dumping the user into history.
+
+## E15.2 — Nothing happens on screen for two minutes (P1)
+
+No progress indicator, no elapsed timer, no stage label. The user cannot
+distinguish "working" from "broken", and the honest expectation is never set.
+
+**Fix:**
+1. **Set the expectation before the wait**, next to the upload control: e.g.
+   "Large programmes can take 2–3 minutes. You can leave this page — the run
+   keeps going and appears in Ingest history."
+2. **During the run**, replace the input area with a live status block showing a
+   spinner, the stage the run reports (`PENDING` → "Queued", `EXTRACTING` →
+   "Reading your programme"), and a **counting elapsed timer** ("1:12"). A
+   moving number is what tells a person the thing is alive.
+3. Never show a fake progress bar with invented percentages — the job does not
+   report percent complete. An honest timer beats a lying bar.
+
+## E15.3 — The page is two different layouts stacked (P2)
+
+Four input cards sit in a single narrow column
+(`ingest.tsx:439`, `display: grid`), then the review area below is a **two-column**
+grid (`ReviewChangeset.tsx:444–445`,
+`gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr)"`) at a different width.
+Nothing aligns vertically, and the eye has to jump from a narrow left stack to a
+wide right block.
+
+Compounding it: **all four inputs are shown at once, but an organiser only ever
+uses one.**
+
+**Fix:**
+1. Replace the four stacked cards with **one panel and a chooser** — a segmented
+   control or tab row: **Paste text · Upload file · Fetch URL · Import CSV** —
+   showing only the selected input. Default to Upload file. This removes three
+   quarters of the page's visual noise before any styling work.
+2. Keep the CSV panel's "You review every row before anything is created. No AI
+   involved." — a persona audit named it the single most trust-building line in
+   the product. Show it when CSV is selected.
+3. Give the input panel and the review area **the same content width and the same
+   left edge**, so the page reads as one column of work.
+4. When a run completes, the review **replaces** the input panel rather than
+   appearing beneath it; "Import another" brings the input panel back. (The
+   success panel and scroll-into-view from E12 stay.)
+
+## E15.4 — Brand colour renders as a full-width strip (P3)
+
+`pages/organizer/events/new.tsx:645` — `<input className="input" type="color">`.
+`.input` sets `width: 100%` (`styles/globals.css:143`), so a native colour swatch
+is stretched into a long thin bar that does not look clickable. Same pattern in
+the event settings panel.
+
+**Fix:** a fixed-size swatch (about 44×44, meets target-size guidance) paired with
+a hex text field showing the value, so the colour is both visible and editable.
+Do not apply `.input` to `type="color"` anywhere.
+
+## Acceptance
+- A 7-page PDF completes with the review shown inline, without ever routing the
+  user to Ingest history.
+- Throughout the wait, the screen shows a stage and an elapsed timer that visibly
+  counts.
+- The expected duration is stated before the user commits to waiting.
+- One input is visible at a time; the page has a single consistent content width.
+- Brand colour is a square swatch with a hex field, in both the wizard and event
+  settings.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Design values come from the token module — no hardcoded hex or px in components.
+- Stop the web dev server first; reset ritual after (see README).
+- No migration expected.
