@@ -300,3 +300,60 @@ the call if the data is unused). Not yet root-caused — investigate, don't assu
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
 - Stop the web dev server before starting; run the reset ritual after.
 - Migrations: none expected. If you think one is needed, stop and explain why.
+
+---
+
+# Chunk E10 — output-token ceiling truncates every large programme (P0)
+
+Found 2026-08-02 immediately after E9. **E9.1 is confirmed working** — the PDF
+bytes now reach the model. The failure moved one layer down.
+
+**Symptom:** uploading a 7-page programme PDF returns
+`Model did not return valid JSON`.
+
+**Cause:** `apps/api/src/lib/ai/providers/anthropic.ts` L79 hardcodes
+`max_tokens: 4096` and the code never inspects `stop_reason`. A real conference
+programme serialised to JSON (title, start, end, room, track, speakers,
+description per session) exceeds 4096 output tokens well before it exceeds the
+input limit. The model is cut off mid-object, `parseJsonObject` throws, the
+gateway (`lib/ai/gateway.ts` L232–256) retries once, that reply is truncated too,
+and the user sees a message blaming the model's JSON formatting.
+
+The error is not just unhelpful, it is **wrong** — it points at output format
+when the real cause is length. This is very likely the same root cause behind the
+`PASTE · FAILED` runs on 2026-07-31 and the long-standing "ingest demo truncates
+at 8 rows" symptom.
+
+## Fixes
+
+1. **Raise the ceiling.** Make `max_tokens` a named constant, default **16384**,
+   overridable by `AI_MAX_OUTPUT_TOKENS`. Do not silently cap below the model's
+   real limit. Claude Sonnet supports far more than 4096 output tokens.
+2. **Detect truncation explicitly.** Read `response.stop_reason`. When it is
+   `"max_tokens"`, surface a distinct failure code (e.g. `TRUNCATED`) with an
+   honest message — *"The programme was too long to process in one pass."* Never
+   report a truncated response as invalid JSON.
+3. **Do not retry a truncated call.** The current PARSE_ERROR retry re-sends the
+   entire truncated assistant message and will fail identically while doubling
+   cost and latency. Skip the retry when `stop_reason === "max_tokens"`.
+4. **Surface it in the UI** through the existing `friendlyIngestError` path, with
+   guidance the organiser can act on (split the programme, or use CSV import).
+
+## Explicitly out of scope
+
+Chunking a long programme across multiple model calls is the real answer for very
+large events and is a **separate chunk** — do not attempt it here. Fixes 1–3 make
+normal programmes work and make the failure honest when they don't.
+
+## Acceptance
+
+- The 7-page `2026 DocWeek Schedule and Session Overview.pdf` extracts real
+  sessions with real titles and times.
+- An artificially huge programme fails with the truncation message, not the JSON
+  message, and consumes one model call rather than two.
+- Unit test: a mocked provider response with `stop_reason: "max_tokens"` produces
+  `TRUNCATED` and triggers no retry.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
+- Stop the web dev server first; reset ritual after. No migrations expected.
