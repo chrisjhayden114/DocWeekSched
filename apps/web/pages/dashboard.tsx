@@ -19,6 +19,7 @@ import { OnlineMeetingLink } from "../components/OnlineMeetingLink";
 import { UploadDropzone } from "../components/UploadDropzone";
 import { VenueMapsAttendee, roomPinIndex } from "../components/VenueMapsAttendee";
 import { MeetingRequestModal, MeetingRequestsPanel } from "../components/MeetingRequestsPanel";
+import { MessagesPanel } from "../components/MessagesPanel";
 import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
 import { apiFetch, apiFetchAll, clearAuthClientState } from "../lib/api";
 import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
@@ -35,6 +36,7 @@ import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
 import { SponsorsStrip } from "../components/SponsorsStrip";
 import { OnboardingPanel } from "../components/OnboardingPanel";
 import { sayHiPrefill } from "../lib/sayHi";
+import { unreadConversationIdSet, type ConversationView } from "../lib/messagesView";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -113,20 +115,7 @@ type Session = {
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
 };
 
-type ConversationMember = { user: { id: string; name: string; role: string } };
-type Conversation = {
-  id: string;
-  name?: string | null;
-  type: "EVENT" | "DIRECT" | "GROUP" | "SESSION";
-  members: ConversationMember[];
-  messages: { id: string; body: string; createdAt: string; user: { id: string; name: string } }[];
-};
-type Message = {
-  id: string;
-  body: string;
-  createdAt: string;
-  user: { id: string | null; name: string; role: string | null; deleted?: boolean };
-};
+type Conversation = ConversationView;
 type SessionAttendance = {
   sessionId: string;
   status: "JOINING" | "NOT_JOINING";
@@ -326,8 +315,6 @@ export default function Dashboard() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messagePrefill, setMessagePrefill] = useState<string | null>(null);
   const [directoryDmNotice, setDirectoryDmNotice] = useState<{ userId: string; text: string } | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newChatMode, setNewChatMode] = useState<null | "direct" | "group">(null);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
   const [scheduleLayout, setScheduleLayout] = useState<ScheduleViewMode>("list");
@@ -350,7 +337,6 @@ export default function Dashboard() {
   const [communityChannel, setCommunityChannel] = useState<CommunityChannelFilter>("ALL");
   const [updatingEvent, setUpdatingEvent] = useState(false);
   const [sessionFormKey, setSessionFormKey] = useState(0);
-  const [messageDirectoryQuery, setMessageDirectoryQuery] = useState("");
   const [eventSettingsOpen, setEventSettingsOpen] = useState(false);
   const [eventSettingsError, setEventSettingsError] = useState<string | null>(null);
   const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
@@ -359,9 +345,6 @@ export default function Dashboard() {
     user: User;
   }>(null);
   const [rosterBusy, setRosterBusy] = useState(false);
-  const [messageConfirmId, setMessageConfirmId] = useState<string | null>(null);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingMessageBody, setEditingMessageBody] = useState("");
   const [notifications, setNotifications] = useState<UserNotificationRow[]>([]);
   const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
   const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
@@ -563,13 +546,8 @@ export default function Dashboard() {
           setNotifications(await apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token));
         }
         if (active === "Messages") {
-          const convoList = await apiFetch<Conversation[]>("/conversations", withEventHeaders(), token);
-          setConversations(convoList);
-          const preferred =
-            convoList.find((c) => c.type === "EVENT") ?? convoList.find((c) => c.type !== "SESSION");
-          if (!activeConversationId && preferred) {
-            setActiveConversationId(preferred.id);
-          }
+          // The MessagesPanel loads and polls conversations itself; the tab
+          // only needs the attendee list for the recipient picker.
           if (attendees.length === 0) {
             // E9.4: GET /attendees requires the x-event-id header —
             // resolveEventFromRequest 404s without it.
@@ -594,20 +572,6 @@ export default function Dashboard() {
   }, [user?.role, event]);
 
   useEffect(() => {
-    if (!token || active !== "Messages" || !activeConversationId) return;
-    setMessages([]);
-    let cancelled = false;
-    apiFetchAll<Message>(`/conversations/${activeConversationId}/messages`, withEventHeaders(), token)
-      .then((rows) => {
-        if (!cancelled) setMessages(rows);
-      })
-      .catch(() => null);
-    return () => {
-      cancelled = true;
-    };
-  }, [active, activeConversationId, token, activeEventId]);
-
-  useEffect(() => {
     if (!token || !activeEventId) return;
     const refresh = () => {
       apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token)
@@ -615,8 +579,18 @@ export default function Dashboard() {
         .catch(() => null);
     };
     refresh();
-    const interval = window.setInterval(refresh, 45_000);
-    return () => window.clearInterval(interval);
+    // Paused while the tab is hidden (E18.7); refetch on return to the tab.
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, 45_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [token, activeEventId]);
 
   useEffect(() => {
@@ -640,18 +614,10 @@ export default function Dashboard() {
     };
   }, [active, token, activeEventId]);
 
-  useEffect(() => {
-    if (active !== "Messages" || !activeConversationId) return;
-    const cur = conversations.find((c) => c.id === activeConversationId);
-    if (cur?.type === "SESSION") {
-      const next = conversations.find((c) => c.type !== "SESSION");
-      setActiveConversationId(next?.id ?? null);
-    }
-  }, [active, conversations, activeConversationId]);
-
   const isAdmin = useMemo(() => Boolean(user?.isEventAdmin || user?.role === "ADMIN"), [user]);
-  const messagingEnabled =
-    featureOn("messaging_dms") || featureOn("messaging_groups") || featureOn("messaging_event_chat");
+  /* E18.1: Messages owns 1:1 and group correspondence only — event chat is
+   * retired (Community owns event-wide posting; Announcements own broadcast). */
+  const messagingEnabled = featureOn("messaging_dms") || featureOn("messaging_groups");
   const availableTabs = useMemo(() => {
     const base = isAdmin ? adminTabs : participantTabs;
     return base.filter((tab) => {
@@ -667,13 +633,30 @@ export default function Dashboard() {
     () => notifications.filter((row) => !row.readAt).length,
     [notifications],
   );
-  const unreadConversationIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const n of notifications) {
-      if (n.kind === "MESSAGE" && !n.readAt && n.conversationId) ids.add(n.conversationId);
-    }
-    return ids;
-  }, [notifications]);
+  /* Unread by CONVERSATION, never by message (E18.2). */
+  const unreadConversationIds = useMemo(() => unreadConversationIdSet(notifications), [notifications]);
+
+  /** Opening a conversation clears its unread state (marks MESSAGE notifications read). */
+  const markConversationNotificationsRead = useCallback(
+    (conversationId: string) => {
+      if (!token) return;
+      const unread = notifications.filter(
+        (n) => n.kind === "MESSAGE" && !n.readAt && n.conversationId === conversationId,
+      );
+      if (unread.length === 0) return;
+      const readAt = new Date().toISOString();
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.kind === "MESSAGE" && !n.readAt && n.conversationId === conversationId ? { ...n, readAt } : n,
+        ),
+      );
+      for (const n of unread) {
+        apiFetch(`/notifications/${n.id}/read`, withEventHeaders({ method: "PATCH" }), token).catch(() => null);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token, notifications, activeEventId],
+  );
   const notificationsByDay = useMemo(() => {
     const groups: { heading: string; items: UserNotificationRow[] }[] = [];
     let current = "";
@@ -804,48 +787,6 @@ export default function Dashboard() {
   );
   const agendaActiveFilterCount =
     (agendaFilterTrack ? 1 : 0) + (agendaFilterRoom ? 1 : 0) + (agendaSearch.trim() ? 1 : 0);
-
-  const messageSearchLower = messageDirectoryQuery.trim().toLowerCase();
-
-  const messagingConversations = useMemo(
-    () => conversations.filter((c) => c.type !== "SESSION"),
-    [conversations],
-  );
-
-  const messagingConversationsOrdered = useMemo(() => {
-    const list = [...messagingConversations];
-    list.sort((a, b) => {
-      if (a.type === "EVENT" && b.type !== "EVENT") return -1;
-      if (b.type === "EVENT" && a.type !== "EVENT") return 1;
-      return 0;
-    });
-    return list;
-  }, [messagingConversations]);
-
-  const eventWideConversation = useMemo(
-    () => messagingConversationsOrdered.find((c) => c.type === "EVENT") ?? null,
-    [messagingConversationsOrdered],
-  );
-
-  const directAndGroupConversations = useMemo(
-    () => messagingConversationsOrdered.filter((c) => c.type !== "EVENT"),
-    [messagingConversationsOrdered],
-  );
-
-  const filteredDirectAndGroup = useMemo(() => {
-    if (!user) return [];
-    if (!messageSearchLower) return directAndGroupConversations;
-    return directAndGroupConversations.filter((c) => {
-      const label = formatConversationName(c, user).toLowerCase();
-      if (label.includes(messageSearchLower)) return true;
-      return c.members.some((m) => m.user.name.toLowerCase().includes(messageSearchLower));
-    });
-  }, [directAndGroupConversations, messageSearchLower, user]);
-
-  const activeConversation = useMemo(() => {
-    if (!activeConversationId) return null;
-    return conversations.find((c) => c.id === activeConversationId) ?? null;
-  }, [conversations, activeConversationId]);
 
   const handleLogout = async () => {
     try {
@@ -1049,7 +990,12 @@ export default function Dashboard() {
     icon: <MainNavIcon tab={tab} />,
     active: active === tab,
     onSelect: () => setActive(tab),
-    badge: tab === "Notifications" && unreadNotifications > 0 ? unreadNotifications : undefined,
+    badge:
+      tab === "Notifications" && unreadNotifications > 0
+        ? unreadNotifications
+        : tab === "Messages" && unreadConversationIds.size > 0
+          ? unreadConversationIds.size
+          : undefined,
   });
   const shellNav: ShellNavGroup[] = [
     {
@@ -1911,257 +1857,33 @@ export default function Dashboard() {
         </div>
       )}
 
-      {active === "Messages" && (
-        <div className="grid two messages-layout">
-          <div className="card message-sidebar-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <h3 style={{ margin: 0 }}>Messages</h3>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setNewChatMode((prev) => (prev ? null : "direct"))}
-              >
-                {newChatMode ? "Close" : "+ New"}
-              </button>
-            </div>
-            <p className="help-text" style={{ marginTop: 8 }}>
-              Your chats are listed below. Use <strong>+ New</strong> for a direct or group conversation.{" "}
-              <strong>Everyone — event chat</strong> reaches all attendees; session Q&amp;A stays on each session page.
-            </p>
-            {newChatMode ? (
-              <div className="new-chat-panel" style={{ marginBottom: 14, padding: 12, border: "1px solid var(--border)", borderRadius: 10 }}>
-                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                  <button
-                    type="button"
-                    className={newChatMode === "direct" ? "button" : "button secondary"}
-                    onClick={() => setNewChatMode("direct")}
-                  >
-                    Direct
-                  </button>
-                  <button
-                    type="button"
-                    className={newChatMode === "group" ? "button" : "button secondary"}
-                    onClick={() => setNewChatMode("group")}
-                  >
-                    Group
-                  </button>
-                </div>
-                {newChatMode === "direct" ? (
-                  <DirectChatForm
-                    attendees={attendees}
-                    currentUserId={user.id}
-                    token={token!}
-                    withEventHeaders={withEventHeaders}
-                    onCreated={(c) => {
-                      setConversations([c, ...conversations]);
-                      setActiveConversationId(c.id);
-                      setNewChatMode(null);
-                    }}
-                  />
-                ) : (
-                  <GroupChatForm
-                    attendees={attendees}
-                    currentUserId={user.id}
-                    token={token!}
-                    withEventHeaders={withEventHeaders}
-                    onCreated={(c) => {
-                      setConversations([c, ...conversations]);
-                      setActiveConversationId(c.id);
-                      setNewChatMode(null);
-                    }}
-                  />
-                )}
-              </div>
-            ) : null}
-            <label className="help-text" htmlFor="message-directory-search" style={{ display: "block", marginBottom: 6 }}>
-              Filter chats
-            </label>
-            <input
-              id="message-directory-search"
-              className="input"
-              type="search"
-              placeholder="Type a name or chat topic…"
-              value={messageDirectoryQuery}
-              onChange={(e) => setMessageDirectoryQuery(e.target.value)}
-              aria-label="Search conversations"
-            />
-            <h4 style={{ margin: "16px 0 8px" }}>Your chats</h4>
-            <div className="grid" style={{ gap: 8 }}>
-              {eventWideConversation ? (
-                <button
-                  type="button"
-                  className={activeConversationId === eventWideConversation.id ? "button" : "button secondary"}
-                  onClick={() => setActiveConversationId(eventWideConversation.id)}
-                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
-                >
-                  <span>{formatConversationName(eventWideConversation, user)}</span>
-                  {unreadConversationIds.has(eventWideConversation.id) ? (
-                    <span className="help-text" style={{ fontWeight: 700, fontSize: 12 }}>
-                      New
-                    </span>
-                  ) : null}
-                </button>
-              ) : null}
-              {filteredDirectAndGroup.map((c) => (
-                <button
-                  key={c.id}
-                  className={activeConversationId === c.id ? "button" : "button secondary"}
-                  onClick={() => setActiveConversationId(c.id)}
-                  type="button"
-                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
-                >
-                  <span>{formatConversationName(c, user)}</span>
-                  {unreadConversationIds.has(c.id) ? (
-                    <span className="help-text" style={{ fontWeight: 700, fontSize: 12 }}>
-                      New
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div
-            className="card message-thread-card"
-            style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 320 }}
-          >
-            <div>
-              <h3 style={{ margin: 0 }}>
-                {activeConversation && user
-                  ? formatConversationName(activeConversation, user)
-                  : "Choose a conversation"}
-              </h3>
-              <p className="help-text" style={{ margin: "6px 0 0" }}>
-                {activeConversation?.type === "EVENT"
-                  ? "Everyone at this event can read and post here. When an admin posts, participants get a notification."
-                  : activeConversation?.type === "GROUP"
-                    ? "Only people in this group see these messages."
-                    : activeConversation
-                      ? "Only you and this person are in this thread."
-                      : "Select a chat from the list, or start one with + New."}
-              </p>
-            </div>
-            <div
-              className="message-thread-scroll"
-              style={{
-                flex: 1,
-                minHeight: 140,
-                maxHeight: 440,
-                overflowY: "auto",
-                borderTop: "1px solid var(--border)",
-                borderBottom: "1px solid var(--border)",
-                padding: "10px 0",
-              }}
-            >
-              {!activeConversationId ? (
-                <p className="help-text" style={{ margin: 0 }}>
-                  Pick a conversation from the list.
-                </p>
-              ) : messages.length === 0 ? (
-                <p className="help-text" style={{ margin: 0 }}>
-                  No messages yet — introduce yourself below.
-                </p>
-              ) : (
-                messages.map((m) => (
-                  <div key={m.id} style={{ borderBottom: "1px solid var(--border)", padding: "10px 0" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-                      <div>
-                        <strong>{m.user?.name ?? DELETED_PARTICIPANT_LABEL}</strong>{" "}
-                        <span style={{ color: "var(--ink-500)" }}>
-                          ({m.user?.role ?? "—"})
-                        </span>
-                      </div>
-                      {(isAdmin || (m.user?.id != null && m.user.id === user.id)) && (
-                        <KebabMenu
-                          label={`Message actions`}
-                          items={[
-                            {
-                              id: "edit",
-                              label: "Edit",
-                              onSelect: () => {
-                                setEditingMessageId(m.id);
-                                setEditingMessageBody(m.body);
-                              },
-                            },
-                            {
-                              id: "delete",
-                              label: "Delete",
-                              tone: "danger",
-                              onSelect: () => setMessageConfirmId(m.id),
-                            },
-                          ]}
-                        />
-                      )}
-                    </div>
-                    {editingMessageId === m.id ? (
-                      <form
-                        className="grid"
-                        style={{ gap: 8, marginTop: 8 }}
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          if (!activeConversationId || !token) return;
-                          try {
-                            const updated = await apiFetch<Message>(
-                              `/conversations/${activeConversationId}/messages/${m.id}`,
-                              withEventHeaders({
-                                method: "PATCH",
-                                body: JSON.stringify({ body: editingMessageBody }),
-                              }),
-                              token,
-                            );
-                            setMessages((prev) => prev.map((row) => (row.id === m.id ? updated : row)));
-                            setEditingMessageId(null);
-                          } catch (err) {
-                            window.alert(err instanceof Error ? err.message : "Could not save message");
-                          }
-                        }}
-                      >
-                        <textarea
-                          className="textarea"
-                          value={editingMessageBody}
-                          onChange={(e) => setEditingMessageBody(e.target.value)}
-                          rows={3}
-                          required
-                        />
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button className="button" type="submit">
-                            Save
-                          </button>
-                          <button
-                            className="button secondary"
-                            type="button"
-                            onClick={() => setEditingMessageId(null)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <p style={{ margin: "4px 0" }}>
-                        <AutolinkText text={m.body} />
-                      </p>
-                    )}
-                    <small style={{ color: "var(--ink-500)" }}>{formatEventDateTime(m.createdAt)}</small>
-                  </div>
-                ))
-              )}
-            </div>
-            <MessageComposer
-              token={token!}
-              conversationId={activeConversationId}
-              withEventHeaders={withEventHeaders}
-              initialBody={messagePrefill}
-              onInitialBodyConsumed={() => setMessagePrefill(null)}
-              onSent={async (m) => {
-                setMessages([...messages, m]);
-                setMessagePrefill(null);
-                await refreshUser();
-                apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token!)
-                  .then(setNotifications)
-                  .catch(() => null);
-              }}
-            />
-          </div>
-        </div>
+      {active === "Messages" && token && (
+        <MessagesPanel
+          token={token}
+          user={{ id: user.id, name: user.name, role: user.role }}
+          attendees={attendees}
+          isAdmin={isAdmin}
+          directoryEnabled={featureOn("attendee_directory")}
+          dmsEnabled={featureOn("messaging_dms")}
+          groupsEnabled={featureOn("messaging_groups")}
+          activeEventId={activeEventId}
+          withEventHeaders={withEventHeaders}
+          conversations={conversations}
+          onConversationsChange={setConversations}
+          activeConversationId={activeConversationId}
+          onSelectConversation={setActiveConversationId}
+          unreadConversationIds={unreadConversationIds}
+          onConversationOpened={markConversationNotificationsRead}
+          messagePrefill={messagePrefill}
+          onPrefillConsumed={() => setMessagePrefill(null)}
+          onBrowseAttendees={() => setActive("Attendees")}
+          onMessageSent={() => {
+            void refreshUser();
+            apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token)
+              .then(setNotifications)
+              .catch(() => null);
+          }}
+        />
       )}
 
       {active === "Profile" && (
@@ -2277,28 +1999,6 @@ export default function Dashboard() {
             window.alert(err instanceof Error ? err.message : "Action failed");
           } finally {
             setRosterBusy(false);
-          }
-        }}
-      />
-
-      <ConfirmDialog
-        open={Boolean(messageConfirmId && activeConversationId)}
-        title="Delete message?"
-        body="This removes the message from the conversation for everyone. This cannot be undone."
-        confirmLabel="Delete message"
-        onCancel={() => setMessageConfirmId(null)}
-        onConfirm={async () => {
-          if (!messageConfirmId || !activeConversationId || !token) return;
-          try {
-            await apiFetch(
-              `/conversations/${activeConversationId}/messages/${messageConfirmId}`,
-              withEventHeaders({ method: "DELETE" }),
-              token,
-            );
-            setMessages((prev) => prev.filter((m) => m.id !== messageConfirmId));
-            setMessageConfirmId(null);
-          } catch (err) {
-            window.alert(err instanceof Error ? err.message : "Could not delete message");
           }
         }}
       />
@@ -4964,229 +4664,6 @@ function CommunityBoard({
   );
 }
 
-function MessageComposer({
-  token,
-  conversationId,
-  withEventHeaders,
-  onSent,
-  initialBody,
-  onInitialBodyConsumed,
-}: {
-  token: string;
-  conversationId: string | null;
-  withEventHeaders: (extra?: RequestInit) => RequestInit;
-  onSent: (m: Message) => void | Promise<void>;
-  initialBody?: string | null;
-  onInitialBodyConsumed?: () => void;
-}) {
-  const [sending, setSending] = useState(false);
-  const [body, setBody] = useState("");
-  const [sendError, setSendError] = useState<{ text: string; blocked: boolean } | null>(null);
-
-  useEffect(() => {
-    setSendError(null);
-  }, [conversationId]);
-
-  useEffect(() => {
-    if (initialBody == null) return;
-    setBody(initialBody);
-    onInitialBodyConsumed?.();
-  }, [initialBody, conversationId, onInitialBodyConsumed]);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!conversationId || sending) return;
-    const trimmed = body.trim();
-    if (!trimmed) return;
-    setSending(true);
-    setSendError(null);
-    const form = event.currentTarget;
-    try {
-      const message = await apiFetch<Message>(
-        `/conversations/${conversationId}/messages`,
-        withEventHeaders({ method: "POST", body: JSON.stringify({ body: trimmed }) }),
-        token,
-      );
-      await onSent(message);
-      setBody("");
-      form.reset();
-    } catch (err) {
-      const status = (err as { status?: number }).status;
-      setSendError({
-        text: err instanceof Error && err.message ? err.message : "Message could not be sent",
-        blocked: status === 403,
-      });
-    } finally {
-      setSending(false);
-    }
-  }
-
-  /* Opt-in style rejections replace the composer with a quiet notice. */
-  if (sendError?.blocked) {
-    return (
-      <p className="help-text" role="status" style={{ margin: "8px 0 0" }}>
-        {sendError.text}
-      </p>
-    );
-  }
-
-  return (
-    <form className="message-composer-form grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
-      <label className="help-text" style={{ margin: 0 }} htmlFor="message-composer-body">
-        Your message
-        {body.trim() ? (
-          <span className="help-text"> · Edit before sending</span>
-        ) : null}
-      </label>
-      <textarea
-        id="message-composer-body"
-        className="textarea"
-        name="body"
-        placeholder="Write something…"
-        required
-        disabled={sending}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-      />
-      {sendError ? (
-        <p className="help-text" role="status" style={{ margin: 0, color: "var(--danger)" }}>
-          {sendError.text}
-        </p>
-      ) : null}
-      <button className="button" disabled={!conversationId || sending || !body.trim()}>
-        {sending ? "Sending…" : "Send"}
-      </button>
-    </form>
-  );
-}
-
-function DirectChatForm({
-  attendees,
-  currentUserId,
-  token,
-  withEventHeaders,
-  onCreated,
-}: {
-  attendees: User[];
-  currentUserId: string;
-  token: string;
-  withEventHeaders: (extra?: RequestInit) => RequestInit;
-  onCreated: (c: Conversation) => void;
-}) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const userId = selectedIds[0];
-    if (!userId) return;
-    setError(null);
-    try {
-      const conversation = await apiFetch<Conversation>(
-        "/conversations/direct",
-        withEventHeaders({ method: "POST", body: JSON.stringify({ userId }) }),
-        token,
-      );
-      onCreated(conversation);
-      setSelectedIds([]);
-    } catch (err) {
-      const status = (err as { status?: number }).status;
-      const name = attendees.find((a) => a.id === userId)?.name;
-      setError(
-        status === 403 && name
-          ? `${name} hasn't opted into direct messages`
-          : err instanceof Error && err.message
-            ? err.message
-            : "Couldn't start the conversation",
-      );
-    }
-  }
-
-  return (
-    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
-      <h4 style={{ margin: 0 }}>Message someone one-on-one</h4>
-      <p className="help-text" style={{ margin: 0 }}>
-        Search and pick one participant, then <strong>Start chat</strong>.
-      </p>
-      <SearchableMultiSelect
-        label="Participant"
-        people={attendees}
-        selectedIds={selectedIds}
-        excludeIds={[currentUserId]}
-        placeholder="Search people…"
-        onChange={(ids) => setSelectedIds(ids.length <= 1 ? ids : [ids[ids.length - 1]!])}
-      />
-      {error ? (
-        <p className="help-text" role="status" style={{ margin: 0 }}>
-          {error}
-        </p>
-      ) : null}
-      <button className="button secondary" type="submit" disabled={selectedIds.length !== 1}>
-        Start chat
-      </button>
-    </form>
-  );
-}
-
-function GroupChatForm({
-  attendees,
-  currentUserId,
-  token,
-  withEventHeaders,
-  onCreated,
-}: {
-  attendees: User[];
-  currentUserId: string;
-  token: string;
-  withEventHeaders: (extra?: RequestInit) => RequestInit;
-  onCreated: (c: Conversation) => void;
-}) {
-  const [name, setName] = useState("");
-  const [memberIds, setMemberIds] = useState<string[]>([]);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const cleaned = memberIds.filter((id) => id && id !== currentUserId);
-    if (!name.trim() || cleaned.length === 0) return;
-    const conversation = await apiFetch<Conversation>(
-      "/conversations/group",
-      withEventHeaders({ method: "POST", body: JSON.stringify({ name: name.trim(), memberIds: cleaned }) }),
-      token,
-    );
-    onCreated(conversation);
-    setName("");
-    setMemberIds([]);
-  }
-
-  return (
-    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
-      <h4 style={{ margin: 0 }}>Create a group chat</h4>
-      <p className="help-text" style={{ margin: 0 }}>
-        Name the group and select at least one other person.
-      </p>
-      <input
-        className="input"
-        name="name"
-        placeholder="Group name"
-        required
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <SearchableMultiSelect
-        label="Members"
-        people={attendees}
-        selectedIds={memberIds}
-        excludeIds={[currentUserId]}
-        placeholder="Search people…"
-        onChange={setMemberIds}
-      />
-      <button className="button secondary" type="submit" disabled={!name.trim() || memberIds.length === 0}>
-        Create
-      </button>
-    </form>
-  );
-}
-
 function inviteStatusLabel(attendee: User) {
   if (attendee.inviteStatus === "PENDING_SETUP") return "Pending — has not finished signup";
   if (attendee.inviteStatus === "INVITE_EXPIRED") return "Invite expired";
@@ -5206,14 +4683,6 @@ function participantTypeLabel(type?: User["participantType"] | "") {
   if (type === "EDL_ALUMNI") return "EDL Alumni";
   if (type === "PROFESSOR") return "Professor";
   return "";
-}
-
-function formatConversationName(conversation: Conversation, currentUser: User) {
-  if (conversation.type === "EVENT") return conversation.name || "Everyone — event chat";
-  if (conversation.type === "GROUP") return conversation.name || "Group Chat";
-  if (conversation.type === "SESSION") return conversation.name || "Session chat";
-  const other = conversation.members.find((m) => m.user.id !== currentUser.id);
-  return other ? other.user.name : "Direct Chat";
 }
 
 function zonedDateParts(date: Date, timeZone: string) {

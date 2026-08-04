@@ -54,6 +54,8 @@ export type FeatureDefinition = {
   dependsOn?: FeatureKey[];
   plannedPhase?: string;
   defaultValue?: FeatureOverrideValue;
+  /** No attendee surface any more — hidden from the organizer Features tab. */
+  retired?: boolean;
 };
 
 export const FEATURE_REGISTRY: FeatureDefinition[] = [
@@ -119,11 +121,16 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     defaultOn: true,
   },
   {
+    // Retired by E18 (2026-08-03): event-wide chat duplicated Community
+    // (event-wide posting) and Announcements (organizer broadcast). Messages
+    // now owns 1:1/group correspondence only. Existing rows are kept; the web
+    // app no longer renders EVENT conversations and this toggle is hidden.
     key: "messaging_event_chat",
     name: "Event chat",
     plainDescription: "The shared chat room for everyone at the event.",
     category: "messaging",
     defaultOn: true,
+    retired: true,
   },
   {
     key: "session_qa",
@@ -383,7 +390,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
 ];
 
 export function getOrganizerVisibleFeatures(): FeatureDefinition[] {
-  return FEATURE_REGISTRY.filter((f) => !f.plannedPhase);
+  return FEATURE_REGISTRY.filter((f) => !f.plannedPhase && !f.retired);
 }
 
 export function dependencyBlockReason(key: FeatureKey, effectiveOffParents: FeatureKey[]): string | null {

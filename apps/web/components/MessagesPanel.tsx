@@ -1,0 +1,887 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DELETED_PARTICIPANT_LABEL } from "@event-app/shared";
+import { apiFetch, apiFetchAll } from "../lib/api";
+import {
+  conversationPreview,
+  conversationSecondaryLine,
+  conversationTimestamp,
+  conversationTitle,
+  draftStorageKey,
+  filterConversations,
+  groupMessagesForThread,
+  initialsFor,
+  isMessagingConversation,
+  mergeServerMessages,
+  messageGroupTime,
+  otherMember,
+  sortConversationsByActivity,
+  type ConversationView,
+  type MessageView,
+} from "../lib/messagesView";
+import { AutolinkText } from "./AutolinkText";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { KebabMenu } from "./KebabMenu";
+import { SearchableMultiSelect, type SelectablePerson } from "./SearchableMultiSelect";
+
+/**
+ * Messages, phase 1 (Chunk E18) — 1:1 and small named-group correspondence.
+ * Low-volume, calm by design: polling (visibility-gated), no sockets, no read
+ * receipts, no typing indicators. See ux-audit-capture/RESEARCH_MESSAGING.md.
+ */
+
+const LIST_POLL_MS = 20_000;
+const THREAD_POLL_MS = 8_000;
+
+type PanelUser = { id: string; name: string; role: string };
+
+type Props = {
+  token: string;
+  user: PanelUser;
+  attendees: SelectablePerson[];
+  isAdmin: boolean;
+  directoryEnabled: boolean;
+  groupsEnabled: boolean;
+  dmsEnabled: boolean;
+  activeEventId: string | null;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  conversations: ConversationView[];
+  onConversationsChange: (list: ConversationView[]) => void;
+  activeConversationId: string | null;
+  onSelectConversation: (id: string | null) => void;
+  unreadConversationIds: Set<string>;
+  /** Called when a conversation is opened so the parent can clear its unread state. */
+  onConversationOpened: (conversationId: string) => void;
+  messagePrefill: string | null;
+  onPrefillConsumed: () => void;
+  onBrowseAttendees: () => void;
+  /** Fired after a successful send (parent refreshes engagement points etc.). */
+  onMessageSent?: () => void;
+};
+
+function tabIsVisible() {
+  return typeof document === "undefined" || document.visibilityState === "visible";
+}
+
+export function MessagesPanel({
+  token,
+  user,
+  attendees,
+  isAdmin,
+  directoryEnabled,
+  groupsEnabled,
+  dmsEnabled,
+  activeEventId,
+  withEventHeaders,
+  conversations,
+  onConversationsChange,
+  activeConversationId,
+  onSelectConversation,
+  unreadConversationIds,
+  onConversationOpened,
+  messagePrefill,
+  onPrefillConsumed,
+  onBrowseAttendees,
+  onMessageSent,
+}: Props) {
+  const [messages, setMessages] = useState<MessageView[]>([]);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [newConversationMode, setNewConversationMode] = useState<null | "direct" | "group">(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageBody, setEditingMessageBody] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [newIncomingCount, setNewIncomingCount] = useState(0);
+  const [liveAnnouncement, setLiveAnnouncement] = useState("");
+  const [isOffline, setIsOffline] = useState(false);
+
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const threadHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const focusThreadOnOpenRef = useRef(false);
+  const stickToBottomRef = useRef(true);
+  const prevLastMessageIdRef = useRef<string | null>(null);
+
+  const messagingConversations = useMemo(
+    () => sortConversationsByActivity(conversations.filter(isMessagingConversation)),
+    [conversations],
+  );
+  const visibleConversations = useMemo(
+    () => filterConversations(messagingConversations, searchQuery, user.id),
+    [messagingConversations, searchQuery, user.id],
+  );
+  const activeConversation = useMemo(
+    () => messagingConversations.find((c) => c.id === activeConversationId) ?? null,
+    [messagingConversations, activeConversationId],
+  );
+
+  /* ——— offline awareness ——— */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsOffline(!window.navigator.onLine);
+    const goOffline = () => setIsOffline(true);
+    const goOnline = () => setIsOffline(false);
+    window.addEventListener("offline", goOffline);
+    window.addEventListener("online", goOnline);
+    return () => {
+      window.removeEventListener("offline", goOffline);
+      window.removeEventListener("online", goOnline);
+    };
+  }, []);
+
+  /* ——— conversation list: fetch on mount, poll every 20s while visible ——— */
+  const refreshConversations = useCallback(async () => {
+    try {
+      const list = await apiFetch<ConversationView[]>("/conversations", withEventHeaders(), token);
+      onConversationsChange(list);
+    } catch {
+      /* transient — the next poll retries */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, activeEventId]);
+
+  useEffect(() => {
+    void refreshConversations();
+    const interval = window.setInterval(() => {
+      if (!tabIsVisible()) return;
+      void refreshConversations();
+    }, LIST_POLL_MS);
+    const onVisible = () => {
+      if (tabIsVisible()) void refreshConversations();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [refreshConversations]);
+
+  /* ——— auto-select the most recent conversation when none is chosen ———
+   * If an id is set but not (yet) in the list, leave it alone — it may be a
+   * conversation created a moment ago that the next list refresh will include.
+   * Only redirect away from ids that resolve to non-messaging types. */
+  useEffect(() => {
+    const selected = activeConversationId ? conversations.find((c) => c.id === activeConversationId) : null;
+    if (selected && !isMessagingConversation(selected)) {
+      onSelectConversation(messagingConversations[0]?.id ?? null);
+      return;
+    }
+    if (!activeConversationId && messagingConversations.length > 0) {
+      onSelectConversation(messagingConversations[0]!.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, messagingConversations, activeConversationId]);
+
+  /* ——— thread: load on open, poll every 8s while visible ——— */
+  const loadThread = useCallback(
+    async (opts?: { background?: boolean }) => {
+      if (!activeConversationId) return;
+      if (!opts?.background) setThreadLoading(true);
+      try {
+        const rows = await apiFetchAll<MessageView>(
+          `/conversations/${activeConversationId}/messages`,
+          withEventHeaders(),
+          token,
+        );
+        setMessages((prev) => mergeServerMessages(prev, rows));
+      } catch {
+        /* transient — the next poll retries */
+      } finally {
+        if (!opts?.background) setThreadLoading(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeConversationId, token, activeEventId],
+  );
+
+  useEffect(() => {
+    setMessages([]);
+    setEditingMessageId(null);
+    setNewIncomingCount(0);
+    stickToBottomRef.current = true;
+    prevLastMessageIdRef.current = null;
+    if (!activeConversationId) return;
+    void loadThread();
+    const interval = window.setInterval(() => {
+      if (!tabIsVisible()) return;
+      void loadThread({ background: true });
+    }, THREAD_POLL_MS);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId, loadThread]);
+
+  /* Opening a conversation clears its unread state; re-clears if new message
+   * notifications arrive while the thread stays open. */
+  useEffect(() => {
+    if (activeConversationId && unreadConversationIds.has(activeConversationId)) {
+      onConversationOpened(activeConversationId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId, unreadConversationIds]);
+
+  /* ——— scroll + announce behaviour ——— */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || messages.length === 0) return;
+    const last = messages[messages.length - 1]!;
+    const lastId = last.clientId ?? last.id;
+    const isNewTail = prevLastMessageIdRef.current !== lastId;
+    prevLastMessageIdRef.current = lastId;
+    if (!isNewTail) return;
+
+    const fromSomeoneElse = last.user?.id !== user.id && !last.localStatus;
+    if (stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+      setNewIncomingCount(0);
+    } else if (fromSomeoneElse) {
+      setNewIncomingCount((n) => n + 1);
+    }
+    if (fromSomeoneElse) {
+      setLiveAnnouncement(`New message from ${last.user?.name ?? DELETED_PARTICIPANT_LABEL}`);
+    }
+  }, [messages, user.id]);
+
+  const handleThreadScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    stickToBottomRef.current = atBottom;
+    if (atBottom) setNewIncomingCount(0);
+  };
+
+  /* ——— focus the thread heading when a conversation is chosen from the list ——— */
+  useEffect(() => {
+    if (!focusThreadOnOpenRef.current) return;
+    focusThreadOnOpenRef.current = false;
+    threadHeadingRef.current?.focus();
+  }, [activeConversationId]);
+
+  const selectConversation = (id: string) => {
+    if (id !== activeConversationId) {
+      focusThreadOnOpenRef.current = true;
+      onSelectConversation(id);
+    }
+  };
+
+  /* ——— sending ——— */
+  const [composerBody, setComposerBody] = useState("");
+  const [composerBlockedNotice, setComposerBlockedNotice] = useState<string | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  /* Draft per conversation (E18.4): restore on open, persist on change. */
+  useEffect(() => {
+    setComposerBlockedNotice(null);
+    if (!activeConversationId || typeof window === "undefined") {
+      setComposerBody("");
+      return;
+    }
+    if (messagePrefill != null && messagePrefill.trim()) {
+      setComposerBody(messagePrefill);
+      onPrefillConsumed();
+      return;
+    }
+    setComposerBody(window.localStorage.getItem(draftStorageKey(activeConversationId)) ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId]);
+
+  const updateComposerBody = (value: string) => {
+    setComposerBody(value);
+    if (!activeConversationId || typeof window === "undefined") return;
+    const key = draftStorageKey(activeConversationId);
+    if (value) window.localStorage.setItem(key, value);
+    else window.localStorage.removeItem(key);
+  };
+
+  const postMessage = async (conversationId: string, clientId: string, body: string) => {
+    try {
+      const saved = await apiFetch<MessageView>(
+        `/conversations/${conversationId}/messages`,
+        withEventHeaders({ method: "POST", body: JSON.stringify({ body }) }),
+        token,
+      );
+      setMessages((prev) => prev.map((m) => (m.clientId === clientId ? saved : m)));
+      setLiveAnnouncement("Message sent");
+      onMessageSent?.();
+      void refreshConversations();
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 403) {
+        // Opt-in style rejection: drop the optimistic row, quiet the composer.
+        setMessages((prev) => prev.filter((m) => m.clientId !== clientId));
+        setComposerBlockedNotice(
+          err instanceof Error && err.message ? err.message : "You can't send messages to this person.",
+        );
+        return;
+      }
+      setMessages((prev) =>
+        prev.map((m) => (m.clientId === clientId ? { ...m, localStatus: "failed" as const } : m)),
+      );
+    }
+  };
+
+  const sendCurrentBody = () => {
+    if (!activeConversationId) return;
+    const trimmed = composerBody.trim();
+    if (!trimmed) return;
+    const clientId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: MessageView = {
+      id: clientId,
+      clientId,
+      body: trimmed,
+      createdAt: new Date().toISOString(),
+      user: { id: user.id, name: user.name, role: user.role },
+      localStatus: "sending",
+    };
+    stickToBottomRef.current = true;
+    setMessages((prev) => [...prev, optimistic]);
+    updateComposerBody("");
+    composerRef.current?.focus();
+    void postMessage(activeConversationId, clientId, trimmed);
+  };
+
+  const retryMessage = (message: MessageView) => {
+    if (!activeConversationId || !message.clientId) return;
+    setMessages((prev) =>
+      prev.map((m) => (m.clientId === message.clientId ? { ...m, localStatus: "sending" as const } : m)),
+    );
+    void postMessage(activeConversationId, message.clientId, message.body);
+  };
+
+  const discardFailedMessage = (message: MessageView) => {
+    setMessages((prev) => prev.filter((m) => m.clientId !== message.clientId));
+  };
+
+  /* ——— derived thread view ——— */
+  const dayGroups = useMemo(() => groupMessagesForThread(messages, user.id), [messages, user.id]);
+  const activeTitle = activeConversation ? conversationTitle(activeConversation, user.id) : null;
+  const activeSecondary = activeConversation
+    ? activeConversation.type === "GROUP"
+      ? activeConversation.members.map((m) => m.user.name).join(", ")
+      : conversationSecondaryLine(activeConversation, user.id)
+    : null;
+  const activeOther = activeConversation ? otherMember(activeConversation, user.id) : null;
+
+  const emptyInbox = messagingConversations.length === 0;
+
+  return (
+    <div className="grid messages-layout">
+      {/* ——— conversation list pane ——— */}
+      <div className="card message-sidebar-card">
+        <div className="msg-list-header">
+          <h3 style={{ margin: 0 }}>Messages</h3>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => setNewConversationMode((prev) => (prev ? null : "direct"))}
+          >
+            {newConversationMode ? "Close" : "New message"}
+          </button>
+        </div>
+
+        {newConversationMode ? (
+          <div className="new-chat-panel">
+            {groupsEnabled && dmsEnabled ? (
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <button
+                  type="button"
+                  className={newConversationMode === "direct" ? "button" : "button secondary"}
+                  onClick={() => setNewConversationMode("direct")}
+                >
+                  One person
+                </button>
+                <button
+                  type="button"
+                  className={newConversationMode === "group" ? "button" : "button secondary"}
+                  onClick={() => setNewConversationMode("group")}
+                >
+                  Group
+                </button>
+              </div>
+            ) : null}
+            {newConversationMode === "direct" && dmsEnabled ? (
+              <NewDirectConversationForm
+                attendees={attendees}
+                currentUserId={user.id}
+                token={token}
+                withEventHeaders={withEventHeaders}
+                onCreated={(c) => {
+                  if (!conversations.some((row) => row.id === c.id)) {
+                    onConversationsChange([c, ...conversations]);
+                  }
+                  selectConversation(c.id);
+                  setNewConversationMode(null);
+                }}
+              />
+            ) : (
+              <NewGroupConversationForm
+                attendees={attendees}
+                currentUserId={user.id}
+                token={token}
+                withEventHeaders={withEventHeaders}
+                onCreated={(c) => {
+                  onConversationsChange([c, ...conversations]);
+                  selectConversation(c.id);
+                  setNewConversationMode(null);
+                }}
+              />
+            )}
+          </div>
+        ) : null}
+
+        <label className="sr-only" htmlFor="message-search">
+          Search names or messages
+        </label>
+        <input
+          id="message-search"
+          className="input"
+          type="search"
+          placeholder="Search names or messages"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+
+        {emptyInbox ? (
+          <div className="msg-empty-inbox">
+            <p style={{ margin: 0, fontWeight: 600, color: "var(--gray-900)" }}>No messages yet.</p>
+            <p className="help-text" style={{ margin: "6px 0 0" }}>
+              Message someone from the Attendees list, or from a speaker&apos;s name on any session page.
+              Looking for open discussion instead? That&apos;s in Community.
+            </p>
+            {directoryEnabled ? (
+              <button type="button" className="button secondary" style={{ marginTop: 12 }} onClick={onBrowseAttendees}>
+                Browse attendees
+              </button>
+            ) : null}
+          </div>
+        ) : visibleConversations.length === 0 ? (
+          <p className="help-text" style={{ marginTop: 16 }}>
+            No conversations match &ldquo;{searchQuery.trim()}&rdquo;.
+          </p>
+        ) : (
+          <ul className="conversation-list">
+            {visibleConversations.map((c) => {
+              const unread = unreadConversationIds.has(c.id);
+              const title = conversationTitle(c, user.id);
+              const secondary = conversationSecondaryLine(c, user.id);
+              const preview = conversationPreview(c, user.id);
+              const lastAt = c.messages?.[0]?.createdAt ?? c.createdAt ?? null;
+              const photoUrl = c.type === "DIRECT" ? otherMember(c, user.id)?.photoUrl : null;
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    className={`conversation-row${unread ? " is-unread" : ""}`}
+                    aria-current={activeConversationId === c.id ? "true" : undefined}
+                    onClick={() => selectConversation(c.id)}
+                  >
+                    <span className="conversation-row-gutter" aria-hidden>
+                      {unread ? <span className="conversation-unread-dot" /> : null}
+                    </span>
+                    <span className="msg-avatar" aria-hidden>
+                      {photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={photoUrl} alt="" />
+                      ) : (
+                        initialsFor(title)
+                      )}
+                    </span>
+                    <span className="conversation-row-main">
+                      <span className="conversation-row-top">
+                        <span className="conversation-row-name">{title}</span>
+                        {lastAt ? (
+                          <time className="conversation-row-time" dateTime={lastAt} title={new Date(lastAt).toLocaleString()}>
+                            {conversationTimestamp(lastAt)}
+                          </time>
+                        ) : null}
+                      </span>
+                      {secondary ? <span className="conversation-row-secondary">{secondary}</span> : null}
+                      {preview ? (
+                        <span className="conversation-row-preview">{preview}</span>
+                      ) : (
+                        <span className="conversation-row-preview conversation-row-preview--empty">No messages yet</span>
+                      )}
+                      {unread ? <span className="sr-only">Unread</span> : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* ——— thread pane ——— */}
+      <div className="card message-thread-card">
+        <div className="msg-thread-header">
+          <h3 ref={threadHeadingRef} tabIndex={-1} style={{ margin: 0 }}>
+            {activeTitle ?? "Select a conversation"}
+          </h3>
+          {activeSecondary ? (
+            <p className="text-meta" style={{ margin: "2px 0 0" }}>
+              {activeSecondary}
+            </p>
+          ) : null}
+        </div>
+
+        <div
+          ref={scrollRef}
+          className="message-thread-scroll"
+          role="log"
+          aria-label={activeTitle ? `Conversation with ${activeTitle}` : "Conversation"}
+          onScroll={handleThreadScroll}
+        >
+          {!activeConversation ? (
+            <p className="msg-thread-placeholder">Select a conversation</p>
+          ) : threadLoading && messages.length === 0 ? (
+            <p className="msg-thread-placeholder">Loading…</p>
+          ) : messages.length === 0 ? (
+            <p className="msg-thread-placeholder">
+              This is the start of your conversation with {activeConversation.type === "GROUP" ? "this group" : activeTitle}.
+            </p>
+          ) : (
+            dayGroups.map((day) => (
+              <div key={day.dayKey}>
+                <h4 className="msg-day-divider">
+                  <span>{day.label}</span>
+                </h4>
+                {day.groups.map((group, groupIdx) => (
+                  <div
+                    key={`${day.dayKey}-${groupIdx}`}
+                    className={`msg-group${group.isSelf ? " is-self" : ""}`}
+                  >
+                    {group.messages.map((m) => {
+                      const canManage = !m.localStatus && (isAdmin || (m.user?.id != null && m.user.id === user.id));
+                      return (
+                        <div key={m.clientId ?? m.id} className="msg-row">
+                          <div
+                            className={`msg-bubble${group.isSelf ? " is-self" : ""}${
+                              m.localStatus === "failed" ? " is-failed" : ""
+                            }${m.localStatus === "sending" ? " is-sending" : ""}`}
+                          >
+                            <span className="sr-only">
+                              {group.isSelf ? "You" : group.senderName}, {messageGroupTime(m.createdAt)}:{" "}
+                            </span>
+                            {editingMessageId === m.id ? (
+                              <form
+                                className="grid"
+                                style={{ gap: 8 }}
+                                onSubmit={async (e) => {
+                                  e.preventDefault();
+                                  if (!activeConversationId) return;
+                                  try {
+                                    const updated = await apiFetch<MessageView>(
+                                      `/conversations/${activeConversationId}/messages/${m.id}`,
+                                      withEventHeaders({
+                                        method: "PATCH",
+                                        body: JSON.stringify({ body: editingMessageBody }),
+                                      }),
+                                      token,
+                                    );
+                                    setMessages((prev) => prev.map((row) => (row.id === m.id ? updated : row)));
+                                    setEditingMessageId(null);
+                                  } catch (err) {
+                                    window.alert(err instanceof Error ? err.message : "Could not save message");
+                                  }
+                                }}
+                              >
+                                <textarea
+                                  className="textarea"
+                                  value={editingMessageBody}
+                                  onChange={(e) => setEditingMessageBody(e.target.value)}
+                                  rows={3}
+                                  required
+                                />
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <button className="button" type="submit">
+                                    Save
+                                  </button>
+                                  <button className="button secondary" type="button" onClick={() => setEditingMessageId(null)}>
+                                    Cancel
+                                  </button>
+                                </div>
+                              </form>
+                            ) : (
+                              <AutolinkText text={m.body} />
+                            )}
+                          </div>
+                          {canManage && editingMessageId !== m.id ? (
+                            <div className="msg-row-actions">
+                              <KebabMenu
+                                label="Message actions"
+                                items={[
+                                  {
+                                    id: "edit",
+                                    label: "Edit",
+                                    onSelect: () => {
+                                      setEditingMessageId(m.id);
+                                      setEditingMessageBody(m.body);
+                                    },
+                                  },
+                                  {
+                                    id: "delete",
+                                    label: "Delete",
+                                    tone: "danger",
+                                    onSelect: () => setDeleteConfirmId(m.id),
+                                  },
+                                ]}
+                              />
+                            </div>
+                          ) : null}
+                          {m.localStatus === "failed" ? (
+                            <div className="msg-send-failed" role="alert">
+                              Not sent.{" "}
+                              <button type="button" className="msg-inline-action" onClick={() => retryMessage(m)}>
+                                Retry
+                              </button>{" "}
+                              ·{" "}
+                              <button type="button" className="msg-inline-action" onClick={() => discardFailedMessage(m)}>
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                    <p className={`msg-group-meta${group.isSelf ? " is-self" : ""}`}>
+                      {group.isSelf ? "You" : group.senderName} ·{" "}
+                      <time dateTime={group.lastAt} title={new Date(group.lastAt).toLocaleString()}>
+                        {messageGroupTime(group.lastAt)}
+                      </time>
+                      {group.isSelf && group.messages[group.messages.length - 1]?.localStatus === "sending"
+                        ? " · Sending…"
+                        : group.isSelf && !group.messages[group.messages.length - 1]?.localStatus
+                          ? " ✓"
+                          : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+
+        {newIncomingCount > 0 ? (
+          <button
+            type="button"
+            className="msg-new-messages-btn"
+            onClick={() => {
+              const el = scrollRef.current;
+              if (el) el.scrollTop = el.scrollHeight;
+              stickToBottomRef.current = true;
+              setNewIncomingCount(0);
+            }}
+          >
+            {newIncomingCount} new {newIncomingCount === 1 ? "message" : "messages"} ↓
+          </button>
+        ) : null}
+
+        <div aria-live="polite" className="sr-only">
+          {liveAnnouncement}
+        </div>
+
+        {isOffline ? (
+          <p className="msg-offline-strip">You&apos;re offline. Messages will send when you reconnect.</p>
+        ) : null}
+
+        {activeConversation ? (
+          composerBlockedNotice ? (
+            <p className="help-text" role="status" style={{ margin: "8px 0 0" }}>
+              {composerBlockedNotice}
+            </p>
+          ) : (
+            <form
+              className="msg-composer"
+              onSubmit={(e) => {
+                e.preventDefault();
+                sendCurrentBody();
+              }}
+            >
+              <label className="sr-only" htmlFor="message-composer-body">
+                Write a message to {activeOther?.name ?? activeTitle ?? "this conversation"}
+              </label>
+              <textarea
+                id="message-composer-body"
+                ref={composerRef}
+                className="textarea msg-composer-textarea"
+                placeholder="Write a message…"
+                rows={2}
+                value={composerBody}
+                onChange={(e) => updateComposerBody(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendCurrentBody();
+                  }
+                }}
+              />
+              <div className="msg-composer-footer">
+                <span className="text-meta">Enter to send · Shift + Enter for a new line</span>
+                <button className="button" type="submit" disabled={!composerBody.trim()}>
+                  Send
+                </button>
+              </div>
+            </form>
+          )
+        ) : null}
+      </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteConfirmId && activeConversationId)}
+        title="Delete message?"
+        body="This removes the message from the conversation for everyone. This cannot be undone."
+        confirmLabel="Delete message"
+        onCancel={() => setDeleteConfirmId(null)}
+        onConfirm={async () => {
+          if (!deleteConfirmId || !activeConversationId) return;
+          try {
+            await apiFetch(
+              `/conversations/${activeConversationId}/messages/${deleteConfirmId}`,
+              withEventHeaders({ method: "DELETE" }),
+              token,
+            );
+            setMessages((prev) => prev.filter((m) => m.id !== deleteConfirmId));
+            setDeleteConfirmId(null);
+          } catch (err) {
+            window.alert(err instanceof Error ? err.message : "Could not delete message");
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function NewDirectConversationForm({
+  attendees,
+  currentUserId,
+  token,
+  withEventHeaders,
+  onCreated,
+}: {
+  attendees: SelectablePerson[];
+  currentUserId: string;
+  token: string;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  onCreated: (c: ConversationView) => void;
+}) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const userId = selectedIds[0];
+    if (!userId) return;
+    setError(null);
+    try {
+      const conversation = await apiFetch<ConversationView>(
+        "/conversations/direct",
+        withEventHeaders({ method: "POST", body: JSON.stringify({ userId }) }),
+        token,
+      );
+      onCreated(conversation);
+      setSelectedIds([]);
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const name = attendees.find((a) => a.id === userId)?.name;
+      setError(
+        status === 403 && name
+          ? `${name} hasn't opted into direct messages`
+          : err instanceof Error && err.message
+            ? err.message
+            : "Couldn't start the conversation",
+      );
+    }
+  }
+
+  return (
+    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
+      <p className="help-text" style={{ margin: 0 }}>
+        Pick one person to message privately.
+      </p>
+      <SearchableMultiSelect
+        label="Person"
+        people={attendees}
+        selectedIds={selectedIds}
+        excludeIds={[currentUserId]}
+        placeholder="Search people…"
+        onChange={(ids) => setSelectedIds(ids.length <= 1 ? ids : [ids[ids.length - 1]!])}
+      />
+      {error ? (
+        <p className="help-text" role="status" style={{ margin: 0 }}>
+          {error}
+        </p>
+      ) : null}
+      <button className="button secondary" type="submit" disabled={selectedIds.length !== 1}>
+        Start conversation
+      </button>
+    </form>
+  );
+}
+
+function NewGroupConversationForm({
+  attendees,
+  currentUserId,
+  token,
+  withEventHeaders,
+  onCreated,
+}: {
+  attendees: SelectablePerson[];
+  currentUserId: string;
+  token: string;
+  withEventHeaders: (extra?: RequestInit) => RequestInit;
+  onCreated: (c: ConversationView) => void;
+}) {
+  const [name, setName] = useState("");
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleaned = memberIds.filter((id) => id && id !== currentUserId);
+    if (!name.trim() || cleaned.length === 0) return;
+    setError(null);
+    try {
+      const conversation = await apiFetch<ConversationView>(
+        "/conversations/group",
+        withEventHeaders({ method: "POST", body: JSON.stringify({ name: name.trim(), memberIds: cleaned }) }),
+        token,
+      );
+      onCreated(conversation);
+      setName("");
+      setMemberIds([]);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Couldn't create the group");
+    }
+  }
+
+  return (
+    <form className="grid" onSubmit={handleSubmit} style={{ gap: 8 }}>
+      <p className="help-text" style={{ margin: 0 }}>
+        Name the group and pick the people in it. Only members see these messages.
+      </p>
+      <input
+        className="input"
+        name="name"
+        placeholder="Group name"
+        required
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <SearchableMultiSelect
+        label="Members"
+        people={attendees}
+        selectedIds={memberIds}
+        excludeIds={[currentUserId]}
+        placeholder="Search people…"
+        onChange={setMemberIds}
+      />
+      {error ? (
+        <p className="help-text" role="status" style={{ margin: 0 }}>
+          {error}
+        </p>
+      ) : null}
+      <button className="button secondary" type="submit" disabled={!name.trim() || memberIds.length === 0}>
+        Create group
+      </button>
+    </form>
+  );
+}

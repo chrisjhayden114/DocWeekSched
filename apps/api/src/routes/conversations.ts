@@ -65,7 +65,13 @@ conversationsRouter.get(
         OR: [{ type: "EVENT" }, { members: { some: { userId } } }],
       },
       include: {
-        members: { include: { user: { select: { id: true, name: true, role: true } } } },
+        // affiliation/photoUrl feed the conversation rows on the Messages
+        // surface (E18.2) — display fields only, never contact details.
+        members: {
+          include: {
+            user: { select: { id: true, name: true, role: true, affiliation: true, photoUrl: true } },
+          },
+        },
         messages: {
           orderBy: { createdAt: "desc" },
           take: 1,
@@ -107,11 +113,19 @@ conversationsRouter.post(
       });
     }
 
+    const memberInclude = {
+      members: {
+        include: {
+          user: { select: { id: true, name: true, role: true, affiliation: true, photoUrl: true } },
+        },
+      },
+    } as const;
+
     const existing = await getDirectConversation(userId, otherUserId, event.id);
     if (existing) {
       const full = await prisma.conversation.findUnique({
         where: { id: existing.id },
-        include: { members: { include: { user: { select: { id: true, name: true, role: true } } } } },
+        include: memberInclude,
       });
       return res.json(full);
     }
@@ -124,7 +138,7 @@ conversationsRouter.post(
           create: [{ userId }, { userId: otherUserId }],
         },
       },
-      include: { members: { include: { user: { select: { id: true, name: true, role: true } } } } },
+      include: memberInclude,
     });
 
     return res.json(conversation);
@@ -158,7 +172,13 @@ conversationsRouter.post(
           create: memberIds.map((id) => ({ userId: id })),
         },
       },
-      include: { members: { include: { user: { select: { id: true, name: true, role: true } } } } },
+      include: {
+        members: {
+          include: {
+            user: { select: { id: true, name: true, role: true, affiliation: true, photoUrl: true } },
+          },
+        },
+      },
     });
 
     return res.json(conversation);
