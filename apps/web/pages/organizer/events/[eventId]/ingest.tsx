@@ -626,21 +626,35 @@ export default function AgendaIngestPage() {
               fileName: run.sourceFileName,
             })}
             sourcePreview={sourceDisplay.previewText || undefined}
+            // E16.1: file sources render as a compact full-width band above
+            // the review; the long-preview side column stays for paste/URL.
+            sourceLayout={sourceDisplay.isFile ? "band" : "column"}
             sourceInfo={
               sourceDisplay.isFile ? (
-                <div style={{ display: "grid", gap: 4, marginBottom: sourceDisplay.previewText ? 8 : 0 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "baseline",
+                    flexWrap: "wrap",
+                    minWidth: 0,
+                  }}
+                >
+                  <span className="help-text" style={{ margin: 0 }}>
+                    Source
+                  </span>
                   {sourceDisplay.fileName ? (
-                    <p style={{ margin: 0, fontWeight: 600, overflowWrap: "anywhere" }}>{sourceDisplay.fileName}</p>
+                    <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{sourceDisplay.fileName}</span>
                   ) : null}
-                  <p className="help-text" style={{ margin: 0 }}>
+                  <span className="help-text" style={{ margin: 0 }}>
                     {[sourceDisplay.mime, sourceDisplay.sizeLabel, new Date(run.createdAt).toLocaleString()]
                       .filter(Boolean)
                       .join(" · ")}
-                  </p>
+                  </span>
                   {sourceDisplay.previewNote ? (
-                    <p className="help-text" style={{ margin: 0, fontStyle: "italic" }}>
+                    <span className="help-text" style={{ margin: 0, fontStyle: "italic" }}>
                       {sourceDisplay.previewNote}
-                    </p>
+                    </span>
                   ) : null}
                 </div>
               ) : undefined

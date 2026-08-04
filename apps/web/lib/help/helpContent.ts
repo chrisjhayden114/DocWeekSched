@@ -35,6 +35,8 @@ The fastest path is **Setup Copilot** on [New event](/organizer/events/new?mode=
 
 You can also create an event manually or start from an optional sample draft on first login.
 
+Organizing the program: on the event's **Program** tab, tick several sessions (or **Select all** under a day heading) and use **Assign track** / **Assign room** to update them all in one step — no per-session editing needed.
+
 ## 3. Invite attendees
 
 From the dashboard, use **Invite** to send links (email when configured). Inviting marks the checklist’s **Invite attendees** step.

@@ -184,6 +184,11 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<ConfirmState>(null);
 
+  // E16.2: bulk track/room assignment. Selection lives in this tab's state —
+  // it survives scrolling within the tab and intentionally resets on tab change.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkNotice, setBulkNotice] = useState<string | null>(null);
+
   // E13.1: drafts (from ingest) must never be invisible state.
   const draftCount = useMemo(
     () => sessions.filter((s) => s.publishStatus === "DRAFT").length,
@@ -243,6 +248,66 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
 
   const trackById = useMemo(() => new Map(tracks.map((t) => [t.id, t])), [tracks]);
   const roomById = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
+
+  // Drop selections for sessions that no longer exist (deleted elsewhere).
+  useEffect(() => {
+    const live = new Set(sessions.map((s) => s.id));
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((id) => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [sessions]);
+
+  function toggleSelected(sessionId: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(sessionId);
+      else next.delete(sessionId);
+      return next;
+    });
+  }
+
+  function toggleDaySelected(daySessions: ProgramSession[], checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const s of daySessions) {
+        if (checked) next.add(s.id);
+        else next.delete(s.id);
+      }
+      return next;
+    });
+  }
+
+  /** One batched request for the whole selection — never N single PUTs. */
+  async function bulkAssign(kind: "track" | "room", value: string) {
+    const idsArr = [...selected];
+    if (idsArr.length === 0) return;
+    const targetId = value === "__none__" ? null : value;
+    setBulkNotice(null);
+    const ok = await run("bulk-assign", async () => {
+      await organizerFetch("/sessions/bulk-assign", eventId, {
+        method: "POST",
+        body: JSON.stringify({
+          sessionIds: idsArr,
+          ...(kind === "track" ? { trackId: targetId } : { roomId: targetId }),
+        }),
+      });
+    });
+    if (ok) {
+      const count = `${idsArr.length} session${idsArr.length === 1 ? "" : "s"}`;
+      const targetName =
+        targetId === null
+          ? null
+          : kind === "track"
+            ? trackById.get(targetId)?.name
+            : roomById.get(targetId)?.name;
+      setBulkNotice(
+        targetId === null
+          ? `${count} — ${kind} cleared.`
+          : `${count} assigned to ${targetName || (kind === "track" ? "track" : "room")}.`,
+      );
+    }
+  }
 
   // Resources are not part of the sessions payload — fetch them per session
   // via the endpoints from E9.3 (organizer manage access always passes).
@@ -984,18 +1049,113 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           </form>
         ) : null}
 
+        {/* E16.2: bulk assignment — visible as soon as anything is selected. */}
+        {selected.size > 0 ? (
+          <div
+            role="toolbar"
+            aria-label="Bulk assign selected sessions"
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+              padding: "8px 12px",
+              marginBottom: 12,
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--gray-200)",
+              background: "var(--gray-50)",
+            }}
+          >
+            <span style={{ font: "var(--text-label)", color: "var(--gray-900)" }}>
+              {selected.size} selected
+            </span>
+            <select
+              className="input"
+              style={{ width: "auto", fontSize: 13, padding: "2px 8px" }}
+              value=""
+              disabled={busy}
+              aria-label="Assign track to selected sessions"
+              onChange={(e) => {
+                if (e.target.value) void bulkAssign("track", e.target.value);
+              }}
+            >
+              <option value="" disabled>
+                Assign track…
+              </option>
+              {tracks.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+              <option value="__none__">No track</option>
+            </select>
+            <select
+              className="input"
+              style={{ width: "auto", fontSize: 13, padding: "2px 8px" }}
+              value=""
+              disabled={busy}
+              aria-label="Assign room to selected sessions"
+              onChange={(e) => {
+                if (e.target.value) void bulkAssign("room", e.target.value);
+              }}
+            >
+              <option value="" disabled>
+                Assign room…
+              </option>
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+              <option value="__none__">No room</option>
+            </select>
+            <button
+              type="button"
+              className="button ghost"
+              style={smallButton}
+              disabled={busy}
+              onClick={() => {
+                setSelected(new Set());
+                setBulkNotice(null);
+              }}
+            >
+              Clear selection
+            </button>
+            {rowError("bulk-assign")}
+          </div>
+        ) : null}
+        {bulkNotice ? (
+          <p role="status" style={{ margin: "0 0 12px", color: "var(--success)", font: "var(--text-body)" }}>
+            {bulkNotice}
+          </p>
+        ) : null}
+
         <div style={{ display: "grid", gap: 16 }}>
           {dayGroups.map((group) => (
             <div key={group.key}>
-              <h3
-                style={{
-                  margin: "0 0 8px",
-                  font: "600 14px/20px var(--font-body, inherit)",
-                  color: "var(--gray-600)",
-                }}
-              >
-                {group.label}
-              </h3>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "0 0 8px" }}>
+                <h3
+                  style={{
+                    margin: 0,
+                    font: "600 14px/20px var(--font-body, inherit)",
+                    color: "var(--gray-600)",
+                  }}
+                >
+                  {group.label}
+                </h3>
+                <label
+                  className="help-text"
+                  style={{ display: "inline-flex", gap: 6, alignItems: "center", margin: 0, cursor: "pointer" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={group.sessions.every((s) => selected.has(s.id))}
+                    aria-label={`Select all sessions on ${group.label}`}
+                    onChange={(e) => toggleDaySelected(group.sessions, e.target.checked)}
+                  />
+                  Select all
+                </label>
+              </div>
               <div style={{ display: "grid", gap: 8 }}>
                 {group.sessions.map((s) => {
                   const track = s.trackId ? trackById.get(s.trackId) : undefined;
@@ -1035,6 +1195,13 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                       ) : (
                         <>
                           <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                            <input
+                              type="checkbox"
+                              checked={selected.has(s.id)}
+                              aria-label={`Select ${s.title}`}
+                              onChange={(e) => toggleSelected(s.id, e.target.checked)}
+                              style={{ marginTop: 3, flexShrink: 0, alignSelf: "flex-start" }}
+                            />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ margin: 0, font: "600 15px/20px inherit", color: "var(--gray-900)" }}>
                                 {s.title}

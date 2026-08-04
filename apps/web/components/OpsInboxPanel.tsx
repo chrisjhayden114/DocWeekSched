@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AiGeneratedChip } from "./AiGeneratedChip";
 import { ListEmpty, ListError } from "./ListState";
+import { opsActionLabel, opsDetectorLabel } from "../lib/opsLabels";
 import { organizerFetch } from "../lib/organizerApi";
 
 type OpsCard = {
@@ -146,6 +147,17 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
     return error ? <ListError message={error} onRetry={() => void load()} /> : <p className="help-text">Loading Ops Inbox…</p>;
   }
 
+  // E16.4: a first-time organizer must be able to read this and say what the
+  // Ops Inbox is for. Same intro on the inactive and active states.
+  const intro = (
+    <p className="help-text" style={{ marginTop: 0 }}>
+      During your event, detectors watch for things worth acting on — a daily digest to send, questions going
+      unanswered, sessions filling up, schedule changes — and draft a suggested message or action for each.
+      Nothing is ever sent to attendees until you review it and click Send/Apply. “Run detectors” checks for
+      new suggestions right now instead of waiting for the scheduled sweep.
+    </p>
+  );
+
   if (!data.active) {
     return (
       <section className="console-panel">
@@ -153,6 +165,7 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
           <p className="console-panel-label">Ops Inbox</p>
           <AiGeneratedChip />
         </div>
+        {intro}
         <p className="help-text" style={{ marginTop: 0 }}>
           Active from 48 hours before the event starts through 24 hours after it ends ({windowLabel}).
         </p>
@@ -172,25 +185,11 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
           </button>
         </div>
       </div>
+      {intro}
       <p className="help-text" style={{ marginTop: 0 }}>
-        Review-and-send only — nothing is delivered until you click Send/Apply. Window: {windowLabel}.
+        Active window: {windowLabel}.
       </p>
       {error ? <ListError message={error} /> : null}
-
-      <form onSubmit={(e) => void saveBlocklist(e)} className="console-form" style={{ marginBottom: 16 }}>
-        <label>
-          Community blocklist (comma-separated)
-          <input
-            className="input"
-            value={blocklistText}
-            onChange={(e) => setBlocklistText(e.target.value)}
-            placeholder="spam, phishing"
-          />
-        </label>
-        <button type="submit" className="button secondary" disabled={busy} style={{ justifySelf: "start" }}>
-          Save blocklist
-        </button>
-      </form>
 
       {data.cards.length === 0 ? (
         <ListEmpty
@@ -214,8 +213,9 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
                   background: "#fff",
                 }}
               >
-                <p style={{ margin: "0 0 4px" }} className="text-meta">
-                  {card.detectorKind} · {card.draftActionType}
+                <p style={{ margin: "0 0 4px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} className="text-meta">
+                  <strong style={{ color: "var(--gray-700)" }}>{opsDetectorLabel(card.detectorKind)}</strong>
+                  <span className="chip">{opsActionLabel(card.draftActionType)}</span>
                 </p>
                 <h3 style={{ margin: "0 0 8px", fontSize: 18 }}>{card.triggerSummary}</h3>
                 {links.length > 0 ? (
@@ -276,6 +276,31 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
           })}
         </ul>
       )}
+
+      {/* E16.4: the blocklist is a setting, not an inbox item — kept out of
+          the card flow behind a disclosure. */}
+      <details style={{ marginTop: 16 }}>
+        <summary style={{ cursor: "pointer", font: "var(--text-label)", color: "var(--gray-700)" }}>
+          Community blocklist settings
+        </summary>
+        <form onSubmit={(e) => void saveBlocklist(e)} className="console-form" style={{ marginTop: 8 }}>
+          <label>
+            Blocked words or phrases (comma-separated)
+            <input
+              className="input"
+              value={blocklistText}
+              onChange={(e) => setBlocklistText(e.target.value)}
+              placeholder="spam, phishing"
+            />
+            <span className="help-text">
+              Community posts containing these are flagged for the Moderation detector.
+            </span>
+          </label>
+          <button type="submit" className="button secondary" disabled={busy} style={{ justifySelf: "start" }}>
+            Save blocklist
+          </button>
+        </form>
+      </details>
     </section>
   );
 }

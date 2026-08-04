@@ -1,4 +1,9 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  announcementAudienceLabel,
+  announcementExcerpt,
+  type SentAnnouncement,
+} from "../lib/announcementDisplay";
 import { organizerFetch } from "../lib/organizerApi";
 
 type SessionOpt = { id: string; title: string };
@@ -33,6 +38,23 @@ export function AnnouncementComposer({ eventId, sessions }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // E16.3: the record of what was sent. null = load failed (shown explicitly).
+  const [sent, setSent] = useState<SentAnnouncement[] | null | undefined>(undefined);
+
+  const refreshSent = useCallback(async () => {
+    if (!eventId) return;
+    try {
+      const list = await organizerFetch<SentAnnouncement[]>("/announcements/", eventId);
+      setSent(list);
+    } catch {
+      setSent(null);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    void refreshSent();
+  }, [refreshSent]);
 
   const refreshBudget = useCallback(async () => {
     if (!eventId) return;
@@ -88,6 +110,7 @@ export function AnnouncementComposer({ eventId, sessions }: Props) {
         setIsEmergency(false);
       }
       await refreshBudget();
+      await refreshSent();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Send failed");
     } finally {
@@ -210,6 +233,54 @@ export function AnnouncementComposer({ eventId, sessions }: Props) {
           </button>
         </div>
       </form>
+
+      {/* E16.3: the record of what was sent — audience, time, sender. */}
+      <section style={{ marginTop: 12 }} aria-label="Sent announcements">
+        <h3 style={{ margin: "0 0 4px" }}>Sent announcements</h3>
+        {sent === undefined ? <p className="help-text">Loading…</p> : null}
+        {sent === null ? (
+          <p className="help-text" style={{ color: "var(--danger)" }}>
+            Couldn’t load past announcements — reload the page to retry.
+          </p>
+        ) : null}
+        {sent && sent.length === 0 ? (
+          <p className="help-text" style={{ margin: 0 }}>
+            Nothing sent yet. Announcements you send appear here with their audience and time.
+          </p>
+        ) : null}
+        {sent && sent.length > 0 ? (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+            {sent.map((a) => (
+              <li
+                key={a.id}
+                style={{
+                  border: "1px solid var(--gray-200)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "8px 12px",
+                }}
+              >
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <strong style={{ font: "var(--text-label)", color: "var(--gray-900)" }}>{a.title}</strong>
+                  {a.isPreview ? <span className="chip">Preview — only you</span> : null}
+                  {a.isEmergency ? (
+                    <span className="chip" style={{ color: "var(--danger)" }}>
+                      Emergency
+                    </span>
+                  ) : null}
+                  {a.sendEmail ? <span className="chip">Email</span> : null}
+                </div>
+                {a.body ? (
+                  <p style={{ margin: "2px 0 0", font: "var(--text-body)" }}>{announcementExcerpt(a.body)}</p>
+                ) : null}
+                <p className="text-meta" style={{ margin: "4px 0 0" }}>
+                  To {announcementAudienceLabel(a)} · {new Date(a.publishedAt || a.createdAt).toLocaleString()}
+                  {a.createdBy?.name ? <> · by {a.createdBy.name}</> : null}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
     </section>
   );
 }

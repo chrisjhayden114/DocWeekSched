@@ -5829,3 +5829,54 @@ button.schedule-meta-chip:hover {
     color: #000;
   }
 }
+
+/* ——— E16.5: switch control (Features tab) ———
+   A real on/off switch instead of a native checkbox. Rounded-rect, not a
+   pill — pills stay reserved for count badges (DESIGN_PHASE_D). The 44px-wide
+   hit area comes from padding so the visible track stays compact. */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: var(--gray-200);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: var(--transition);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: var(--transition);
+}
+
+.switch:hover:not(:disabled) {
+  border-color: var(--gray-400);
+}
+
+.switch[aria-checked="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.switch[aria-checked="true"]::after {
+  left: 18px;
+}
+
+.switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

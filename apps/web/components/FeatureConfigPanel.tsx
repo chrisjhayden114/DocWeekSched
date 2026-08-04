@@ -21,6 +21,16 @@ const CATEGORY_LABEL: Record<string, string> = {
   directory: "Directory",
 };
 
+/** E16.5: each group states its purpose once, instead of repeating boilerplate per row. */
+const CATEGORY_PURPOSE: Record<string, string> = {
+  community: "Spaces where attendees post and reply to each other.",
+  messaging: "Private conversations between attendees.",
+  sessions: "What attendees can do on each session page.",
+  engagement: "Participation, check-in, sponsors, and event-day operations.",
+  schedule: "How attendees view the program.",
+  directory: "Finding and meeting other attendees.",
+};
+
 type Props = {
   overrides: FeatureOverridesMap;
   onChange: (next: FeatureOverridesMap) => void;
@@ -93,10 +103,15 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
 
       {[...grouped.entries()].map(([category, features]) => (
         <section key={category} style={{ marginBottom: "var(--space-5)" }}>
-          <h3 className="text-display-sm" style={{ margin: "0 0 var(--space-3)" }}>
+          <h3 className="text-display-sm" style={{ margin: "0 0 var(--space-1)" }}>
             {CATEGORY_LABEL[category] || category}
           </h3>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "var(--space-3)" }}>
+          {CATEGORY_PURPOSE[category] ? (
+            <p className="text-meta" style={{ margin: "0 0 var(--space-3)" }}>
+              {CATEGORY_PURPOSE[category]}
+            </p>
+          ) : null}
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "var(--space-2)" }}>
             {features.map((f) => {
               const enabled = resolveFeatureEnabled(f.key, overrides);
               const offParents = (f.dependsOn || []).filter((p) => !resolveFeatureEnabled(p, overrides));
@@ -118,32 +133,28 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
                     background: "var(--surface)",
                   }}
                 >
-                  <label style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      disabled={Boolean(blocked) && !enabled}
-                      onChange={(e) => setKey(f.key, e.target.checked)}
-                      style={{ marginTop: 4 }}
-                    />
-                    <span>
-                      <strong className="text-body-md" style={{ display: "block" }}>
+                  <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <strong className="text-body-md" style={{ display: "block", color: "var(--ink-900)" }} id={`feature-name-${f.key}`}>
                         {f.name}
                       </strong>
                       <span className="text-meta">{f.plainDescription}</span>
                       {blocked ? (
-                        <span className="text-meta" style={{ display: "block", color: "var(--ink-secondary)", marginTop: 4 }}>
+                        <span className="text-meta" style={{ display: "block", color: "var(--ink-secondary)", marginTop: "var(--space-1)" }}>
                           {blocked}
                         </span>
                       ) : null}
-                      <span
-                        className="text-meta"
-                        style={{ display: "block", marginTop: 6, color: "var(--ink-secondary)" }}
-                      >
-                        Attendees see: {enabled ? "this feature in the app" : "nothing for this feature (data kept)"}
-                      </span>
                     </span>
-                  </label>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={enabled}
+                      aria-labelledby={`feature-name-${f.key}`}
+                      className="switch"
+                      disabled={Boolean(blocked) && !enabled}
+                      onClick={() => setKey(f.key, !enabled)}
+                    />
+                  </div>
                 </li>
               );
             })}

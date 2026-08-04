@@ -254,6 +254,43 @@ sessionsRouter.post(
   }),
 );
 
+/**
+ * E16.2 — bulk track/room assignment from the Program tab. One batched
+ * request instead of N single-session PUTs.
+ */
+const bulkAssignSchema = z
+  .object({
+    sessionIds: z.array(z.string()).min(1).max(500),
+    /** undefined = leave unchanged; null = clear. */
+    trackId: z.string().nullable().optional(),
+    roomId: z.string().nullable().optional(),
+  })
+  .refine((d) => d.trackId !== undefined || d.roomId !== undefined, {
+    message: "Provide a track and/or room to assign",
+  });
+
+sessionsRouter.post(
+  "/bulk-assign",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = bulkAssignSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    const { bulkAssignSessions } = await import("../lib/sessions/bulkAssign");
+    const result = await bulkAssignSessions(prisma, {
+      eventId: event.id,
+      sessionIds: parsed.data.sessionIds,
+      trackId: parsed.data.trackId,
+      roomId: parsed.data.roomId,
+    });
+    return res.json(result);
+  }),
+);
+
 sessionsRouter.get(
   "/:id/resources",
   requireAuth,

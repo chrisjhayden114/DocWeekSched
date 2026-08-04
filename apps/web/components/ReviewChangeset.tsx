@@ -86,6 +86,14 @@ export type ReviewChangesetProps = {
    * (E11.1: never show internal placeholders as provenance).
    */
   sourceInfo?: ReactNode;
+  /**
+   * E16.1: "column" (default) keeps the side-by-side Source column — right
+   * for paste/URL runs where the preview is long. "band" renders the source
+   * as a compact full-width strip above the review — right for file runs,
+   * whose source is four short lines that would otherwise sit beside
+   * hundreds of pixels of empty space.
+   */
+  sourceLayout?: "column" | "band";
 };
 
 function rowAccepted(row: ReviewChangeRow): boolean {
@@ -117,6 +125,7 @@ export function ReviewChangeset({
   lowConfidence = 0.8,
   sourcePreview,
   sourceInfo,
+  sourceLayout = "column",
 }: ReviewChangesetProps) {
   const creates = useMemo(
     () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "create" }> => r.kind === "create"),
@@ -435,6 +444,48 @@ export function ReviewChangeset({
       </div>
     </>
   );
+
+  if ((sourcePreview || sourceInfo) && sourceLayout === "band") {
+    // E16.1: file-sourced runs — source metadata as a compact full-width band
+    // above the review; the changeset gets the whole content width.
+    return (
+      <div className="review-changeset" style={{ marginTop: 16 }}>
+        <div
+          style={{
+            padding: "10px 12px",
+            marginBottom: 16,
+            border: "1px solid var(--gray-200)",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--gray-50)",
+          }}
+        >
+          {sourceInfo}
+          {sourcePreview ? (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", font: "var(--text-meta)", color: "var(--gray-600)" }}>
+                Show extracted text
+              </summary>
+              <pre
+                style={{
+                  margin: "6px 0 0",
+                  padding: 12,
+                  maxHeight: 240,
+                  overflow: "auto",
+                  fontSize: 12,
+                  whiteSpace: "pre-wrap",
+                  background: "var(--surface-muted, #f4f6f9)",
+                  borderRadius: 8,
+                }}
+              >
+                {sourcePreview}
+              </pre>
+            </details>
+          ) : null}
+        </div>
+        {body}
+      </div>
+    );
+  }
 
   if (sourcePreview || sourceInfo) {
     return (

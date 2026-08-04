@@ -100,6 +100,12 @@ announcementsRouter.get(
       },
       orderBy: { createdAt: "desc" },
       take: 100,
+      // E16.3: the organizer's "Sent announcements" record needs the sender
+      // and the session an audience segment referred to (names only).
+      include: {
+        createdBy: { select: { id: true, name: true } },
+        session: { select: { id: true, title: true } },
+      },
     });
     return res.json(announcements);
   }),
