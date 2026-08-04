@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { OrganizerShell } from "../../components/OrganizerShell";
+import { Select } from "../../components/Select";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
 import { OrgSummary } from "../../lib/organizerApi";
 
@@ -87,24 +88,18 @@ export default function OrganizerAiUsagePage() {
           </div>
           <label className="help-text" style={{ display: "grid", gap: 6, marginTop: 16, maxWidth: 360 }}>
             Organization
-            <select
-              className="select"
+            <Select
               value={orgId || ""}
-              onChange={(e) => {
-                const id = e.target.value || null;
+              onChange={(v) => {
+                const id = v || null;
                 setOrgId(id);
                 if (id) {
                   window.localStorage.setItem("organizerOrgId", id);
                   void load(id);
                 }
               }}
-            >
-              {orgs.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
+              options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+            />
           </label>
           {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
         </div>

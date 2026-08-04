@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { FloorPlanCanvas, type FloorPlanPin } from "./FloorPlanCanvas";
+import { Select } from "./Select";
 import { UploadDropzone } from "./UploadDropzone";
 import { organizerFetch } from "../lib/organizerApi";
 
@@ -257,14 +258,14 @@ export function VenueMapEditor({ eventId, rooms }: Props) {
               </label>
               <label>
                 Linked room
-                <select className="input" value={pinRoomId} onChange={(e) => setPinRoomId(e.target.value)}>
-                  <option value="">None</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
+                <Select
+                  value={pinRoomId}
+                  onChange={setPinRoomId}
+                  options={[
+                    { value: "", label: "None" },
+                    ...rooms.map((r) => ({ value: r.id, label: r.name })),
+                  ]}
+                />
               </label>
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="button" type="submit" disabled={busy}>

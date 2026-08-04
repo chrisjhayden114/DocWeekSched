@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "../components/BrandLogo";
+import { Select } from "../components/Select";
 import { apiFetch, AuthResponse, API_URL, setCsrfToken, clearAuthClientState } from "../lib/api";
 import { readClientStorage, removeClientStorage, writeClientStorage } from "../lib/clientStorage";
 
@@ -281,15 +282,15 @@ export default function LoginPage() {
                 {adminMode ? (
                   <>
                     <label htmlFor="register-type">Account type</label>
-                    <select
+                    <Select
                       id="register-type"
-                      className="select"
                       value={registerType}
-                      onChange={(e) => setRegisterType(e.target.value as "participant" | "admin")}
-                    >
-                      <option value="participant">Participant</option>
-                      <option value="admin">Platform admin (invite code)</option>
-                    </select>
+                      onChange={(v) => setRegisterType(v as "participant" | "admin")}
+                      options={[
+                        { value: "participant", label: "Participant" },
+                        { value: "admin", label: "Platform admin (invite code)" },
+                      ]}
+                    />
                   </>
                 ) : null}
                 <p className="text-meta" style={{ margin: adminMode ? "8px 0 0" : 0 }}>

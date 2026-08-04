@@ -10,6 +10,7 @@ import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
 import { AiGeneratedChip } from "../../../components/AiGeneratedChip";
 import { ColorSwatchInput } from "../../../components/ColorSwatchInput";
+import { Select } from "../../../components/Select";
 import { TimezoneSelect } from "../../../components/TimezoneSelect";
 import { apiFetch } from "../../../lib/api";
 import { OrgSummary } from "../../../lib/organizerApi";
@@ -384,18 +385,13 @@ export default function NewEventWizard() {
               <label className="help-text" style={{ display: "block", marginBottom: 6 }}>
                 Organization
               </label>
-              <select
-                className="input"
+              <Select
                 value={organizationId}
-                onChange={(e) => setOrganizationId(e.target.value)}
+                onChange={setOrganizationId}
                 style={{ marginBottom: 12, maxWidth: 360 }}
-              >
-                {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
+                aria-label="Organization"
+                options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+              />
               <SetupCopilotChat
                 mode="create"
                 organizationId={organizationId}
@@ -540,18 +536,12 @@ export default function NewEventWizard() {
               <>
                 <label>
                   Organization
-                  <select
-                    className="input"
+                  <Select
                     value={organizationId}
-                    onChange={(e) => setOrganizationId(e.target.value)}
+                    onChange={setOrganizationId}
                     required
-                  >
-                    {orgs.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+                  />
                 </label>
                 <label>
                   Event name

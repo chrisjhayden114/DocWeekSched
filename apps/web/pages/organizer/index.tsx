@@ -6,6 +6,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { ListEmpty, ListError, ListSkeleton } from "../../components/ListState";
 import { OrganizerShell } from "../../components/OrganizerShell";
+import { Select } from "../../components/Select";
 import { StatusChip } from "../../components/StatusChip";
 import { apiFetch, AuthResponse, clearAuthClientState } from "../../lib/api";
 import { OrgSummary, OrganizerEvent, organizerFetch } from "../../lib/organizerApi";
@@ -119,19 +120,13 @@ export default function OrganizerDashboard() {
         {orgs.length > 0 ? (
           <section className="console-panel" style={{ marginBottom: 16 }}>
             <p className="console-panel-label">Organization</p>
-            <select
-              className="input"
+            <Select
               value={orgId || ""}
-              onChange={(e) => void selectOrg(e.target.value)}
+              onChange={(v) => void selectOrg(v)}
               style={{ maxWidth: 360 }}
               aria-label="Organization"
-            >
-              {orgs.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name} ({o.role})
-                </option>
-              ))}
-            </select>
+              options={orgs.map((o) => ({ value: o.id, label: `${o.name} (${o.role})` }))}
+            />
           </section>
         ) : null}
 

@@ -6,6 +6,7 @@ import { AiGeneratedChip } from "../components/AiGeneratedChip";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { KebabMenu } from "../components/KebabMenu";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
+import { Select } from "../components/Select";
 
 /**
  * Dev-only living reference for the Phase D design language
@@ -39,6 +40,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 /** Dev-only styleguide — tokens + shared components. */
 export default function StyleguidePage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [selectValue, setSelectValue] = useState("a");
+  const [placeholderValue, setPlaceholderValue] = useState("");
   const isProd = process.env.NODE_ENV === "production";
 
   if (isProd) {
@@ -171,12 +174,40 @@ export default function StyleguidePage() {
               <input className="input" placeholder="Placeholder" />
             </label>
             <label className="text-label" style={{ display: "grid", gap: 6 }}>
-              Select
-              <select className="select" defaultValue="a">
-                <option value="a">Option A</option>
-                <option value="b">Option B</option>
-              </select>
+              Select (components/Select — replaces native select everywhere)
+              <Select
+                value={selectValue}
+                onChange={setSelectValue}
+                options={[
+                  { value: "a", label: "Option A" },
+                  { value: "b", label: "Option B" },
+                  { value: "c", label: "Option C (disabled)", disabled: true },
+                ]}
+              />
             </label>
+            <label className="text-label" style={{ display: "grid", gap: 6 }}>
+              Select with placeholder
+              <Select
+                value={placeholderValue}
+                onChange={setPlaceholderValue}
+                placeholder="Choose an option…"
+                options={[
+                  { value: "one", label: "First option" },
+                  { value: "two", label: "Second option" },
+                ]}
+              />
+            </label>
+            <label className="text-label" style={{ display: "grid", gap: 6 }}>
+              Select, disabled
+              <Select value="a" disabled options={[{ value: "a", label: "Option A" }]} />
+            </label>
+            <p className="text-meta" style={{ margin: 0 }}>
+              Keyboard: arrows, Home/End, type-ahead, Enter/Space select, Esc closes, Tab commits.
+              ARIA 1.2 select-only combobox — focus stays on the trigger; options announce via{" "}
+              <code>aria-activedescendant</code>. Supports <code>name</code> (hidden input for forms)
+              and <code>required</code> (native validation). Compact variant:{" "}
+              <code>className=&quot;select-compact&quot;</code>.
+            </p>
             <label className="text-label" style={{ display: "grid", gap: 6 }}>
               Textarea
               <textarea className="textarea" rows={2} placeholder="Notes…" />

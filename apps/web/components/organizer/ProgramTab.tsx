@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { ListEmpty } from "../ListState";
+import { Select } from "../Select";
 import { timeZoneAbbrev } from "../../lib/dateFormat";
 import {
   isOutsideEventDates,
@@ -702,25 +703,25 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
       </label>
       <label>
         Track
-        <select className="input" value={draft.trackId} onChange={(e) => update({ trackId: e.target.value })}>
-          <option value="">No track</option>
-          {tracks.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={draft.trackId}
+          onChange={(trackId) => update({ trackId })}
+          options={[
+            { value: "", label: "No track" },
+            ...tracks.map((t) => ({ value: t.id, label: t.name })),
+          ]}
+        />
       </label>
       <label>
         Room
-        <select className="input" value={draft.roomId} onChange={(e) => update({ roomId: e.target.value })}>
-          <option value="">No room</option>
-          {rooms.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={draft.roomId}
+          onChange={(roomId) => update({ roomId })}
+          options={[
+            { value: "", label: "No room" },
+            ...rooms.map((r) => ({ value: r.id, label: r.name })),
+          ]}
+        />
       </label>
       <OutsideDatesWarning startLocal={draft.startLocal} endLocal={draft.endLocal} event={event} />
     </>
@@ -1069,46 +1070,34 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
             <span style={{ font: "var(--text-label)", color: "var(--gray-900)" }}>
               {selected.size} selected
             </span>
-            <select
-              className="input"
-              style={{ width: "auto", fontSize: 13, padding: "2px 8px" }}
+            <Select
+              className="select-compact"
               value=""
               disabled={busy}
               aria-label="Assign track to selected sessions"
-              onChange={(e) => {
-                if (e.target.value) void bulkAssign("track", e.target.value);
+              placeholder="Assign track…"
+              onChange={(v) => {
+                if (v) void bulkAssign("track", v);
               }}
-            >
-              <option value="" disabled>
-                Assign track…
-              </option>
-              {tracks.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-              <option value="__none__">No track</option>
-            </select>
-            <select
-              className="input"
-              style={{ width: "auto", fontSize: 13, padding: "2px 8px" }}
+              options={[
+                ...tracks.map((t) => ({ value: t.id, label: t.name })),
+                { value: "__none__", label: "No track" },
+              ]}
+            />
+            <Select
+              className="select-compact"
               value=""
               disabled={busy}
               aria-label="Assign room to selected sessions"
-              onChange={(e) => {
-                if (e.target.value) void bulkAssign("room", e.target.value);
+              placeholder="Assign room…"
+              onChange={(v) => {
+                if (v) void bulkAssign("room", v);
               }}
-            >
-              <option value="" disabled>
-                Assign room…
-              </option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-              <option value="__none__">No room</option>
-            </select>
+              options={[
+                ...rooms.map((r) => ({ value: r.id, label: r.name })),
+                { value: "__none__", label: "No room" },
+              ]}
+            />
             <button
               type="button"
               className="button ghost"

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { OrganizerShell } from "../../components/OrganizerShell";
+import { Select } from "../../components/Select";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
 import { OrgSummary } from "../../lib/organizerApi";
 
@@ -123,22 +124,15 @@ export default function OrganizerBillingPage() {
             <div className="console-form">
               <label>
                 Organization
-                <select
-                  className="input"
+                <Select
                   value={orgId || ""}
-                  onChange={(e) => {
-                    const id = e.target.value;
+                  onChange={(id) => {
                     setOrgId(id);
                     window.localStorage.setItem("organizerOrgId", id);
                     void load(id).catch((err) => setError(err instanceof Error ? err.message : "Failed"));
                   }}
-                >
-                  {orgs.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                    </option>
-                  ))}
-                </select>
+                  options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+                />
               </label>
             </div>
           </section>

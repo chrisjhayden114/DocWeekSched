@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { OrganizerShell } from "../../../../../components/OrganizerShell";
 import { ReviewChangeset, type ReviewChangeRow } from "../../../../../components/ReviewChangeset";
+import { Select } from "../../../../../components/Select";
 import { organizerFetch } from "../../../../../lib/organizerApi";
 
 type FormRow = {
@@ -199,13 +200,12 @@ export default function OrganizerCfpPage() {
           <>
             <label className="help-text">
               Form{" "}
-              <select className="input" value={formId} onChange={(e) => setFormId(e.target.value)} style={{ maxWidth: 360 }}>
-                {forms.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.title} ({f.status})
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={formId}
+                onChange={setFormId}
+                style={{ maxWidth: 360 }}
+                options={forms.map((f) => ({ value: f.id, label: `${f.title} (${f.status})` }))}
+              />
             </label>
 
             {dashboard ? (
@@ -371,22 +371,26 @@ export default function OrganizerCfpPage() {
               <div className="console-form">
                 <label>
                   Conversion mode
-                  <select className="input" value={convertMode} onChange={(e) => setConvertMode(e.target.value as typeof convertMode)}>
-                    <option value="standalone_session">Standalone DRAFT session</option>
-                    <option value="session_item">SessionItem in existing session</option>
-                  </select>
+                  <Select
+                    value={convertMode}
+                    onChange={(v) => setConvertMode(v as typeof convertMode)}
+                    options={[
+                      { value: "standalone_session", label: "Standalone DRAFT session" },
+                      { value: "session_item", label: "SessionItem in existing session" },
+                    ]}
+                  />
                 </label>
                 {convertMode === "session_item" ? (
                   <label>
                     Target session
-                    <select className="input" value={targetSessionId} onChange={(e) => setTargetSessionId(e.target.value)}>
-                      <option value="">Choose session…</option>
-                      {sessions.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.title}
-                        </option>
-                      ))}
-                    </select>
+                    <Select
+                      value={targetSessionId}
+                      onChange={setTargetSessionId}
+                      options={[
+                        { value: "", label: "Choose session…" },
+                        ...sessions.map((s) => ({ value: s.id, label: s.title })),
+                      ]}
+                    />
                   </label>
                 ) : null}
                 <button

@@ -33,6 +33,7 @@ import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRela
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
 import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
+import { Select } from "../components/Select";
 import { SponsorsStrip } from "../components/SponsorsStrip";
 import { OnboardingPanel } from "../components/OnboardingPanel";
 import { sayHiPrefill } from "../lib/sayHi";
@@ -1581,25 +1582,17 @@ export default function Dashboard() {
               <div className="console-form">
                 <label>
                   Event
-                  <select
-                    className="select"
+                  <Select
                     value={activeEventId ?? ""}
-                    onChange={(e) => {
-                      const id = e.target.value || null;
+                    placeholder="Choose an event…"
+                    onChange={(v) => {
+                      const id = v || null;
                       setActiveEventId(id);
                       if (id) window.localStorage.setItem("activeEventId", id);
                       else window.localStorage.removeItem("activeEventId");
                     }}
-                  >
-                    <option value="" disabled>
-                      Choose an event…
-                    </option>
-                    {adminEvents.map((ev) => (
-                      <option key={ev.id} value={ev.id}>
-                        {ev.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={adminEvents.map((ev) => ({ value: ev.id, label: ev.name }))}
+                  />
                 </label>
               </div>
             ) : (
@@ -3110,19 +3103,19 @@ function ProfileEditor({
       />
       <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
         Participant type
-        <select
-          className="select"
+        <Select
           name="participantType"
           value={participantType}
-          onChange={(e) => setParticipantType(e.target.value as typeof participantType)}
-        >
-          <option value="">Choose one (optional)</option>
-          <option value="GRAD_STUDENT">Grad Student</option>
-          <option value="EDD_STUDENT">EdD Student</option>
-          <option value="PHD_STUDENT">PhD Student</option>
-          <option value="EDL_ALUMNI">EDL Alumni</option>
-          <option value="PROFESSOR">Professor</option>
-        </select>
+          onChange={(v) => setParticipantType(v as typeof participantType)}
+          options={[
+            { value: "", label: "Choose one (optional)" },
+            { value: "GRAD_STUDENT", label: "Grad Student" },
+            { value: "EDD_STUDENT", label: "EdD Student" },
+            { value: "PHD_STUDENT", label: "PhD Student" },
+            { value: "EDL_ALUMNI", label: "EDL Alumni" },
+            { value: "PROFESSOR", label: "Professor" },
+          ]}
+        />
       </label>
       <textarea
         className="textarea"
@@ -3347,11 +3340,15 @@ function ProfileEditor({
             </label>
             <label>
               Event timezone
-              <select className="select" name="timezone" defaultValue="America/New_York" required>
-                {EVENT_TIMEZONE_OPTIONS.map((tz) => (
-                  <option key={tz} value={tz}>{timezoneOptionLabel(tz)}</option>
-                ))}
-              </select>
+              <Select
+                name="timezone"
+                defaultValue="America/New_York"
+                required
+                options={EVENT_TIMEZONE_OPTIONS.map((tz) => ({
+                  value: tz,
+                  label: timezoneOptionLabel(tz),
+                }))}
+              />
             </label>
             <label>
               Start
@@ -3524,14 +3521,15 @@ function SessionForm({
             placeholder="Free-text speaker names"
             defaultValue={editing?.speakers || ""}
           />
-          <select className="select" name="speakerId" defaultValue={editing?.speakerId || ""}>
-            <option value="">No linked directory speaker</option>
-            {attendees.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} ({a.role})
-              </option>
-            ))}
-          </select>
+          <Select
+            name="speakerId"
+            defaultValue={editing?.speakerId || ""}
+            aria-label="Linked directory speaker"
+            options={[
+              { value: "", label: "No linked directory speaker" },
+              ...attendees.map((a) => ({ value: a.id, label: `${a.name} (${a.role})` })),
+            ]}
+          />
         </section>
 
         <section className="session-form-section">
@@ -4250,25 +4248,17 @@ function CommunityBoard({
         {channelFilter === "ALL" && (
           <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
             Post in
-            <select
-              className="select"
+            <Select
               value={composeChannel}
-              onChange={(e) => setComposeChannel(e.target.value as typeof composeChannel)}
-            >
-              {composeChannels.includes("GENERAL") ? (
-                <option value="GENERAL">General discussion</option>
-              ) : null}
-              {composeChannels.includes("MEETUP") ? <option value="MEETUP">Meet-up</option> : null}
-              {composeChannels.includes("MOMENTS") ? (
-                <option value="MOMENTS">Share your moments</option>
-              ) : null}
-              {composeChannels.includes("LOCAL") ? (
-                <option value="LOCAL">Local recommendations</option>
-              ) : null}
-              {composeChannels.includes("ICEBREAKER") ? (
-                <option value="ICEBREAKER">Break the ice</option>
-              ) : null}
-            </select>
+              onChange={(v) => setComposeChannel(v as typeof composeChannel)}
+              options={[
+                { value: "GENERAL", label: "General discussion" },
+                { value: "MEETUP", label: "Meet-up" },
+                { value: "MOMENTS", label: "Share your moments" },
+                { value: "LOCAL", label: "Local recommendations" },
+                { value: "ICEBREAKER", label: "Break the ice" },
+              ].filter((o) => composeChannels.includes(o.value as (typeof composeChannels)[number]))}
+            />
           </label>
         )}
         <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>

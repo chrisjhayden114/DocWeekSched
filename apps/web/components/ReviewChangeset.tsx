@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 import { removalsOf, type RemovalKind } from "../lib/ingestReview";
+import { Select } from "./Select";
 
 export type ReviewChangeRow =
   | {
@@ -236,18 +237,12 @@ export function ReviewChangeset({
             {headers.map((h) => (
               <label key={h} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
                 <span style={{ minWidth: 120, color: "var(--text-secondary, #41506D)" }}>{h}</span>
-                <select
-                  className="input"
+                <Select
                   value={mapping[h] || "skip"}
-                  onChange={(e) => onMappingChange({ ...mapping, [h]: e.target.value })}
+                  onChange={(v) => onMappingChange({ ...mapping, [h]: v })}
                   style={{ maxWidth: 220 }}
-                >
-                  {mappingOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  options={mappingOptions}
+                />
               </label>
             ))}
           </div>

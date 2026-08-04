@@ -5,6 +5,7 @@ import {
   type SentAnnouncement,
 } from "../lib/announcementDisplay";
 import { organizerFetch } from "../lib/organizerApi";
+import { Select } from "./Select";
 
 type SessionOpt = { id: string; title: string };
 type BudgetInfo = {
@@ -145,56 +146,55 @@ export function AnnouncementComposer({ eventId, sessions }: Props) {
         </label>
         <label>
           Audience
-          <select
-            className="input"
+          <Select
             value={audience}
-            onChange={(e) => setAudience(e.target.value as typeof audience)}
-          >
-            <option value="EVERYONE">Everyone</option>
-            <option value="ROLE">By role</option>
-            <option value="SESSION_JOINERS">Session joiners</option>
-            <option value="ATTENDANCE_MODE">Attendance mode</option>
-          </select>
+            onChange={(v) => setAudience(v as typeof audience)}
+            options={[
+              { value: "EVERYONE", label: "Everyone" },
+              { value: "ROLE", label: "By role" },
+              { value: "SESSION_JOINERS", label: "Session joiners" },
+              { value: "ATTENDANCE_MODE", label: "Attendance mode" },
+            ]}
+          />
         </label>
         {audience === "ROLE" ? (
           <label>
             Role
-            <select
-              className="input"
+            <Select
               value={audienceRole}
-              onChange={(e) => setAudienceRole(e.target.value as typeof audienceRole)}
-            >
-              <option value="ATTENDEE">Attendees</option>
-              <option value="SPEAKER">Speakers</option>
-              <option value="ADMIN">Admins</option>
-            </select>
+              onChange={(v) => setAudienceRole(v as typeof audienceRole)}
+              options={[
+                { value: "ATTENDEE", label: "Attendees" },
+                { value: "SPEAKER", label: "Speakers" },
+                { value: "ADMIN", label: "Admins" },
+              ]}
+            />
           </label>
         ) : null}
         {audience === "SESSION_JOINERS" ? (
           <label>
             Session
-            <select className="input" value={sessionId} onChange={(e) => setSessionId(e.target.value)} required>
-              <option value="">Select session</option>
-              {sessions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={sessionId}
+              onChange={setSessionId}
+              required
+              placeholder="Select session"
+              options={sessions.map((s) => ({ value: s.id, label: s.title }))}
+            />
           </label>
         ) : null}
         {audience === "ATTENDANCE_MODE" ? (
           <label>
             Mode
-            <select
-              className="input"
+            <Select
               value={attendanceMode}
-              onChange={(e) => setAttendanceMode(e.target.value as typeof attendanceMode)}
-            >
-              <option value="IN_PERSON">In person</option>
-              <option value="VIRTUAL">Virtual</option>
-              <option value="ASYNC">Async</option>
-            </select>
+              onChange={(v) => setAttendanceMode(v as typeof attendanceMode)}
+              options={[
+                { value: "IN_PERSON", label: "In person" },
+                { value: "VIRTUAL", label: "Virtual" },
+                { value: "ASYNC", label: "Async" },
+              ]}
+            />
           </label>
         ) : null}
 

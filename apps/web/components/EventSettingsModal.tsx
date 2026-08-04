@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DateTimePicker } from "./DateTimePicker";
+import { Select } from "./Select";
 import { UploadDropzone } from "./UploadDropzone";
 
 export type EventSettingsValues = {
@@ -147,21 +148,17 @@ export function EventSettingsModal({
             />
             <label className="field-label">
               <span className="field-label-text">Timezone *</span>
-              <select
-                className="select"
+              <Select
                 required
                 value={values.timezone}
-                onChange={(e) => setValues((v) => ({ ...v, timezone: e.target.value }))}
-              >
-                {!timezoneOptions.includes(values.timezone) && (
-                  <option value={values.timezone}>{timezoneLabel(values.timezone)}</option>
-                )}
-                {timezoneOptions.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {timezoneLabel(tz)}
-                  </option>
-                ))}
-              </select>
+                onChange={(timezone) => setValues((v) => ({ ...v, timezone }))}
+                options={[
+                  ...(!timezoneOptions.includes(values.timezone)
+                    ? [{ value: values.timezone, label: timezoneLabel(values.timezone) }]
+                    : []),
+                  ...timezoneOptions.map((tz) => ({ value: tz, label: timezoneLabel(tz) })),
+                ]}
+              />
             </label>
             <DateTimePicker
               name="startDate"
