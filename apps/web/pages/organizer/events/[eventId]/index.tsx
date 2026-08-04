@@ -1,10 +1,12 @@
 import { brand } from "@event-app/config";
+import { ASSISTANT_COPY } from "@event-app/shared";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { ReviewChangeset, parseCsvToTable } from "../../../../components/ReviewChangeset";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
+import { SetupAssistantPanel } from "../../../../components/SetupAssistantPanel";
 import { SetupCopilotChat } from "../../../../components/SetupCopilotChat";
 import { VenueMapEditor } from "../../../../components/VenueMapEditor";
 import { AnnouncementComposer } from "../../../../components/AnnouncementComposer";
@@ -331,6 +333,29 @@ export default function OrganizerEventPage() {
 
         {tab === "overview" && event ? (
           <section style={{ display: "grid", gap: 16 }}>
+            {/* E19.3 — the Setup assistant lives on the default tab, not only
+                inside create-event and the Features tab. */}
+            <SetupAssistantPanel
+              input={{
+                eventId,
+                status: event.status,
+                venueName: event.venueName,
+                onlineUrl: event.onlineUrl,
+                sessionCount: sessions.length,
+                draftSessionCount: sessions.filter(
+                  (s) => (s.publishStatus || "").toUpperCase() === "DRAFT",
+                ).length,
+                roomCount: rooms.length,
+                speakerCount: speakers.length,
+              }}
+              organizationId={event.organizationId}
+              onFeaturesApplied={(overrides) => {
+                setFeatureOverrides(overrides);
+                setFeaturesDirty(false);
+                setMessage("Feature settings updated");
+              }}
+            />
+
             <div className="console-panel">
               <p className="console-panel-label">Publish</p>
               <p className="help-text" style={{ marginTop: 0 }}>
@@ -518,7 +543,7 @@ export default function OrganizerEventPage() {
                 className="button secondary"
                 onClick={() => setAskAssistant((v) => !v)}
               >
-                {askAssistant ? "Hide assistant" : "Ask the assistant"}
+                {askAssistant ? "Hide assistant" : `Ask the ${ASSISTANT_COPY.organizer.name.toLowerCase()}`}
               </button>
             </div>
             {askAssistant && eventId ? (

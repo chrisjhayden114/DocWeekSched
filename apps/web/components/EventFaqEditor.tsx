@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ASSISTANT_COPY } from "@event-app/shared";
 import { organizerFetch } from "../lib/organizerApi";
 
 type FaqRow = {
@@ -59,9 +60,10 @@ export function EventFaqEditor({ eventId }: { eventId: string }) {
 
   return (
     <section style={{ marginTop: 28 }}>
-      <h3 style={{ marginTop: 0 }}>Concierge FAQ</h3>
+      <h3 style={{ marginTop: 0 }}>{ASSISTANT_COPY.attendee.name} FAQ</h3>
       <p className="help-text">
-        Answers Concierge can use when attendees ask about wifi, parking, registration, and other event specifics.
+        Answers the {ASSISTANT_COPY.attendee.name.toLowerCase()} can use when attendees ask about wifi, parking,
+        registration, and other event specifics.
       </p>
       {error ? <p className="form-error">{error}</p> : null}
       <ul style={{ listStyle: "none", padding: 0, margin: "12px 0" }}>

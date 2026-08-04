@@ -7,7 +7,7 @@ import type {
   SetupCopilotStep,
   SetupHandoffA1,
 } from "@event-app/shared";
-import { emptySetupFormState } from "@event-app/shared";
+import { ASSISTANT_COPY, emptySetupFormState } from "@event-app/shared";
 import { apiFetch } from "../lib/api";
 import { AiGeneratedChip } from "./AiGeneratedChip";
 import { ConfigDiffCardView } from "./ConfigDiffCardView";
@@ -197,7 +197,10 @@ export function SetupCopilotChat({
           gap: 8,
         }}
       >
-        <strong style={{ fontSize: 14 }}>{mode === "settings" ? "Features assistant" : "Setup with AI"}</strong>
+        <strong style={{ fontSize: 14 }}>
+          {/* E19.3 — one assistant, one name, whatever mode it runs in */}
+          {ASSISTANT_COPY.organizer.name}
+        </strong>
         <AiGeneratedChip />
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: 12, display: "grid", gap: 10 }}>
@@ -244,7 +247,7 @@ export function SetupCopilotChat({
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a short answer…"
           disabled={busy}
-          aria-label="Message the setup assistant"
+          aria-label={`Message ${ASSISTANT_COPY.organizer.name}`}
           style={{ flex: 1 }}
         />
         <button className="button" type="submit" disabled={busy || !input.trim()}>

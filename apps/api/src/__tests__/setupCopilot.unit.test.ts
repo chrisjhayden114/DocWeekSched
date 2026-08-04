@@ -157,6 +157,13 @@ describe("Setup Copilot A2 (unit, mock provider)", () => {
     expect(turn.pendingDiff!.entries.some((e) => e.liveImpact)).toBe(true);
   });
 
+  it("E19.3 — settings turn declines out-of-scope questions instead of improvising", () => {
+    const state = initialDialogue("settings", "UTC", {});
+    const turn = runSettingsTurn(state, "What's the weather in Lexington tomorrow?", false);
+    expect(turn.pendingDiff).toBeNull();
+    expect(turn.assistantMessage).toMatch(/only change this event's attendee features/i);
+  });
+
   it("configureFeatures tool cannot set keys absent from the registry", () => {
     expect(() => assertRegistryKeys({ not_a_real_feature: false })).toThrow(UnknownFeatureKeyError);
     expect(() => assertRegistryKeys({ community_icebreakers: false })).not.toThrow();

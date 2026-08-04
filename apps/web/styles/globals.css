@@ -1021,6 +1021,9 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 /*
  * Concurrent sessions ≥768px: equal-width flex children, max 3 per row.
  * 4+ wrap; items on a line share width equally (lone wrap-row item grows full width).
+ * E19.1: a card never shrinks below --schedule-card-min — when the count that
+ * fits is exceeded (e.g. five parallel tracks), the row wraps to another line
+ * instead of adding columns, so titles stay readable at every track count.
  */
 .schedule-events {
   display: flex;
@@ -1035,7 +1038,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 
 .schedule-events > .schedule-event {
   flex: 1 1 calc((100% - 16px) / 3);
-  min-width: calc((100% - 16px) / 3);
+  min-width: max(calc((100% - 16px) / 3), min(var(--schedule-card-min), 100%));
   max-width: 100%;
   overflow: hidden;
 }

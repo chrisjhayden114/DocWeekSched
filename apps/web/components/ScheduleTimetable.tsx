@@ -1,46 +1,28 @@
 /**
  * Grid / By-room timetable views (Chunk D6 / PARITY_AUDIT G1).
  * Read-only layout of sessions already loaded by the agenda pages.
+ *
+ * Packing math lives in lib/scheduleLayout.ts (E19.1) so concurrency
+ * behaviour is unit-tested with five parallel sessions, not two.
  */
 
 import { useMemo } from "react";
 import { trackColor } from "../lib/trackColors";
+import {
+  GUTTER,
+  PX_PER_HOUR,
+  TOP_PAD,
+  columnMinWidth,
+  groupByDay,
+  hourRange,
+  maxLaneCount,
+  placeInColumn,
+  roomColumns,
+  type Placed,
+  type TimetableSession,
+} from "../lib/scheduleLayout";
 
-export type TimetableSession = {
-  id: string;
-  title: string;
-  startsAt: string;
-  endsAt: string;
-  roomKey: string | null;
-  roomLabel: string | null;
-  trackId: string | null;
-  trackName: string | null;
-  trackExplicitColor?: string | null;
-};
-
-const PX_PER_HOUR = 72;
-const COL_MIN_WIDTH = 180;
-const GUTTER = 8;
-/** Breathing room above the first hour label so it is never clipped. */
-const TOP_PAD = 14;
-
-function zonedParts(iso: string, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(iso));
-  const get = (type: string) => parts.find((p) => p.type === type)?.value || "0";
-  return {
-    dayKey: `${get("year")}-${get("month")}-${get("day")}`,
-    hour: Number(get("hour")),
-    minute: Number(get("minute")),
-  };
-}
+export type { TimetableSession };
 
 function dayHeading(dayKey: string): string {
   const [y, m, d] = dayKey.split("-").map((n) => Number(n));
@@ -62,84 +44,6 @@ function longDayHeading(dayKey: string): { weekday: string; rest: string } {
     weekday: new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(date),
     rest: new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", timeZone: "UTC" }).format(date),
   };
-}
-
-function minutesFromDayStart(iso: string, timeZone: string, rangeStartHour: number): number {
-  const { hour, minute } = zonedParts(iso, timeZone);
-  return (hour - rangeStartHour) * 60 + minute;
-}
-
-/** Hour span of a session set: earliest start hour → latest end hour (ceil). */
-function hourRange(sessions: TimetableSession[], timeZone: string): { startHour: number; endHour: number } {
-  let minH = 23;
-  let maxH = 0;
-  for (const s of sessions) {
-    const start = zonedParts(s.startsAt, timeZone);
-    const end = zonedParts(s.endsAt, timeZone);
-    minH = Math.min(minH, start.hour);
-    maxH = Math.max(maxH, end.minute > 0 ? end.hour + 1 : end.hour);
-  }
-  const startHour = Math.max(0, minH);
-  return { startHour, endHour: Math.min(23, Math.max(startHour + 1, maxH)) };
-}
-
-type Placed = {
-  session: TimetableSession;
-  top: number;
-  height: number;
-  col: number;
-  colCount: number;
-};
-
-/** Greedy column packing for concurrent sessions within one vertical strip. */
-function placeInColumn(
-  sessions: TimetableSession[],
-  timeZone: string,
-  rangeStartHour: number,
-): Placed[] {
-  const sorted = [...sessions].sort(
-    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
-  );
-  type Active = { end: number; col: number };
-  const active: Active[] = [];
-  const out: Placed[] = [];
-  const ranges: { start: number; end: number }[] = [];
-
-  for (const session of sorted) {
-    const startMs = new Date(session.startsAt).getTime();
-    const endMs = new Date(session.endsAt).getTime();
-    for (let i = active.length - 1; i >= 0; i--) {
-      if (active[i]!.end <= startMs) active.splice(i, 1);
-    }
-    const used = new Set(active.map((a) => a.col));
-    let col = 0;
-    while (used.has(col)) col += 1;
-    active.push({ end: endMs, col });
-    const startMin = minutesFromDayStart(session.startsAt, timeZone, rangeStartHour);
-    const endMin = minutesFromDayStart(session.endsAt, timeZone, rangeStartHour);
-    const height = Math.max(28, ((endMin - startMin) / 60) * PX_PER_HOUR - 2);
-    ranges.push({ start: startMs, end: endMs });
-    out.push({
-      session,
-      top: TOP_PAD + (startMin / 60) * PX_PER_HOUR,
-      height,
-      col,
-      colCount: 1,
-    });
-  }
-
-  /* Per-cluster colCount so solo sessions keep full column width. */
-  return out.map((p, i) => {
-    const { start, end } = ranges[i]!;
-    let maxCol = p.col;
-    for (let j = 0; j < out.length; j++) {
-      const r = ranges[j]!;
-      if (r.start < end && r.end > start) {
-        maxCol = Math.max(maxCol, out[j]!.col);
-      }
-    }
-    return { ...p, colCount: maxCol + 1 };
-  });
 }
 
 function hourLabels(startHour: number, endHour: number): number[] {
@@ -228,14 +132,20 @@ function TimetableGrid({
 }) {
   const bodyHeight = TOP_PAD + (endHour - startHour) * PX_PER_HOUR + 8;
   const hours = hourLabels(startHour, endHour);
+  // Pack every column once, then size each column to its widest concurrency
+  // cluster (E19.1): five concurrent sessions widen the column (and the grid
+  // scrolls horizontally) instead of shrinking every card to a sliver.
+  const packed = columns.map((c) =>
+    placeInColumn(sessionsByColumn.get(c.key) || [], timeZone, startHour),
+  );
+  const gridTemplateColumns = packed
+    .map((placed) => `minmax(${columnMinWidth(maxLaneCount(placed))}px, 1fr)`)
+    .join(" ");
   return (
     <div className="schedule-grid" role="region" aria-label={ariaLabel}>
       <div className="schedule-grid-scroll">
         <div className="schedule-grid-corner" aria-hidden />
-        <div
-          className="schedule-grid-day-headers"
-          style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(${COL_MIN_WIDTH}px, 1fr))` }}
-        >
+        <div className="schedule-grid-day-headers" style={{ gridTemplateColumns }}>
           {columns.map((c) => (
             <div key={c.key} className="schedule-grid-day-header">
               {c.label}
@@ -255,13 +165,10 @@ function TimetableGrid({
         </div>
         <div
           className="schedule-grid-columns"
-          style={{
-            gridTemplateColumns: `repeat(${columns.length}, minmax(${COL_MIN_WIDTH}px, 1fr))`,
-            height: bodyHeight,
-          }}
+          style={{ gridTemplateColumns, height: bodyHeight }}
         >
-          {columns.map((c) => {
-            const placed = placeInColumn(sessionsByColumn.get(c.key) || [], timeZone, startHour);
+          {columns.map((c, colIdx) => {
+            const placed = packed[colIdx]!;
             return (
               <div key={c.key} className="schedule-grid-col">
                 {hours.map((h) => (
@@ -287,15 +194,6 @@ function TimetableGrid({
       </div>
     </div>
   );
-}
-
-function groupByDay(sessions: TimetableSession[], timeZone: string): Map<string, TimetableSession[]> {
-  const map = new Map<string, TimetableSession[]>();
-  for (const s of sessions) {
-    const { dayKey } = zonedParts(s.startsAt, timeZone);
-    map.set(dayKey, [...(map.get(dayKey) || []), s]);
-  }
-  return map;
 }
 
 export function ScheduleGridView({
@@ -338,28 +236,6 @@ export function ScheduleGridView({
       onSelectSession={onSelectSession}
     />
   );
-}
-
-/** Rooms of one day's sessions, alphabetical; "No room" column only if needed. */
-function roomColumns(daySessions: TimetableSession[]): {
-  columns: { key: string; label: string }[];
-  byRoom: Map<string, TimetableSession[]>;
-} {
-  const byRoom = new Map<string, TimetableSession[]>();
-  let hasNoRoom = false;
-  for (const s of daySessions) {
-    const key = s.roomKey?.trim() || "__none__";
-    if (key === "__none__") hasNoRoom = true;
-    byRoom.set(key, [...(byRoom.get(key) || []), s]);
-  }
-  const named = [...byRoom.keys()]
-    .filter((k) => k !== "__none__")
-    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
-    .map((key) => ({ key, label: byRoom.get(key)?.[0]?.roomLabel || key }));
-  return {
-    columns: hasNoRoom ? [...named, { key: "__none__", label: "No room" }] : named,
-    byRoom,
-  };
 }
 
 /**

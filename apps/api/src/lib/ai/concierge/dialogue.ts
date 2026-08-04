@@ -8,6 +8,7 @@
 
 import type {
   ConciergeHandoffStub,
+  ConciergeLink,
   ConciergeMapHint,
   ConciergeToolName,
 } from "@event-app/shared";
@@ -15,6 +16,7 @@ import { isConciergeMutatingTool } from "@event-app/shared";
 import { prisma } from "../../db";
 import type { GroundingContext } from "../types";
 import { isOutOfCorpusQuery, REFUSAL_MESSAGE } from "../grounding";
+import { formatSessionTime } from "./format";
 import { runReadOnlyTool, type ToolArgs } from "./tools";
 
 export type DialogueProposal = {
@@ -30,6 +32,8 @@ export type DialogueTurnResult = {
   mutationProposals: DialogueProposal[];
   mapHint: ConciergeMapHint | null;
   handoff: ConciergeHandoffStub | null;
+  /** E19.3 — in-app navigation offers built from grounded session ids only. */
+  links: ConciergeLink[];
   refused: boolean;
   gatewayUserPrompt: string;
 };
@@ -59,9 +63,12 @@ export async function runConciergeDialogue(params: {
   userText: string;
   grounding: GroundingContext;
   userId: string;
+  /** Injectable for tests; defaults to the real clock. */
+  now?: Date;
 }): Promise<DialogueTurnResult> {
   const userText = params.userText.trim();
   const { grounding, userId } = params;
+  const now = params.now ?? new Date();
   const gatewayUserPrompt = `Concierge turn for event ${grounding.eventId}: ${userText.slice(0, 500)}`;
 
   const empty = {
@@ -69,6 +76,7 @@ export async function runConciergeDialogue(params: {
     mutationProposals: [] as DialogueProposal[],
     mapHint: null as ConciergeMapHint | null,
     handoff: null as ConciergeHandoffStub | null,
+    links: [] as ConciergeLink[],
     refused: false,
     gatewayUserPrompt,
   };
@@ -105,6 +113,41 @@ export async function runConciergeDialogue(params: {
   const readResults: DialogueTurnResult["readResults"] = [];
   let mapHint: ConciergeMapHint | null = null;
   const replies: string[] = [];
+  const links: ConciergeLink[] = [];
+  const linkToSession = (id: string, label: string) => {
+    if (!grounding.sessionIds.has(id)) return;
+    if (links.some((l) => l.href === `/session/${id}`)) return;
+    links.push({ label, href: `/session/${id}` });
+  };
+
+  // "When is X?" / "What time is X?" — wayfinding (E19.3)
+  if (/\b(when|what time)\b/i.test(userText) && !/\b(morning|afternoon|after lunch)\b/i.test(userText)) {
+    const session = findSessionByTitleHint(grounding, userText);
+    if (session) {
+      const when = formatSessionTime(session.startsAt, session.endsAt, grounding.event.timezone);
+      const where = session.roomName ? ` in ${session.roomName}` : "";
+      replies.push(`“${session.title}” is ${when}${where}.`);
+      linkToSession(session.id, `Open “${session.title}”`);
+    }
+  }
+
+  // "Who is presenting X?" — wayfinding (E19.3)
+  if (/\bwho('s| is)?\s+(presenting|speaking|leading|running|teaching)\b|\bwho presents\b/i.test(userText)) {
+    const session = findSessionByTitleHint(grounding, userText);
+    if (session) {
+      const names = session.speakerNames || [];
+      replies.push(
+        names.length
+          ? `“${session.title}” is presented by ${names.join(", ")}.`
+          : `No speakers are listed for “${session.title}” yet.`,
+      );
+      linkToSession(session.id, `Open “${session.title}”`);
+    } else {
+      replies.push(
+        "Tell me which session you mean (use a few words from its title) and I’ll look up the speakers.",
+      );
+    }
+  }
 
   // Export ICS
   if (/\b(export|ics|calendar feed|subscribe.*(calendar|agenda))\b/i.test(userText)) {
@@ -210,31 +253,41 @@ export async function runConciergeDialogue(params: {
     replies.push(result.summary);
   }
 
-  // Search / morning / topic schedule
+  // Search / morning / afternoon / topic schedule
   if (
-    /\b(what('s| is) on|this morning|tomorrow morning|sessions? (about|on)|build me a schedule|around )\b/i.test(
+    /\b(what('s| is) on|this morning|tomorrow morning|after lunch|this afternoon|sessions? (about|on)|build me a schedule|around )\b/i.test(
       userText,
     ) ||
-    /\bmorning\b/i.test(userText)
+    /\b(morning|afternoon)\b/i.test(userText)
   ) {
     const morning = /\bmorning\b/i.test(userText);
+    const afternoon = !morning && /\b(afternoon|after lunch)\b/i.test(userText);
     const query = topicFromBuildRequest(userText);
     const q =
-      morning && /what|on this morning|this morning/i.test(userText)
+      (morning || afternoon) && /what|on this (morning|afternoon)|this (morning|afternoon)|after lunch/i.test(userText)
         ? ""
-        : query.length > 2 && !/^(what|this|morning|schedule|build|me|a|around)$/i.test(query)
+        : query.length > 2 &&
+            !/^(what|this|morning|afternoon|lunch|schedule|build|me|a|around)$/i.test(query)
           ? query
           : "";
     const result = await runReadOnlyTool({
       tool: "searchSessions",
-      args: { query: q, morning },
+      args: { query: q, morning, afternoon },
       grounding,
       userId,
+      now,
     });
     readResults.push({ tool: "searchSessions", summary: result.summary, data: result.data });
     replies.push(result.summary);
-    if (q && result.data?.sessionIds && Array.isArray(result.data.sessionIds)) {
-      const firstId = result.data.sessionIds[0] as string | undefined;
+    const foundIds = Array.isArray(result.data?.sessionIds)
+      ? (result.data!.sessionIds as string[])
+      : [];
+    for (const id of foundIds.slice(0, 3)) {
+      const title = grounding.sessions.find((s) => s.id === id)?.title;
+      if (title) linkToSession(id, `Open “${title}”`);
+    }
+    if (q && foundIds.length) {
+      const firstId = foundIds[0];
       if (firstId && /build me a schedule|add|join/i.test(userText)) {
         mutationProposals.push({
           tool: "addToMyAgenda",
@@ -270,17 +323,18 @@ export async function runConciergeDialogue(params: {
   });
 
   if (!replies.length && !uniqueMutations.length) {
-    // Friendly in-corpus help when we didn't match a pattern
+    // Decline-and-redirect, never improvise: this assistant only answers from
+    // this event's published schedule, rooms/maps, announcements, and FAQ.
     if (grounding.faq.length) {
       return {
         ...empty,
-        assistantMessage: `I can help with this event’s schedule, your agenda, maps, and FAQ. Try “What’s on this morning?” or ask: ${grounding.faq[0].question}`,
+        assistantMessage: `I can only answer from this event’s schedule, your agenda, maps, and the organizer FAQ — I don’t guess beyond it. Try “What’s on this morning?” or ask: ${grounding.faq[0].question}`,
       };
     }
     return {
       ...empty,
       assistantMessage:
-        "I can help with this event’s schedule, your agenda, and rooms/maps. Try a starter chip or ask what’s on this morning.",
+        "I can only answer from this event’s schedule, your agenda, and rooms/maps — I don’t guess beyond it. Try a starter chip, or ask “when is …” with a session title.",
     };
   }
 
@@ -290,6 +344,7 @@ export async function runConciergeDialogue(params: {
     mutationProposals: uniqueMutations,
     mapHint,
     handoff: null,
+    links,
     refused: false,
     gatewayUserPrompt,
   };

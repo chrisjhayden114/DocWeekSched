@@ -13,13 +13,15 @@ Welcome to **{{product}}**. This guide covers the first hour for organizers.
 1. Open [Sign in](/login) and create an account.
 2. Create an organization when prompted — this is your billing and event workspace.
 
-## 2. Create an event (Setup Copilot)
+## 2. Create an event (Setup assistant)
 
-The fastest path is **Setup Copilot** on [New event](/organizer/events/new?mode=ai):
+The fastest path is the **Setup assistant** on [New event](/organizer/events/new?mode=ai):
 
 1. Answer a few questions (name, dates, venue).
 2. Confirm the draft sessions and features.
-3. Copilot checks off **Create event** and **Add sessions** on your onboarding checklist.
+3. The assistant checks off **Create event** and **Add sessions** on your onboarding checklist.
+
+After creation, the Setup assistant lives on the event's **Overview** tab: it reads the event's current state, names the next incomplete step (rooms, speakers, venue, draft sessions, publish), and links straight to it. Attendees have their own **Event assistant** on event pages — a wayfinder that answers only from the published schedule, rooms, maps, and FAQ.
 
 You can also create an event manually or start from an optional sample draft on first login.
 

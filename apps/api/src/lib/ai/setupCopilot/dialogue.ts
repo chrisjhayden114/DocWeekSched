@@ -329,8 +329,10 @@ export function runSettingsTurn(
     form = { ...form, networkingChoice: "focused" };
     reply = "Proposed the focused preset — review the card and confirm to apply.";
   } else {
+    // E19.3 — explicit scope decline: this assistant only changes this event's
+    // setup; it never improvises answers to general questions.
     reply =
-      "Try something like “turn off ice-breakers and timezone conversion,” or “full networking,” or “keep it focused on the schedule.”";
+      "I can only change this event's attendee features — I can't answer questions outside its setup. Try “turn off ice-breakers and timezone conversion,” “full networking,” or “keep it focused on the schedule.”";
   }
 
   messages.push(assistant(reply));

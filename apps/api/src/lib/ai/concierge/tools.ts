@@ -17,6 +17,13 @@ import { assertMutuallyVisible } from "../../visibility";
 import { joinSessionOrWaitlist, leaveSessionAttendance } from "../../waitlist/capacity";
 import { assertGroundedIds } from "../grounding";
 import type { GroundingContext } from "../types";
+import {
+  formatEventDateRange,
+  formatSessionTime,
+  isDuringEvent,
+  zonedDayKey,
+  zonedHour,
+} from "./format";
 import { NotificationKind } from "@prisma/client";
 import { notifyMany } from "../../notifications";
 
@@ -66,10 +73,10 @@ export async function buildMutationPreview(
           overlaps.push({ sessionId: other.id, title: other.title });
         }
       }
-      const when = session.startsAt.toISOString().slice(0, 16).replace("T", " ");
+      const when = formatSessionTime(session.startsAt, session.endsAt, grounding.event.timezone);
       return {
         title: `Add “${session.title}”?`,
-        body: `${when} UTC · ${mode.replace("_", " ").toLowerCase()}`,
+        body: `${when} · ${mode.replace("_", " ").toLowerCase()}`,
         overlaps: overlaps.length ? overlaps : undefined,
         capacityNote: overlaps.length
           ? `Overlaps ${overlaps.length} session${overlaps.length === 1 ? "" : "s"} already on your agenda.`
@@ -260,12 +267,17 @@ export async function runReadOnlyTool(params: {
   args: ToolArgs;
   grounding: GroundingContext;
   userId: string;
+  /** Injectable for tests; defaults to the real clock. */
+  now?: Date;
 }): Promise<ToolExecResult> {
   const { tool, args, grounding, userId } = params;
+  const now = params.now ?? new Date();
   switch (tool) {
     case "searchSessions": {
       const q = (asString(args.query) || "").toLowerCase();
       const morning = Boolean(args.morning);
+      const afternoon = Boolean(args.afternoon);
+      const tz = grounding.event.timezone;
       let hits = grounding.sessions;
       if (q) {
         hits = hits.filter(
@@ -274,21 +286,41 @@ export async function runReadOnlyTool(params: {
             (s.description || "").toLowerCase().includes(q),
         );
       }
-      if (morning) {
+      // "This morning" / "after lunch" mean TODAY in the event's timezone —
+      // never a session months away that merely starts at a matching hour.
+      if (morning || afternoon) {
+        const todayKey = zonedDayKey(now, tz);
         hits = hits.filter((s) => {
-          const h = s.startsAt.getUTCHours();
-          return h >= 5 && h < 12;
+          if (zonedDayKey(s.startsAt, tz) !== todayKey) return false;
+          const h = zonedHour(s.startsAt, tz);
+          return morning ? h < 12 : h >= 12;
         });
       }
       hits = hits.slice(0, 8);
+      if (!hits.length) {
+        // E19.2 — name the real reason, never a flat no-match.
+        const range = formatEventDateRange(grounding.event);
+        let summary: string;
+        if (!grounding.sessions.length) {
+          summary = "No sessions are on this event’s published schedule yet.";
+        } else if (morning || afternoon) {
+          const slotWord = morning ? "this morning" : "this afternoon";
+          summary = isDuringEvent(grounding.event, now)
+            ? `Nothing is scheduled ${slotWord} — try asking what’s on today for the full day.`
+            : `Nothing is scheduled today — ${grounding.event.name} runs ${range}.`;
+        } else if (q) {
+          summary = `No sessions matching “${q}” in this event’s schedule. Use a word from the session title, or ask what’s on a specific day.`;
+        } else {
+          summary = `No matching sessions — ${grounding.event.name} runs ${range}.`;
+        }
+        return { ok: true, summary, data: { sessionIds: [] } };
+      }
       const lines = hits.map(
-        (s) => `• ${s.title} (${s.startsAt.toISOString().slice(0, 16).replace("T", " ")} UTC)`,
+        (s) => `• ${s.title} — ${formatSessionTime(s.startsAt, s.endsAt, tz)}`,
       );
       return {
         ok: true,
-        summary: lines.length
-          ? `Here’s what I found:\n${lines.join("\n")}`
-          : "No matching sessions in this event’s schedule.",
+        summary: `Here’s what I found:\n${lines.join("\n")}`,
         data: { sessionIds: hits.map((s) => s.id) },
       };
     }
@@ -298,7 +330,7 @@ export async function runReadOnlyTool(params: {
         return { ok: true, summary: "Your agenda is empty for this event.", data: { sessionIds: [] } };
       }
       const lines = mine.map(
-        (s) => `• ${s.title} (${s.startsAt.toISOString().slice(0, 16).replace("T", " ")} UTC)`,
+        (s) => `• ${s.title} — ${formatSessionTime(s.startsAt, s.endsAt, grounding.event.timezone)}`,
       );
       return {
         ok: true,

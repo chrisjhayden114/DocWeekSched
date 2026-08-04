@@ -12,6 +12,7 @@ import {
 } from "@prisma/client";
 import {
   AI_GENERATED_CHIP_LABEL,
+  ASSISTANT_COPY,
   PHASE6_ONBOARDING_CHECKLIST,
   resolveFeatureEnabled,
   type SetupCopilotFormState,
@@ -105,7 +106,7 @@ export async function completeSetupCopilot(opts: {
       slug,
       description: form.estimatedSize
         ? `Estimated size: ~${form.estimatedSize} attendees. ${AI_GENERATED_CHIP_LABEL}`
-        : `Created with Setup Copilot. ${AI_GENERATED_CHIP_LABEL}`,
+        : `Created with the ${ASSISTANT_COPY.organizer.name}. ${AI_GENERATED_CHIP_LABEL}`,
       venueName: form.venueName.trim() || null,
       venueAddress: form.venueAddress.trim() || null,
       onlineUrl: form.onlineUrl.trim() || null,

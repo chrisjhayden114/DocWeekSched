@@ -87,6 +87,14 @@
   /* —— Motion —— */
   --transition: all 0.15s ease;
 
+  /*
+   * —— Schedule layout (E19.1) ——
+   * Minimum readable width of one session card in concurrent (side-by-side)
+   * rows. Below this, titles truncate under ~40 characters across two lines,
+   * so the row wraps instead of adding another column.
+   */
+  --schedule-card-min: 260px;
+
   /* —— Legacy aliases (kept working; mapped onto the new ramp) —— */
   --ink: var(--gray-900);
   --ink-secondary: var(--gray-700);

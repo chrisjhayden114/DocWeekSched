@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { OnboardingChecklistItem } from "@event-app/shared";
+import { ASSISTANT_COPY } from "@event-app/shared";
 import { apiFetch } from "../lib/api";
 
 type OnboardingState = {
@@ -112,7 +113,7 @@ export function OnboardingPanel({ onSampleCreated }: Props) {
         <div>
           <h2>Getting started</h2>
           <p className="text-meta" style={{ margin: "4px 0 0" }}>
-            {doneCount}/{state.checklist.length} steps · Setup Copilot is the fastest path
+            {doneCount}/{state.checklist.length} steps · the {ASSISTANT_COPY.organizer.name} is the fastest path
           </p>
         </div>
         <button type="button" className="button secondary" disabled={busy} onClick={() => void dismiss()}>
@@ -154,7 +155,7 @@ export function OnboardingPanel({ onSampleCreated }: Props) {
               <>
                 {" · "}
                 <Link href={`/organizer/events/new?mode=ai${state.organizationId ? `&org=${state.organizationId}` : ""}`}>
-                  Setup Copilot
+                  {ASSISTANT_COPY.organizer.name}
                 </Link>
               </>
             ) : null}

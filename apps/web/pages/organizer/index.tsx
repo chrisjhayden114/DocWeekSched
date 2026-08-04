@@ -1,4 +1,5 @@
 import { brand } from "@event-app/config";
+import { ASSISTANT_COPY } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -91,7 +92,7 @@ export default function OrganizerDashboard() {
               className="button secondary"
               href={orgId ? `/organizer/events/new?org=${encodeURIComponent(orgId)}&mode=ai` : "/organizer/org/new"}
             >
-              Set up with AI
+              Use the {ASSISTANT_COPY.organizer.name}
             </Link>
             <Link
               className="button"

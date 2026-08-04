@@ -2,6 +2,8 @@
  * Per-event feature registry (Phase 2.6) — shared by API + web.
  */
 
+import { ASSISTANT_COPY } from "./assistants";
+
 export type FeatureCategory =
   | "community"
   | "messaging"
@@ -176,8 +178,9 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
   },
   {
     key: "concierge",
-    name: "Concierge",
-    plainDescription: "An in-event assistant that answers questions from the agenda and FAQ.",
+    name: ASSISTANT_COPY.attendee.name,
+    plainDescription:
+      "An in-event wayfinder for attendees that answers only from this event's published schedule, rooms, maps, and FAQ.",
     category: "sessions",
     defaultOn: true,
   },

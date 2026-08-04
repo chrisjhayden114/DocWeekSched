@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { SetupCopilotFormState } from "@event-app/shared";
-import { emptySetupFormState } from "@event-app/shared";
+import { ASSISTANT_COPY, emptySetupFormState } from "@event-app/shared";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../components/FeatureConfigPanel";
 import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
@@ -357,11 +357,11 @@ export default function NewEventWizard() {
   return (
     <>
       <Head>
-        <title>{`${modeAi ? "Set up with AI" : "Create event"} — ${brand.productName}`}</title>
+        <title>{`${modeAi ? ASSISTANT_COPY.organizer.name : "Create event"} — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="new-event">
         <div style={{ maxWidth: modeAi ? 960 : 640 }}>
-        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>{modeAi ? "Set up with AI" : "Create event"}</h1>
+        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>{modeAi ? ASSISTANT_COPY.organizer.name : "Create event"}</h1>
         <p className="help-text">
           {modeAi
             ? "Answer a few short questions — the form on the right fills in as you go. Switch to manual anytime; nothing is lost."
@@ -531,7 +531,7 @@ export default function NewEventWizard() {
                   className="button secondary"
                   href={`/organizer/events/new?org=${encodeURIComponent(organizationId)}&mode=ai`}
                 >
-                  Set up with AI
+                  Use the {ASSISTANT_COPY.organizer.name}
                 </Link>
               </p>
             ) : null}

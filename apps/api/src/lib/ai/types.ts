@@ -122,6 +122,10 @@ export type GroundingContext = {
     roomId: string | null;
     trackId: string | null;
     description: string | null;
+    /** E19.3 — lets the Event assistant answer "who is presenting X". */
+    speakerNames?: string[];
+    /** E19.3 — lets the Event assistant answer "where is X" inline. */
+    roomName?: string | null;
   }>;
   faq: Array<{ id: string; question: string; answer: string }>;
   maps: Array<{ id: string; name: string; roomIds: string[] }>;

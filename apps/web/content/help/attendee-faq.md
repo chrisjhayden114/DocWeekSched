@@ -18,6 +18,10 @@ No. {{product}} works in the browser on phone and desktop.
 
 After you join, open the dashboard. **Agenda** shows the full program; save sessions to build **My Schedule**.
 
+## What is the Event assistant?
+
+If your organizer enabled it, a chat button on event pages opens the **Event assistant** — a wayfinder for that event only. Ask "when is X", "where is room 201", or "what's on after lunch"; it answers from the published schedule, rooms, maps, and organizer FAQ, and links you to the session or map. It declines questions outside the event's data rather than guessing.
+
 ## Can I message other attendees?
 
 Only if your organizer enabled messaging or community features for that event. Disabled features do not appear in the navigation.

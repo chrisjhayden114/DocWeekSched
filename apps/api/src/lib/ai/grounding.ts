@@ -142,15 +142,21 @@ export async function buildEventGroundingContext(
     trackIds,
     mapIds,
     faqIds,
-    sessions: event.sessions.map((s) => ({
-      id: s.id,
-      title: s.title,
-      startsAt: s.startsAt,
-      endsAt: s.endsAt,
-      roomId: s.roomId,
-      trackId: s.trackId,
-      description: s.description,
-    })),
+    sessions: event.sessions.map((s) => {
+      const speakerNames = s.sessionSpeakers.map((r) => r.speaker.name);
+      if (!speakerNames.length && s.speakers) speakerNames.push(s.speakers);
+      return {
+        id: s.id,
+        title: s.title,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+        roomId: s.roomId,
+        trackId: s.trackId,
+        description: s.description,
+        speakerNames,
+        roomName: s.roomId ? event.rooms.find((r) => r.id === s.roomId)?.name || null : null,
+      };
+    }),
     faq: event.eventFaqs,
     maps: event.venueMaps.map((m) => ({
       id: m.id,

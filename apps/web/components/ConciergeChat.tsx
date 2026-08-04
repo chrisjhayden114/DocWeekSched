@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ConciergeActionCard, ConciergeHandoffStub, ConciergeMapHint } from "@event-app/shared";
-import { CONCIERGE_STARTER_CHIPS } from "@event-app/shared";
+import type {
+  ConciergeActionCard,
+  ConciergeHandoffStub,
+  ConciergeLink,
+  ConciergeMapHint,
+} from "@event-app/shared";
+import { ASSISTANT_COPY, CONCIERGE_STARTER_CHIPS } from "@event-app/shared";
 import { apiFetch } from "../lib/api";
-import { AiGeneratedChip } from "./AiGeneratedChip";
+import { AiAnswerChip } from "./AiAnswerChip";
 
 type ChatMessage = {
   id: string;
@@ -10,6 +15,7 @@ type ChatMessage = {
   body: string;
   aiGenerated?: boolean;
   actionCards?: ConciergeActionCard[];
+  links?: ConciergeLink[];
 };
 
 type TurnResponse = {
@@ -19,9 +25,13 @@ type TurnResponse = {
   actionCards: ConciergeActionCard[];
   mapHint: ConciergeMapHint | null;
   handoff: ConciergeHandoffStub | null;
+  links?: ConciergeLink[];
   refused: boolean;
   teaser?: { kind: string; message: string } | null;
 };
+
+/** E19.3 — the attendee assistant's name comes from the copy layer. */
+const ATTENDEE_ASSISTANT = ASSISTANT_COPY.attendee;
 
 type Props = {
   eventId: string;
@@ -100,11 +110,12 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
           body: res.assistantMessage,
           aiGenerated: true,
           actionCards: res.actionCards,
+          links: res.links,
         },
       ]);
     } catch (err) {
       const e = err as Error & { status?: number };
-      const msg = e.message || "Concierge unavailable";
+      const msg = e.message || `${ATTENDEE_ASSISTANT.name} unavailable`;
       if (e.status === 402 || /allowance|upgrade|limit/i.test(msg)) {
         setTeaser(msg);
         setMessages((prev) => [
@@ -166,7 +177,7 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
       <button
         type="button"
         className="concierge-fab"
-        aria-label="Open Concierge"
+        aria-label={`Open ${ATTENDEE_ASSISTANT.name}`}
         onClick={() => setOpen(true)}
       >
         <span className="concierge-fab-icon" aria-hidden>
@@ -174,7 +185,7 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </span>
-        <span className="concierge-fab-label">Concierge</span>
+        <span className="concierge-fab-label">{ATTENDEE_ASSISTANT.name}</span>
       </button>
 
       {open ? (
@@ -189,10 +200,10 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
             <header className="concierge-sheet-header">
               <div>
                 <h2 id="concierge-title" className="text-display-sm" style={{ margin: 0 }}>
-                  Concierge
+                  {ATTENDEE_ASSISTANT.name}
                 </h2>
                 <p className="help-text" style={{ margin: "4px 0 0" }}>
-                  Schedule, agenda, maps, and FAQ for this event.
+                  {ATTENDEE_ASSISTANT.description}
                 </p>
               </div>
               <button type="button" className="button secondary" onClick={() => setOpen(false)}>
@@ -244,10 +255,19 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
                 >
                   {m.aiGenerated ? (
                     <div style={{ marginBottom: 4 }}>
-                      <AiGeneratedChip />
+                      <AiAnswerChip />
                     </div>
                   ) : null}
                   <div className="concierge-msg-body">{m.body}</div>
+                  {m.links?.length ? (
+                    <div className="concierge-links" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                      {m.links.map((link) => (
+                        <a key={link.href} href={link.href} className="button secondary">
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                   {m.actionCards?.map((card) => (
                     <div key={card.pendingActionId} className="concierge-action-card">
                       <strong>{card.preview.title}</strong>
@@ -292,7 +312,7 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about this event…"
                 disabled={busy}
-                aria-label="Message Concierge"
+                aria-label={`Message ${ATTENDEE_ASSISTANT.name}`}
               />
               <button type="submit" className="button" disabled={busy || !input.trim()}>
                 Send

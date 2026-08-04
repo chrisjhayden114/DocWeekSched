@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ASSISTANT_COPY } from "@event-app/shared";
 import { apiFetch } from "../lib/api";
 
 type Suggestion = {
@@ -48,7 +49,7 @@ export function MatchmakerPanel({
 }: Props) {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [label, setLabel] = useState("AI-generated — review before publishing");
+  const [label, setLabel] = useState<string>(ASSISTANT_COPY.matchmakerChipLabel);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [draftingId, setDraftingId] = useState<string | null>(null);

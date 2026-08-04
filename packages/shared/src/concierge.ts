@@ -55,3 +55,13 @@ export type ConciergeHandoffStub = {
   agent: "A4";
   message: string;
 };
+
+/**
+ * E19.3 — a navigation offer alongside an assistant answer ("open the
+ * session", "open Maps"). Always an in-app path derived from grounded ids,
+ * never a URL from model output.
+ */
+export type ConciergeLink = {
+  label: string;
+  href: string;
+};

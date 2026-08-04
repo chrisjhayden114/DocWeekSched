@@ -1,5 +1,5 @@
 import { ConciergeMessageRole, Prisma } from "@prisma/client";
-import type { ConciergeActionCard } from "@event-app/shared";
+import type { ConciergeActionCard, ConciergeLink } from "@event-app/shared";
 import { prisma } from "../../db";
 import { gatewayChat } from "../gateway";
 import { buildEventGroundingContext } from "../grounding";
@@ -29,6 +29,8 @@ export type ConciergeTurnResponse = {
   actionCards: ConciergeActionCard[];
   mapHint: { roomId: string; mapId?: string | null; label: string } | null;
   handoff: { agent: "A4"; message: string } | null;
+  /** In-app navigation offers (open a session, etc.) — E19.3. */
+  links: ConciergeLink[];
   refused: boolean;
   usageId?: string;
   teaser?: { kind: "FREE_CAP"; message: string; upgrade?: unknown } | null;
@@ -89,6 +91,7 @@ export async function runConciergeTurn(params: {
       actionCards: [],
       mapHint: null,
       handoff: null,
+      links: [],
       refused: false,
       teaser: { kind: "FREE_CAP", message: teaserMessage, upgrade: gw.upgrade },
     };
@@ -138,6 +141,7 @@ export async function runConciergeTurn(params: {
     actionCards,
     mapHint: dialogue.mapHint,
     handoff: dialogue.handoff,
+    links: dialogue.links,
     refused: dialogue.refused,
     usageId: gw.ok ? gw.usageId : undefined,
     teaser: null,

@@ -18,7 +18,7 @@ import {
 } from "../lib/ai/matchmaker";
 import { getDirectConversation } from "../lib/conversations";
 import { prisma } from "../lib/db";
-import { AI_GENERATED_CHIP_LABEL } from "@event-app/shared";
+import { ASSISTANT_COPY } from "@event-app/shared";
 import { validationErrorBody } from "../lib/errors";
 
 export const matchmakerRouter = Router();
@@ -35,7 +35,7 @@ matchmakerRouter.get(
       enabled,
       eventId: event.id,
       ...state,
-      aiGeneratedLabel: AI_GENERATED_CHIP_LABEL,
+      aiGeneratedLabel: ASSISTANT_COPY.matchmakerChipLabel,
     });
   }),
 );
@@ -70,7 +70,7 @@ matchmakerRouter.get(
           photoUrl: r.suggestedUser.photoUrl,
         },
       })),
-      aiGeneratedLabel: AI_GENERATED_CHIP_LABEL,
+      aiGeneratedLabel: ASSISTANT_COPY.matchmakerChipLabel,
     });
   }),
 );
@@ -123,7 +123,7 @@ matchmakerRouter.post(
 
     return res.json({
       ...result,
-      aiGeneratedLabel: AI_GENERATED_CHIP_LABEL,
+      aiGeneratedLabel: ASSISTANT_COPY.matchmakerChipLabel,
       /** Never auto-sends — drafts are for the composer only. */
       autoSent: false,
     });
@@ -227,7 +227,7 @@ matchmakerRouter.post(
       whyLine: suggestion.whyLine,
       proposedSlots: slots,
       aiGenerated: true as const,
-      aiGeneratedLabel: AI_GENERATED_CHIP_LABEL,
+      aiGeneratedLabel: ASSISTANT_COPY.matchmakerChipLabel,
       autoSent: false as const,
       existingMessageCount: messageCount,
     });
