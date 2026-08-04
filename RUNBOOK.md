@@ -191,3 +191,82 @@ warning line each (`[preflight] …`). Full var-by-var documentation lives in th
 | Job intervals (`JOB_POLL_INTERVAL_MS`, `JOB_POLL_STALE_MS`, `NOTIFICATION_JOB_INTERVAL_MS`, `OPS_DETECT_SWEEP_INTERVAL_MS`) | Defaults are fine; only tune with a reason |
 | Product tuning (`NOTIFICATION_DAILY_PUSH_BUDGET`, `WAITLIST_SEAT_HOLD_HOURS`, `ANNOUNCEMENT_EMAIL_RATE_PER_HOUR`) | Defaults 5 / 24h / 3 per hour |
 | `ALLOW_DESTRUCTIVE_DB` | Must **never** be set in production (see §6) |
+
+---
+
+## 9. Running the database test suites
+
+**Why this exists.** About 24 `*.db.test.ts` files have never been executed on
+this machine. They contain the multi-tenancy and authorization assertions — e.g.
+`sessionsBulkAssign.db.test.ts` proves an attendee is rejected at the guard and
+that sessions from another event cannot be bulk-assigned. That test was written
+*because* a real cross-tenant hole was found in chunk E13. A security property
+asserted only by reading code is how the original hole survived.
+
+The destructive guard (`apps/api/src/lib/destructiveGuard.ts`) refuses to run
+them unless `DATABASE_URL` looks local or test-only. **Never set
+`ALLOW_DESTRUCTIVE_DB` to work around this** — give it a database that is
+genuinely disposable instead.
+
+### The guard's actual rule
+
+It accepts the database when **any** of these is true:
+- host is `localhost` / `127.0.0.1` / `::1` / `0.0.0.0`
+- host ends in `.local` or `.localhost`
+- **host contains `test`**
+- **database name matches `test$` or `_test_`** — e.g. `ukedl_test`
+
+Nothing else passes.
+
+### One-time setup (Neon, no local installs needed)
+
+1. Neon console → **Branches** → **New branch**. Name it `test`, parent `main`.
+   This is a disposable branch; it may be reset or deleted at any time.
+2. Inside that branch → **Databases** → **New database** → name it exactly
+   **`ukedl_test`**. The name is what satisfies the guard.
+3. Copy the **direct / unpooled** connection string for that database. It must
+   end `/ukedl_test?sslmode=require`. Use the unpooled one — the pooler causes
+   `P1002` advisory-lock failures during migrations.
+4. Apply the schema (schema.prisma reads `DATABASE_URL`; there is no
+   `directUrl`, so the direct string goes here):
+
+```bash
+cd ~/Documents/DocWeekSched/apps/api && \
+  DATABASE_URL="<direct ukedl_test url>" npx prisma migrate deploy
+```
+
+### Running the suites
+
+`dotenv.config()` in the test setup does **not** override variables already set
+in the environment, so an inline `DATABASE_URL` wins. No `.env.test`, no new npm
+script.
+
+One suite:
+```bash
+cd ~/Documents/DocWeekSched/apps/api && \
+  DATABASE_URL="<direct ukedl_test url>" npx vitest run src/__tests__/sessionsBulkAssign.db.test.ts
+```
+
+All of them:
+```bash
+cd ~/Documents/DocWeekSched/apps/api && \
+  DATABASE_URL="<direct ukedl_test url>" npx vitest run
+```
+
+### Safety notes
+
+- The connection string contains a password. Do **not** paste it into a file that
+  git tracks. `.env` and `.env.local` are ignored; a new `.env.test` would **not**
+  be — add it to `.gitignore` first if you ever create one.
+- These suites `deleteMany` fixture rows and some call `resetPublicDemoEvent()` /
+  `hardDeleteUserAccount()`. That is exactly why they must never point at `main`.
+- If a run leaves the test branch in a bad state, delete the Neon branch and
+  recreate it. It holds nothing of value.
+- After running, close the terminal or start a fresh one, so the test
+  `DATABASE_URL` does not linger in that shell's environment.
+
+### Log
+
+| Date | Suites run | Result | Notes |
+|---|---|---|---|
+| _(first run pending)_ | | | |
