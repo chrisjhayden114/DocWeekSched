@@ -21,7 +21,8 @@ import {
   registerCertificateJobs,
   CERTIFICATES_BATCH_ISSUE_JOB,
 } from "../lib/certificates";
-import { enqueueJob, processDueJobs } from "../lib/jobs";
+import { enqueueJob } from "../lib/jobs";
+import { drainJobsUntil } from "./setup/jobDrain";
 import { HttpError } from "../lib/authorization";
 
 describe("Phase P4 certificates (DB)", () => {
@@ -415,11 +416,18 @@ describe("Phase P4 certificates (DB)", () => {
     });
 
     const jobStarted = Date.now();
-    let finished = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job.id } });
-    for (let attempt = 0; attempt < 5 && finished.status !== BackgroundJobStatus.SUCCEEDED; attempt++) {
-      await processDueJobs(1);
-      finished = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job.id } });
-    }
+    // Wait for this specific job to reach a terminal state instead of a fixed
+    // number of immediate polls (E20): its scheduledAt can be fractionally in
+    // the future, and under parallel load processDueJobs(1) can spend its
+    // budget on other files' jobs.
+    await drainJobsUntil(
+      async () => {
+        const j = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job.id } });
+        return j.status === BackgroundJobStatus.SUCCEEDED || j.status === BackgroundJobStatus.DEAD;
+      },
+      { label: "certificates 500-batch issue", timeoutMs: 240_000 },
+    );
+    const finished = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job.id } });
     const jobMs = Date.now() - jobStarted;
     console.log(
       `[certificates.db.test] 500-batch timing: seed=${seedMs}ms job=${jobMs}ms total=${seedMs + jobMs}ms status=${finished.status}`,
@@ -451,11 +459,13 @@ describe("Phase P4 certificates (DB)", () => {
       createdById: ids.adminId!,
       payload: { certificateTemplateId: ids.templateAny!, sendReadyEmail: false },
     });
-    for (let attempt = 0; attempt < 5; attempt++) {
-      await processDueJobs(1);
-      const j = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job2.id } });
-      if (j.status === BackgroundJobStatus.SUCCEEDED) break;
-    }
+    await drainJobsUntil(
+      async () => {
+        const j = await prisma.backgroundJob.findUniqueOrThrow({ where: { id: job2.id } });
+        return j.status === BackgroundJobStatus.SUCCEEDED || j.status === BackgroundJobStatus.DEAD;
+      },
+      { label: "certificates 500-batch regenerate", timeoutMs: 240_000 },
+    );
     const after = await prisma.issuedCertificate.findMany({
       where: {
         certificateTemplateId: ids.templateAny!,

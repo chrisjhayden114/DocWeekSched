@@ -19,7 +19,8 @@ import {
 import { applyPlanSkuToOrg } from "../lib/billing/entitlements";
 import { HttpError, requireEventAccess } from "../lib/authorization";
 import { assertAiCap } from "../lib/ai";
-import { enqueueJob, processDueJobs } from "../lib/jobs";
+import { enqueueJob } from "../lib/jobs";
+import { drainJobsUntil } from "./setup/jobDrain";
 import { AGENDA_INGEST_JOB_TYPE } from "../lib/ai/ingest/constants";
 import "../lib/ai/ingest/job";
 
@@ -493,7 +494,19 @@ describe("Agenda ingest (DB)", () => {
       payload: { runId: run.id, sourceText: loadFixtureSource("html-page") },
       maxAttempts: 1,
     });
-    await processDueJobs(5);
+    // Wait for the ingest job to actually run (E20): a single processDueJobs
+    // call can find nothing due when the job's scheduledAt is fractionally in
+    // the future relative to the app clock.
+    await drainJobsUntil(
+      async () => {
+        const r = await prisma.agendaIngestRun.findUniqueOrThrow({
+          where: { id: run.id },
+          select: { status: true },
+        });
+        return r.status !== "PENDING" && r.status !== "EXTRACTING";
+      },
+      { label: "agenda ingest cap run" },
+    );
 
     const ready = await prisma.agendaIngestRun.findUniqueOrThrow({ where: { id: run.id } });
     expect(ready.status).toBe("READY_FOR_REVIEW");

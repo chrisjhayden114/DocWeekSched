@@ -33,7 +33,7 @@ import {
   RecapSectionError,
 } from "../lib/ai/recap";
 import { registerCertificateJobs } from "../lib/certificates";
-import { processDueJobs } from "../lib/jobs";
+import { drainEventJobs, drainJobsUntil } from "./setup/jobDrain";
 import * as emailMod from "../lib/email";
 import { cloneNextEdition } from "../lib/seriesClone";
 
@@ -485,11 +485,26 @@ describe("Phase A6 recap (DB)", () => {
     });
     expect(first.status).toBe("READY");
 
-    // Drain certificate batch jobs (sendReadyEmail:false)
-    for (let i = 0; i < 20; i++) {
-      const n = await processDueJobs(5);
-      if (n === 0) break;
-    }
+    // Drain the certificate batch jobs (sendReadyEmail:false) enqueued by the
+    // recap run, waiting for them to become due rather than giving up on an
+    // empty poll (E20), and only settle once the certificates the assertions
+    // below depend on actually exist.
+    await drainJobsUntil(
+      async () => {
+        const outstanding = await prisma.backgroundJob.count({
+          where: {
+            eventId: ids.eventId!,
+            status: { in: ["PENDING", "RUNNING", "FAILED"] },
+          },
+        });
+        if (outstanding > 0) return false;
+        const certCount = await prisma.issuedCertificate.count({
+          where: { eventId: ids.eventId! },
+        });
+        return certCount >= 1;
+      },
+      { label: "recap generate → certificate batch" },
+    );
 
     expect(emailSendSpy).not.toHaveBeenCalled();
     const emailAttemptsAfterGen = await prisma.announcementAuditLog.count({
@@ -559,10 +574,9 @@ describe("Phase A6 recap (DB)", () => {
     });
     expect(second.regenerated).toBe(true);
 
-    for (let i = 0; i < 20; i++) {
-      const n = await processDueJobs(5);
-      if (n === 0) break;
-    }
+    // Drain the regeneration's certificate batch jobs the same way; the
+    // cert-stability assertions below are only meaningful once they have run.
+    await drainEventJobs(prisma, ids.eventId!);
 
     expect(emailSendSpy).not.toHaveBeenCalled();
 
