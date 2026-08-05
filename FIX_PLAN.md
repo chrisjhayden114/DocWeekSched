@@ -1158,3 +1158,52 @@ number is worse than none.
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** If a suite refuses to run, report and stop.
 - All AI calls via the gateway. Agents draft, humans publish.
 - Design tokens only. Stop the web dev server first; reset ritual after.
+
+
+---
+
+# Chunk E20 — de-flake the recap certificate drain (small)
+
+Found 2026-08-03 during the first-ever full run of the database suites
+(373/374 passed — see RUNBOOK §9).
+
+**Symptom:** `src/__tests__/recap.db.test.ts` → "4–7) generate drafts only; regen
+replaces drafts; SENT stable; certs stable" fails with
+`expected 0 to be greater than or equal to 1` at line 528 — no `issuedCertificate`
+rows exist after the recap run.
+
+**Not a product defect.** Re-running that file alone passes. `certificates.db.test.ts`
+passes fully, including a 500-attendee batch job. The certificate machinery works.
+
+**Cause:** lines ~488–492 drain background jobs with
+
+```ts
+for (let i = 0; i < 20; i++) {
+  const n = await processDueJobs(5);
+  if (n === 0) break;
+}
+```
+
+`generateEventRecap` enqueues the certificate batch job; if that job's `runAt` is
+even fractionally in the future when the first `processDueJobs` call happens, it
+returns 0, the loop **breaks immediately**, and no certificates are ever issued.
+Under parallel load (58 files against one Neon branch) this is easy to hit —
+the failing run took 2.1s, the passing solo re-run 8.2s.
+
+**Fix:** the drain must wait for work rather than give up at the first empty poll.
+Poll until either the expected rows exist or a generous timeout elapses — e.g.
+retry with a short sleep between attempts, and only then assert. Apply the same
+pattern anywhere else a test drains `processDueJobs` and immediately asserts on
+its side effects; audit for that shape.
+
+**Why bother:** a suite that fails at random teaches its only reader to ignore red
+output. That is worse than having no test, and this is a one-person team.
+
+## Acceptance
+- The full suite passes repeatedly (run it three times) with no intermittent failures.
+- No test breaks out of a job-drain loop on a single empty poll.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Run DB suites per RUNBOOK §9.
+- No product code should need to change for this. If you think it does, stop and
+  explain why.

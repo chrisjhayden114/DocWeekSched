@@ -269,4 +269,5 @@ cd ~/Documents/DocWeekSched/apps/api && \
 
 | Date | Suites run | Result | Notes |
 |---|---|---|---|
-| _(first run pending)_ | | | |
+| 2026-08-03 | All (58 files, 374 tests) | **373 pass / 1 fail** | First execution ever. Only failure: `recap.db.test.ts` "4–7) …certs stable" — **flaky, not a real defect**. Re-run of that file alone passed (8.2s vs 2.1s under parallel load). See FIX_PLAN E20. |
+| 2026-08-03 | `sessionsBulkAssign.db.test.ts` | 7/7 pass | Multi-tenancy: attendee rejected at guard, cross-event session and track ids rejected. First execution of the assertions written after the E13 cross-tenant finding. |
