@@ -340,9 +340,25 @@ before saving.
    Each product needs a **`tax_code`** — the test catalogue uses
    `txcd_10103001` (SaaS). Missing tax codes are what blocked Managed Payments
    checkout on 2026-08-02.
-4. **New live webhook endpoint** → `https://api.ukedl.com/billing/webhook`,
-   subscribed to the same events as the test endpoint. Copy its **new**
-   `whsec_…`. The test secret will not validate live events.
+4. **New live webhook endpoint.** URL — verified against
+   `apps/api/src/index.ts:115`:
+
+   ```
+   https://api.ukedl.com/billing/webhooks/stripe
+   ```
+
+   Subscribe to exactly these five events. They are the only ones the code
+   handles (`apps/api/src/lib/billing/webhooks.ts:265–324`); anything else is
+   accepted and ignored:
+
+   - `checkout.session.completed`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+   - `invoice.payment_succeeded`
+   - `invoice.payment_failed`
+
+   Copy the endpoint's **new** `whsec_…`. The test secret will not validate live
+   events.
 5. **Update Render** with all eight variables, redeploy, and watch the log come up
    clean.
 6. **One real purchase.** Buy **Pro Monthly ($79)** with your own card. Confirm:
