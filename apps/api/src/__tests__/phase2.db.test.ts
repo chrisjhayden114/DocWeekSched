@@ -12,17 +12,8 @@ describe("SessionItem ordering + series clone (DB)", () => {
     userId?: string;
     sessionId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      dbReady = true;
-    } catch {
-      console.warn("[phase2.db.test] DATABASE_URL unreachable — skipping DB tests");
-      return;
-    }
-
     const passwordHash = await hashPassword("TestPass12!x");
     const user = await prisma.user.create({
       data: {
@@ -120,10 +111,6 @@ describe("SessionItem ordering + series clone (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     if (ids.eventId) {
       const series = await prisma.event.findUnique({
         where: { id: ids.eventId },
@@ -166,7 +153,6 @@ describe("SessionItem ordering + series clone (DB)", () => {
   });
 
   it("returns SessionItems and authors in authored sortOrder, not alphabetically", async () => {
-    if (!dbReady) return;
     const items = await prisma.sessionItem.findMany({
       where: { sessionId: ids.sessionId },
       orderBy: { sortOrder: "asc" },
@@ -179,7 +165,6 @@ describe("SessionItem ordering + series clone (DB)", () => {
   });
 
   it("clones structure into a new DRAFT edition without attendees", async () => {
-    if (!dbReady) return;
     const result = await cloneNextEdition(prisma, {
       sourceEventId: ids.eventId!,
       organizationId: ids.orgId!,

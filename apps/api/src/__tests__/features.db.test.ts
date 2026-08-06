@@ -17,19 +17,8 @@ describe("feature gates (DB)", () => {
     userId?: string;
     threadId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      // Probe that Phase 2.6 table exists (migration applied).
-      await prisma.eventFeatureConfig.findFirst();
-    } catch {
-      console.warn("[features.db.test] DATABASE_URL unreachable or EventFeatureConfig missing — skipping");
-      return;
-    }
-    dbReady = true;
-
     const passwordHash = await hashPassword("TestPass12!x");
     const user = await prisma.user.create({
       data: {
@@ -80,10 +69,6 @@ describe("feature gates (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect().catch(() => undefined);
-      return;
-    }
     if (ids.threadId) await prisma.networkThread.deleteMany({ where: { id: ids.threadId } });
     if (ids.eventId) {
       await prisma.eventFeatureConfig.deleteMany({ where: { eventId: ids.eventId } });
@@ -99,13 +84,11 @@ describe("feature gates (DB)", () => {
   });
 
   it("defaults community on before any config row", async () => {
-    if (!dbReady) return;
     expect(await featureEnabled(ids.eventId!, "community")).toBe(true);
     expect(await featureEnabled(ids.eventId!, "community_icebreakers")).toBe(true);
   });
 
   it("requireFeature throws 404 when a feature is disabled", async () => {
-    if (!dbReady) return;
     await upsertFeatureOverrides(ids.eventId!, { community_icebreakers: false });
     await expect(requireFeature(ids.eventId!, "community_icebreakers")).rejects.toMatchObject({
       status: 404,
@@ -114,7 +97,6 @@ describe("feature gates (DB)", () => {
   });
 
   it("community-off cascades to icebreakers for requireFeature", async () => {
-    if (!dbReady) return;
     await upsertFeatureOverrides(ids.eventId!, {
       community: false,
       community_icebreakers: true,
@@ -126,7 +108,6 @@ describe("feature gates (DB)", () => {
   });
 
   it("preserves network threads across community off/on", async () => {
-    if (!dbReady) return;
     await upsertFeatureOverrides(ids.eventId!, { community: false });
     expect(await featureEnabled(ids.eventId!, "community")).toBe(false);
 

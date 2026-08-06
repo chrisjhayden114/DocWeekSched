@@ -32,18 +32,8 @@ describe("Matchmaker (DB)", () => {
     carolId?: string;
     daveId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.matchSuggestion.findFirst();
-      await prisma.matchProfileEmbedding.findFirst();
-    } catch {
-      console.warn("[matchmaker.db.test] DB unreachable or A4 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     process.env.AI_PROVIDER = "mock";
     resetAiProviderForTests(new MockAiProvider());
 
@@ -156,10 +146,6 @@ describe("Matchmaker (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     const eventId = ids.eventId;
     if (eventId) {
       await prisma.matchSuggestion.deleteMany({ where: { eventId } });
@@ -187,7 +173,6 @@ describe("Matchmaker (DB)", () => {
   });
 
   it("opted-out users are invisible as match and as recipient", async () => {
-    if (!dbReady) return;
     const forAlice = await runMatchBatch({
       eventId: ids.eventId!,
       organizationId: ids.orgId!,
@@ -214,7 +199,6 @@ describe("Matchmaker (DB)", () => {
   });
 
   it("mute stops refreshes", async () => {
-    if (!dbReady) return;
     await setMatchMeEnabled(ids.eventId!, ids.aliceId!, false);
     const muted = await runMatchBatch({
       eventId: ids.eventId!,
@@ -231,7 +215,6 @@ describe("Matchmaker (DB)", () => {
   });
 
   it("embedding recomputes on profile edit (sourceHash change)", async () => {
-    if (!dbReady) return;
     // Isolation: earlier matching tests already cached bob's embedding, so clear it
     // to assert the fresh-compute path deterministically.
     await prisma.matchProfileEmbedding.deleteMany({ where: { userId: ids.bobId! } });
@@ -271,7 +254,6 @@ describe("Matchmaker (DB)", () => {
   });
 
   it("never auto-sends a message; draft-intro path only pre-fills", async () => {
-    if (!dbReady) return;
     const batch = await runMatchBatch({
       eventId: ids.eventId!,
       organizationId: ids.orgId!,
@@ -326,7 +308,6 @@ describe("Matchmaker (DB)", () => {
   });
 
   it("proposed slots are mutually free on both agendas", async () => {
-    if (!dbReady) return;
 
     const sessionBusy = await prisma.session.create({
       data: {
@@ -379,7 +360,6 @@ describe("Matchmaker (DB)", () => {
   });
 
   it("excludes existing DIRECT chat partners from suggestions", async () => {
-    if (!dbReady) return;
     await prisma.conversation.create({
       data: {
         eventId: ids.eventId!,

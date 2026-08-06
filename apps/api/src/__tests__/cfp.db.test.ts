@@ -38,17 +38,8 @@ describe("CFP tenancy & conversion (DB)", () => {
     subA?: string;
     sessionId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.cfpForm.findFirst();
-    } catch {
-      console.warn("[cfp.db.test] DB unreachable or CFP tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     const stamp = Date.now();
     const passwordHash = await hashPassword("TestPass12!x");
 
@@ -176,10 +167,6 @@ describe("CFP tenancy & conversion (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect().catch(() => undefined);
-      return;
-    }
     for (const eventId of [ids.eventA, ids.eventB].filter(Boolean) as string[]) {
       await prisma.cfpDecisionEmail.deleteMany({ where: { submission: { cfpForm: { eventId } } } });
       await prisma.cfpReview.deleteMany({ where: { submission: { cfpForm: { eventId } } } });
@@ -207,7 +194,6 @@ describe("CFP tenancy & conversion (DB)", () => {
   });
 
   it("REVIEWER cannot canManageEvent / admin surfaces", async () => {
-    if (!dbReady) return;
     const access = await requireEventAccess(ids.reviewer!, ids.eventA!, { requireMembership: true });
     expect(access.isEventReviewer).toBe(true);
     expect(access.canManageEvent).toBe(false);
@@ -218,7 +204,6 @@ describe("CFP tenancy & conversion (DB)", () => {
   });
 
   it("reviewer sees only assigned submissions; blind hides identity", async () => {
-    if (!dbReady) return;
     await assignReviews(prisma, ids.formA!, "all");
     const { form, isManager } = await requireCfpReviewer(ids.reviewer!, ids.formA!);
     expect(isManager).toBe(false);
@@ -244,14 +229,12 @@ describe("CFP tenancy & conversion (DB)", () => {
   });
 
   it("cross-org manage is 403 for non-member org event", async () => {
-    if (!dbReady) return;
     // reviewer is not on org B / event B
     await expect(requireCfpManage(ids.reviewer!, ids.eventB!)).rejects.toMatchObject({ status: 403 });
     await expect(requireCfpReviewer(ids.reviewer!, ids.formB!)).rejects.toMatchObject({ status: 403 });
   });
 
   it("submitter tokenized access is hash-based; close-date enforced", async () => {
-    if (!dbReady) return;
     const raw = "test-access-token-raw-value-32bytes!!";
     const hash = hashToken(raw);
     await prisma.cfpSubmission.update({
@@ -277,7 +260,6 @@ describe("CFP tenancy & conversion (DB)", () => {
   });
 
   it("conversion places SessionItem with author order (submitter first)", async () => {
-    if (!dbReady) return;
     await prisma.cfpSubmission.update({
       where: { id: ids.subA! },
       data: { status: CfpSubmissionStatus.ACCEPTED },
@@ -329,7 +311,6 @@ describe("CFP tenancy & conversion (DB)", () => {
   });
 
   it("weighted rollup sorts decisions", async () => {
-    if (!dbReady) return;
     const rubric = parseRubric([
       { id: "novelty", criterion: "Novelty", weight: 1 },
       { id: "clarity", criterion: "Clarity", weight: 1 },

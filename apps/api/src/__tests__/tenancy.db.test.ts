@@ -16,17 +16,8 @@ describe("tenancy isolation (DB)", () => {
     adminB?: string;
     attendeeA?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      dbReady = true;
-    } catch {
-      console.warn("[tenancy.db.test] DATABASE_URL unreachable — skipping DB tests");
-      return;
-    }
-
     const passwordHash = await hashPassword("TestPass12!x");
     const ownerA = await prisma.user.create({
       data: {
@@ -117,10 +108,6 @@ describe("tenancy isolation (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect().catch(() => undefined);
-      return;
-    }
     if (ids.eventA) await prisma.eventMembership.deleteMany({ where: { eventId: ids.eventA } });
     if (ids.eventB) await prisma.eventMembership.deleteMany({ where: { eventId: ids.eventB } });
     if (ids.eventA) await prisma.event.deleteMany({ where: { id: ids.eventA } });
@@ -135,39 +122,33 @@ describe("tenancy isolation (DB)", () => {
   });
 
   it("blocks org B admin from managing org A event", async () => {
-    if (!dbReady) return;
     await expect(requireEventAccess(ids.adminB!, ids.eventA!, { manage: true })).rejects.toBeInstanceOf(HttpError);
   });
 
   it("allows org A owner to manage event A", async () => {
-    if (!dbReady) return;
     const access = await requireEventAccess(ids.ownerA!, ids.eventA!, { manage: true });
     expect(access.canManageEvent).toBe(true);
   });
 
   it("allows attendee read but not manage", async () => {
-    if (!dbReady) return;
     const access = await requireEventAccess(ids.attendeeA!, ids.eventA!);
     expect(access.canManageEvent).toBe(false);
     await expect(requireEventAccess(ids.attendeeA!, ids.eventA!, { manage: true })).rejects.toBeInstanceOf(HttpError);
   });
 
   it("OWNER-only gate rejects org ADMIN", async () => {
-    if (!dbReady) return;
     await expect(requireOrgRole(ids.adminB!, ids.orgB!, OrgRole.OWNER)).rejects.toBeInstanceOf(HttpError);
     const owner = await requireOrgRole(ids.ownerA!, ids.orgA!, OrgRole.OWNER);
     expect(owner.membershipRole).toBe(OrgRole.OWNER);
   });
 
   it("notification fan-out is scoped to event membership", async () => {
-    if (!dbReady) return;
     const idsA = await allAttendeeUserIds(ids.eventA!);
     expect(idsA.sort()).toEqual([ids.ownerA!, ids.attendeeA!].sort());
     expect(idsA).not.toContain(ids.adminB!);
   });
 
   it("revoked join token is inactive", async () => {
-    if (!dbReady) return;
     await prisma.event.update({
       where: { id: ids.eventA! },
       data: { joinTokenRevokedAt: new Date() },

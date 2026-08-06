@@ -41,19 +41,8 @@ describe("Phase P4 certificates (DB)", () => {
     templateMin?: string;
     templateReq?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.badgeTemplate.findFirst();
-      await prisma.certificateTemplate.findFirst();
-      await prisma.issuedCertificate.findFirst();
-    } catch {
-      console.warn("[certificates.db.test] DB unreachable or P4 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     registerCertificateJobs();
 
     const passwordHash = await hashPassword("TestPass12!x");
@@ -213,7 +202,6 @@ describe("Phase P4 certificates (DB)", () => {
   });
 
   it("entitlements: FREE blocks badges/certificates; PRO allows", async () => {
-    if (!dbReady) return;
     expect(await can(ids.orgId!, "badges")).toBe(true);
     expect(await can(ids.orgId!, "certificates")).toBe(true);
 
@@ -231,7 +219,6 @@ describe("Phase P4 certificates (DB)", () => {
   });
 
   it("eligibility: ANY_CHECKIN / MIN_SESSIONS / REQUIRED_SESSIONS", async () => {
-    if (!dbReady) return;
     const anyT = await prisma.certificateTemplate.findUniqueOrThrow({ where: { id: ids.templateAny! } });
     const minT = await prisma.certificateTemplate.findUniqueOrThrow({ where: { id: ids.templateMin! } });
     const reqT = await prisma.certificateTemplate.findUniqueOrThrow({ where: { id: ids.templateReq! } });
@@ -252,7 +239,6 @@ describe("Phase P4 certificates (DB)", () => {
   });
 
   it("template save validates requiredSessionIds and minSessions", async () => {
-    if (!dbReady) return;
     await expect(
       validateTemplateEligibility({
         eventId: ids.eventId!,
@@ -278,7 +264,6 @@ describe("Phase P4 certificates (DB)", () => {
   });
 
   it("issue upsert preserves publicId and issuedAt; regenerate sets regeneratedAt", async () => {
-    if (!dbReady) return;
     const template = await prisma.certificateTemplate.findUniqueOrThrow({
       where: { id: ids.templateAny! },
       include: {
@@ -335,7 +320,6 @@ describe("Phase P4 certificates (DB)", () => {
   });
 
   it("/verify shape via DB: voided treated as miss; snapshots only", async () => {
-    if (!dbReady) return;
     const row = await prisma.issuedCertificate.findFirst({
       where: { certificateTemplateId: ids.templateAny!, userId: ids.userA! },
     });
@@ -370,7 +354,6 @@ describe("Phase P4 certificates (DB)", () => {
   });
 
   it("500-attendee batch job advances progress and finishes SUCCEEDED", async () => {
-    if (!dbReady) return;
 
     const stamp = Date.now();
     const passwordHash = await hashPassword("TestPass12!x");

@@ -16,17 +16,8 @@ describe("venue maps + pins (DB)", () => {
     adminId?: string;
     attendeeId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.venueMap.findFirst();
-    } catch {
-      console.warn("[maps.db.test] DB unreachable or VenueMap missing — skipping");
-      return;
-    }
-    dbReady = true;
     const passwordHash = await hashPassword("TestPass12!x");
     const stamp = Date.now();
 
@@ -108,7 +99,6 @@ describe("venue maps + pins (DB)", () => {
   });
 
   it("creates map and pin CRUD with room linking", async () => {
-    if (!dbReady) return;
 
     const map = await prisma.venueMap.create({
       data: {
@@ -172,7 +162,6 @@ describe("venue maps + pins (DB)", () => {
   });
 
   it("supports multiple maps per event", async () => {
-    if (!dbReady) return;
     const a = await prisma.venueMap.create({
       data: { eventId: ids.eventId!, name: "A", imageUrl: "data:image/png;base64,a", sortOrder: 0 },
     });

@@ -33,17 +33,8 @@ describe("Agenda ingest (DB)", () => {
     attendeeId?: string;
     publishedSessionId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.agendaIngestRun.findFirst();
-    } catch {
-      console.warn("[agendaIngest.db.test] DB unreachable or A1 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     process.env.AI_PROVIDER = "mock";
     resetAiProviderForTests(new MockAiProvider());
 
@@ -115,10 +106,6 @@ describe("Agenda ingest (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     if (ids.eventId) {
       await prisma.agendaIngestRun.deleteMany({ where: { eventId: ids.eventId } });
       await prisma.sessionItemAuthor.deleteMany({
@@ -146,7 +133,6 @@ describe("Agenda ingest (DB)", () => {
   });
 
   it("existing published session on ACTIVE event stays attendee-visible", async () => {
-    if (!dbReady) return;
     const session = await prisma.session.findUniqueOrThrow({
       where: { id: ids.publishedSessionId! },
     });
@@ -170,7 +156,6 @@ describe("Agenda ingest (DB)", () => {
   });
 
   it("100% of writes gated behind confirm (extract creates zero sessions)", async () => {
-    if (!dbReady) return;
     const before = await prisma.session.count({ where: { eventId: ids.eventId! } });
     const source = loadFixtureSource("docx-tracks");
     const extracted = await runAgendaExtract({
@@ -236,7 +221,6 @@ describe("Agenda ingest (DB)", () => {
   });
 
   it("re-import of modified fixture yields updates not duplicates", async () => {
-    if (!dbReady) return;
     const existing = await prisma.session.findMany({
       where: { eventId: ids.eventId!, title: { startsWith: "Clinical" } },
       include: { track: true, room: true },
@@ -273,7 +257,6 @@ describe("Agenda ingest (DB)", () => {
   });
 
   it("hand-added paper and speaker survive a re-import; ticked removals delete exactly them (E13.3)", async () => {
-    if (!dbReady) return;
     const session = await prisma.session.create({
       data: {
         eventId: ids.eventId!,
@@ -394,7 +377,6 @@ describe("Agenda ingest (DB)", () => {
   });
 
   it("publishing drafts promotes only this event's sessions and requires manage access (E13.1)", async () => {
-    if (!dbReady) return;
     const stamp = Date.now();
     const draft = await prisma.session.create({
       data: {
@@ -457,7 +439,6 @@ describe("Agenda ingest (DB)", () => {
   });
 
   it("job handler extracts fixture and FREE second ingest shows upgrade", async () => {
-    if (!dbReady) return;
 
     // Use a fresh event so AGENDA_INGEST usage starts at 0
     const stamp = Date.now();

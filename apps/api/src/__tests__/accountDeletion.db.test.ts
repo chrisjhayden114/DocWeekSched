@@ -80,23 +80,10 @@ describe("account deletion (DB)", () => {
     bookmarkId?: string;
     sessionResourceId?: string;
   } = {};
-  let dbReady = false;
   const password = "TestPass12!x";
   let passwordHash = "";
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.accountDeletionRequest.findFirst();
-      // Confirm nullable author columns exist (migration applied).
-      await prisma.$queryRaw`SELECT "authorId" FROM "NetworkThread" LIMIT 0`;
-    } catch {
-      console.warn(
-        "[accountDeletion.db.test] DB unreachable or phase6_account_deletion migration not applied — skipping",
-      );
-      return;
-    }
-    dbReady = true;
     passwordHash = await hashPassword(password);
     const stamp = Date.now();
 
@@ -330,10 +317,6 @@ describe("account deletion (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     // Best-effort cleanup for leftover fixtures (hard-delete removes victim).
     try {
       if (ids.victimId) {
@@ -386,7 +369,6 @@ describe("account deletion (DB)", () => {
   });
 
   it("blocks sole-OWNER deletion with 409 SOLE_OWNER", async () => {
-    if (!dbReady) return;
     const sole = await findSoleOwnerOrgIds(ids.victimId!);
     expect(sole).toContain(ids.soleOrgId!);
 
@@ -417,7 +399,6 @@ describe("account deletion (DB)", () => {
   });
 
   it("7-day grace: deactivates immediately, cancel restores, hard-delete only after window", async () => {
-    if (!dbReady) return;
 
     // Remove sole-OWNER block so request can proceed.
     await prisma.orgMembership.deleteMany({ where: { organizationId: ids.soleOrgId! } });
@@ -474,7 +455,6 @@ describe("account deletion (DB)", () => {
   });
 
   it("hard-delete: personal gone, community/Q&A/DMs/CFP scores preserved, agenda untouched", async () => {
-    if (!dbReady) return;
 
     const user = await prisma.user.findUniqueOrThrow({ where: { id: ids.victimId! } });
     await requestAccountDeletion({

@@ -25,17 +25,9 @@ import type { Request, Response } from "express";
 
 describe("Phase 6 demo event (DB)", () => {
   const prisma = new PrismaClient();
-  let dbReady = false;
   let eventId = "";
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      dbReady = true;
-    } catch {
-      console.warn("[demoEvent.db.test] DATABASE_URL unreachable — skipping");
-      return;
-    }
     clearDemoEventIdCache();
     const first = await resetPublicDemoEvent();
     eventId = first.eventId;
@@ -48,7 +40,6 @@ describe("Phase 6 demo event (DB)", () => {
   });
 
   it("public GET works anonymously via getPublicEventBySlug", async () => {
-    if (!dbReady) return;
     const payload = await getPublicEventBySlug(brand.demoEventSlug);
     expect(payload).not.toBeNull();
     expect(payload!.slug).toBe(brand.demoEventSlug);
@@ -60,7 +51,6 @@ describe("Phase 6 demo event (DB)", () => {
   });
 
   it("nightly reset is idempotent", async () => {
-    if (!dbReady) return;
     const a = await resetPublicDemoEvent();
     const b = await resetPublicDemoEvent();
     expect(a.slug).toBe(brand.demoEventSlug);
@@ -72,7 +62,6 @@ describe("Phase 6 demo event (DB)", () => {
   });
 
   it("demo POST/PATCH/DELETE targeting demo id → 403 DEMO_READ_ONLY", async () => {
-    if (!dbReady) return;
     clearDemoEventIdCache();
     const id = await getDemoEventId();
     expect(id).toBe(eventId);
@@ -109,7 +98,6 @@ describe("Phase 6 demo event (DB)", () => {
   });
 
   it("refuses reset when the demo slug is held by a non-internal org", async () => {
-    if (!dbReady) return;
     const original = await prisma.event.findUniqueOrThrow({
       where: { slug: brand.demoEventSlug },
       select: { id: true, organizationId: true },
@@ -143,7 +131,6 @@ describe("Phase 6 demo event (DB)", () => {
   });
 
   it("slug generation never yields reserved demo/sample slugs", async () => {
-    if (!dbReady) return;
     const demoSlug = await ensureUniqueEventSlug("demo");
     expect(demoSlug).not.toBe(brand.demoEventSlug);
     expect(isReservedEventSlug(demoSlug)).toBe(false);
@@ -160,7 +147,6 @@ describe("Phase 6 demo event (DB)", () => {
   });
 
   it("GET requests are not blocked by demo middleware", async () => {
-    if (!dbReady) return;
     const id = await getDemoEventId();
     let nextCalled = false;
     const req = {

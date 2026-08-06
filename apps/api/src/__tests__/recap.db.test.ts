@@ -55,22 +55,12 @@ describe("Phase A6 recap (DB)", () => {
     templateId?: string;
     feedbackId?: string;
   } = {};
-  let dbReady = false;
   let emailSendSpy: ReturnType<typeof vi.fn> | null = null;
 
   beforeAll(async () => {
     process.env.AI_PROVIDER = "mock";
     resetAiProviderForTests(new MockAiProvider());
 
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.eventRecap.findFirst();
-      await prisma.certificateTemplate.findFirst();
-    } catch {
-      console.warn("[recap.db.test] DB unreachable or A6 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     registerRecapJobs();
     registerCertificateJobs();
 
@@ -336,10 +326,6 @@ describe("Phase A6 recap (DB)", () => {
   }, 60_000);
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     const eventId = ids.eventId;
     if (eventId) {
       await prisma.eventRecapEmail.deleteMany({ where: { recap: { eventId } } });
@@ -397,12 +383,7 @@ describe("Phase A6 recap (DB)", () => {
     await prisma.$disconnect();
   });
 
-  function skip() {
-    return !dbReady;
-  }
-
   it("1) metrics reconcile exactly with SQL / seeded counts", async () => {
-    if (skip()) return;
     const m = await computeRecapMetrics(ids.eventId!);
     // 5 memberships (admin + 3 attendees + speaker)
     expect(m.headline.registrants).toBe(5);
@@ -429,7 +410,6 @@ describe("Phase A6 recap (DB)", () => {
   });
 
   it("2) narrative numbers deep-equal metrics; invented number rejected", async () => {
-    if (skip()) return;
     const snapshot = await computeRecapMetrics(ids.eventId!);
     const ok = finalizeReportNarrative(
       "Regs {{headline.registrants}} check-ins {{headline.checkIns}} rate {{headline.checkInRate}}",
@@ -446,7 +426,6 @@ describe("Phase A6 recap (DB)", () => {
   });
 
   it("3) every synthesis quote maps to a real stored comment; invented rejected", async () => {
-    if (skip()) return;
     const bank = await buildFeedbackQuoteBank(ids.eventId!);
     expect(bank.length).toBeGreaterThanOrEqual(2);
     const qid = quoteIdForFeedback(ids.feedbackId!);
@@ -473,7 +452,6 @@ describe("Phase A6 recap (DB)", () => {
   });
 
   it("4–7) generate drafts only; regen replaces drafts; SENT stable; certs stable", async () => {
-    if (skip()) return;
 
     const provider = emailMod.getEmailProvider();
     emailSendSpy = vi.spyOn(provider, "send");
@@ -621,13 +599,11 @@ describe("Phase A6 recap (DB)", () => {
   }, 120_000);
 
   it("8) PRO gating — FREE cannot use recap_agent", async () => {
-    if (skip()) return;
     expect(await can(ids.orgId!, "recap_agent")).toBe(true);
     expect(await can(ids.freeOrgId!, "recap_agent")).toBe(false);
   });
 
   it("9) after endDate only", async () => {
-    if (skip()) return;
     const future = await prisma.event.findUniqueOrThrow({ where: { id: ids.futureEventId! } });
     expect(Date.now() < future.endDate.getTime()).toBe(true);
     await expect(
@@ -643,7 +619,6 @@ describe("Phase A6 recap (DB)", () => {
   });
 
   it("10) series checklist lineage idempotent + clone carries items", async () => {
-    if (skip()) return;
     const recap = await prisma.eventRecap.findUniqueOrThrow({ where: { eventId: ids.eventId! } });
     const fix = recap.fixNextYear as { key: string; label: string }[];
     expect(Array.isArray(fix)).toBe(true);

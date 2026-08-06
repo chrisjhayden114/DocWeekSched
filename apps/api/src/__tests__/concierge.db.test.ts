@@ -29,18 +29,8 @@ describe("Concierge (DB)", () => {
     userBId?: string;
     sessionId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.conciergePendingAction.findFirst();
-      await prisma.eventFaq.findFirst();
-    } catch {
-      console.warn("[concierge.db.test] DB unreachable or A3 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     process.env.AI_PROVIDER = "mock";
     resetAiProviderForTests(new MockAiProvider());
 
@@ -138,7 +128,6 @@ describe("Concierge (DB)", () => {
   });
 
   it("grounds FAQ + agenda + refuses injection-driven mutations on innocuous ask", async () => {
-    if (!dbReady) return;
     const grounding = await buildEventGroundingContext(ids.eventId!, { userId: ids.userId! });
     expect(grounding.faq.length).toBeGreaterThan(0);
     expect(grounding.sessionIds.has(ids.sessionId!)).toBe(true);
@@ -152,7 +141,6 @@ describe("Concierge (DB)", () => {
   });
 
   it("every mutation mints a pending action; confirm requires matching session user/event", async () => {
-    if (!dbReady) return;
     const grounding = await buildEventGroundingContext(ids.eventId!, { userId: ids.userId! });
     const card = await proposeMutation({
       eventId: ids.eventId!,
@@ -205,7 +193,6 @@ describe("Concierge (DB)", () => {
   });
 
   it("rejects confirm when pending action was minted for another user", async () => {
-    if (!dbReady) return;
     const row = await mintPendingAction({
       eventId: ids.eventId!,
       userId: ids.userBId!,
@@ -224,7 +211,6 @@ describe("Concierge (DB)", () => {
   });
 
   it("turn persists conversation and returns confirm cards for add intent", async () => {
-    if (!dbReady) return;
     const result = await runConciergeTurn({
       eventId: ids.eventId!,
       organizationId: ids.orgId!,

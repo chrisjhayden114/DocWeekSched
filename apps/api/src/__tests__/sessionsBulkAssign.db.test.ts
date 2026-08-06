@@ -40,17 +40,8 @@ describe("sessions bulk-assign (DB)", () => {
     publishedSessionId?: string;
     otherSessionId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-    } catch {
-      console.warn("[sessionsBulkAssign.db.test] DATABASE_URL unreachable — skipping DB tests");
-      return;
-    }
-    dbReady = true;
-
     const passwordHash = await hashPassword("TestPass12!x");
     const stamp = Date.now();
 
@@ -144,10 +135,6 @@ describe("sessions bulk-assign (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     for (const eventId of [ids.eventId, ids.otherEventId]) {
       if (!eventId) continue;
       await prisma.sessionScheduleChange.deleteMany({ where: { eventId } });
@@ -168,7 +155,6 @@ describe("sessions bulk-assign (DB)", () => {
   });
 
   it("rejects a non-manager (attendee) at the route's guard", async () => {
-    if (!dbReady) return;
     await expect(
       requireEventAccess(ids.attendeeId!, ids.eventId!, { manage: true }),
     ).rejects.toMatchObject({ status: 403 });
@@ -178,7 +164,6 @@ describe("sessions bulk-assign (DB)", () => {
   });
 
   it("assigns a track to many sessions in one call", async () => {
-    if (!dbReady) return;
     const result = await bulkAssignSessions(prisma, {
       eventId: ids.eventId!,
       sessionIds: ids.sessionIds!,
@@ -193,7 +178,6 @@ describe("sessions bulk-assign (DB)", () => {
   });
 
   it("clears a track with trackId: null", async () => {
-    if (!dbReady) return;
     await bulkAssignSessions(prisma, {
       eventId: ids.eventId!,
       sessionIds: [ids.sessionIds![0]!],
@@ -207,7 +191,6 @@ describe("sessions bulk-assign (DB)", () => {
   });
 
   it("rejects session ids that belong to another event", async () => {
-    if (!dbReady) return;
     await expect(
       bulkAssignSessions(prisma, {
         eventId: ids.eventId!,
@@ -223,7 +206,6 @@ describe("sessions bulk-assign (DB)", () => {
   });
 
   it("rejects a track that belongs to another event", async () => {
-    if (!dbReady) return;
     await expect(
       bulkAssignSessions(prisma, {
         eventId: ids.eventId!,
@@ -234,7 +216,6 @@ describe("sessions bulk-assign (DB)", () => {
   });
 
   it("records a schedule change when a PUBLISHED session's room changes", async () => {
-    if (!dbReady) return;
     const result = await bulkAssignSessions(prisma, {
       eventId: ids.eventId!,
       sessionIds: [ids.publishedSessionId!, ids.sessionIds![1]!],
@@ -251,7 +232,6 @@ describe("sessions bulk-assign (DB)", () => {
   });
 
   it("requires at least one of trackId/roomId", async () => {
-    if (!dbReady) return;
     let err: unknown;
     try {
       await bulkAssignSessions(prisma, { eventId: ids.eventId!, sessionIds: ids.sessionIds! });

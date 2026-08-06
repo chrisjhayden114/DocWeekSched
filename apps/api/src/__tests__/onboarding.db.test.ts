@@ -31,23 +31,9 @@ describe("Phase 6 onboarding (DB)", () => {
     freeOrgId?: string;
     freeUserId?: string;
   } = {};
-  let dbReady = false;
   const password = "TestPass12!x";
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.user.findFirst({
-        select: { onboardingDismissedAt: true, sampleEventOfferedAt: true },
-      });
-      dbReady = true;
-    } catch {
-      console.warn(
-        "[onboarding.db.test] DB unreachable or onboarding migration not applied — skipping",
-      );
-      return;
-    }
-
     const passwordHash = await hashPassword(password);
     const stamp = Date.now();
     const user = await prisma.user.create({
@@ -94,36 +80,33 @@ describe("Phase 6 onboarding (DB)", () => {
   });
 
   afterAll(async () => {
-    if (dbReady) {
-      for (const orgId of [ids.orgId, ids.freeOrgId]) {
-        if (!orgId) continue;
-        const events = await prisma.event.findMany({ where: { organizationId: orgId }, select: { id: true } });
-        for (const e of events) {
-          await prisma.sessionItemAuthor.deleteMany({
-            where: { sessionItem: { session: { eventId: e.id } } },
-          });
-          await prisma.sessionItem.deleteMany({ where: { session: { eventId: e.id } } });
-          await prisma.sessionSpeaker.deleteMany({ where: { session: { eventId: e.id } } });
-          await prisma.session.deleteMany({ where: { eventId: e.id } });
-          await prisma.speaker.deleteMany({ where: { eventId: e.id } });
-          await prisma.sponsor.deleteMany({ where: { eventId: e.id } });
-          await prisma.track.deleteMany({ where: { eventId: e.id } });
-          await prisma.eventMembership.deleteMany({ where: { eventId: e.id } });
-          await prisma.eventFeatureConfig.deleteMany({ where: { eventId: e.id } });
-          await prisma.event.delete({ where: { id: e.id } }).catch(() => undefined);
-        }
-        await prisma.eventSeries.deleteMany({ where: { organizationId: orgId } });
-        await prisma.orgMembership.deleteMany({ where: { organizationId: orgId } });
-        await prisma.organization.delete({ where: { id: orgId } }).catch(() => undefined);
+    for (const orgId of [ids.orgId, ids.freeOrgId]) {
+      if (!orgId) continue;
+      const events = await prisma.event.findMany({ where: { organizationId: orgId }, select: { id: true } });
+      for (const e of events) {
+        await prisma.sessionItemAuthor.deleteMany({
+          where: { sessionItem: { session: { eventId: e.id } } },
+        });
+        await prisma.sessionItem.deleteMany({ where: { session: { eventId: e.id } } });
+        await prisma.sessionSpeaker.deleteMany({ where: { session: { eventId: e.id } } });
+        await prisma.session.deleteMany({ where: { eventId: e.id } });
+        await prisma.speaker.deleteMany({ where: { eventId: e.id } });
+        await prisma.sponsor.deleteMany({ where: { eventId: e.id } });
+        await prisma.track.deleteMany({ where: { eventId: e.id } });
+        await prisma.eventMembership.deleteMany({ where: { eventId: e.id } });
+        await prisma.eventFeatureConfig.deleteMany({ where: { eventId: e.id } });
+        await prisma.event.delete({ where: { id: e.id } }).catch(() => undefined);
       }
-      if (ids.userId) await prisma.user.delete({ where: { id: ids.userId } }).catch(() => undefined);
-      if (ids.freeUserId) await prisma.user.delete({ where: { id: ids.freeUserId } }).catch(() => undefined);
+      await prisma.eventSeries.deleteMany({ where: { organizationId: orgId } });
+      await prisma.orgMembership.deleteMany({ where: { organizationId: orgId } });
+      await prisma.organization.delete({ where: { id: orgId } }).catch(() => undefined);
     }
+    if (ids.userId) await prisma.user.delete({ where: { id: ids.userId } }).catch(() => undefined);
+    if (ids.freeUserId) await prisma.user.delete({ where: { id: ids.freeUserId } }).catch(() => undefined);
     await prisma.$disconnect();
   });
 
   it("onboarding dismiss persists across reads", async () => {
-    if (!dbReady) return;
     await prisma.user.update({
       where: { id: ids.userId! },
       data: { onboardingDismissedAt: null, sampleEventOfferedAt: null },
@@ -141,7 +124,6 @@ describe("Phase 6 onboarding (DB)", () => {
   });
 
   it("Setup Copilot marks steps 1–2; invite/publish mark 3–4", async () => {
-    if (!dbReady) return;
     const form = emptySetupFormState("UTC");
     form.name = "Copilot Checklist Event";
     form.startDate = "2027-10-01";
@@ -185,7 +167,6 @@ describe("Phase 6 onboarding (DB)", () => {
   });
 
   it("sample-event creation respects event limit entitlement", async () => {
-    if (!dbReady) return;
     // Fill FREE allowance (1)
     await createSampleEventForOrg({
       organizationId: ids.freeOrgId!,

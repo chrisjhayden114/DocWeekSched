@@ -25,19 +25,8 @@ describe("Phase 5 engagement (DB)", () => {
     optionB?: string;
     checkInCode?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.sessionDiscussionUpvote.findFirst();
-      await prisma.sessionPoll.findFirst();
-      await prisma.sponsor.findFirst();
-    } catch {
-      console.warn("[engagement.db.test] DB unreachable or Phase 5 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     const passwordHash = await hashPassword("TestPass12!x");
     const stamp = Date.now();
 
@@ -126,10 +115,6 @@ describe("Phase 5 engagement (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     const eventId = ids.eventId;
     if (eventId) {
       await prisma.sponsorLead.deleteMany({ where: { sponsor: { eventId } } });
@@ -161,13 +146,11 @@ describe("Phase 5 engagement (DB)", () => {
   });
 
   it("membership checkInCode is auto-populated (QR payload)", async () => {
-    if (!dbReady) return;
     expect(ids.checkInCode).toBeTruthy();
     expect(ids.checkInCode!.length).toBeGreaterThan(8);
   });
 
   it("Q&A upvote and mark answered", async () => {
-    if (!dbReady) return;
     await prisma.sessionDiscussionUpvote.create({
       data: { threadId: ids.threadId!, userId: ids.adminId! },
     });
@@ -183,7 +166,6 @@ describe("Phase 5 engagement (DB)", () => {
   });
 
   it("live poll open/vote/close", async () => {
-    if (!dbReady) return;
     const poll = await prisma.sessionPoll.create({
       data: {
         sessionId: ids.sessionId!,
@@ -217,7 +199,6 @@ describe("Phase 5 engagement (DB)", () => {
   });
 
   it("session feedback after end", async () => {
-    if (!dbReady) return;
     // Session already ended relative to... use past endsAt
     await prisma.session.update({
       where: { id: ids.sessionId! },
@@ -235,7 +216,6 @@ describe("Phase 5 engagement (DB)", () => {
   });
 
   it("QR scan check-in uses membership.checkInCode and clientMutationId idempotency", async () => {
-    if (!dbReady) return;
     const mutationId = `offline-${Date.now()}`;
     const first = await prisma.checkIn.create({
       data: {
@@ -258,7 +238,6 @@ describe("Phase 5 engagement (DB)", () => {
   });
 
   it("sponsors ordered by sortOrder and lead capture", async () => {
-    if (!dbReady) return;
     await prisma.sponsor.createMany({
       data: [
         { eventId: ids.eventId!, name: "Gold Co", tier: "Gold", sortOrder: 0 },
@@ -283,7 +262,6 @@ describe("Phase 5 engagement (DB)", () => {
   });
 
   it("public leaderboard stays off by default (anti-goal)", async () => {
-    if (!dbReady) return;
     const cfg = await prisma.eventFeatureConfig.findUnique({ where: { eventId: ids.eventId! } });
     const overrides = (cfg?.overrides || {}) as Record<string, unknown>;
     expect(overrides.public_leaderboard).toBe(false);

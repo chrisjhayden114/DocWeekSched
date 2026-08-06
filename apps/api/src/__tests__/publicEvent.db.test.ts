@@ -35,18 +35,9 @@ describe("Phase 6 public event payload (DB)", () => {
     draftId?: string;
     archivedId?: string;
   } = {};
-  let dbReady = false;
   let useCountBefore = 0;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      dbReady = true;
-    } catch {
-      console.warn("[publicEvent.db.test] DATABASE_URL unreachable — skipping");
-      return;
-    }
-
     const passwordHash = await hashPassword("TestPass12!x");
     const stamp = Date.now();
     const user = await prisma.user.create({
@@ -193,10 +184,6 @@ describe("Phase 6 public event payload (DB)", () => {
   }, 60_000);
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     const eventIds = [ids.eventAId, ids.eventBId, ids.draftId, ids.archivedId].filter(Boolean) as string[];
     await prisma.sponsor.deleteMany({ where: { eventId: { in: eventIds } } });
     await prisma.sessionItemAuthor.deleteMany({
@@ -217,7 +204,6 @@ describe("Phase 6 public event payload (DB)", () => {
   });
 
   it("returns published sessions/items/speakers/sponsors shape without attendee PII", async () => {
-    if (!dbReady) return;
     const payload = await getPublicEventBySlug(ids.slugA!);
     expect(payload).toBeTruthy();
     expect(payload!.slug).toBe(ids.slugA);
@@ -236,7 +222,6 @@ describe("Phase 6 public event payload (DB)", () => {
   });
 
   it("does not bump slugInviteUseCount", async () => {
-    if (!dbReady) return;
     await getPublicEventBySlug(ids.slugA!);
     await getPublicEventBySlug(ids.slugA!);
     const fresh = await prisma.event.findUniqueOrThrow({
@@ -247,7 +232,6 @@ describe("Phase 6 public event payload (DB)", () => {
   });
 
   it("returns null for DRAFT and ARCHIVED", async () => {
-    if (!dbReady) return;
     const draft = await prisma.event.findUniqueOrThrow({ where: { id: ids.draftId! } });
     const archived = await prisma.event.findUniqueOrThrow({ where: { id: ids.archivedId! } });
     expect(await getPublicEventBySlug(draft.slug)).toBeNull();
@@ -255,7 +239,6 @@ describe("Phase 6 public event payload (DB)", () => {
   });
 
   it("tenancy: slug A payload is not event B", async () => {
-    if (!dbReady) return;
     const a = await getPublicEventBySlug(ids.slugA!);
     const b = await getPublicEventBySlug(ids.slugB!);
     expect(a!.id).toBe(ids.eventAId);

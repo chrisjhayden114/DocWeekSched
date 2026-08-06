@@ -31,17 +31,8 @@ describe("spreadsheet import parse (DB)", () => {
     attendeeId?: string;
     otherManagerId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-    } catch {
-      console.warn("[spreadsheetImport.db.test] DATABASE_URL unreachable — skipping DB tests");
-      return;
-    }
-    dbReady = true;
-
     const passwordHash = await hashPassword("TestPass12!x");
     const stamp = Date.now();
 
@@ -113,10 +104,6 @@ describe("spreadsheet import parse (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     for (const eventId of [ids.eventId, ids.otherEventId]) {
       if (!eventId) continue;
       await prisma.eventMembership.deleteMany({ where: { eventId } });
@@ -134,20 +121,17 @@ describe("spreadsheet import parse (DB)", () => {
   });
 
   it("event admin passes the manage guard", async () => {
-    if (!dbReady) return;
     const access = await requireEventAccess(ids.adminId!, ids.eventId!, { manage: true });
     expect(access.event.id).toBe(ids.eventId);
   });
 
   it("attendee is rejected at the manage guard", async () => {
-    if (!dbReady) return;
     await expect(
       requireEventAccess(ids.attendeeId!, ids.eventId!, { manage: true }),
     ).rejects.toBeInstanceOf(HttpError);
   });
 
   it("a manager of a different org's event is rejected for this event (tenancy)", async () => {
-    if (!dbReady) return;
     await expect(
       requireEventAccess(ids.otherManagerId!, ids.eventId!, { manage: true }),
     ).rejects.toBeInstanceOf(HttpError);

@@ -26,17 +26,8 @@ describe("session capacity + waitlist (DB)", () => {
     userB?: string;
     userC?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.waitlistEntry.findFirst();
-    } catch {
-      console.warn("[waitlist.db.test] DB unreachable or WaitlistEntry missing — skipping");
-      return;
-    }
-    dbReady = true;
     const passwordHash = await hashPassword("TestPass12!x");
     const stamp = Date.now();
 
@@ -119,10 +110,6 @@ describe("session capacity + waitlist (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect().catch(() => undefined);
-      return;
-    }
     if (ids.sessionId) {
       await prisma.waitlistEntry.deleteMany({ where: { sessionId: ids.sessionId } });
       await prisma.sessionAttendance.deleteMany({ where: { sessionId: ids.sessionId } });
@@ -147,7 +134,6 @@ describe("session capacity + waitlist (DB)", () => {
   });
 
   it("null capacity remains unlimited", async () => {
-    if (!dbReady) return;
     const a = await joinSessionOrWaitlist({
       sessionId: ids.unlimitedSessionId!,
       userId: ids.userA!,
@@ -167,7 +153,6 @@ describe("session capacity + waitlist (DB)", () => {
   });
 
   it("fills to capacity then waitlists", async () => {
-    if (!dbReady) return;
     await prisma.waitlistEntry.deleteMany({ where: { sessionId: ids.sessionId! } });
     await prisma.sessionAttendance.deleteMany({ where: { sessionId: ids.sessionId! } });
 
@@ -191,7 +176,6 @@ describe("session capacity + waitlist (DB)", () => {
   });
 
   it("concurrent race: last seat → exactly one join + one waitlist", async () => {
-    if (!dbReady) return;
     await prisma.waitlistEntry.deleteMany({ where: { sessionId: ids.sessionId! } });
     await prisma.sessionAttendance.deleteMany({ where: { sessionId: ids.sessionId! } });
 
@@ -214,7 +198,6 @@ describe("session capacity + waitlist (DB)", () => {
   });
 
   it("promotion order: leave frees seat for #1 then #2", async () => {
-    if (!dbReady) return;
     await prisma.waitlistEntry.deleteMany({ where: { sessionId: ids.sessionId! } });
     await prisma.sessionAttendance.deleteMany({ where: { sessionId: ids.sessionId! } });
 
@@ -250,7 +233,6 @@ describe("session capacity + waitlist (DB)", () => {
   });
 
   it("hold expiry passes to the next waitlisted person", async () => {
-    if (!dbReady) return;
     await prisma.waitlistEntry.deleteMany({ where: { sessionId: ids.sessionId! } });
     await prisma.sessionAttendance.deleteMany({ where: { sessionId: ids.sessionId! } });
 

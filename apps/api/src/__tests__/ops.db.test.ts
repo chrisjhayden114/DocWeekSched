@@ -50,18 +50,8 @@ describe("Ops agent (DB)", () => {
     smallRoomId?: string;
     largeRoomId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.opsInboxCard.findFirst();
-      await prisma.sessionScheduleChange.findFirst();
-    } catch {
-      console.warn("[ops.db.test] DB unreachable or A5 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     process.env.AI_PROVIDER = "mock";
     resetAiProviderForTests(new MockAiProvider());
 
@@ -159,10 +149,6 @@ describe("Ops agent (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect();
-      return;
-    }
     const eventId = ids.eventId;
     if (eventId) {
       await prisma.opsInboxCard.deleteMany({ where: { eventId } });
@@ -201,13 +187,7 @@ describe("Ops agent (DB)", () => {
     await prisma.$disconnect();
   });
 
-  function skipIfNoDb() {
-    if (!dbReady) return true;
-    return false;
-  }
-
   it("session-change detector fires on feed row and not when unpublished", async () => {
-    if (skipIfNoDb()) return;
     const session = await prisma.session.findUniqueOrThrow({ where: { id: ids.sessionId! } });
     const change = await recordSessionScheduleChange({
       eventId: ids.eventId!,
@@ -254,7 +234,6 @@ describe("Ops agent (DB)", () => {
   });
 
   it("Q&A stale fires >3h on event day and not under 3h", async () => {
-    if (skipIfNoDb()) return;
     const now = new Date();
     const stale = await prisma.sessionDiscussionThread.create({
       data: {
@@ -298,7 +277,6 @@ describe("Ops agent (DB)", () => {
   });
 
   it("low check-in fires under 25% and not at/above 25%", async () => {
-    if (skipIfNoDb()) return;
     const now = new Date();
     const startsAt = new Date(now.getTime() + 30 * 60_000);
 
@@ -382,7 +360,6 @@ describe("Ops agent (DB)", () => {
   });
 
   it("capacity pressure fires >90% with waitlist; suggests larger free room", async () => {
-    if (skipIfNoDb()) return;
     const session = await prisma.session.findUniqueOrThrow({ where: { id: ids.sessionId! } });
     // Fill 10/10 and add waitlist
     const users = await prisma.eventMembership.findMany({
@@ -486,7 +463,6 @@ describe("Ops agent (DB)", () => {
   });
 
   it("moderation fires on OPEN report and blocklist hit; not on resolved report", async () => {
-    if (skipIfNoDb()) return;
     const open = await prisma.userReport.create({
       data: {
         eventId: ids.eventId!,
@@ -550,7 +526,6 @@ describe("Ops agent (DB)", () => {
   });
 
   it("daily digest creates once per local day", async () => {
-    if (skipIfNoDb()) return;
     const now = new Date();
     const first = await detectDailyDigest(ids.eventId!, ids.orgId!, { now, force: true });
     expect(first.created).toBe(1);
@@ -559,7 +534,6 @@ describe("Ops agent (DB)", () => {
   });
 
   it("dismissal is sticky — trigger key never recreates", async () => {
-    if (skipIfNoDb()) return;
     const key = `test_sticky:${Date.now()}`;
     const { card, created } = await createOpsCardIfAbsent({
       organizationId: ids.orgId!,
@@ -597,7 +571,6 @@ describe("Ops agent (DB)", () => {
   });
 
   it("Send delivers announcement via existing channel; audit log written; no autonomous apply", async () => {
-    if (skipIfNoDb()) return;
     // Ensure a joiner on Masterclass for announcement recipients
     await prisma.sessionAttendance.upsert({
       where: {
@@ -666,7 +639,6 @@ describe("Ops agent (DB)", () => {
   });
 
   it("runOpsDetectorsForEvent never leaves cards APPLIED without applyOpsCard", async () => {
-    if (skipIfNoDb()) return;
     await runOpsDetectorsForEvent(ids.eventId!, { forceDigest: true });
     const appliedWithoutActor = await prisma.opsInboxCard.findMany({
       where: {

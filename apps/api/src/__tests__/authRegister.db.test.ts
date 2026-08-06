@@ -36,20 +36,11 @@ import { authRouter } from "../routes/auth";
 
 describe("POST /auth/register email fallback (DB)", () => {
   const prisma = new PrismaClient();
-  let dbReady = false;
   let server: Server;
   let base = "";
   const createdEmails: string[] = [];
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      dbReady = true;
-    } catch {
-      console.warn("[authRegister.db.test] DATABASE_URL unreachable — skipping");
-      return;
-    }
-
     const app = express();
     app.use(express.json());
     app.use("/auth", authRouter);
@@ -92,7 +83,6 @@ describe("POST /auth/register email fallback (DB)", () => {
   }
 
   it("unconfigured provider → response includes verifyUrl + emailDeliveryUnavailable", async () => {
-    if (!dbReady) return;
     mailState.delivered = false;
     const { status, body } = await register(`reg-fallback-${Date.now()}@example.com`);
     expect(status).toBe(201);
@@ -101,7 +91,6 @@ describe("POST /auth/register email fallback (DB)", () => {
   });
 
   it("configured provider (delivered) → response never includes verifyUrl", async () => {
-    if (!dbReady) return;
     mailState.delivered = true;
     const { status, body } = await register(`reg-delivered-${Date.now()}@example.com`);
     expect(status).toBe(201);

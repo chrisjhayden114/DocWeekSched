@@ -253,6 +253,20 @@ cd ~/Documents/DocWeekSched/apps/api && \
   DATABASE_URL="<direct ukedl_test url>" npx vitest run
 ```
 
+### Skip-vs-fail rule (FIX_PLAN E22)
+
+A skipped DB suite must not report success. The rule is implemented once, in
+`vitest.config.ts` + `src/__tests__/setup/dbPreflight.setup.ts` — individual
+test files contain no skip logic and cannot opt themselves out.
+
+- **`DATABASE_URL` unset** → every `*.db.test.ts` suite is skipped, with a
+  one-line notice at the start **and end** of the run. Unit tests need no
+  database (an inert placeholder satisfies `env.ts`'s import-time check).
+- **`DATABASE_URL` set** → DB tests were requested. If the host is
+  unreachable, auth is rejected, or migrations are missing, every DB suite
+  **fails** with a message naming the target and the real cause ("run
+  `npx prisma migrate deploy`" is distinguished from "server unreachable").
+
 ### Safety notes
 
 - The connection string contains a password. Do **not** paste it into a file that

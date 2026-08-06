@@ -32,17 +32,8 @@ describe("account export (DB)", () => {
     eventId?: string;
     sessionId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      dbReady = true;
-    } catch {
-      console.warn("[accountExport.db.test] DATABASE_URL unreachable — skipping");
-      return;
-    }
-
     const passwordHash = await hashPassword("TestPass12!x");
     const stamp = Date.now();
     const userA = await prisma.user.create({
@@ -156,34 +147,31 @@ describe("account export (DB)", () => {
   }, 60_000);
 
   afterAll(async () => {
-    if (dbReady) {
-      const eventId = ids.eventId;
-      if (eventId) {
-        await prisma.conversationMessage.deleteMany({
-          where: { conversation: { eventId } },
-        });
-        await prisma.conversationMember.deleteMany({
-          where: { conversation: { eventId } },
-        });
-        await prisma.conversation.deleteMany({ where: { eventId } });
-        await prisma.sessionAttendance.deleteMany({ where: { session: { eventId } } });
-        await prisma.session.deleteMany({ where: { eventId } });
-        await prisma.eventMembership.deleteMany({ where: { eventId } });
-        await prisma.event.delete({ where: { id: eventId } }).catch(() => undefined);
-      }
-      if (ids.orgId) {
-        await prisma.orgMembership.deleteMany({ where: { organizationId: ids.orgId } });
-        await prisma.organization.delete({ where: { id: ids.orgId } }).catch(() => undefined);
-      }
-      for (const id of [ids.userA, ids.userB]) {
-        if (id) await prisma.user.delete({ where: { id } }).catch(() => undefined);
-      }
+    const eventId = ids.eventId;
+    if (eventId) {
+      await prisma.conversationMessage.deleteMany({
+        where: { conversation: { eventId } },
+      });
+      await prisma.conversationMember.deleteMany({
+        where: { conversation: { eventId } },
+      });
+      await prisma.conversation.deleteMany({ where: { eventId } });
+      await prisma.sessionAttendance.deleteMany({ where: { session: { eventId } } });
+      await prisma.session.deleteMany({ where: { eventId } });
+      await prisma.eventMembership.deleteMany({ where: { eventId } });
+      await prisma.event.delete({ where: { id: eventId } }).catch(() => undefined);
+    }
+    if (ids.orgId) {
+      await prisma.orgMembership.deleteMany({ where: { organizationId: ids.orgId } });
+      await prisma.organization.delete({ where: { id: ids.orgId } }).catch(() => undefined);
+    }
+    for (const id of [ids.userA, ids.userB]) {
+      if (id) await prisma.user.delete({ where: { id } }).catch(() => undefined);
     }
     await prisma.$disconnect();
   });
 
   it("export contains expected keys for the subject only", async () => {
-    if (!dbReady) return;
     const payload = await buildAccountExport(ids.userA!);
     expect(payload).toBeTruthy();
     expect(payload!.subjectUserId).toBe(ids.userA);
@@ -208,7 +196,6 @@ describe("account export (DB)", () => {
   });
 
   it("export contains NO other users' PII", async () => {
-    if (!dbReady) return;
     const payload = await exportAccountForUser(ids.userA!);
     const json = JSON.stringify(payload);
     expect(json).not.toContain("secret-other.com");
@@ -219,7 +206,6 @@ describe("account export (DB)", () => {
   });
 
   it("returns null for unknown user (auth boundary at route)", async () => {
-    if (!dbReady) return;
     expect(await buildAccountExport("cuid_does_not_exist_zzzz")).toBeNull();
   });
 });

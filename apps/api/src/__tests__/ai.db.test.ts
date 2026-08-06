@@ -31,17 +31,8 @@ describe("AI gateway (DB)", () => {
     userId?: string;
     sessionId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.aiUsageRecord.findFirst();
-    } catch {
-      console.warn("[ai.db.test] DB unreachable or A0 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     process.env.AI_PROVIDER = "mock";
     resetAiProviderForTests(new MockAiProvider());
 
@@ -132,7 +123,6 @@ describe("AI gateway (DB)", () => {
   });
 
   it("enforces FREE ingest cap (2nd call → PLAN_LIMIT)", async () => {
-    if (!dbReady) return;
     resetAiProviderForTests(new MockAiProvider());
     const schema = z.object({ ok: z.boolean() });
     const mock = new MockAiProvider();
@@ -180,7 +170,6 @@ describe("AI gateway (DB)", () => {
   });
 
   it("writes audit entries on extract", async () => {
-    if (!dbReady) return;
     const mock = new MockAiProvider();
     mock.chat = async () => ({
       text: JSON.stringify({ name: "x" }),
@@ -208,7 +197,6 @@ describe("AI gateway (DB)", () => {
   });
 
   it("grounding builder rejects cross-event session IDs", async () => {
-    if (!dbReady) return;
     const grounding = await buildEventGroundingContext(ids.eventId!);
     expect(grounding.sessionIds.has(ids.sessionId!)).toBe(true);
     expect(() => assertGroundedIds(grounding, { sessionIds: [ids.sessionId!] })).not.toThrow();
@@ -219,7 +207,6 @@ describe("AI gateway (DB)", () => {
   });
 
   it("notifyAgentAttendeeTouch is DIGEST and never PUSHED", async () => {
-    if (!dbReady) return;
     const result = await notifyAgentAttendeeTouch({
       userId: ids.userId!,
       eventId: ids.eventId!,
@@ -237,7 +224,6 @@ describe("AI gateway (DB)", () => {
   });
 
   it("writeAuditLog stores aiGenerated drafts", async () => {
-    if (!dbReady) return;
     const { id } = await writeAuditLog({
       organizationId: ids.orgId!,
       eventId: ids.eventId!,

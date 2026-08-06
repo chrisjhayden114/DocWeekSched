@@ -25,18 +25,8 @@ describe("billing entitlements (DB)", () => {
     eventId?: string;
     userId?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.billingWebhookEvent.findFirst();
-    } catch {
-      console.warn("[billing.db.test] DB unreachable or Phase 3 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
-
     const passwordHash = await hashPassword("TestPass12!x");
     const user = await prisma.user.create({
       data: {
@@ -80,10 +70,6 @@ describe("billing entitlements (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect().catch(() => undefined);
-      return;
-    }
     if (ids.eventId) {
       await prisma.eventMembership.deleteMany({ where: { eventId: ids.eventId } });
       await prisma.eventFeatureConfig.deleteMany({ where: { eventId: ids.eventId } });
@@ -101,7 +87,6 @@ describe("billing entitlements (DB)", () => {
   });
 
   it("FREE can() allows community, blocks analytics; limit attendees = 50", async () => {
-    if (!dbReady) return;
     await applyPlanSkuToOrg(ids.orgId!, "free");
     expect(await can(ids.orgId!, "community")).toBe(true);
     expect(await can(ids.orgId!, "analytics")).toBe(false);
@@ -110,7 +95,6 @@ describe("billing entitlements (DB)", () => {
   });
 
   it("NULL eventAllowance means unlimited active events", async () => {
-    if (!dbReady) return;
     await prisma.organization.update({
       where: { id: ids.orgId! },
       data: { plan: "PRO", eventAllowance: null, subscriptionStatus: "ACTIVE" },
@@ -120,7 +104,6 @@ describe("billing entitlements (DB)", () => {
   });
 
   it("FREE→PRO upgrade via signed subscription webhook", async () => {
-    if (!dbReady) return;
     await applyPlanSkuToOrg(ids.orgId!, "free");
     const body = mockSubscriptionPayload("subscription_created", {
       orgId: ids.orgId!,
@@ -146,7 +129,6 @@ describe("billing entitlements (DB)", () => {
   });
 
   it("featureEnabled ANDs plan entitlement", async () => {
-    if (!dbReady) return;
     await applyPlanSkuToOrg(ids.orgId!, "free");
     // engagement_points is off on FREE plan entitlements
     expect(await featureEnabled(ids.eventId!, "engagement_points")).toBe(false);
@@ -155,13 +137,11 @@ describe("billing entitlements (DB)", () => {
   });
 
   it("assertCanCreateEvent 402 when FREE already has an active event", async () => {
-    if (!dbReady) return;
     await applyPlanSkuToOrg(ids.orgId!, "free");
     await expect(assertCanCreateEvent(ids.orgId!)).rejects.toMatchObject({ status: 402 });
   });
 
   it("assertCanAddAttendee 402 at cap", async () => {
-    if (!dbReady) return;
     await applyPlanSkuToOrg(ids.orgId!, "free");
     await prisma.event.update({ where: { id: ids.eventId! }, data: { attendeeCap: 1 } });
     // Already 1 membership (admin) → next add fails
@@ -171,7 +151,6 @@ describe("billing entitlements (DB)", () => {
   });
 
   it("payment-failed grace then read-only blocks writes", async () => {
-    if (!dbReady) return;
     await applyPlanSkuToOrg(ids.orgId!, "pro_monthly", { subscriptionStatus: "ACTIVE", clearGrace: true });
     const ends = await markPaymentFailed(ids.orgId!);
     expect(ends.getTime()).toBeGreaterThan(Date.now());

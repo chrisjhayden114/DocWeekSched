@@ -24,17 +24,8 @@ describe("calm notification platform (DB)", () => {
     userId?: string;
     userB?: string;
   } = {};
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.notificationPushDay.findFirst();
-    } catch {
-      console.warn("[notifications.db.test] DB unreachable or Phase 4 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     const passwordHash = await hashPassword("TestPass12!x");
     const stamp = Date.now();
 
@@ -113,7 +104,6 @@ describe("calm notification platform (DB)", () => {
   });
 
   it("directoryOptIn defaults false", async () => {
-    if (!dbReady) return;
     const m = await prisma.eventMembership.findFirst({
       where: { eventId: ids.eventId!, userId: ids.userB! },
     });
@@ -121,7 +111,6 @@ describe("calm notification platform (DB)", () => {
   });
 
   it("budget ceiling: 6th INTERRUPT push degrades to DIGESTED", async () => {
-    if (!dbReady) return;
     process.env.NOTIFICATION_DAILY_PUSH_BUDGET = "5";
     // Midday Eastern — outside quiet hours
     const noon = zonedWallTimeToUtc("America/New_York", 2027, 7, 1, 12, 0);
@@ -162,7 +151,6 @@ describe("calm notification platform (DB)", () => {
   });
 
   it("quiet hours queue until local morning", async () => {
-    if (!dbReady) return;
     const at2300 = zonedWallTimeToUtc("America/New_York", 2027, 7, 2, 23, 0);
     const r = await deliverNotification(
       {
@@ -180,7 +168,6 @@ describe("calm notification platform (DB)", () => {
   });
 
   it("same-day session-change bypasses quiet hours", async () => {
-    if (!dbReady) return;
     const at2300 = zonedWallTimeToUtc("America/New_York", 2027, 7, 3, 23, 30);
     const r = await deliverNotification(
       {
@@ -197,7 +184,6 @@ describe("calm notification platform (DB)", () => {
   });
 
   it("emergency bypasses budget + quiet hours and can audit via announcement path", async () => {
-    if (!dbReady) return;
     const at2300 = zonedWallTimeToUtc("America/New_York", 2027, 7, 4, 23, 45);
     // Exhaust budget first on a fresh day key by charging 5 at noon same dayKey... use unique day
     const r = await deliverNotification(
@@ -237,7 +223,6 @@ describe("calm notification platform (DB)", () => {
   });
 
   it("DIGEST community never charges budget", async () => {
-    if (!dbReady) return;
     const noon = zonedWallTimeToUtc("America/New_York", 2027, 8, 1, 12, 0);
     const before = await getPushBudgetStatus(ids.userId!, "America/New_York", noon);
     await notifyMany(
@@ -256,7 +241,6 @@ describe("calm notification platform (DB)", () => {
   });
 
   it("meeting accept creates two PersonalAgendaBlocks", async () => {
-    if (!dbReady) return;
     await prisma.eventMembership.updateMany({
       where: { eventId: ids.eventId! },
       data: { directoryOptIn: true },

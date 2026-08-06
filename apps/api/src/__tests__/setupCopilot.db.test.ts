@@ -20,18 +20,8 @@ describe("Setup Copilot A2 (DB)", () => {
     eventIds: [],
     seriesIds: [],
   };
-  let dbReady = false;
 
   beforeAll(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      await prisma.aiUsageRecord.findFirst();
-      await prisma.eventFeatureConfig.findFirst();
-    } catch {
-      console.warn("[setupCopilot.db.test] DB unreachable or A0/2.6 tables missing — skipping");
-      return;
-    }
-    dbReady = true;
     process.env.AI_PROVIDER = "mock";
     resetAiProviderForTests(new MockAiProvider());
 
@@ -61,10 +51,6 @@ describe("Setup Copilot A2 (DB)", () => {
   });
 
   afterAll(async () => {
-    if (!dbReady) {
-      await prisma.$disconnect().catch(() => undefined);
-      return;
-    }
     for (const eventId of ids.eventIds) {
       await prisma.networkThread.deleteMany({ where: { eventId } });
       await prisma.announcement.deleteMany({ where: { eventId } });
@@ -90,7 +76,6 @@ describe("Setup Copilot A2 (DB)", () => {
   });
 
   it("complete creates draft event + DRAFT sessions matching answers; checklist marks create+sessions", async () => {
-    if (!dbReady) return;
     const form = {
       ...emptySetupFormState("America/New_York"),
       name: `A2 Summit ${Date.now()}`,
@@ -140,7 +125,6 @@ describe("Setup Copilot A2 (DB)", () => {
   });
 
   it("confirm-gated configureFeatures applies only on confirm and audits", async () => {
-    if (!dbReady) return;
     const form = {
       ...emptySetupFormState("UTC"),
       name: `A2 Features ${Date.now()}`,
@@ -200,7 +184,6 @@ describe("Setup Copilot A2 (DB)", () => {
   });
 
   it("rejects unknown registry keys", () => {
-    if (!dbReady) return;
     expect(() => assertRegistryKeys({ totally_fake_key: true })).toThrow(UnknownFeatureKeyError);
   });
 });
