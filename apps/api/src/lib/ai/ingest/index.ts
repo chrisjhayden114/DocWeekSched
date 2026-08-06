@@ -24,9 +24,27 @@ export {
 export {
   htmlToText,
   textFromDataUrl,
+  sourceTextFromUpload,
+  XLSX_USE_SPREADSHEET_IMPORT_MESSAGE,
   fetchUrlText,
   previewText,
   attachmentFromDataUrl,
   type IngestAttachment,
 } from "./sourceText";
+export {
+  OfficeParseError,
+  LEGACY_OFFICE_MESSAGE,
+  PASSWORD_PROTECTED_MESSAGE,
+  DOCX_MIME,
+  XLSX_MIME,
+  LEGACY_DOC_MIME,
+  LEGACY_XLS_MIME,
+  docxToText,
+  xlsxToSheets,
+  sheetToTable,
+  SPREADSHEET_MAX_ROWS,
+  SPREADSHEET_MAX_COLS,
+  type SpreadsheetSheet,
+  type SpreadsheetTable,
+} from "./office";
 export { sessionVisibilityWhere, isSessionAttendeeVisible } from "./visibility";

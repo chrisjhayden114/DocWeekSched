@@ -21,8 +21,14 @@ export function jsonLimitForPath(method: string, path: string): string {
   // Venue map images (~8MB binary → larger base64 envelope)
   if (path === "/event/maps" || /^\/event\/maps\/[^/]+\/?$/.test(path)) return "10mb";
 
-  // Agenda ingest (AGENDA_INGEST_MAX_BYTES, often as data-URL)
-  if (path === "/ai/ingest" || path === "/ai/ingest/") {
+  // Agenda ingest (AGENDA_INGEST_MAX_BYTES, often as data-URL) and the
+  // non-AI spreadsheet import, which posts the same size class of data-URL.
+  if (
+    path === "/ai/ingest" ||
+    path === "/ai/ingest/" ||
+    path === "/import/spreadsheet/parse" ||
+    path === "/import/spreadsheet/parse/"
+  ) {
     const mb = Math.ceil((AGENDA_INGEST_MAX_BYTES * 1.4) / (1024 * 1024)) + 2;
     return `${mb}mb`;
   }

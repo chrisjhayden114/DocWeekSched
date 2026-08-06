@@ -25,6 +25,25 @@ After triage: **1 high** remains, documented below.
   - Nothing in the remaining set is remote-code-execution or data-disclosure against our configuration.
 - **Trigger for revisiting:** the planned Next 15/16 upgrade (flagged to the founder as a separate chunk — it is a breaking change touching the web build, Netlify runtime plugin, and React 18 → 19). Revisit immediately if we (a) add middleware or i18n routing, (b) move off Netlify to self-hosting, or (c) a new advisory lands against Pages Router on 14.x.
 
+### Open: uuid@8.3.2 via exceljs (moderate) — vulnerable functions unreachable
+
+Added 2026-08-06 with Chunk E21 (exceljs parses .xlsx uploads server-side).
+
+- **What:** GHSA-w5hq-g745-h8pq — `uuid` < 11.1.1 misses a buffer bounds check in
+  `v3`/`v5`/`v6` **when a caller passes the optional `buf` argument**. exceljs pins
+  `uuid@^8.3.2`.
+- **Why acceptable for now:** the vulnerable functions are not reachable. exceljs
+  contains exactly one uuid call site (`lib/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js`),
+  which calls `v4()` with no arguments — a different function, and no `buf` is ever
+  passed. Nothing else in the dependency tree depends on uuid (`npm ls uuid`).
+- **Why not overridden:** an `overrides` pin to uuid ^11 requires regenerating
+  `package-lock.json` from scratch (npm does not re-resolve an existing lockfile when
+  overrides change — see "Notes on the mechanics" below). Full-tree version churn is a
+  worse trade than a documented-unreachable moderate advisory.
+- **Trigger for revisiting:** an exceljs release that lifts uuid past 11.1.1 (take it),
+  any new advisory against uuid `v4`, or the next deliberate lockfile regeneration —
+  add the override then.
+
 ### Notes on the mechanics
 
 - Fixes were applied with `npm audit fix` (never `--force`), a semver-range `npm update tsx`, and two scoped entries in root `package.json` `overrides`.

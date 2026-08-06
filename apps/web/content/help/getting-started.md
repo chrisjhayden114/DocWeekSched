@@ -25,6 +25,8 @@ After creation, the Setup assistant lives on the event's **Overview** tab: it re
 
 You can also create an event manually or start from an optional sample draft on first login.
 
+Importing an existing program: on the event's **Agenda ingest** page, upload a PDF or Word (.docx) file, paste text, or fetch a URL — AI extracts the sessions into a changeset you review before anything is created. Excel (.xlsx) and CSV files import directly with **no AI**: they open in the spreadsheet importer, where you review every row (a multi-sheet workbook asks which sheet to use). Legacy .doc/.xls files aren't supported — save as .docx or .xlsx first.
+
 Organizing the program: on the event's **Program** tab, tick several sessions (or **Select all** under a day heading) and use **Assign track** / **Assign room** to update them all in one step — no per-session editing needed.
 
 ## 3. Invite attendees

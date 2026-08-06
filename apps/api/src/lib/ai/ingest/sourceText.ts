@@ -1,4 +1,13 @@
 import { AGENDA_INGEST_MAX_BYTES } from "./constants";
+import {
+  DOCX_MIME,
+  LEGACY_DOC_MIME,
+  LEGACY_OFFICE_MESSAGE,
+  LEGACY_XLS_MIME,
+  OfficeParseError,
+  XLSX_MIME,
+  docxToText,
+} from "./office";
 
 /** Strip tags / collapse whitespace for HTML sources. */
 export function htmlToText(html: string): string {
@@ -39,6 +48,39 @@ export function textFromDataUrl(dataUrl: string): string {
     return `[Binary ${mime} upload, ${buf.length} bytes — extract from stored bytes / OCR stub]`;
   }
   return asText;
+}
+
+export const XLSX_USE_SPREADSHEET_IMPORT_MESSAGE =
+  "Spreadsheets are imported directly, without AI — upload this file under “Import spreadsheet” so you can review every row before anything is created.";
+
+/**
+ * E21: async, mime-aware source-text extraction for uploaded files.
+ * - DOCX → mammoth plain text (prose has no reliable structure; the model is
+ *   the right tool).
+ * - XLSX → refused here by design: a spreadsheet already has rows and columns
+ *   and belongs in the non-AI CSV/spreadsheet review path, never the model.
+ * - Legacy .doc/.xls → refused with conversion guidance.
+ * - Everything else → the existing sync textFromDataUrl behavior.
+ * Neither Office format can reach the "[Binary …]" stub.
+ */
+export async function sourceTextFromUpload(dataUrl: string): Promise<string> {
+  const m = /^data:([^;,]+)?(?:;charset=[^;,]+)?;base64,(.+)$/i.exec(dataUrl.trim());
+  if (!m) return textFromDataUrl(dataUrl);
+  const mime = (m[1] || "").toLowerCase();
+  if (mime === LEGACY_DOC_MIME || mime === LEGACY_XLS_MIME) {
+    throw new OfficeParseError(LEGACY_OFFICE_MESSAGE);
+  }
+  if (mime === XLSX_MIME) {
+    throw new OfficeParseError(XLSX_USE_SPREADSHEET_IMPORT_MESSAGE);
+  }
+  if (mime === DOCX_MIME) {
+    const buf = Buffer.from(m[2], "base64");
+    if (buf.length > AGENDA_INGEST_MAX_BYTES) {
+      throw new Error(`File exceeds max size of ${AGENDA_INGEST_MAX_BYTES} bytes`);
+    }
+    return docxToText(buf);
+  }
+  return textFromDataUrl(dataUrl);
 }
 
 export type IngestAttachment = { type: "document" | "image"; mediaType: string; base64: string };

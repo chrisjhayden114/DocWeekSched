@@ -10,6 +10,13 @@ import {
   type ReviewChangeRow,
 } from "../../../../components/ReviewChangeset";
 import { SessionCsvImport } from "../../../../components/organizer/SessionCsvImport";
+import {
+  LEGACY_DOC_MESSAGE,
+  LEGACY_XLS_MESSAGE,
+  isLegacyExcelFile,
+  isLegacyWordFile,
+  isXlsxFile,
+} from "../../../../lib/spreadsheetImport";
 import { describeIngestSource, ingestReviewHeading } from "../../../../lib/ingestSource";
 import { rowsToApiChangeset, toggleRemoval } from "../../../../lib/ingestReview";
 import {
@@ -67,7 +74,6 @@ function kindFromFile(file: File): string {
   const name = file.name.toLowerCase();
   if (name.endsWith(".pdf") || file.type === "application/pdf") return "PDF";
   if (name.endsWith(".docx") || file.type.includes("wordprocessingml")) return "DOCX";
-  if (name.endsWith(".xlsx") || file.type.includes("spreadsheetml")) return "XLSX";
   if (name.endsWith(".csv") || file.type === "text/csv") return "CSV";
   if (file.type.startsWith("image/")) return "IMAGE";
   return "PDF";
@@ -116,7 +122,7 @@ const INPUT_MODES: { id: InputMode; label: string }[] = [
   { id: "paste", label: "Paste text" },
   { id: "upload", label: "Upload file" },
   { id: "url", label: "Fetch URL" },
-  { id: "csv", label: "Import CSV" },
+  { id: "csv", label: "Import spreadsheet" },
 ];
 
 function changesetToRows(raw: unknown): ReviewChangeRow[] {
@@ -191,6 +197,9 @@ export default function AgendaIngestPage() {
   const [emptyResult, setEmptyResult] = useState(false);
   const [lastRequest, setLastRequest] = useState<Record<string, unknown> | null>(null);
   const [run, setRun] = useState<IngestRun | null>(null);
+  // E21: an .xlsx dropped on the Upload tab is handed to the spreadsheet
+  // importer (no AI) instead of being posted to the model.
+  const [spreadsheetFile, setSpreadsheetFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ReviewChangeRow[]>([]);
   const [assumptions, setAssumptions] = useState<ReviewAssumption[]>([]);
   const [history, setHistory] = useState<HistoryResponse | null>(null);
@@ -355,6 +364,22 @@ export default function AgendaIngestPage() {
     if (!file) return;
     if (file.size > 20_000_000) {
       setError("File exceeds 20 MB limit");
+      return;
+    }
+    // E21: honest handling per format — legacy Office formats get conversion
+    // guidance; spreadsheets go to the non-AI import, never the model.
+    if (isLegacyWordFile(file.name, file.type)) {
+      setError(LEGACY_DOC_MESSAGE);
+      return;
+    }
+    if (isLegacyExcelFile(file.name, file.type)) {
+      setError(LEGACY_XLS_MESSAGE);
+      return;
+    }
+    if (isXlsxFile(file.name, file.type)) {
+      setError(null);
+      setSpreadsheetFile(file);
+      setInputMode("csv");
       return;
     }
     const dataUrl = await fileToDataUrl(file);
@@ -536,7 +561,12 @@ export default function AgendaIngestPage() {
                   type="button"
                   className={inputMode === m.id ? "active" : undefined}
                   aria-pressed={inputMode === m.id}
-                  onClick={() => setInputMode(m.id)}
+                  onClick={() => {
+                    setInputMode(m.id);
+                    // A handed-over workbook only applies to the visit that
+                    // triggered it — leaving the tab drops it.
+                    if (m.id !== "csv") setSpreadsheetFile(null);
+                  }}
                 >
                   {m.label}
                 </button>
@@ -586,6 +616,11 @@ export default function AgendaIngestPage() {
                     onChange={(e) => void onFile(e.target.files?.[0] || null)}
                   />
                 </label>
+                <p className="help-text" style={{ margin: 0 }}>
+                  Excel files (.xlsx) are imported directly with no AI — uploading one switches to the
+                  spreadsheet importer, where you review every row. Legacy .doc/.xls aren’t supported:
+                  save as .docx or .xlsx first.
+                </p>
               </div>
             ) : null}
 
@@ -611,7 +646,9 @@ export default function AgendaIngestPage() {
               </form>
             ) : null}
 
-            {inputMode === "csv" && eventId ? <SessionCsvImport eventId={eventId} bare /> : null}
+            {inputMode === "csv" && eventId ? (
+              <SessionCsvImport eventId={eventId} bare initialFile={spreadsheetFile} />
+            ) : null}
           </section>
         ) : null}
 

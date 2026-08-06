@@ -9,6 +9,14 @@ import {
   type SessionCsvCreate,
   type SessionCsvRowResult,
 } from "../../lib/sessionCsv";
+import {
+  LEGACY_XLS_MESSAGE,
+  fileToDataUrl,
+  isLegacyExcelFile,
+  isXlsxFile,
+  type SpreadsheetParseResponse,
+  type SpreadsheetSheetInfo,
+} from "../../lib/spreadsheetImport";
 import { organizerFetch } from "../../lib/organizerApi";
 
 type EventWindow = { timezone: string; startDate: string; endDate: string };
@@ -22,15 +30,21 @@ type Props = {
    * existing panel (the ingest page's single input panel, E15.3).
    */
   bare?: boolean;
+  /**
+   * E21: a file handed over by another surface (the ingest page's Upload
+   * tab routes .xlsx here so spreadsheets never go to the model).
+   */
+  initialFile?: File | null;
 };
 
 /**
  * Non-AI import path: organizers with a spreadsheet download a CSV template,
- * upload it, review a validated changeset (same surface as AI ingest), and
- * only then create sessions via POST /sessions. Nothing is created without
- * the explicit confirm step.
+ * upload a CSV or Excel (.xlsx) file, review a validated changeset (same
+ * surface as AI ingest), and only then create sessions via POST /sessions.
+ * Nothing is created without the explicit confirm step. Excel files are
+ * converted to rows server-side (E21) — same review, no AI.
  */
-export function SessionCsvImport({ eventId, onCreated, bare }: Props) {
+export function SessionCsvImport({ eventId, onCreated, bare, initialFile }: Props) {
   const [event, setEvent] = useState<EventWindow | null>(null);
   const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
@@ -42,6 +56,11 @@ export function SessionCsvImport({ eventId, onCreated, bare }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
+  // E21: multi-sheet workbooks ask which sheet — never silently the first.
+  const [sheetChoices, setSheetChoices] = useState<SpreadsheetSheetInfo[] | null>(null);
+  const [pendingWorkbook, setPendingWorkbook] = useState<{ dataUrl: string; name: string } | null>(
+    null,
+  );
 
   const loadContext = useCallback(async () => {
     if (!eventId) return;
@@ -93,23 +112,81 @@ export function SessionCsvImport({ eventId, onCreated, bare }: Props) {
     setCsvRows([]);
     setMapping({});
     setAccepted({});
+    setSheetChoices(null);
+    setPendingWorkbook(null);
     setFileInputKey((k) => k + 1);
   }
 
-  async function onFile(file: File | null) {
-    if (!file) return;
-    setError(null);
-    setMessage(null);
-    const parsed = parseCsvToTable(await file.text());
-    if ("error" in parsed) {
-      setError(parsed.error);
-      return;
-    }
-    setHeaders(parsed.headers);
-    setCsvRows(parsed.rows);
-    setMapping(autoMapSessionCsv(parsed.headers));
+  const applyTable = useCallback((parsedHeaders: string[], parsedRows: Record<string, string>[]) => {
+    setHeaders(parsedHeaders);
+    setCsvRows(parsedRows);
+    setMapping(autoMapSessionCsv(parsedHeaders));
     setAccepted({});
-  }
+  }, []);
+
+  /** Parse a workbook server-side; `sheet` chooses one of several sheets. */
+  const parseWorkbook = useCallback(
+    async (dataUrl: string, fileName: string, sheet?: string) => {
+      setBusy(true);
+      try {
+        const res = await organizerFetch<SpreadsheetParseResponse>(
+          "/import/spreadsheet/parse",
+          eventId,
+          { method: "POST", body: JSON.stringify({ fileUrl: dataUrl, ...(sheet ? { sheet } : {}) }) },
+        );
+        if (res.needsSheetChoice) {
+          setPendingWorkbook({ dataUrl, name: fileName });
+          setSheetChoices(res.sheets);
+          return;
+        }
+        setSheetChoices(null);
+        setPendingWorkbook(null);
+        applyTable(res.headers || [], res.rows || []);
+      } catch (err) {
+        const e = err as Error & { body?: { error?: string } };
+        setError(e.body?.error || e.message || "Could not read the spreadsheet.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [eventId, applyTable],
+  );
+
+  const onFile = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+      setError(null);
+      setMessage(null);
+      setSheetChoices(null);
+      setPendingWorkbook(null);
+      if (isLegacyExcelFile(file.name, file.type)) {
+        setError(LEGACY_XLS_MESSAGE);
+        return;
+      }
+      if (isXlsxFile(file.name, file.type)) {
+        // E21: Excel parses server-side, then joins the same review path.
+        const dataUrl = await fileToDataUrl(file);
+        await parseWorkbook(dataUrl, file.name);
+        return;
+      }
+      const parsed = parseCsvToTable(await file.text());
+      if ("error" in parsed) {
+        setError(parsed.error);
+        return;
+      }
+      applyTable(parsed.headers, parsed.rows);
+    },
+    [parseWorkbook],
+  );
+
+  // E21: process a file handed over by the ingest page's Upload tab.
+  const [consumedInitialFile, setConsumedInitialFile] = useState<File | null>(null);
+  useEffect(() => {
+    if (initialFile && initialFile !== consumedInitialFile) {
+      setConsumedInitialFile(initialFile);
+      void onFile(initialFile);
+    }
+  }, [initialFile, consumedInitialFile, onFile]);
 
   function downloadTemplate() {
     const blob = new Blob([sessionCsvTemplate()], { type: "text/csv;charset=utf-8" });
@@ -163,7 +240,7 @@ export function SessionCsvImport({ eventId, onCreated, bare }: Props) {
   return (
     <div className={bare ? undefined : "console-panel"}>
       <div className="console-panel-head">
-        <p className="console-panel-label">Import sessions from CSV</p>
+        <p className="console-panel-label">Import sessions from a spreadsheet</p>
         <button
           type="button"
           className="button ghost"
@@ -174,17 +251,17 @@ export function SessionCsvImport({ eventId, onCreated, bare }: Props) {
         </button>
       </div>
       <p className="help-text" style={{ marginTop: 0 }}>
-        Already have your program in a spreadsheet? Upload a CSV (columns: title, start, end, track, room,
-        speakers, description — times as YYYY-MM-DD HH:MM in the event timezone). You review every row before
-        anything is created. No AI involved.
+        Already have your program in a spreadsheet? Upload a CSV or Excel (.xlsx) file (columns: title,
+        start, end, track, room, speakers, description — times as YYYY-MM-DD HH:MM in the event timezone).
+        You review every row before anything is created. No AI involved.
       </p>
       <input
         key={fileInputKey}
         className="input"
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         disabled={busy || !event}
-        aria-label="Upload sessions CSV"
+        aria-label="Upload sessions spreadsheet (CSV or Excel)"
         onChange={(e) => void onFile(e.target.files?.[0] || null)}
       />
       {error ? (
@@ -196,6 +273,27 @@ export function SessionCsvImport({ eventId, onCreated, bare }: Props) {
         <p role="status" style={{ color: "var(--success)" }}>
           {message}
         </p>
+      ) : null}
+      {sheetChoices && pendingWorkbook ? (
+        // E21: never silently take the first sheet of a multi-sheet workbook.
+        <div role="group" aria-label="Choose a sheet to import" style={{ marginTop: 8 }}>
+          <p className="help-text" style={{ marginBottom: 6 }}>
+            “{pendingWorkbook.name}” has {sheetChoices.length} sheets — which one holds your sessions?
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {sheetChoices.map((s) => (
+              <button
+                key={s.name}
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => void parseWorkbook(pendingWorkbook.dataUrl, pendingWorkbook.name, s.name)}
+              >
+                {s.name} ({s.rowCount} row{s.rowCount === 1 ? "" : "s"})
+              </button>
+            ))}
+          </div>
+        </div>
       ) : null}
       {csvRows.length > 0 && event ? (
         <>

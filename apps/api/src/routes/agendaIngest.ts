@@ -11,11 +11,12 @@ import {
   AGENDA_INGEST_JOB_TYPE,
   AGENDA_INGEST_MAX_BYTES,
   INGEST_ALLOWED_MIME,
+  OfficeParseError,
   attachmentFromDataUrl,
   confirmAgendaChangeset,
   fetchUrlText,
   previewText,
-  textFromDataUrl,
+  sourceTextFromUpload,
   type ChangesetRow,
   type IngestAttachment,
 } from "../lib/ai/ingest";
@@ -231,20 +232,25 @@ agendaIngestRouter.post(
       sourceBytes = Buffer.byteLength(sourceText, "utf8");
       sourceFileName = sourceFileName || url;
     } else if (parsed.data.fileUrl) {
-      const stored = await getStorageProvider().acceptUpload({
-        url: parsed.data.fileUrl,
-        keyPrefix: `events/${event.id}/agenda-ingest`,
-        maxBytes: AGENDA_INGEST_MAX_BYTES,
-        allowedMimeTypes: INGEST_ALLOWED_MIME,
-      });
-      sourceUrl = stored.url;
-      sourceStorageKey = stored.storageKey;
       // E9.1: derive text/mime/bytes from the INBOUND payload, not the stored
       // URL — with a real object store the stored URL is an opaque https://
       // address with no read API, while the browser posts the bytes as a
       // data: URL in fileUrl. Storage remains the audit trail only.
+      //
+      // E21: extraction runs BEFORE storage so a DOCX that can't be read
+      // (password-protected, legacy .doc, corrupt) is rejected with its real
+      // cause and nothing half-processed is stored. XLSX is refused here by
+      // design — spreadsheets go through the non-AI spreadsheet import, never
+      // the model.
       if (parsed.data.fileUrl.startsWith("data:")) {
-        sourceText = textFromDataUrl(parsed.data.fileUrl);
+        try {
+          sourceText = await sourceTextFromUpload(parsed.data.fileUrl);
+        } catch (err) {
+          if (err instanceof OfficeParseError) {
+            throw new HttpError(400, { error: err.message });
+          }
+          throw err;
+        }
         const m = /^data:([^;,]+)/i.exec(parsed.data.fileUrl);
         sourceMime = sourceMime || m?.[1] || null;
         const b64 = parsed.data.fileUrl.split(",")[1] || "";
@@ -255,6 +261,14 @@ agendaIngestRouter.post(
       } else {
         sourceText = `[Stored file ${sourceFileName || "upload"}]`;
       }
+      const stored = await getStorageProvider().acceptUpload({
+        url: parsed.data.fileUrl,
+        keyPrefix: `events/${event.id}/agenda-ingest`,
+        maxBytes: AGENDA_INGEST_MAX_BYTES,
+        allowedMimeTypes: INGEST_ALLOWED_MIME,
+      });
+      sourceUrl = stored.url;
+      sourceStorageKey = stored.storageKey;
     } else if (parsed.data.text) {
       sourceText = parsed.data.text;
       sourceBytes = Buffer.byteLength(sourceText, "utf8");

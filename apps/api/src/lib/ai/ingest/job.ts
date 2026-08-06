@@ -4,7 +4,7 @@ import { registerJobHandler, type JobHandler } from "../../jobs";
 import { log } from "../../log";
 import { AGENDA_INGEST_JOB_TYPE, AGENDA_INGEST_MAX_BYTES } from "./constants";
 import { runAgendaExtract } from "./extract";
-import { attachmentFromDataUrl, textFromDataUrl, type IngestAttachment } from "./sourceText";
+import { attachmentFromDataUrl, sourceTextFromUpload, type IngestAttachment } from "./sourceText";
 
 type JobPayload = {
   runId: string;
@@ -34,7 +34,9 @@ const handler: JobHandler = async (job) => {
 
   let sourceText = payload.sourceText || run.sourceTextPreview || "";
   if (!sourceText && run.sourceUrl?.startsWith("data:")) {
-    sourceText = textFromDataUrl(run.sourceUrl);
+    // E21: mime-aware — a DOCX stored as a data URL (dev storage fallback)
+    // re-extracts through mammoth instead of hitting the binary stub.
+    sourceText = await sourceTextFromUpload(run.sourceUrl);
   }
   if (!sourceText) {
     throw new Error("No source text available for extract");

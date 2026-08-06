@@ -1294,3 +1294,73 @@ malformed or hostile file must produce a clean, honest error, not a crash.
 - New dependencies are flagged above; do not add others without saying why.
 - Errors must name the real cause (`.cursor/rules/product.mdc`).
 - Stop the web dev server first; reset ritual after.
+
+---
+
+# Chunk E22 — a skipped DB suite must not report success (P1)
+
+Disclosed honestly by Cursor during E21 and then verified: **every**
+`*.db.test.ts` file contains a skip-on-unreachable path —
+
+```ts
+console.warn("[billing.db.test] DB unreachable or Phase 3 tables missing — skipping");
+```
+
+— after which the suite reports **green**.
+
+## Why this matters
+
+Run the suite with a mistyped host, a deleted Neon branch, a dropped network, or
+simply no `DATABASE_URL`, and the output reads **"374 passed"** while not a
+single query executed. The warning is one grey line among hundreds of
+`DeprecationWarning` lines; nobody will see it.
+
+This is the failure shape this project has spent two days eliminating — a system
+that knows it did not do the work and reports success anyway
+(`.cursor/rules/product.mdc`, "Error messages must name the real cause"). It is
+worse here than in product code, because the whole point of these suites is to
+be the thing that tells the truth when something else lies.
+
+Concretely: on 2026-08-03 it produced a false positive. Cursor reported "391
+tests, all pass" for E21 while its sandbox had no network route to Neon — its
+new `spreadsheetImport.db.test.ts` never ran.
+
+## The rule to implement
+
+**Skipping is only legitimate when the developer never asked for DB tests.**
+
+- `DATABASE_URL` **unset** → skipping is correct. A contributor running unit
+  tests should not need a database. Print a clear one-line notice.
+- `DATABASE_URL` **set** → the developer asked for DB tests. If the database is
+  unreachable, or expected tables are missing, **FAIL LOUDLY**. Do not skip. The
+  message must name the real cause: unreachable host, auth rejected, migrations
+  not applied.
+
+Implement this once in `src/__tests__/setup/destructiveGuard.setup.ts` (or a
+sibling setup file) rather than 24 times. A single connectivity probe in
+`beforeAll` for `*.db.test.ts` files can decide skip-vs-fail for all of them;
+then delete the per-file skip branches so no file can opt itself out.
+
+Distinguishing "cannot connect" from "tables missing" is worth the small extra
+effort — the second means *run the migrations*, which is a different action.
+
+## Also worth doing while in here
+
+The suite's output is drowning in `DEP0169 url.parse()` DeprecationWarning noise
+— dozens of lines per run, from a transitive dependency. It is why a real warning
+is invisible. Silence it at the runner level (e.g. a `NODE_OPTIONS` or vitest
+setup filter) **without** silencing warnings the project itself emits. If that
+cannot be done cleanly, say so rather than suppressing everything.
+
+## Acceptance
+- With `DATABASE_URL` **unset**: DB suites skip, and say so in one clear line.
+- With `DATABASE_URL` set to an unreachable host: the run **fails**, naming the
+  host and the reason. It must not be possible to read that output as a pass.
+- With `DATABASE_URL` set to a valid database missing migrations: the run fails
+  and says migrations are missing.
+- With the real `ukedl_test` database (RUNBOOK §9): 374+ pass as today.
+- A reader scanning the last ten lines of output can tell which of these happened.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §9.
+- No product code should change. If you think it must, stop and explain why.
