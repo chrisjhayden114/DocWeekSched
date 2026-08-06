@@ -1364,3 +1364,39 @@ cannot be done cleanly, say so rather than suppressing everything.
 ## Standing rules
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §9.
 - No product code should change. If you think it must, stop and explain why.
+
+---
+
+# Chunk E23 — invoice.subscription is stale under Basil (P3, cosmetic)
+
+Found 2026-08-06 while configuring the live Stripe webhook.
+
+`apps/api/src/lib/billing/webhooks.ts` reads `asString(object.subscription)` for
+`invoice.payment_succeeded`. **That field no longer exists at the invoice top
+level** in API version `2025-03-31.basil` and later — Stripe moved it to
+`invoice.parent.subscription_details.subscription`
+(https://docs.stripe.com/changelog/basil/2025-03-31/adds-new-parent-field-to-invoicing-objects).
+The app is pinned to exactly that version via `STRIPE_API_VERSION`.
+
+**Severity is low, and here is why.** The metadata reader (`webhooks.ts:245–250`)
+is already Basil-aware — it falls back to `parent.subscription_details.metadata`
+and then to line-item metadata. So on a renewal the handler still resolves
+`orgId` and `planKey`, and entitlements apply correctly. Only the subscription
+**ID** passed to `applySubscriptionActive` is `undefined`, and that value was
+already stored during `checkout.session.completed`.
+
+**Fix:** read the subscription id the same way the metadata reader does — try
+`object.subscription`, then `object.parent.subscription_details.subscription`.
+Keep both paths so a pre-Basil payload still works.
+
+**Do not treat this as blocking go-live.** First purchases go through
+`checkout.session.completed`, where `object.subscription` is a Checkout Session
+field and remains valid.
+
+## Acceptance
+- A renewal `invoice.payment_succeeded` under `2025-03-31.basil` resolves a
+  non-empty subscription id.
+- Unit test with a Basil-shaped invoice payload (nested) and a legacy one (flat).
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §9.

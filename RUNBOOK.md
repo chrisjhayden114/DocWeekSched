@@ -383,7 +383,19 @@ before saving.
 | Date | Step | Result |
 |---|---|---|
 | 2026-08-02 | Full lifecycle in **test** mode | PASS — checkout → webhook → entitlement → cancel → revert |
-| _(go-live pending)_ | | |
+| 2026-08-06 | **LIVE go-live complete** | PASS. Business verified (i:Quest Learning Solutions LLC). Five live products created, all "Managed Payments: Eligible" via Product category *Software as a service (SaaS) — business use* (`txcd_10103001`). Live webhook `https://api.ukedl.com/billing/webhooks/stripe`, 5 events, API version **2026-07-29.dahlia**. Real $79 Pro·Monthly purchase → `checkout.session.completed` 200 `applied:subscription:pro_monthly` → `invoice.payment_succeeded` 200 → org showed **Pro · Monthly ACTIVE**. Refunded, then subscription cancelled → `customer.subscription.deleted` 200 `applied:subscription:canceled` → org reverted to **Free**. |
+
+**Two things learned on 2026-08-06:**
+
+1. **Stripe's UI no longer exposes a raw `tax_code` field.** It is set via
+   **Product category**; choosing *Digital products > Software > Software as a
+   service* yields `txcd_10103001` and shows "✓ Eligible for Managed Payments".
+2. **A refund is not a cancellation.** Refunding the charge returns the money but
+   leaves the subscription ACTIVE — it would have billed again the following
+   month. `charge.refunded` is not subscribed to and the app never hears about it.
+   Cancel the subscription separately (Billing → Subscriptions → Cancel →
+   *Immediately*), which fires `customer.subscription.deleted` and downgrades the
+   org. **When a customer asks for a refund, do both.**
 
 ---
 
