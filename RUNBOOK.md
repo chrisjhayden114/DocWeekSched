@@ -368,3 +368,59 @@ before saving.
 |---|---|---|
 | 2026-08-02 | Full lifecycle in **test** mode | PASS — checkout → webhook → entitlement → cancel → revert |
 | _(go-live pending)_ | | |
+
+---
+
+## 11. Rotating a Neon database password (causes downtime if done wrong)
+
+**Incident 2026-08-06.** Production was down ~25 minutes after a Neon password
+reset. `/health/ready` returned 503 with `"db":false`; Sentry logged
+`Can't reach database server at ep-square-lab-am8rfnqg-pooler`. Cause: the
+production role password was reset in Neon while Render still held the old one.
+Nothing was lost — but the API was down for every visitor for the whole gap.
+
+### Two facts that make this dangerous
+
+1. **Neon scopes role passwords per branch.** Resetting `neondb_owner` on `test`
+   does **not** touch `production` or `dev`. The confirmation dialog names the
+   branch — read it. Conversely, a password leaked from one branch very likely
+   works on the others, because branches inherit the parent's password at
+   creation.
+2. **Production is down from the moment you click Reset until Render redeploys.**
+   There is no overlap window. Prisma reports the failure as
+   *"Can't reach database server"*, which reads like a network problem — it is
+   actually authentication.
+
+A compute showing **SUSPENDED** during this is a *symptom*, not the cause: Neon
+suspends a compute when nothing successfully connects.
+
+### Correct procedure — stage everything first
+
+1. Open **Render → docweeksched-api → Environment** in one tab. Locate
+   `DATABASE_URL` and `DIRECT_DATABASE_URL`.
+2. Open the **Neon Connect** dialog for the target branch in another tab.
+3. **Only now** click **Reset password**. Copy the new string with pooling **ON**
+   (for `DATABASE_URL`) and again with pooling **OFF** (for
+   `DIRECT_DATABASE_URL` — the host differs by `-pooler`).
+4. Paste both into Render immediately and **Save Changes**. Do not stop in
+   between; every second here is downtime.
+5. Watch **Logs**. A successful recovery looks like a *new instance id* booting
+   (`Running 'npm run start'` → `API listening` → `Your service is live`) with no
+   errors from it. Errors continuing from the **old** instance id for a minute or
+   two afterwards are normal — Render drains it.
+6. Confirm: `https://api.ukedl.com/health/ready` returns
+   `{"ok":true,"db":true,…}`. Then load a public event page.
+
+### After rotating, also update
+
+- **`dev` branch** — reset it too if the password was shared, then update the
+  local `apps/api/.env`.
+- **`test` branch** — reset, then re-`export UKEDL_TEST_DB=…` in your terminal or
+  the DB suites will fail to connect (RUNBOOK §9).
+
+### Storing the credential
+
+Do **not** keep connection strings in a file on the Desktop — that folder gets
+screenshotted and may sync to iCloud. Use Apple Passwords or a locked note.
+Production's copy lives in Render; the test one only needs to exist in a shell
+variable while you are running tests.
