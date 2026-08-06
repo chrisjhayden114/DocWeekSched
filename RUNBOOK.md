@@ -273,6 +273,13 @@ cd ~/Documents/DocWeekSched/apps/api && \
 | 2026-08-03 | `sessionsBulkAssign.db.test.ts` | 7/7 pass | Multi-tenancy: attendee rejected at guard, cross-event session and track ids rejected. First execution of the assertions written after the E13 cross-tenant finding. |
 | 2026-08-03 | All, ×3 consecutive (E20 acceptance) | **374/374 pass, three times** | Flakiness resolved. Run 3's recap test took **64s** vs 4s in run 2 — the new drain waited through a long job delay instead of giving up, which is exactly the failure mode E20 fixed. |
 | 2026-08-03 | All, with a deliberately invalid `DATABASE_URL` | 24 DB suites **refused** by the guard | Accidental (placeholder text pasted literally), but a genuine verification: a non-test database is rejected before any suite runs. |
+| 2026-08-04 | All, after E21 | **391/391 pass** (60 files) | Verifies E21: `officeIngest.unit.test.ts` (14, real DOCX/XLSX fixtures) and `spreadsheetImport.db.test.ts` (3, incl. cross-org tenancy rejection). Cursor could not run these — its sandbox has no route to Neon. |
+
+**Tip:** set the URL once per terminal window, then reuse it —
+`export UKEDL_TEST_DB="postgresql://…/ukedl_test?sslmode=require"`, then
+`DATABASE_URL="$UKEDL_TEST_DB" npx vitest run`. Shell variables do **not** cross
+terminal windows; set and run in the same one. Note the window's title changes
+with the current directory, so it is not a reliable way to tell windows apart.
 
 ---
 
