@@ -1207,3 +1207,90 @@ output. That is worse than having no test, and this is a one-person team.
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Run DB suites per RUNBOOK §9.
 - No product code should need to change for this. If you think it does, stop and
   explain why.
+
+---
+
+# Chunk E21 — DOCX and XLSX ingest (advertised, currently silent)
+
+The upload control says **"PDF / DOCX / XLSX / CSV / image"** and
+`INGEST_ALLOWED_MIME` (`lib/ai/ingest/constants.ts`) accepts `.docx`, `.doc`,
+`.xlsx`, `.xls`. None of them work.
+
+A `.docx` is a ZIP archive. `textFromDataUrl` (`lib/ai/ingest/sourceText.ts`)
+detects the binary and returns
+`[Binary application/vnd… upload, N bytes — extract from stored bytes / OCR stub]`.
+The model receives that string. Anthropic's API natively understands **PDF and
+images only** — Office formats are not document blocks, so the multimodal path
+added in E9.1 does not cover them either.
+
+This has never worked. It is the same silent-failure class as the P0s fixed on
+2026-08-02, and a Word programme is the format many academic organisers will
+reach for first.
+
+## Design decision — do NOT send spreadsheets to the model
+
+A spreadsheet already has rows and columns. Running it through an LLM is slower,
+costs tokens, adds a confidence score to data that has none, and is less
+reliable than reading the cells.
+
+- **XLSX → the existing CSV importer.** Convert the first sheet (or a
+  user-chosen sheet) to rows and hand it to the CSV path that already exists,
+  with its column auto-mapping, per-row validation and review screen. Its line
+  *"You review every row before anything is created. No AI involved."* was named
+  by the novice persona as the most trust-building copy in the product — this
+  extends it rather than diluting it.
+- **DOCX → text → the existing paste/AI path.** Prose has no reliable structure;
+  the model is the right tool. Extract the text and run the normal extraction.
+
+## Libraries — new dependencies, flagged per `.cursor/rules`
+
+The repo has **no** Office parser today. Two additions are needed:
+
+- **DOCX:** `mammoth` — maps DOCX to plain text/HTML, no native build step,
+  widely used, actively maintained.
+- **XLSX:** `exceljs` — actively maintained on npm, MIT.
+  **Do not use the npm `xlsx` package.** SheetJS moved its community builds off
+  the npm registry; the npm copy is stale and has carried prototype-pollution
+  advisories. If you believe SheetJS is materially better, stop and make the
+  case rather than installing it silently.
+
+Both must run **server-side only**, inside the existing size cap
+(`AGENDA_INGEST_MAX_BYTES`), and must never be trusted to be well-formed — a
+malformed or hostile file must produce a clean, honest error, not a crash.
+
+## Legacy `.doc` and `.xls` — remove them
+
+`mammoth` does not read legacy binary `.doc`; `exceljs` does not read legacy
+`.xls`. Rather than continue advertising formats that silently fail:
+
+- Remove `application/msword` and `application/vnd.ms-excel` from
+  `INGEST_ALLOWED_MIME`.
+- Reject them with copy that says what to do: *"Legacy .doc/.xls files aren't
+  supported. Save as .docx or .xlsx and upload again."*
+
+## Fixes
+1. `sourceText.ts`: branch on mime — DOCX → `mammoth` text; XLSX → `exceljs`
+   rows. Neither may reach the `[Binary …]` stub.
+2. Route XLSX into the CSV review path; route DOCX into the AI extraction path.
+3. If an XLSX has multiple sheets, let the organiser pick which one before
+   review; do not silently take the first.
+4. Every failure names its cause: password-protected file, corrupt archive,
+   empty document, no readable rows. Never a generic "could not process".
+5. Update the upload caption and the help article to match what is actually
+   supported.
+
+## Acceptance
+- A real Word programme document uploads and produces sessions.
+- A real Excel programme uploads and lands in the **CSV review screen** with
+  columns mapped and every row reviewable — no AI, no confidence scores.
+- A multi-sheet workbook asks which sheet.
+- A password-protected DOCX produces a message saying exactly that.
+- Uploading a `.doc` explains how to convert it.
+- No user-facing string mentions a format that does not work.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §9 — they run now,
+  so verify with them.
+- New dependencies are flagged above; do not add others without saying why.
+- Errors must name the real cause (`.cursor/rules/product.mdc`).
+- Stop the web dev server first; reset ritual after.

@@ -273,3 +273,77 @@ cd ~/Documents/DocWeekSched/apps/api && \
 | 2026-08-03 | `sessionsBulkAssign.db.test.ts` | 7/7 pass | Multi-tenancy: attendee rejected at guard, cross-event session and track ids rejected. First execution of the assertions written after the E13 cross-tenant finding. |
 | 2026-08-03 | All, ×3 consecutive (E20 acceptance) | **374/374 pass, three times** | Flakiness resolved. Run 3's recap test took **64s** vs 4s in run 2 — the new drain waited through a long job delay instead of giving up, which is exactly the failure mode E20 fixed. |
 | 2026-08-03 | All, with a deliberately invalid `DATABASE_URL` | 24 DB suites **refused** by the guard | Accidental (placeholder text pasted literally), but a genuine verification: a non-test database is rejected before any suite runs. |
+
+---
+
+## 10. Billing go-live (test mode → live mode)
+
+**Do this fresh, with a clear hour, not at the end of a long session.** It is the
+one procedure in this project where a tired mistake involves real money, real tax
+identifiers, and paperwork to undo.
+
+Everything below has already been proven end-to-end in **test mode**: checkout →
+webhook → entitlement → plan label → cancellation. Going live changes credentials
+and product records, not logic.
+
+### What the code expects
+
+Set on **Render** (`docweeksched-api`):
+
+| Variable | Test today | Live |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | `sk_test_…` | `sk_live_…` |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` (test endpoint) | `whsec_…` (**new** live endpoint) |
+| `STRIPE_API_VERSION` | `2025-03-31.basil` | unchanged — **do not lower it**; Managed Payments requires ≥ this version |
+| `STRIPE_PRICE_PRO_MONTHLY` | test price id | **new** live price id |
+| `STRIPE_PRICE_PRO_ANNUAL` | test price id | **new** live price id |
+| `STRIPE_PRICE_PER_EVENT_250` | test price id | **new** live price id |
+| `STRIPE_PRICE_PER_EVENT_500` | test price id | **new** live price id |
+| `STRIPE_PRICE_PER_EVENT_1000` | test price id | **new** live price id |
+
+**Price IDs do not carry over between test and live mode.** Every one is new.
+When the 2026-08-02 test setup was done, two variables were nearly given the same
+value — check each of the five against the Stripe dashboard **individually**
+before saving.
+
+### Steps
+
+1. **Business verification** (Stripe → Settings → Business). Legal entity name,
+   address, EIN **or** SSN, and the payout bank account. **Do this yourself —
+   never paste these into a chat, a file, or an AI tool.** Stripe may take
+   minutes or a day or two to approve; nothing else can proceed until it does.
+2. **Live secret key** — Stripe dashboard, toggle to **live mode**, Developers →
+   API keys → reveal the `sk_live_…`.
+3. **Five live products and prices.** Recreate the same catalogue in live mode:
+   Pro Monthly $79, Pro Annual $790, Per-event 250 $149, 500 $249, 1,000 $399.
+   Each product needs a **`tax_code`** — the test catalogue uses
+   `txcd_10103001` (SaaS). Missing tax codes are what blocked Managed Payments
+   checkout on 2026-08-02.
+4. **New live webhook endpoint** → `https://api.ukedl.com/billing/webhook`,
+   subscribed to the same events as the test endpoint. Copy its **new**
+   `whsec_…`. The test secret will not validate live events.
+5. **Update Render** with all eight variables, redeploy, and watch the log come up
+   clean.
+6. **One real purchase.** Buy **Pro Monthly ($79)** with your own card. Confirm:
+   checkout completes · webhook is received · the organisation shows **Pro ·
+   Monthly** (not Annual — that mislabel was the E5.1 bug) · entitlements unlock.
+7. **Refund it** in the Stripe dashboard, and confirm the app returns to Free.
+8. Update `LAUNCH_CHECKLIST.md` §0 and log the date below.
+
+### Cautions
+
+- **Never** put an EIN, SSN, bank number or card number into a chat window, a
+  repo file, or an AI tool. Stripe's own forms only.
+- Keep the **test** keys somewhere retrievable — a test environment is still
+  useful after go-live.
+- Do not delete the test webhook endpoint; it is harmless and useful.
+- Stripe is **merchant of record** here (Managed Payments): Stripe collects the
+  payment and remits sales tax/VAT. The `/pricing` page states this — check the
+  wording still matches reality once live, because procurement teams read it.
+
+### Log
+
+| Date | Step | Result |
+|---|---|---|
+| 2026-08-02 | Full lifecycle in **test** mode | PASS — checkout → webhook → entitlement → cancel → revert |
+| _(go-live pending)_ | | |
