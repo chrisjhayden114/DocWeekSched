@@ -1792,3 +1792,72 @@ No new motion (E28 done). No empty-state/number work (E30). No behavior changes.
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12 if touched.
 - Design values in the token layer only; no hardcoded hex/px in components.
 - Stop the web dev server first; reset ritual after (README).
+
+---
+
+# Chunk E30 — surface polish: the edit drawer, form rhythm, states
+
+DESIGN_PHASE_E Option A, phase 3. E29 tightened the agenda behind the drawer;
+now the drawer itself is the weakest surface (founder flagged it 2026-08-07).
+Lead with it, then the general form/state craft.
+
+## E30.1 — the Edit session drawer (lead item; `pages/dashboard.tsx`)
+Seen in the 2026-08-07 screenshots. Problems:
+- **Two stacked "Drop a file here" dropzones** (Presentation link + Materials
+  upload) — redundant and cluttering. Collapse to ONE clear materials area: a
+  single dropzone plus the "Presentation or resource link" text field, grouped
+  under one "Materials" subheading. (Verify the two currently map to different
+  fields before merging; if they genuinely target different data, keep both but
+  give them one shared, labelled group with a single dropzone affordance and a
+  clear caption for each — do not show two identical empty dropzones.)
+- **Loose, inconsistent field spacing** — pull every gap onto `--space-*`;
+  consistent label→field→next-field rhythm.
+- **Header and Save/Cancel/Delete scroll away.** Make the drawer a proper
+  three-part layout: sticky header ("Edit session" + a close ✕), scrolling body,
+  sticky footer with the actions. Save primary, Cancel quiet, **Delete visually
+  separated** from Save/Cancel (it currently sits right beside Save — move it to
+  the left or behind a small gap so a mis-click can't destroy a session).
+- Section headers (Basics / Schedule / Materials / Roster & waitlist) get
+  consistent weight and spacing; the drawer already has `--shadow-3` from E29.
+- Constrain form field line-length inside the wide drawer (max ~520px content
+  column) so inputs don't stretch the full panel width.
+- Same treatment applies to the **+ New session** drawer (same component).
+
+## E30.2 — form & modal rhythm (general)
+Apply the drawer's spacing rules to the other forms/modals (EventSettingsModal,
+CFP forms, the ingest panels): consistent label/field spacing, one field-group
+pattern, sticky action footers where the form scrolls.
+
+## E30.3 — empty states that teach
+Rewrite bare empty states ("No messages yet", "No conversations yet",
+"No one on the waitlist", empty agenda day) to orient + quietly guide: a short
+line of what this area is for + the primary action. Calm, not cute — no
+illustrations-for-illustration's-sake. Copy through the config layer.
+
+## E30.4 — loading shimmer + confident numbers
+- Ensure the E28 shimmer is applied wherever a spinner or static skeleton still
+  shows (audit for leftovers).
+- Where a real figure is shown (attendee counts, "22 sessions found" on ingest,
+  analytics headline numbers), give it confident type weight/size. **One** earned
+  count-up on the ingest result only; nowhere else.
+
+## Out of scope
+Assistant elevation (E31). Marketing texture/color (E32). No behavior/schema
+changes — the drawer's save/delete logic is unchanged; this is layout + the
+one dropzone consolidation.
+
+## Acceptance
+- The Edit/New session drawer shows ONE materials area, consistent field
+  spacing, a sticky header with close ✕, and a sticky footer with Delete clearly
+  separated from Save/Cancel.
+- No form field stretches the full width of the wide drawer.
+- Every named empty state teaches rather than just stating absence.
+- No spinner/static-skeleton leftovers; ingest result number is confident with a
+  single tasteful count-up.
+- Contrast unchanged/better; reduced-motion still suppresses the count-up and
+  shimmer; all tests green.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12 if touched.
+- Copy + design values through the config/token layers.
+- Stop the web dev server first; reset ritual after (README).
