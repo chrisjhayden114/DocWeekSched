@@ -412,8 +412,8 @@ export default function OrganizerEventPage() {
             <div className="console-panel">
               <p className="console-panel-label">Create next edition</p>
               <p className="help-text" style={{ marginTop: 0 }}>
-                Clones tracks, rooms, speakers, sessions, and papers into a new Draft — no attendees. Dates shift from the
-                new start.
+                Clones tracks, rooms, speakers, sessions, papers, and presentations into a new Draft — no attendees. Dates
+                shift from the new start.
               </p>
               <form onSubmit={createNextEdition} className="console-form">
                 <label>
@@ -450,11 +450,11 @@ export default function OrganizerEventPage() {
           <section className="console-panel">
             <p className="console-panel-label">Speakers</p>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Speakers present sessions and appear on the public schedule. Paper authors are listed under each
-              paper inside a session (Program tab) — a person can be both.
+              Speakers present sessions and appear on the public schedule. Authors and presenters are listed under each
+              paper or presentation inside a session (Program tab) — a person can be both.
             </p>
             {speakers.length === 0 ? (
-              <ListEmpty title="No speakers yet" body="Add speakers to assign them to sessions and papers." />
+              <ListEmpty title="No speakers yet" body="Add speakers to assign them to sessions, papers, and presentations." />
             ) : (
               <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
                 {speakers.map((s) => (

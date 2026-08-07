@@ -97,7 +97,7 @@ export const marketingSeo = {
     home: {
       title: `Conference schedule software for academic events — ${brand.productName}`,
       description:
-        "Turn a conference program — PDF, Word, Excel or paste — into a published event site in minutes. Papers with ordered authors, CFP, calm notifications, open pricing.",
+        "Turn a conference program — PDF, Word, Excel or paste — into a published event site in minutes. Papers and presentations with ordered authors, CFP, calm notifications.",
     },
     pricing: {
       title: `Pricing — open, no sales calls — ${brand.productName} conference software`,
@@ -107,7 +107,7 @@ export const marketingSeo = {
     help: {
       title: `Help — ${brand.productName} conference software`,
       description:
-        "Guides for publishing a conference program online — importing sessions from PDF, Word, Excel or CSV, organizing papers and speakers, and attendee FAQs.",
+        "Guides for publishing a conference program online — importing sessions from PDF, Word, Excel or CSV, organizing papers, presentations and speakers, and attendee FAQs.",
     },
     security: {
       title: `Security & data practices — ${brand.productName} conference software`,
@@ -133,7 +133,7 @@ export const programCopy = {
   addEntryLabel: "Add paper or resource",
   paper: {
     noun: "Paper",
-    hint: "A submission with authors and an abstract — appears in the program under the session.",
+    hint: "A paper or presentation — authors or presenters in order, with an optional abstract. Appears in the program under the session.",
   },
   resource: {
     noun: "Resource",

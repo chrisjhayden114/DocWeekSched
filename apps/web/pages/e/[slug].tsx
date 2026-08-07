@@ -288,7 +288,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
       <input
         className="input"
         type="search"
-        placeholder="Search sessions, speakers, papers…"
+        placeholder="Search sessions, speakers, papers, presentations…"
         aria-label="Search sessions"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

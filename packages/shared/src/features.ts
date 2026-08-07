@@ -216,8 +216,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
   },
   {
     key: "cfp",
-    name: "Call for papers",
-    plainDescription: "Public abstract submission and program-committee review for this event.",
+    name: "Call for proposals",
+    plainDescription: "Public submission of papers, presentations and workshops, with program-committee review.",
     category: "sessions",
     defaultOn: false,
   },
@@ -277,7 +277,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     key: "readiness",
     name: "Speaker & Session Readiness",
     plainDescription:
-      "Track what every accepted speaker, paper and session still needs before it is show-ready.",
+      "Track what every accepted speaker, paper, presentation and session still needs before it is show-ready.",
     category: "sessions",
     defaultOn: false,
     plannedPhase: "ER",

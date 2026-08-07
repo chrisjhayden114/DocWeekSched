@@ -6,3 +6,4 @@ apps/web/.netlify
 dist
 *.log
 .DS_Store
+.Rhistory

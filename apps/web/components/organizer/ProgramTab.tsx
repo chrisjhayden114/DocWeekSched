@@ -977,8 +977,8 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
         </div>
 
         <p className="help-text" style={{ margin: "0 0 8px" }}>
-          A session can hold papers (with author lists) and resources (slides, links, files). Speakers (from the
-          Speakers tab) present sessions — a person can be both.
+          A session can hold papers and presentations (with author or presenter lists) and resources (slides, links,
+          files). Speakers (from the Speakers tab) present sessions — a person can be both.
         </p>
 
         {/* E13.1: draft sessions are labelled below; when the event is already

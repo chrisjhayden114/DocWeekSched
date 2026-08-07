@@ -1044,7 +1044,7 @@ export default function Dashboard() {
       <input
         className="input"
         type="search"
-        placeholder="Search sessions, speakers, papers…"
+        placeholder="Search sessions, speakers, papers, presentations…"
         aria-label="Search sessions"
         value={agendaSearch}
         onChange={(e) => setAgendaSearch(e.target.value)}
@@ -3277,7 +3277,7 @@ function ProfileEditor({
             <a href="/organizer">
               organizer workspace
             </a>{" "}
-            for drafts, publishing, tracks/rooms/speakers, papers, and CSV dry-run invites.
+            for drafts, publishing, tracks/rooms/speakers, papers and presentations, and CSV dry-run invites.
           </p>
           <div className="grid" style={{ gap: 8, marginBottom: 12 }}>
             {adminEvents.map((eventItem) => (

@@ -50,7 +50,7 @@ export default function OrganizerCfpPage() {
   const [busy, setBusy] = useState(false);
 
   // create form
-  const [title, setTitle] = useState("Call for papers");
+  const [title, setTitle] = useState("Call for proposals");
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
   const [rubricJson, setRubricJson] = useState(
@@ -169,7 +169,7 @@ export default function OrganizerCfpPage() {
             <Link href={`/organizer/events/${eventId}/cfp/review`}>Reviewer UI</Link>
           </p>
         ) : null}
-        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Call for papers</h1>
+        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Call for proposals</h1>
         {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
         {message ? <p className="help-text">{message}</p> : null}
 

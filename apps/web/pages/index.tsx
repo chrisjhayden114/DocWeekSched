@@ -26,14 +26,14 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 
 const FEATURES = [
   {
-    eyebrow: "Papers & authors",
+    eyebrow: "Papers & presentations",
     title: "Academic structure, first-class",
-    body: "Sessions nest papers with author order preserved, discussants, and individual times — the parent/child model conference programs actually use.",
+    body: "Sessions nest papers and presentations with author or presenter order preserved, discussants, and individual times — the parent/child model conference programs actually use.",
   },
   {
     eyebrow: "AI program ingest",
     title: "AI generated, always reviewable",
-    body: "Upload a PDF or paste a schedule. Agenda Ingest proposes sessions and papers — nothing publishes until you confirm.",
+    body: "Upload a PDF or paste a schedule. Agenda Ingest proposes sessions, papers, and presentations — nothing publishes until you confirm.",
   },
   {
     eyebrow: "Attendee experience",
@@ -50,8 +50,8 @@ const STEPS = [
   },
   {
     n: "2",
-    title: "Edit tracks, rooms, and papers",
-    body: "Tighten titles, assign rooms, keep author order. Publish when the draft is right.",
+    title: "Edit tracks, rooms, papers, and presentations",
+    body: "Tighten titles, assign rooms, keep author or presenter order. Publish when the draft is right.",
   },
   {
     n: "3",
@@ -153,7 +153,7 @@ export default function LandingPage() {
               <p className="mkt-eyebrow">Built for academic events</p>
               <h2 className="mkt-h2">What organizers actually need</h2>
               <p className="mkt-standfirst">
-                Papers, authors, CFP, and series — treated as product, not afterthoughts.
+                Papers, presentations, CFP, and series — treated as product, not afterthoughts.
               </p>
               <div className="mkt-feature-trio">
                 {FEATURES.map((f) => (

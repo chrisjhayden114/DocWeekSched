@@ -137,13 +137,13 @@ export default function PublicCfpPage() {
   return (
     <>
       <Head>
-        <title>{`${data?.form.title || "Call for papers"} — ${brand.productName}`}</title>
+        <title>{`${data?.form.title || "Call for proposals"} — ${brand.productName}`}</title>
       </Head>
       <main className="page" style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 64px" }}>
         <p className="help-text">
           <Link href={slug ? `/e/${slug}` : "/"}>{data?.event.name || "Event"}</Link>
         </p>
-        <h1 style={{ marginTop: 0 }}>{data?.form.title || "Call for papers"}</h1>
+        <h1 style={{ marginTop: 0 }}>{data?.form.title || "Call for proposals"}</h1>
         {data?.form.description ? <p className="help-text">{data.form.description}</p> : null}
         {data ? (
           <p className="help-text">
