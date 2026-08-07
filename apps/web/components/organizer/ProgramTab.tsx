@@ -79,7 +79,7 @@ type SessionDraft = {
   roomId: string;
 };
 
-const smallButton = { fontSize: 13, padding: "2px 10px" } as const;
+const smallButton = { fontSize: 13, padding: "2px var(--space-2)" } as const;
 
 /** Same encoding ceiling as the session-page resource form (server accepts ~4.5 MB). */
 const RESOURCE_DATA_URL_MAX_CHARS = 4_500_000;
@@ -976,7 +976,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           </div>
         </div>
 
-        <p className="help-text" style={{ margin: "0 0 8px" }}>
+        <p className="help-text" style={{ margin: "0 0 var(--space-2)" }}>
           A session can hold papers and presentations (with author or presenter lists) and resources (slides, links,
           files). Speakers (from the Speakers tab) present sessions — a person can be both.
         </p>
@@ -990,11 +990,11 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
               role="status"
               style={{
                 display: "flex",
-                gap: 12,
+                gap: "var(--space-3)",
                 alignItems: "center",
                 flexWrap: "wrap",
-                padding: "8px 12px",
-                marginBottom: 12,
+                padding: "var(--space-2) var(--space-3)",
+                marginBottom: "var(--space-3)",
                 borderRadius: "var(--radius-sm)",
                 background: "var(--warning-50, #fffaeb)",
                 border: "1px solid var(--gray-200)",
@@ -1009,14 +1009,14 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
               {rowError("publish-drafts")}
             </div>
           ) : (
-            <p className="help-text" style={{ margin: "0 0 12px" }}>
+            <p className="help-text" style={{ margin: "0 0 var(--space-3)" }}>
               {draftCount} draft session{draftCount === 1 ? "" : "s"} — hidden from attendees. Publishing the
               event (Overview tab) publishes them too.
             </p>
           )
         ) : null}
         {publishNotice ? (
-          <p role="status" style={{ margin: "0 0 12px", color: "var(--success)", font: "var(--text-body)" }}>
+          <p role="status" style={{ margin: "0 0 var(--space-3)", color: "var(--success)", font: "var(--text-body)" }}>
             {publishNotice}
           </p>
         ) : null}
@@ -1031,9 +1031,9 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
         ) : null}
 
         {addSessionOpen ? (
-          <form onSubmit={(e) => void submitAddSession(e)} className="console-form" style={{ marginBottom: 16 }}>
+          <form onSubmit={(e) => void submitAddSession(e)} className="console-form" style={{ marginBottom: "var(--space-4)" }}>
             {sessionFormFields(sessionDraft, (patch) => setSessionDraft((d) => ({ ...d, ...patch })))}
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
               <button className="button" type="submit" disabled={busy}>
                 Add session
               </button>
@@ -1114,15 +1114,15 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           </div>
         ) : null}
         {bulkNotice ? (
-          <p role="status" style={{ margin: "0 0 12px", color: "var(--success)", font: "var(--text-body)" }}>
+          <p role="status" style={{ margin: "0 0 var(--space-3)", color: "var(--success)", font: "var(--text-body)" }}>
             {bulkNotice}
           </p>
         ) : null}
 
-        <div style={{ display: "grid", gap: 16 }}>
+        <div style={{ display: "grid", gap: "var(--space-4)" }}>
           {dayGroups.map((group) => (
             <div key={group.key}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "0 0 8px" }}>
+              <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", margin: "0 0 var(--space-2)" }}>
                 <h3
                   style={{
                     margin: 0,
@@ -1145,7 +1145,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                   Select all
                 </label>
               </div>
-              <div className="motion-stagger" style={{ display: "grid", gap: 8 }}>
+              <div className="motion-stagger" style={{ display: "grid", gap: "var(--space-2)" }}>
                 {group.sessions.map((s) => {
                   const track = s.trackId ? trackById.get(s.trackId) : undefined;
                   const room = s.roomId ? roomById.get(s.roomId) : undefined;
@@ -1157,7 +1157,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                       style={{
                         border: "1px solid var(--gray-200)",
                         borderRadius: "var(--radius-sm)",
-                        padding: "10px 12px",
+                        padding: "var(--space-2) var(--space-3)",
                         borderLeft: track ? `3px solid ${track.color}` : "1px solid var(--gray-200)",
                       }}
                     >
@@ -1166,7 +1166,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                           {sessionFormFields(editSession, (patch) =>
                             setEditSession((d) => (d ? { ...d, ...patch } : d)),
                           )}
-                          <div style={{ display: "flex", gap: 8 }}>
+                          <div style={{ display: "flex", gap: "var(--space-2)" }}>
                             <button className="button" type="submit" disabled={busy}>
                               Save session
                             </button>
@@ -1183,7 +1183,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                         </form>
                       ) : (
                         <>
-                          <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                          <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "baseline" }}>
                             <input
                               type="checkbox"
                               checked={selected.has(s.id)}
@@ -1254,14 +1254,14 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
 
                           {/* Papers under the session */}
                           {papers.length > 0 || addPaperSessionId === s.id ? (
-                            <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid var(--gray-100)" }}>
+                            <div style={{ marginTop: "var(--space-2)", paddingLeft: "var(--space-3)", borderLeft: "2px solid var(--gray-100)" }}>
                               {papers.map((p) =>
                                 editPaper?.itemId === p.id ? (
                                   <form
                                     key={p.id}
                                     onSubmit={(e) => void submitEditPaper(e)}
                                     className="console-form"
-                                    style={{ margin: "6px 0" }}
+                                    style={{ margin: "var(--space-2) 0" }}
                                   >
                                     <label>
                                       Paper title
@@ -1287,7 +1287,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                                         Order is preserved exactly — never alphabetized.
                                       </span>
                                     </label>
-                                    <div style={{ display: "flex", gap: 8 }}>
+                                    <div style={{ display: "flex", gap: "var(--space-2)" }}>
                                       <button className="button" type="submit" style={smallButton} disabled={busy}>
                                         Save paper
                                       </button>
@@ -1304,8 +1304,8 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                                     {rowError(p.id)}
                                   </form>
                                 ) : (
-                                  <div key={p.id} style={{ padding: "3px 0" }}>
-                                    <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                                  <div key={p.id} style={{ padding: "var(--space-1) 0" }}>
+                                    <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "baseline" }}>
                                       <span style={{ flex: 1, minWidth: 0, font: "var(--text-body)" }}>
                                         {p.title}
                                         {p.authors?.length ? (
@@ -1355,7 +1355,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                                 <form
                                   onSubmit={(e) => void submitAddPaper(e, s.id)}
                                   className="console-form"
-                                  style={{ margin: "6px 0" }}
+                                  style={{ margin: "var(--space-2) 0" }}
                                 >
                                   <label>
                                     Paper title
@@ -1381,7 +1381,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                                       Order is preserved exactly — never alphabetized.
                                     </span>
                                   </label>
-                                  <div style={{ display: "flex", gap: 8 }}>
+                                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
                                     <button className="button" type="submit" style={smallButton} disabled={busy}>
                                       Add paper
                                     </button>
@@ -1405,15 +1405,15 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                               with Open and Remove, so an added resource is verifiable
                               in place. */}
                           {sessionResources === null || (sessionResources || []).length > 0 ? (
-                            <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid var(--gray-100)" }}>
+                            <div style={{ marginTop: "var(--space-2)", paddingLeft: "var(--space-3)", borderLeft: "2px solid var(--gray-100)" }}>
                               {sessionResources === null ? (
-                                <p className="help-text" style={{ margin: "3px 0", color: "var(--danger)" }}>
+                                <p className="help-text" style={{ margin: "var(--space-1) 0", color: "var(--danger)" }}>
                                   Couldn’t load this session’s resources — reload the page to retry.
                                 </p>
                               ) : (
                                 (sessionResources || []).map((r) => (
-                                  <div key={r.id} style={{ padding: "3px 0" }}>
-                                    <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                                  <div key={r.id} style={{ padding: "var(--space-1) 0" }}>
+                                    <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "baseline" }}>
                                       <span style={{ flex: 1, minWidth: 0, font: "var(--text-body)" }}>
                                         {r.title}
                                         <span className="help-text">
@@ -1522,7 +1522,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                                   />
                                 </label>
                               )}
-                              <div style={{ display: "flex", gap: 8 }}>
+                              <div style={{ display: "flex", gap: "var(--space-2)" }}>
                                 <button className="button" type="submit" style={smallButton} disabled={busy}>
                                   Add resource
                                 </button>

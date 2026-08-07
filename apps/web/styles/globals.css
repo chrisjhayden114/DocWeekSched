@@ -45,9 +45,9 @@ a:hover {
   color: #ffffff;
 }
 
-/* Focus is always visible: 2px accent ring at 2px offset. */
+/* Focus is always visible: 2px accent ring at 2px offset (E29.2 tokens). */
 :focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring-color);
   outline-offset: 2px;
 }
 
@@ -243,7 +243,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   background: #ffffff;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
 }
 
 .select-option {
@@ -314,8 +314,8 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 .select:focus,
 .textarea:focus {
   outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-50);
+  border-color: var(--focus-ring-color);
+  box-shadow: var(--focus-ring);
 }
 
 .grid {
@@ -1124,7 +1124,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 }
 
 .schedule-day-heading {
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-2);
   font: 400 15px/22px var(--font-body);
   color: var(--gray-600);
 }
@@ -1150,7 +1150,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 4px var(--space-2) 0 0;
+  padding: var(--space-1) var(--space-2) 0 0;
   border-right: 1px solid var(--gray-200);
   font: 400 13px/18px var(--font-body);
   letter-spacing: -0.1px;
@@ -1172,7 +1172,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 .schedule-events {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: stretch;
   width: 100%;
   max-width: 100%;
@@ -1189,7 +1189,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 
 .schedule-events-wrap {
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -1204,7 +1204,11 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   font: 400 12px/16px var(--font-body);
 }
 
-/* Session row: white, 1px border, radius 4, 3px track color bar. Target ≤84–96px. */
+/*
+ * Session row (E29.1): white, 1px border, radius 4, 3px track color bar.
+ * A tight row, not a tall card — target ~72–88px at rest. Actions sit on the
+ * title line (see .schedule-event-side), never stranded at the bottom.
+ */
 .schedule-event {
   position: relative;
   display: flex;
@@ -1212,7 +1216,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   align-items: flex-start;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
-  padding: 7px 10px 7px 13px;
+  padding: var(--space-2) var(--space-3);
   background: #ffffff;
   overflow: hidden;
   box-shadow: none;
@@ -1405,13 +1409,20 @@ button.schedule-meta-chip:hover {
   color: var(--gray-800);
 }
 
-/* Compact quiet row actions (save / Q&A / like / star / edit) — right column, thumb-reachable. */
+/*
+ * Quiet row actions (save / Q&A / like / star / edit) — E29.1.
+ * One horizontal cluster on the title's baseline, right-aligned. DOM order is
+ * save-dot then actions; row-reverse keeps the save dot at the far right edge.
+ * (<768px the side unwraps to display:contents and the thumb-reachable grid
+ * layout takes over — see the mobile block.)
+ */
 .schedule-event-side {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--space-1);
   flex-shrink: 0;
+  min-height: var(--control-quiet);
 }
 
 .schedule-row-actions {
@@ -1419,20 +1430,20 @@ button.schedule-meta-chip:hover {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .row-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-height: 44px;
-  min-width: 44px;
+  gap: var(--space-1);
+  min-height: var(--control-quiet);
+  min-width: 0;
   border: 1px solid transparent;
   background: transparent;
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: var(--space-1) var(--space-2);
   font: 500 12px/16px var(--font-body);
   color: var(--gray-500);
   cursor: pointer;
@@ -1451,19 +1462,41 @@ button.schedule-meta-chip:hover {
   background: var(--primary-50);
 }
 
+/*
+ * E29.1: at rest the row stays quiet — secondary actions hold the AA-passing
+ * quiet gray (never dimmed below contrast); hovering or keyboard-focusing the
+ * row strengthens the whole cluster. Color only, so nothing shifts.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .schedule-event:hover .row-action-btn:not(.is-active),
+  .schedule-event:focus-within .row-action-btn:not(.is-active) {
+    color: var(--gray-700);
+  }
+}
+
+/* The save dot compacts to match the title-line cluster (18px circle keeps
+   its size); the ≥44px hit target remains on the <768px touch layout. */
+@media (min-width: 768px) {
+  .schedule-event-side .schedule-event-save {
+    width: var(--control-quiet);
+    height: var(--control-quiet);
+  }
+}
+
 /* Right filter rail (≥1280px) — rows double as the track legend. */
 .agenda-rail {
   display: none;
   min-width: 0;
 }
 
+/* E29.3: rail rows follow the ~31px quiet-gray spec; groups sit on a 12px rhythm. */
 .agenda-rail-panel {
   background: #ffffff;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .agenda-filter-group {
@@ -1485,7 +1518,7 @@ button.schedule-meta-chip:hover {
   gap: var(--space-2);
   width: 100%;
   min-height: 31px;
-  padding: 4px var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -1620,8 +1653,8 @@ button.schedule-meta-chip:hover {
 /* Save-toggle: 18px circle visual inside a ≥44px hit target (thumb-reachable). */
 .attendance-join-dot {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: var(--tap-target);
+  height: var(--tap-target);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -1780,7 +1813,7 @@ button.schedule-meta-chip:hover {
   overflow: auto;
   background: #ffffff;
   border: 1px solid var(--gray-200);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   padding: 20px;
   border-radius: var(--radius-lg);
   color: var(--gray-900);
@@ -2012,8 +2045,8 @@ button.schedule-meta-chip:hover {
   background: #ffffff;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
-  padding: 22px;
-  box-shadow: var(--shadow-2);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-3);
 }
 
 .agenda-add-modal h4 {
@@ -3239,7 +3272,7 @@ button.schedule-meta-chip:hover {
   padding: var(--space-5);
   max-width: 480px;
   width: 100%;
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   max-height: min(90vh, 720px);
   overflow: auto;
 }
@@ -3256,7 +3289,7 @@ button.schedule-meta-chip:hover {
   width: min(440px, 100vw);
   background: var(--surface);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   z-index: 1001;
   padding: var(--space-5);
   overflow: auto;
@@ -3352,7 +3385,7 @@ button.schedule-meta-chip:hover {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   z-index: 50;
 }
 
@@ -3875,9 +3908,9 @@ button.schedule-meta-chip:hover {
 
   .schedule-row-actions .row-action-btn {
     flex: 1 1 0;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 8px 2px;
+    min-width: var(--tap-target);
+    min-height: var(--tap-target);
+    padding: var(--space-2) 2px;
     font: 500 14px/18px var(--font-body);
     color: var(--gray-600);
   }
@@ -4114,7 +4147,7 @@ button.schedule-meta-chip:hover {
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   animation: concierge-sheet-up var(--motion-slow) var(--ease-out) both;
 }
 @media (min-width: 720px) {
@@ -5130,7 +5163,7 @@ button.schedule-meta-chip:hover {
   background: #ffffff;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   z-index: 60;
 }
 
@@ -5519,7 +5552,7 @@ button.schedule-meta-chip:hover {
   background: #ffffff;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   z-index: 60;
 }
 
