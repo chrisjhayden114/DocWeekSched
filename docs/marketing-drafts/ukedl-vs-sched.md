@@ -37,7 +37,8 @@ into a reviewable draft; nothing publishes until you approve it. A real
 7-page programme becomes a reviewable 22-session draft in about two minutes.
 
 **2. Papers as first-class records.**
-UKEDL models papers *inside* sessions with ordered authors and discussants —
+UKEDL models papers and presentations *inside* sessions with ordered authors
+or presenters and discussants —
 the parent/child structure academic programmes actually use. Sched's data
 model has no paper object; papers become text in a description field.
 

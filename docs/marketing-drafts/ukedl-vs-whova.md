@@ -39,7 +39,8 @@ notifications, quiet hours are respected, and there are no auto-generated
 "X viewed your profile" touches. This is positioning, not a missing feature.
 
 **3. Academic structure is the data model, not a workaround.**
-Papers nested in sessions with ordered authors and discussants; CFP with
+Papers and presentations nested in sessions with ordered authors or
+presenters, plus discussants; CFP with
 review and decisions; certificates; per-session in-person/virtual/async
 attendance. Whova is broader; for the specific shape of a scholarly
 programme, UKEDL is deeper.

@@ -1554,3 +1554,65 @@ Verified answer: it cannot. `requireEventAccess` has no owner bypass; the global
 
 Trigger to build: first time a self-serve (non-pilot) customer has a problem
 that SQL diagnostics can't resolve respectfully. Not scheduled until then.
+
+---
+
+# Chunk E26 — "papers" copy broadened to "papers and presentations"
+
+Founder decision 2026-08-07. Evidence from his own event: the real DocWeek
+programme UKEDL ingested contained **zero paper sessions** — masterclasses,
+workshops, panels. Practitioner and education conferences are core customers,
+and copy that says only "papers" tells them the product is not for them.
+
+## The terminology rule (this is the whole chunk)
+
+**Broaden the copy. Never touch the data model.**
+
+- `SessionItem`, the `Paper` concept, routes, schema, tests: **unchanged.**
+  The paper-with-ordered-authors model is the competitive moat; this chunk is
+  about who feels invited, not what the software is.
+- User-facing copy widens: where "papers" appears as *the* content type, it
+  becomes **"papers and presentations"** (or "papers, presentations" with a
+  third item where rhythm needs it). Where author-order is cited, prefer
+  "author or presenter order" when it reads naturally.
+- Do NOT mechanically replace every instance — some are correct as-is
+  (e.g. CFP review copy where a paper genuinely is a paper). Judge each.
+
+## Known sites (sweep for more with grep -ri "paper" on user-facing layers)
+
+1. **Homepage** (`apps/web/pages/index.tsx`): eyebrow "Papers & authors" →
+   "Papers & presentations"; card body → "Sessions nest papers and
+   presentations with author or presenter order preserved, discussants, and
+   individual times…"; step 2 "Edit tracks, rooms, and papers" → "…rooms,
+   papers, and presentations"; TRUST sub-line "Papers, authors, CFP…" →
+   "Papers, presentations, CFP…".
+2. **`packages/config`** `programCopy`: chooser description for Paper becomes
+   "A paper or presentation — authors or presenters in order, with an optional
+   abstract. Appears in the program under the session." Entry label
+   `Add paper or resource` **stays** (three-item labels get unwieldy; the
+   chooser copy does the work). Help meta description at index.ts:110 →
+   "…organizing papers, presentations and speakers…".
+3. **`packages/shared/plans.ts`** plainDescriptions — check each for
+   paper-only phrasing.
+4. **`marketingSeo`** descriptions (E25) — homepage description currently says
+   "papers with ordered authors"; widen within the 170-char test budget.
+5. **Help articles** (`content/help/*.md` + the byte-identical
+   `helpContent.ts` mirror) and the Program tab explainer line in
+   `ProgramTab.tsx` ("A session can hold papers…").
+6. **Public event page**: the "N papers" pill on sessions — leave as-is (it
+   counts actual SessionItems and is correct), but flag if any empty-state
+   copy says papers-only.
+
+## Acceptance
+- A workshop-only organizer reading the homepage, pricing and help never
+  encounters copy implying the product is for paper-track conferences only.
+- `grep -ri "paper" apps/web/pages/index.tsx` shows no instance without
+  "presentation" nearby, unless individually justified in the summary.
+- Zero schema/API/test-fixture changes; web tests updated only where copy
+  assertions exist (marketingSeo test).
+- Help markdown and helpContent.ts stay byte-identical (existing test).
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12.
+- All copy through the config layer where it already lives there.
+- Stop the web dev server first; reset ritual after.
