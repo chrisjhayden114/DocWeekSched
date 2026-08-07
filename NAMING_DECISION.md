@@ -11,6 +11,77 @@
 > The slug `colloquium-internal` never changes. Free Porkbun email forwarding
 > (support@siap.events → Gmail) to be set up at flip time; sending stays on Resend.
 
+> ---
+>
+> ## ⚠️ CORRECTION AND MATERIAL UPDATE — 2026-08-06
+>
+> **The screen below was wrong on its central claim.** It said of Siap: *"No
+> conflicting software company found (only Siap+Micros, an Italian
+> weather-instruments firm — unrelated industry)."* That conclusion came from web
+> searching, **not from the trademark register**, and the register tells a
+> different story.
+>
+> ### What a USPTO search found (tmsearch.uspto.gov, "Siap")
+>
+> Four results. Three are DEAD (cancelled/abandoned). One is **LIVE**:
+>
+> | | |
+> |---|---|
+> | **Mark** | SIAP SISTEMA INTEGRAL DE ABASTO Y PRODUCCION |
+> | **Serial / Reg.** | 88916985 / 6383853 |
+> | **Status** | LIVE · REGISTERED · Principal Register |
+> | **Filed / Registered** | 2020-05-14 / 2021-06-15 |
+> | **Classes** | **009 and 042** — exactly the classes a SaaS would file in |
+> | **Owner** | Grupo VIZ, S.A.P.I. de C.V., Culiacán, Sinaloa, Mexico |
+> | **Character claim** | **Standard characters** — no limit on font/style |
+> | **Incontestable (§15)** | No |
+>
+> ### Why this is weaker than it first looks
+>
+> **1. Every substantive item is about livestock.** The full recitation (visible
+> only in the TSDR PDF, truncated in the search UI) repeatedly reads *"tracking
+> and analyzing production and supply of **livestock**"* — including the class 042
+> SaaS item. The attorney docket number is **SUK2004**; Grupo VIZ is the parent of
+> **SuKarne**, a major Mexican beef producer. This is cattle supply-chain
+> software, not a conference product.
+>
+> **2. It has never been used in US commerce.** The basis table is explicit:
+> `Filed Use: No · Currently Use: No · Filed 44D: Yes · Currently 44E: Yes`.
+> The registration rests entirely on Mexican registration 2118591 under §44(e),
+> which permits US registration without US use.
+>
+> **3. It faces a use-proof deadline.** Prosecution history shows
+> *"2026-06-15 COURTESY REMINDER — SEC. 8 (6-YR) E-MAILED."* The §8 declaration
+> requires proof of actual use in US commerce; due **2027-06-15** (2027-12-15 with
+> surcharge). A registrant who never used the mark here cannot validly file it.
+>
+> **4. It is pledged as collateral.** The single recorded assignment is a
+> **SECURITY INTEREST** to Coöperatieve Rabobank U.A., New York Branch, as
+> administrative agent (recorded 2021-02-09). The mark sits inside a lending
+> facility — which also means any negotiated route would likely need the lender.
+>
+> **5. Its own prosecution was suspended** (2020-08-12 → 2021-02-17), the usual
+> sign that an earlier-filed application was in the way.
+>
+> ### Why it is still a real obstacle
+>
+> Several items carry **no field restriction**: *"Downloadable computer programs
+> for project management," "Design and development of computer software,"
+> "Software design and development."* An examiner compares recitations as written,
+> not the registrant's actual business. Combined with a standard-character
+> registration whose dominant element is identical to "Siap," a citation on a new
+> application in class 009 or 042 is a live possibility.
+>
+> ### Status
+>
+> **The Siap decision is NOT cleared.** This analysis is a reading of public
+> records by a non-lawyer and is not a legal opinion. The remaining gate is
+> unchanged: a professional knockout opinion before the public flip. Nothing about
+> the product blocks on this — UKEDL is live, billing works, and the rename is one
+> config line whenever it lands.
+>
+> ---
+
 Method: every candidate checked against the Verisign .com registry (RDAP, authoritative);
 finalists screened for industry/trademark conflicts via web search. **This is a screening
 pass, not legal advice — the finalist still goes to the attorney before committing.**
