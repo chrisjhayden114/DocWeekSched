@@ -1616,3 +1616,42 @@ and copy that says only "papers" tells them the product is not for them.
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12.
 - All copy through the config layer where it already lives there.
 - Stop the web dev server first; reset ritual after.
+
+---
+
+# Chunk E27 — publish the two comparison pages
+
+The founder-approved drafts in `docs/marketing-drafts/` (ukedl-vs-sched.md,
+ukedl-vs-whova.md) become live marketing pages. These target the
+highest-intent queries in the market ("Sched alternative", "Whova alternative
+academic") — a searcher there has budget and a deadline.
+
+## Build
+
+1. Routes: **`/compare/sched`** and **`/compare/whova`** (Pages Router, static).
+   Follow the help-article pattern for prose layout; marketing chrome (header,
+   footer with categoryLine) like the other marketing pages.
+2. Copy comes from the drafts **verbatim** — founder-approved text. Convert the
+   markdown faithfully; strip the draft-header block (the italic note and
+   "Target queries" line are internal, not for publication).
+3. SEO per E25 conventions, all through `marketingSeo` in the config layer:
+   - `/compare/sched` title: `Sched alternative for academic conferences — UKEDL vs Sched`
+   - `/compare/whova` title: `Whova alternative for academic conferences — UKEDL vs Whova`
+   - Unique meta descriptions ≤170 chars, category-first; canonical tags; add
+     both to the sitemap.
+4. Cross-link: each page links to the other, to `/pricing`, and to the homepage
+   demo ("paste your real programme"). Footer gains a small "Compare" group
+   with both links (muted, not primary nav).
+5. Add a visible "Competitor details verified August 2026" line near the top of
+   each page — honest dating protects the claims as competitors change.
+6. Extend `marketingSeo.test.ts` to cover the two new pages (unique titles,
+   budget, brand-last).
+
+## Acceptance
+- Both pages render the approved copy, pass the SEO tests, appear in the
+  sitemap, and are reachable from the footer.
+- No signed-in surfaces touched. No API changes.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Copy through config where it lives there.
+- Stop the web dev server first; reset ritual after.
