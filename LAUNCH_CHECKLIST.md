@@ -37,7 +37,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 - [x] **AI provider key** *(done 2026-07-31)* — `ANTHROPIC_API_KEY` + `AI_PROVIDER=anthropic` + `AI_MODEL=claude-sonnet-5` set in Render (the code's hardcoded fallback model was retired — AI_MODEL env var required; E1 updates the fallback). Acceptance test passed: 14-line program pasted on production → real changeset, 9 sessions incl. parallel 10:15 pair, 4 papers nested with ordered authors, rooms auto-created, assumptions surfaced, 0 errors. *Owner: Chris***
 - [x] **Billing provider: STRIPE MANAGED PAYMENTS** *(decided + built + validated 2026-08-02; supersedes all Lemon Squeezy rows — LS is in wind-down post-Stripe-acquisition)* — chunk E5 (provider, signed webhooks, shared entitlement transitions) + E5.1 (persist planSku). Test store: 5 products w/ SaaS tax code txcd_10103001, webhook destination (5 events, API version 2026-07-29.dahlia, Snapshot payloads), env: BILLING_PROVIDER=stripe, STRIPE_SECRET_KEY/WEBHOOK_SECRET/PRICE_×5/API_VERSION=2025-03-31.basil (account default 2019-02-19 rejects Managed Payments).
 - [x] **Billing validated in TEST MODE — full lifecycle on production** *(2026-08-02)*: Pro Monthly purchase with 4242 → checkout.session.completed + invoice.payment_succeeded delivered 200 → org → Pro, correct "Pro · Monthly" label after E5.1 → invoice listed → customer portal opens → cancel-at-period-end keeps plan active (correct) → immediate cancels via Workbench shell → customer.subscription.deleted → org reverts to Free → re-purchase works. Tax $0.00 for CA SaaS (MoR calculating correctly).
-- [ ] **Billing GO-LIVE (the only step left before real revenue)** — Stripe "Verify your business" (EIN/SSN + payout bank), then swap Render env to live: STRIPE_SECRET_KEY=sk_live_..., new LIVE-mode webhook endpoint + its whsec_, five LIVE-mode products/prices (test-mode objects don't exist in live) → re-run one real-card $79 purchase + refund it. *Owner: Chris · Status: todo · **P1***
+- [x] **Billing GO-LIVE** *(done 2026-08-06 — see RUNBOOK §10 log)* — business verified as **i:Quest Learning Solutions LLC** (EIN); statement descriptor `UKEDL.COM`. Five LIVE products created, each "Managed Payments: Eligible" via Product category *Software as a service (SaaS) — business use*. Live webhook `https://api.ukedl.com/billing/webhooks/stripe`, 5 events, API version 2026-07-29.dahlia. Eight Render vars swapped to live. **Real $79 Pro·Monthly purchase**: `checkout.session.completed` 200 `applied:subscription:pro_monthly` → `invoice.payment_succeeded` 200 → org showed **Pro · Monthly ACTIVE**. Refunded, then cancelled → `customer.subscription.deleted` 200 `applied:subscription:canceled` → org reverted to **Free**. **The product can take money.**
 - [x] **E6 — post-provider polish** *(done 2026-08-02, commit ca40855; verified on production)* — zero "Lemon Squeezy" mentions remain (pricing FAQ/standfirst/tax note → Stripe MoR, billing Invoices box neutral, terms updated w/ new last-updated date); footer Status link restored → ukedl.betteruptime.com and statusPageUrl updated in config; signed-in /pricing shows "Upgrade" → /organizer/billing (finding #17 closed); subprocessor list now Neon/Render/Netlify/Resend/Stripe/Anthropic/Sentry/Better Stack.
 - [x] **VAPID keypair** *(verified already configured, 2026-08-02)* — all three vars were set in Render from an earlier phase (public key verified real). DO NOT ROTATE — rotating invalidates every push subscription. Minor: VAPID_SUBJECT is mailto:cjhayden114@gmail.com; switch to mailto:support@ukedl.com opportunistically with a future env change (safe, non-breaking).
 - [x] **Storage: Cloudflare R2 CONFIGURED** *(done 2026-08-02)* — chosen over the data-URL fallback because the Event Readiness roadmap means heavy uploads and a mid-flight migration was unacceptable. Bucket `ukedl-uploads` (Western North America), scoped Object-R&W API token, r2.dev public dev URL, all 8 STORAGE_* vars in Render, deployed. **Boot log now shows ZERO preflight warnings — every subsystem configured for the first time.** Later polish: replace r2.dev public URL with a custom domain when the Siap flip happens. Upload acceptance test: pending first real image upload.
@@ -53,7 +53,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 
 ## 4. Hardening verification
 
-- [ ] **CSP report-only → enforce** — walk the full demo event with devtools open, zero violations, then `CSP_ENFORCE=1` in the Netlify build env. Never `unsafe-inline` in `script-src`. After enforcing, verify Sentry events still arrive. *Owner: Chris · Status: todo*
+- [x] **CSP report-only → enforce** *(done 2026-08-02)* — full logged-in walk of `/e/demo`, six session pages, dashboard Messages and the organizer ingest page with the Chrome console open produced **zero** Content Security Policy violations. `CSP_ENFORCE=1` set in Netlify (all deploy contexts) and deployed. The console errors found during that walk were unrelated HTTP 401/404s, written up in §8.
 - [x] **Rate-limit smoke test** *(done 2026-08-02)* — two runs of 8 rapid bad-credential POSTs to /auth/login: run 1 = 401,401,401,429,401,401,429,429; run 2 (no deploy in flight, fresh fake email) = 401,401,429,401,401,401,429,429. **Security property holds: sustained brute force is blocked.** OPEN QUESTION (not a blocker): the stutter — 429s that release and re-trip — is not a simple 5/min window. Two mechanisms interact: the fixed-window counter in `authRateLimit` middleware AND `noteAuthFailure()` in the route handler, which sets short escalating blocks (5s × failures). Deploy-overlap and multi-instance theories were both tested and rejected. Worth a small investigation chunk to confirm the intended behaviour is what's happening (and that `noteAuthFailure`'s bucket key really matches the middleware's — the code comments warn about exactly that mismatch). RUNBOOK §7 already flags limits are per-process and must move to a shared store before scaling out.
 - [x] **`npm audit` triage** *(done 2026-08-02, chunk E7)* — 9 findings → 1. Fixed: tar (critical, scoped override to 7.x under @mapbox/node-pre-gyp, bcrypt verified), postcss (override to 8.5.x), brace-expansion, body-parser/express, qs, esbuild via tsx. **Open + documented in SECURITY_NOTES.md:** next@14.2.35 — patched only in 15.5.21+/16.2.12+ (major bump). Accepted because apps/web is Pages Router with no middleware/i18n (App-Router advisories don't apply) and image optimization runs through Netlify's CDN, not the self-hosted optimizer. Revisit triggers documented: adding middleware/i18n, moving off Netlify, or a new Pages-Router advisory. **Deliberate future chunk: Next 15/16 upgrade (breaking — touches React 18→19 + Netlify runtime plugin).**
 - [x] **Uptime monitor → `/health/ready`** *(done 2026-08-02)* — Better Stack free tier: monitors on api.ukedl.com/health/ready (covers DB) + ukedl.com (covers Netlify), 3-min checks, email alerts to cjhayden114@gmail.com.
@@ -211,3 +211,33 @@ organiser mid-conference.
 - Ingest takes 2+ minutes with no progress indication.
 - Rate-limit stutter (open question, §8 above); HSTS preload (post-launch);
   Siap rename (awaiting attorney).
+
+
+---
+
+## 10. Launch state as of 2026-08-06
+
+**Every blocker is closed.** The product accepts money, sends and receives email,
+ingests real conference programmes, and has a test suite that runs.
+
+Closed today: billing go-live (real charge + refund verified); `support@ukedl.com`
+now receives (ImprovMX forwarding) **and** sends (ImprovMX SMTP + Gmail Send-As,
+DKIM published); E21 DOCX/XLSX ingest; E22 test-infrastructure honesty; E24
+billing status copy.
+
+### Deliberately deferred, with reasons
+
+| Item | Why it waits |
+|---|---|
+| **HSTS preload** | Effectively irreversible. Post-launch, after HSTS runs clean for a while. |
+| **DMARC `p=none` → quarantine/reject** | Two senders now exist on this domain — Resend on `mail.ukedl.com`, ImprovMX on the root. Tightening before verifying alignment for both risks silently rejecting verification and password-reset email. |
+| **Product rename** | Siap, Plenum and Constellate were each blocked by live marks in classes 009/042 (see `NAMING_DECISION.md`). Launching as UKEDL; revisit in ~3 months with customer language and revenue to fund a clearance opinion. |
+| **E23** (invoice.subscription under Basil) | Cosmetic; first purchases go through `checkout.session.completed`, which is unaffected. |
+| **`VAPID_SUBJECT`** | Still `mailto:cjhayden114@gmail.com`. Now that `support@ukedl.com` works, switch it on the next Render env change. Safe, non-breaking. |
+| **Rate-limit stutter** | Security property holds (brute force is blocked); the mechanism is not fully explained. §4 has the detail. |
+
+### What is no longer an engineering problem
+
+Nothing on this list blocks a customer from finding the product, understanding
+it, paying for it, and running a conference on it. The next constraint is
+**demand, not software.**
