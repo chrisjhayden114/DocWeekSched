@@ -1655,3 +1655,72 @@ academic") — a searcher there has budget and a deadline.
 ## Standing rules
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Copy through config where it lives there.
 - Stop the web dev server first; reset ritual after.
+
+---
+
+# Chunk E28 — motion foundation (first step of DESIGN_PHASE_E "Quietly excellent")
+
+Direction chosen 2026-08-07: Option A in `DESIGN_PHASE_E.md`. This is the first
+and lowest-risk chunk. Motion is the single biggest "static and cheap" signal in
+the current UI (the tokens define one transition and zero keyframes). Add a
+disciplined motion layer that communicates rather than decorates.
+
+## The rule
+Motion tells the eye *what changed* and *where to look*. Subtle, fast, felt more
+than seen. **Every animation must be gated behind `prefers-reduced-motion:
+reduce` — no exceptions.** This is an academic/accessibility audience.
+
+## E28.1 — motion tokens
+Add to `tokens.css` (the single source; no hardcoded durations in components):
+- Durations: `--motion-fast: 120ms`, `--motion: 200ms`, `--motion-slow: 320ms`.
+- Eases: `--ease-out: cubic-bezier(0.16,1,0.3,1)` (enter),
+  `--ease-in-out: cubic-bezier(0.4,0,0.2,1)` (moves). Keep the existing
+  `--transition` for hovers.
+- A global `@media (prefers-reduced-motion: reduce)` block that sets all the
+  above to `0ms`/`none` and disables the keyframes below, so honoring it is
+  automatic wherever the tokens are used.
+
+## E28.2 — enter animations
+- **Page/section enter:** a subtle fade + 8px rise over `--motion`, on primary
+  content regions (dashboard panels, organizer tabs, marketing sections). Use
+  `--ease-out`.
+- **List-row stagger:** repeating lists (agenda rows, program sessions, messages,
+  ingest "will create" rows) fade+rise with a ~40ms per-row delay, capped so a
+  200-row programme doesn't take 8 seconds — cap total stagger at ~10 items, rest
+  appear together. State the cap mechanism.
+- Runs once on mount, not on every re-render (guard against the React double-fire).
+
+## E28.3 — control motion
+- Segmented controls (List/Grid/By room; My/Event timezone; Event/My Schedule):
+  the active-segment background *slides* to the selected option over
+  `--motion-fast` rather than jumping.
+- Tab changes in the organizer console: quick cross-fade of panel content.
+- Modal/panel open (incl. the Event assistant, ConfirmDialog): fade + subtle
+  scale-from-98% over `--motion`, backdrop fades in. Close reverses.
+
+## E28.4 — loading shimmer
+Replace static skeleton bars with a gentle shimmer (animated gradient sweep,
+~1.5s loop, `--ease-in-out`). One reusable `.skeleton` treatment; apply where
+skeletons already exist (organizer events list, etc.). Reduced-motion → static
+skeleton, no sweep.
+
+## Out of scope for E28
+No count-ups (E30), no new elevation/shadows (E29), no color/gradient changes,
+no glass. Motion only.
+
+## Acceptance
+- With motion ON: sections fade+rise in, lists stagger (capped), segmented
+  controls slide, modals scale-fade, skeletons shimmer.
+- With `prefers-reduced-motion: reduce` set (macOS: System Settings →
+  Accessibility → Display → Reduce motion): **everything appears instantly, no
+  movement, no shimmer.** Verify this explicitly — it's the acceptance that
+  matters most.
+- No layout shift from the animations (transform/opacity only, never animating
+  width/height/top).
+- No contrast or behavior changes; all existing tests green.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12 if touched
+  (this chunk shouldn't touch them).
+- Motion values in the token layer only.
+- Stop the web dev server first; reset ritual after (README).
