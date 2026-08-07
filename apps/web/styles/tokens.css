@@ -84,8 +84,23 @@
   --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
   --shadow-2: 0 4px 6px -2px rgba(16, 24, 40, 0.03), 0 12px 16px -4px rgba(16, 24, 40, 0.08);
 
-  /* —— Motion —— */
-  --transition: all 0.15s ease;
+  /*
+   * —— Motion (E28) ——
+   * The single source for every duration/ease in the app. Components and
+   * globals.css must reference these — no hardcoded durations anywhere else.
+   * All of them collapse to ~0 under prefers-reduced-motion (see the media
+   * block at the end of this file), so honoring it is automatic wherever the
+   * tokens are used.
+   */
+  --transition: all 0.15s ease; /* hovers (pre-E28, kept) */
+  --motion-fast: 120ms; /* control moves: segmented slide, tab cross-fade */
+  --motion: 200ms; /* enters: sections, rows, modals */
+  --motion-slow: 320ms; /* large panels (assistant sheet) */
+  --motion-stagger-step: 40ms; /* per-row delay in staggered lists */
+  --motion-shimmer: 1.5s; /* skeleton shimmer loop */
+  --motion-spin: 0.8s; /* ingest spinner revolution */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* enters */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* moves */
 
   /*
    * —— Schedule layout (E19.1) ——
@@ -201,4 +216,36 @@ html[data-theme="slate"] {
   background: var(--gray-100);
   border-color: var(--gray-200);
   color: var(--gray-500);
+}
+
+/*
+ * —— Reduced motion (E28, non-negotiable) ——
+ * Two layers of protection:
+ * 1. The motion tokens collapse to 0ms, so anything built on them is instant.
+ * 2. A universal override forces every animation/transition — including any
+ *    that slip past the token rule — to complete in one imperceptible frame.
+ *    0.01ms (not 0) so `animationend`/`transitionend` still fire and
+ *    fill-mode animations land on their end state (content fully visible).
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition: none;
+    --motion-fast: 0ms;
+    --motion: 0ms;
+    --motion-slow: 0ms;
+    --motion-stagger-step: 0ms;
+    --motion-shimmer: 0ms;
+    --motion-spin: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }

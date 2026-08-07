@@ -7,6 +7,7 @@ import { AppShell, type ShellNavGroup } from "../../components/AppShell";
 import { MainNavIcon } from "../../components/dashboardNavIcons";
 import { ListSkeleton } from "../../components/ListState";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
+import { SegmentedToggle } from "../../components/SegmentedToggle";
 import { ConciergeChat } from "../../components/ConciergeChat";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
 import { downloadSessionIcs } from "../../lib/calendarIcs";
@@ -676,26 +677,17 @@ export default function SessionPage() {
                 );
               })()}
             </div>
-            <div className="agenda-timezone-toggle" role="tablist" aria-label="Time display mode" style={{ margin: "10px 0 12px" }}>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={timeMode === "MY"}
-                className={timeMode === "MY" ? "active" : ""}
-                onClick={() => setTimeMode("MY")}
-              >
-                My timezone
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={timeMode === "EVENT"}
-                className={timeMode === "EVENT" ? "active" : ""}
-                onClick={() => setTimeMode("EVENT")}
-              >
-                Event timezone
-              </button>
-            </div>
+            <SegmentedToggle
+              className="agenda-timezone-toggle"
+              ariaLabel="Time display mode"
+              style={{ margin: "10px 0 12px" }}
+              options={[
+                { id: "MY", label: "My timezone" },
+                { id: "EVENT", label: "Event timezone" },
+              ]}
+              value={timeMode}
+              onChange={setTimeMode}
+            />
             {session.description && (
               <p style={{ margin: "0 0 12px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{session.description}</p>
             )}

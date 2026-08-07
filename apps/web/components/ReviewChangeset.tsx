@@ -287,7 +287,7 @@ export function ReviewChangeset({
       {creates.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
           <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Will create</p>
-          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, maxHeight: 280, overflow: "auto" }}>
+          <ol className="motion-stagger" style={{ margin: 0, paddingLeft: 18, fontSize: 14, maxHeight: 280, overflow: "auto" }}>
             {creates.map((row) => {
               const low =
                 typeof row.confidence === "number" && row.confidence < lowConfidence;

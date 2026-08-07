@@ -1145,7 +1145,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                   Select all
                 </label>
               </div>
-              <div style={{ display: "grid", gap: 8 }}>
+              <div className="motion-stagger" style={{ display: "grid", gap: 8 }}>
                 {group.sessions.map((s) => {
                   const track = s.trackId ? trackById.get(s.trackId) : undefined;
                   const room = s.roomId ? roomById.get(s.roomId) : undefined;

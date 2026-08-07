@@ -27,6 +27,7 @@ import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agenda
 import { trackColor } from "../lib/trackColors";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/ScheduleViewSwitcher";
+import { SegmentedToggle } from "../components/SegmentedToggle";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
@@ -1052,31 +1053,17 @@ export default function Dashboard() {
       {timezoneToggleOn ? (
         <div className="agenda-filter-group">
           <span className="agenda-filter-group-label">Timezone</span>
-          <div
+          <SegmentedToggle
             className="agenda-timezone-toggle"
-            role="tablist"
-            aria-label="Time display mode"
+            ariaLabel="Time display mode"
             title={`Times shown in ${agendaDisplayTimezone}`}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={agendaTimeMode === "MY"}
-              className={agendaTimeMode === "MY" ? "active" : ""}
-              onClick={() => setAgendaTimeMode("MY")}
-            >
-              My timezone
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={agendaTimeMode === "EVENT"}
-              className={agendaTimeMode === "EVENT" ? "active" : ""}
-              onClick={() => setAgendaTimeMode("EVENT")}
-            >
-              Event timezone
-            </button>
-          </div>
+            options={[
+              { id: "MY", label: "My timezone" },
+              { id: "EVENT", label: "Event timezone" },
+            ]}
+            value={agendaTimeMode}
+            onChange={setAgendaTimeMode}
+          />
         </div>
       ) : null}
       <FilterGroup
@@ -1185,6 +1172,9 @@ export default function Dashboard() {
         }}
       />
 
+      {/* E28.2 — keyed by tab, so each dashboard panel fades+rises once when
+          it appears (mount), not on re-renders within the tab. */}
+      <div className="motion-enter" key={active}>
       {active === "Agenda" && (
         <>
           {token && activeEventId ? (
@@ -1195,55 +1185,38 @@ export default function Dashboard() {
             {/* Sticky on mobile: view toggle + day strip (+ Filters opener). TZ / New session live below. */}
             <div className="agenda-context-bar">
               <div className="agenda-context-row">
-                <div className="nav agenda-view-toggle" role="tablist" aria-label="Schedule views">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={agendaView === "Event Schedule"}
-                    className={agendaView === "Event Schedule" ? "active" : ""}
-                    onClick={() => setAgendaView("Event Schedule")}
-                  >
-                    Event Schedule
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={agendaView === "My Schedule"}
-                    className={agendaView === "My Schedule" ? "active" : ""}
-                    onClick={() => setAgendaView("My Schedule")}
-                  >
-                    My Schedule
-                    <span className="agenda-seg-count">{myAgendaCount}</span>
-                  </button>
-                </div>
+                <SegmentedToggle
+                  className="nav agenda-view-toggle"
+                  ariaLabel="Schedule views"
+                  options={[
+                    { id: "Event Schedule", label: "Event Schedule" },
+                    {
+                      id: "My Schedule",
+                      label: (
+                        <>
+                          My Schedule
+                          <span className="agenda-seg-count">{myAgendaCount}</span>
+                        </>
+                      ),
+                    },
+                  ]}
+                  value={agendaView}
+                  onChange={setAgendaView}
+                />
                 <span className="agenda-context-spacer" aria-hidden />
                 <ScheduleViewSwitcher value={scheduleLayout} onChange={setScheduleLayout} />
                 {timezoneToggleOn ? (
-                  <div
+                  <SegmentedToggle
                     className="agenda-timezone-toggle agenda-timezone-toggle--desktop"
-                    role="tablist"
-                    aria-label="Time display mode"
+                    ariaLabel="Time display mode"
                     title={`Times shown in ${agendaDisplayTimezone}`}
-                  >
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={agendaTimeMode === "MY"}
-                      className={agendaTimeMode === "MY" ? "active" : ""}
-                      onClick={() => setAgendaTimeMode("MY")}
-                    >
-                      My timezone
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={agendaTimeMode === "EVENT"}
-                      className={agendaTimeMode === "EVENT" ? "active" : ""}
-                      onClick={() => setAgendaTimeMode("EVENT")}
-                    >
-                      Event timezone
-                    </button>
-                  </div>
+                    options={[
+                      { id: "MY", label: "My timezone" },
+                      { id: "EVENT", label: "Event timezone" },
+                    ]}
+                    value={agendaTimeMode}
+                    onChange={setAgendaTimeMode}
+                  />
                 ) : null}
                 <button
                   type="button"
@@ -1911,6 +1884,7 @@ export default function Dashboard() {
           }}
         />
       )}
+      </div>
 
       {event ? (
         <EventSettingsModal
@@ -2109,7 +2083,9 @@ function ScheduleBoard({
       {grouped.map((dayGroup) => {
         const [weekday, ...restLabel] = dayGroup.dayLabel.split(", ");
         return (
-        <section key={dayGroup.dayLabel} className="schedule-day">
+        // E28.2 — rows fade+rise with a per-row delay, capped at 10 rows
+        // (see .motion-stagger in globals.css for the cap mechanism).
+        <section key={dayGroup.dayLabel} className="schedule-day motion-stagger">
           <h3 className="schedule-day-heading">
             <strong>{weekday}</strong>
             {restLabel.length ? `, ${restLabel.join(", ")}` : null}

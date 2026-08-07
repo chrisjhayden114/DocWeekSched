@@ -458,7 +458,7 @@ export function MessagesPanel({
             No conversations match &ldquo;{searchQuery.trim()}&rdquo;.
           </p>
         ) : (
-          <ul className="conversation-list">
+          <ul className="conversation-list motion-stagger">
             {visibleConversations.map((c) => {
               const unread = unreadConversationIds.has(c.id);
               const title = conversationTitle(c, user.id);

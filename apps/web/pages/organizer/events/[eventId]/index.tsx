@@ -331,6 +331,9 @@ export default function OrganizerEventPage() {
         </nav>
         ) : null}
 
+        {/* E28.3 — keyed by tab, so switching tabs remounts the wrapper and
+            cross-fades the incoming panel (.motion-fade, --motion-fast). */}
+        <div className="motion-fade" key={tab}>
         {tab === "overview" && event ? (
           <section style={{ display: "grid", gap: 16 }}>
             {/* E19.3 — the Setup assistant lives on the default tab, not only
@@ -604,6 +607,7 @@ export default function OrganizerEventPage() {
             {eventId ? <EventFaqEditor eventId={eventId} /> : null}
           </section>
         ) : null}
+        </div>
 
         <ConfirmDialog
           open={publishConfirm}

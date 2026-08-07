@@ -3298,7 +3298,7 @@ button.schedule-meta-chip:hover {
   background: var(--surface-alt);
   cursor: pointer;
   text-align: center;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition: border-color var(--motion-fast) var(--ease-in-out), background var(--motion-fast) var(--ease-in-out);
 }
 
 .upload-dropzone.is-dragover {
@@ -3392,7 +3392,7 @@ button.schedule-meta-chip:hover {
   border-radius: var(--radius-sm);
   background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  animation: skeleton-shimmer var(--motion-shimmer) var(--ease-in-out) infinite;
 }
 
 .skeleton-row {
@@ -3400,7 +3400,7 @@ button.schedule-meta-chip:hover {
   border-radius: var(--radius-sm);
   background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  animation: skeleton-shimmer var(--motion-shimmer) var(--ease-in-out) infinite;
 }
 
 .bio-clamp {
@@ -4104,7 +4104,7 @@ button.schedule-meta-chip:hover {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  animation: concierge-fade-in 0.2s ease;
+  animation: concierge-fade-in var(--motion) var(--ease-out) both;
 }
 .concierge-sheet {
   width: min(480px, 100%);
@@ -4115,7 +4115,7 @@ button.schedule-meta-chip:hover {
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-2);
-  animation: concierge-sheet-up 0.28s ease;
+  animation: concierge-sheet-up var(--motion-slow) var(--ease-out) both;
 }
 @media (min-width: 720px) {
   .concierge-sheet-backdrop {
@@ -4125,6 +4125,9 @@ button.schedule-meta-chip:hover {
   .concierge-sheet {
     border-radius: var(--radius-lg);
     max-height: min(80vh, 640px);
+    /* Centered on desktop: fade + scale-from-98% reads better than a sheet
+       sliding up from nowhere (E28.3). Keyframe defined in the motion layer. */
+    animation: motion-pop-in var(--motion) var(--ease-out) both;
   }
 }
 .concierge-sheet-header {
@@ -5266,7 +5269,7 @@ button.schedule-meta-chip:hover {
   border: 2px solid var(--gray-300);
   border-top-color: var(--primary);
   border-radius: 999px;
-  animation: ingest-spin 0.8s linear infinite;
+  animation: ingest-spin var(--motion-spin) linear infinite;
 }
 
 @keyframes ingest-spin {
@@ -5420,7 +5423,10 @@ button.schedule-meta-chip:hover {
   height: 100%;
   background: var(--primary);
   border-radius: 2px;
-  transition: width 0.2s ease;
+  /* Progress fill, not decoration: width communicates determinate progress
+     inside an overflow-hidden track, so surrounding layout never shifts.
+     Duration from the token layer (E28). */
+  transition: width var(--motion) var(--ease-in-out);
 }
 
 .onboarding-steps {
@@ -5796,7 +5802,7 @@ button.schedule-meta-chip:hover {
   gap: 8px;
   padding: 24px;
   text-align: center;
-  animation: scanner-flash-in 0.15s ease;
+  animation: scanner-flash-in var(--motion-fast) var(--ease-out) both;
 }
 
 .scanner-flash--success {
@@ -6363,4 +6369,198 @@ button.schedule-meta-chip:hover {
 .switch:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/*
+ * —— Motion layer (Chunk E28) ——
+ * Subtle, fast, felt more than seen. Every rule here is built exclusively on
+ * the motion tokens in tokens.css, so prefers-reduced-motion collapses all of
+ * it to instant (see the media block at the end of tokens.css).
+ * Transform/opacity only — nothing here animates width/height/top, so there
+ * is no layout shift.
+ */
+
+@keyframes motion-enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes motion-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes motion-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes motion-pop-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes motion-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* E28.2 — page/section enter: fade + 8px rise, once per mount. A CSS
+   animation only runs when the element mounts, so re-renders (including
+   React 18's dev double-invoke, which reuses the DOM node) never replay it. */
+.motion-enter {
+  animation: motion-enter-rise var(--motion) var(--ease-out) both;
+}
+
+/* Quick cross-fade for tab-panel changes (organizer console): the panel
+   wrapper is keyed by tab, so switching tabs remounts it and fades the new
+   panel in over --motion-fast. */
+.motion-fade {
+  animation: motion-fade-in var(--motion-fast) var(--ease-out) both;
+}
+
+/* Marketing sections enter with the page. Inner wrappers only, so the
+   alternating section band backgrounds stay put while the content rises. */
+.mkt-hero-inner,
+.mkt-section-inner {
+  animation: motion-enter-rise var(--motion) var(--ease-out) both;
+}
+
+/* E28.2 — list-row stagger. Applied to the list container; direct children
+   fade+rise with a 40ms/row delay. Cap mechanism: only the first 10 children
+   get an incremental delay via the :nth-child rules below — every later row
+   falls through to the base rule's shared maximum delay (10 steps = 400ms),
+   so a 200-row programme settles in ~600ms, not 8 seconds. */
+.motion-stagger > * {
+  animation: motion-enter-rise var(--motion) var(--ease-out) both;
+  animation-delay: calc(10 * var(--motion-stagger-step));
+}
+
+.motion-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.motion-stagger > *:nth-child(2) { animation-delay: calc(1 * var(--motion-stagger-step)); }
+.motion-stagger > *:nth-child(3) { animation-delay: calc(2 * var(--motion-stagger-step)); }
+.motion-stagger > *:nth-child(4) { animation-delay: calc(3 * var(--motion-stagger-step)); }
+.motion-stagger > *:nth-child(5) { animation-delay: calc(4 * var(--motion-stagger-step)); }
+.motion-stagger > *:nth-child(6) { animation-delay: calc(5 * var(--motion-stagger-step)); }
+.motion-stagger > *:nth-child(7) { animation-delay: calc(6 * var(--motion-stagger-step)); }
+.motion-stagger > *:nth-child(8) { animation-delay: calc(7 * var(--motion-stagger-step)); }
+.motion-stagger > *:nth-child(9) { animation-delay: calc(8 * var(--motion-stagger-step)); }
+.motion-stagger > *:nth-child(10) { animation-delay: calc(9 * var(--motion-stagger-step)); }
+
+/* E28.3 — segmented-control slide (useSegmentSlide.ts). The indicator is a
+   real element that carries the active-segment background; it moves between
+   segments with transform only (translate + scale re-based after each move).
+   Until the hook has measured (`data-seg-ready`), the plain button.active
+   background from the base styles applies, so SSR/no-JS looks unchanged. */
+.agenda-view-toggle,
+.agenda-timezone-toggle {
+  position: relative;
+}
+
+.agenda-view-toggle > button,
+.agenda-timezone-toggle > button,
+.schedule-view-switcher > button {
+  position: relative;
+  z-index: 1;
+}
+
+.seg-slide {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  background: var(--gray-200);
+  border-radius: 4px;
+  transform-origin: top left;
+  transition: transform var(--motion-fast) var(--ease-in-out);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agenda-view-toggle[data-seg-ready="true"] > .seg-slide,
+.agenda-timezone-toggle[data-seg-ready="true"] > .seg-slide,
+.schedule-view-switcher[data-seg-ready="true"] > .seg-slide {
+  opacity: 1;
+}
+
+.agenda-view-toggle[data-seg-ready="true"] > button.active,
+.agenda-timezone-toggle[data-seg-ready="true"] > button.active,
+.schedule-view-switcher[data-seg-ready="true"] > button.active {
+  background: transparent;
+}
+
+/* E28.3 — modal/panel open: backdrop fades, dialog fades + scales from 98%. */
+.modal-backdrop,
+.drawer-backdrop,
+.agenda-add-modal-overlay {
+  animation: motion-fade-in var(--motion) var(--ease-out) both;
+}
+
+.modal-card,
+.modal-dialog,
+.agenda-add-modal {
+  animation: motion-pop-in var(--motion) var(--ease-out) both;
+}
+
+.drawer-panel {
+  animation: motion-slide-in-right var(--motion) var(--ease-out) both;
+}
+
+/* Close reverses (ConfirmDialog): the dialog stays mounted with .is-closing
+   until the backdrop's fade-out animation ends, then unmounts. */
+.modal-backdrop.is-closing {
+  animation: motion-fade-out var(--motion) var(--ease-out) both;
+  pointer-events: none;
+}
+
+.modal-backdrop.is-closing .modal-dialog,
+.modal-backdrop.is-closing .modal-card {
+  animation: motion-pop-out var(--motion) var(--ease-out) both;
+}
+
+/* E28.4 — reduced motion: static skeleton, no sweep. (The universal override
+   in tokens.css already freezes the animation; this pins a clean flat fill.) */
+@media (prefers-reduced-motion: reduce) {
+  .list-skeleton-row,
+  .skeleton-row {
+    animation: none;
+    background: var(--gray-100);
+  }
 }

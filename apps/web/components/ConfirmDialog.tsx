@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -30,6 +30,23 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  // E28.3 — close reverses: after `open` flips false the dialog stays mounted
+  // with .is-closing (reversed fade/scale keyframes) until the backdrop's
+  // animation ends. Under prefers-reduced-motion the animation completes in
+  // one imperceptible frame, so `animationend` still fires and close is
+  // effectively instant.
+  const [closing, setClosing] = useState(false);
+  const wasOpen = useRef(false);
+
+  useEffect(() => {
+    if (open) {
+      wasOpen.current = true;
+      setClosing(false);
+    } else if (wasOpen.current) {
+      wasOpen.current = false;
+      setClosing(true);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -41,10 +58,17 @@ export function ConfirmDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onCancel]);
 
-  if (!open) return null;
+  if (!open && !closing) return null;
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onCancel}>
+    <div
+      className={closing ? "modal-backdrop is-closing" : "modal-backdrop"}
+      role="presentation"
+      onClick={open ? onCancel : undefined}
+      onAnimationEnd={(e) => {
+        if (closing && e.target === e.currentTarget) setClosing(false);
+      }}
+    >
       <div
         className="modal-dialog"
         role="alertdialog"
