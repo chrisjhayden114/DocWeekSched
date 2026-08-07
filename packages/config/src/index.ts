@@ -103,6 +103,89 @@ export const programCopy = {
   },
 } as const;
 
+/**
+ * Customer-facing billing status copy (Chunk E24).
+ * The raw SubscriptionStatus enum (NONE / ACTIVE / TRIALING / PAST_DUE /
+ * CANCELED) must never be rendered on a customer surface. A status line is
+ * shown only when it tells the customer something the plan name and price do
+ * not already say. Edit this module, not the billing page.
+ */
+export const billingCopy = {
+  status: {
+    trial: "Free trial",
+    trialEnds: (endsOn: string) => `Free trial — ends ${endsOn}`,
+    /** The one that earns money: say what failed and what to do. */
+    pastDue: (planName: string) => `Payment failed — update your card to keep ${planName}.`,
+    cancelledEnds: (planName: string, endsOn: string) => `Cancelled — ${planName} access ends ${endsOn}.`,
+    cancelledPaidThrough: (planName: string) =>
+      `Cancelled — ${planName} access continues until the end of the period you already paid for.`,
+  },
+  /** Friendly labels for payment-provider invoice statuses (Stripe et al. send lowercase). */
+  invoiceStatus: {
+    paid: "Paid",
+    open: "Awaiting payment",
+    draft: "Draft",
+    void: "Void",
+    uncollectible: "Uncollectible",
+    pending: "Pending",
+    failed: "Failed",
+    refunded: "Refunded",
+  } as Record<string, string>,
+} as const;
+
+export type SubscriptionStatusLine = {
+  text: string;
+  /** "danger" = act now (payment failed); "warning" = heads-up; "neutral" = informational. */
+  tone: "neutral" | "warning" | "danger";
+};
+
+/**
+ * Decide whether the billing page shows a subscription status line, and what
+ * it says. Returns null when there is nothing worth telling the customer —
+ * NONE and ACTIVE add nothing to the plan name and price, and unknown enum
+ * values must never leak to a customer surface.
+ */
+export function subscriptionStatusLine(input: {
+  /** Raw SubscriptionStatus enum value from the API — never rendered directly. */
+  subscriptionStatus: string;
+  /** Plan tier id ("FREE", "PRO", …) — decides whether CANCELED still matters. */
+  planTier: string;
+  /** Display plan name, e.g. "Pro". */
+  planName: string;
+  /** Pre-formatted, locale-appropriate dates; omit when unknown. */
+  trialEndsOn?: string | null;
+  paidAccessEndsOn?: string | null;
+}): SubscriptionStatusLine | null {
+  switch (input.subscriptionStatus) {
+    case "TRIALING":
+      return {
+        text: input.trialEndsOn ? billingCopy.status.trialEnds(input.trialEndsOn) : billingCopy.status.trial,
+        tone: "neutral",
+      };
+    case "PAST_DUE":
+      return { text: billingCopy.status.pastDue(input.planName), tone: "danger" };
+    case "CANCELED":
+      // After the downgrade the org is FREE and the plan panel already says
+      // Free — never print a cancellation notice beside the Free plan.
+      if (input.planTier === "FREE") return null;
+      return {
+        text: input.paidAccessEndsOn
+          ? billingCopy.status.cancelledEnds(input.planName, input.paidAccessEndsOn)
+          : billingCopy.status.cancelledPaidThrough(input.planName),
+        tone: "warning",
+      };
+    default:
+      return null;
+  }
+}
+
+/** Map a provider invoice status ("paid", "open", …) to a customer-facing label. */
+export function invoiceStatusLabel(raw: string): string {
+  const key = raw.trim().toLowerCase();
+  if (!key) return "";
+  return billingCopy.invoiceStatus[key] ?? key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
+}
+
 /** ICS PRODID / calendar identity derived from brand (never hardcode product name). */
 export function icsProductId(calendar = "Agenda"): string {
   return `-//${brand.productName}//${calendar}//EN`;

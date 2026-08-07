@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, invoiceStatusLabel, subscriptionStatusLine } from "@event-app/config";
 import { PRICE_LOCK, type PlanSkuKey } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
@@ -104,6 +104,16 @@ export default function OrganizerBillingPage() {
     }
   }
 
+  // E24: a status line renders only when it tells the customer something —
+  // NONE/ACTIVE show nothing, and the raw enum never reaches the page.
+  const statusLine = summary
+    ? subscriptionStatusLine({
+        subscriptionStatus: summary.subscriptionStatus,
+        planTier: summary.plan,
+        planName: summary.planName,
+      })
+    : null;
+
   return (
     <>
       <Head>
@@ -184,8 +194,6 @@ export default function OrganizerBillingPage() {
               <p className="help-text" style={{ marginTop: 0 }}>{summary.planDescription}</p>
               <p>
                 <strong>{summary.displayPrice}</strong>
-                {" · "}
-                Status: {summary.subscriptionStatus}
               </p>
               <p className="help-text">
                 Active events: {summary.eventsUsed}
@@ -200,7 +208,21 @@ export default function OrganizerBillingPage() {
                   </>
                 ) : null}
               </p>
-              {/* One primary action for this panel. */}
+              {statusLine ? (
+                <p
+                  style={{
+                    color:
+                      statusLine.tone === "danger"
+                        ? "var(--danger)"
+                        : statusLine.tone === "warning"
+                          ? "var(--warning)"
+                          : undefined,
+                  }}
+                >
+                  {statusLine.tone === "danger" ? <strong>{statusLine.text}</strong> : statusLine.text}
+                </p>
+              ) : null}
+              {/* One primary action for this panel — adjacent to the payment-failed message on purpose. */}
               <button type="button" className="button" disabled={busy} onClick={() => void openPortal()}>
                 Customer portal
               </button>
@@ -246,8 +268,8 @@ export default function OrganizerBillingPage() {
                 <ul style={{ margin: 0 }}>
                   {summary.invoices.map((inv) => (
                     <li key={inv.id}>
-                      {inv.createdAt.slice(0, 10)} — {(inv.amountCents / 100).toFixed(2)} {inv.currency} (
-                      {inv.status})
+                      {inv.createdAt.slice(0, 10)} — {(inv.amountCents / 100).toFixed(2)} {inv.currency.toUpperCase()} (
+                      {invoiceStatusLabel(inv.status)})
                       {inv.url ? (
                         <>
                           {" "}

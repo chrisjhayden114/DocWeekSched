@@ -1400,3 +1400,53 @@ field and remains valid.
 
 ## Standing rules
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §9.
+
+---
+
+# Chunk E24 — billing status shows a raw database enum (P2)
+
+Found 2026-08-06 during live billing verification.
+
+`apps/web/pages/organizer/billing.tsx:188` renders
+`Status: {summary.subscriptionStatus}` — the raw `SubscriptionStatus` enum from
+`schema.prisma:71`. Customers see:
+
+| Enum shown | When | How it reads |
+|---|---|---|
+| `NONE` | brand-new free account | "Status: NONE" — meaningless |
+| `CANCELED` | after downgrading to Free | **"Free · Status: CANCELED"** — looks like the Free plan is cancelled |
+| `PAST_DUE` | payment failed | jargon, and gives no instruction at the exact moment one is needed |
+| `ACTIVE` | paying | shouty, and redundant next to the plan name |
+| `TRIALING` | on trial | acceptable but unstyled |
+
+## Fix
+
+**Show a status line only when it tells the customer something.**
+
+- `NONE` and `ACTIVE` → **omit the status line entirely.** The plan name and price
+  already say what's true. A paying customer does not need to be told "ACTIVE".
+- `TRIALING` → "Free trial — ends {date}" if the date is available, else "Free trial".
+- `CANCELED` **while on Free** → omit, or "Your Pro plan was cancelled." Never
+  print "CANCELED" beside the word "Free".
+- `CANCELED` **while still inside a paid period** → "Cancelled — Pro access ends
+  {date}". This one matters: the customer needs to know they still have access.
+- `PAST_DUE` → the only genuinely important one. Say what happened and what to
+  do: **"Payment failed — update your card to keep Pro."** with the Customer
+  portal button adjacent. This is the state where clear copy earns money.
+
+Wording lives in the config/copy layer, not hardcoded in the page. Keep the raw
+enum available in an audit/debug context if useful — just never on a customer
+surface.
+
+Also review the rest of the billing page for other raw enum or internal-value
+leakage while in there.
+
+## Acceptance
+- A brand-new free organisation shows no status line.
+- A downgraded organisation never shows "CANCELED" next to "Free".
+- A past-due organisation is told what failed and what to do about it.
+- No customer-facing string equals a `SubscriptionStatus` enum value.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §9.
+- Design tokens only. Stop the web dev server first; reset ritual after.
