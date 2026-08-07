@@ -41,7 +41,8 @@ export type FeatureKey =
   | "checkin"
   | "ops_agent"
   | "recap_agent"
-  | "certificates";
+  | "certificates"
+  | "readiness";
 
 export type FeatureOverrideValue = boolean | "daily" | "weekly" | "interrupts_only";
 
@@ -268,6 +269,18 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     plainDescription: "Post-event certificate download for eligible attendees (organizer templates + batch issue).",
     category: "engagement",
     defaultOn: true,
+  },
+  {
+    // Event Readiness (ER1). plannedPhase keeps this off the organizer
+    // Features tab until pilots (ER8); no public plan tier grants the
+    // entitlement, so it resolves off everywhere except INTERNAL orgs.
+    key: "readiness",
+    name: "Speaker & Session Readiness",
+    plainDescription:
+      "Track what every accepted speaker, paper and session still needs before it is show-ready.",
+    category: "sessions",
+    defaultOn: false,
+    plannedPhase: "ER",
   },
 ];
 
