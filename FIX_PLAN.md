@@ -1724,3 +1724,71 @@ no glass. Motion only.
   (this chunk shouldn't touch them).
 - Motion values in the token layer only.
 - Stop the web dev server first; reset ritual after (README).
+
+---
+
+# Chunk E29 — depth + spacing audit (the visible "less clunky" chunk)
+
+DESIGN_PHASE_E Option A, phase 2. This is where the change becomes visible.
+Start with the two screens the founder named clunky — the **attendee/organizer
+agenda** and the **Program tab** — because they're the worst offenders and the
+most-used surfaces.
+
+## The core problem (seen in the 2026-08-07 agenda screenshot)
+Repeating sessions render as oversized boxed cards (~140px) with a large empty
+middle, and the per-session action row (Q&A/Like/Star/Edit) is stranded at the
+card bottom, far from its title. This contradicts the project's OWN design
+principle (DESIGN_PHASE_D Part 1, point 6: "rows, not floating cards, ~70–85px
+per row"). The screen looks unfinished because of dead space and weak anchoring,
+not missing content.
+
+## E29.1 — agenda/session row density (highest-impact)
+Rebuild the session item as a **tight row**, not a tall card:
+- Target ~72–88px per row at rest; no large empty vertical band.
+- Title + meta line (time · room · track · speakers) grouped at top-left with
+  consistent 4px-scale spacing; **the action affordances (Q&A/Like/Star/Edit and
+  the join toggle) sit on the same baseline as the title, right-aligned** — not
+  stranded below. On hover the row can reveal secondary actions; primary state
+  stays quiet.
+- Keep the track-color left bar (already present, correct).
+- Concurrency: side-by-side per Phase D, unchanged behavior.
+- Applies to both the attendee agenda (`dashboard.tsx`) and the organizer
+  Program tab session list (`ProgramTab.tsx`).
+- Rows use the E28 stagger on load (already wired) — now they'll look right doing it.
+
+## E29.2 — elevation step + focus
+- Add one elevation token above `--shadow-2` — `--shadow-3` for genuinely
+  floating surfaces (modals, the assistant panel, dropdowns/popovers). Not glass,
+  not everywhere; depth as punctuation.
+- Add a consistent `--focus-ring` treatment (visible, accessible) and apply it to
+  interactive controls that currently rely on the browser default.
+- Modals/assistant adopt `--shadow-3` so they lift off the page.
+
+## E29.3 — spacing rhythm audit
+Screen-by-screen pass on the named offenders first, then the rest of the console:
+- Every gap/padding pulled onto the 4px scale (`--space-*`); remove one-off pixel
+  values.
+- Consistent page gutter and max content width across organizer pages.
+- The right-hand filter rail on the agenda: tighten row height to the Phase D
+  ~31px quiet-gray spec; it currently reads loose.
+- Section headers get consistent spacing above/below (the audit's C3
+  "text all over the place" is largely this).
+
+## Out of scope
+No color/gradient/texture changes (that's the optional E32 marketing polish).
+No new motion (E28 done). No empty-state/number work (E30). No behavior changes.
+
+## Acceptance
+- The agenda no longer shows large empty bands inside session cards; a laptop
+  screen shows meaningfully more sessions at once (density up).
+- Action controls sit with their titles, not stranded below.
+- Modals and the assistant visibly lift off the page (new elevation).
+- Spacing is consistent (no eyeballed one-off gaps) on agenda + Program tab.
+- Contrast unchanged/better; keyboard focus visible everywhere; all tests green.
+- Before/after screenshots of the agenda and Program tab show an obvious
+  density/tidiness improvement.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12 if touched.
+- Design values in the token layer only; no hardcoded hex/px in components.
+- Stop the web dev server first; reset ritual after (README).
