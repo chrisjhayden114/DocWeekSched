@@ -14,6 +14,8 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     "/terms",
     "/privacy",
     "/security",
+    "/compare/sched",
+    "/compare/whova",
     "/help",
     ...helpArticlePaths(),
     `/e/${brand.demoEventSlug}`,

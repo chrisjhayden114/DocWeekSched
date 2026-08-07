@@ -33,6 +33,13 @@ export function SiteFooter() {
               </nav>
             </div>
             <div>
+              <p className="mkt-footer-col-label">Compare</p>
+              <nav aria-label="Compare">
+                <Link href="/compare/sched">{brand.productName} vs Sched</Link>
+                <Link href="/compare/whova">{brand.productName} vs Whova</Link>
+              </nav>
+            </div>
+            <div>
               <p className="mkt-footer-col-label">Legal</p>
               <nav aria-label="Legal">
                 <Link href="/terms">Terms</Link>

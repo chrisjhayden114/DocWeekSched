@@ -47,3 +47,27 @@ describe("marketingSeo (E25) — search-facing titles and descriptions", () => {
     expect(title.endsWith(`${brand.productName} conference software`)).toBe(true);
   });
 });
+
+describe("comparison pages (E27) — the two 'alternative' queries", () => {
+  // Uniqueness, description budget, and brand-last are already enforced by the
+  // loops above (compare pages live in marketingSeo.pages). These pin the
+  // query-first shape specific to the comparison pages.
+  const cases = [
+    { page: marketingSeo.pages.compareSched, competitor: "Sched" },
+    { page: marketingSeo.pages.compareWhova, competitor: "Whova" },
+  ] as const;
+
+  it("titles lead with the '<Competitor> alternative' query and end brand-vs-competitor", () => {
+    for (const { page, competitor } of cases) {
+      expect(page.title.startsWith(`${competitor} alternative`)).toBe(true);
+      expect(page.title.endsWith(`${brand.productName} vs ${competitor}`)).toBe(true);
+    }
+  });
+
+  it("descriptions lead with the category query, within the snippet budget", () => {
+    for (const { page, competitor } of cases) {
+      expect(page.description.startsWith(`${competitor} alternative for academic conferences`)).toBe(true);
+      expect(page.description.length).toBeLessThanOrEqual(170);
+    }
+  });
+});

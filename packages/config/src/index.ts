@@ -114,6 +114,17 @@ export const marketingSeo = {
       description:
         "Security and data practices for conference software: architecture, subprocessors, data export and continuity, and the product principles we publish as true.",
     },
+    /** Comparison pages (Chunk E27) — highest-intent "alternative" queries. */
+    compareSched: {
+      title: `Sched alternative for academic conferences — ${brand.productName} vs Sched`,
+      description:
+        "Sched alternative for academic conferences: papers inside sessions with ordered authors, AI import of the PDF or Word programme you already have, and open pricing.",
+    },
+    compareWhova: {
+      title: `Whova alternative for academic conferences — ${brand.productName} vs Whova`,
+      description:
+        "Whova alternative for academic conferences: public pricing without a sales call, calm digest-first notifications, and papers, authors and CFP in the data model.",
+    },
   },
 } as const;
 
