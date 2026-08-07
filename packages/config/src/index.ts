@@ -79,6 +79,50 @@ export const brand = {
 export type BrandConfig = typeof brand;
 
 /**
+ * Search-facing marketing copy (Chunk E25). The launch channel is inbound
+ * search: buyers type category problems ("conference schedule software"),
+ * not brand names, so every marketing <title> leads with category words and
+ * ends with the brand. The hero H1 tagline is separate and unchanged — it
+ * converts humans; these strings convert searchers.
+ *
+ * Marketing surfaces ONLY. Signed-in app pages keep their "Brand — Page"
+ * titles. Edit this module, not the pages.
+ */
+export const marketingSeo = {
+  /** Plain category descriptor — rendered near the wordmark (footer, hero). */
+  categoryLine: "Event software for academic conferences",
+  /** Homepage <title>: category first, brand last — the pattern for every marketing title. */
+  seoTitle: `Conference schedule software for academic events — ${brand.productName}`,
+  pages: {
+    home: {
+      title: `Conference schedule software for academic events — ${brand.productName}`,
+      description:
+        "Turn a conference program — PDF, Word, Excel or paste — into a published event site in minutes. Papers with ordered authors, CFP, calm notifications, open pricing.",
+    },
+    pricing: {
+      title: `Pricing — open, no sales calls — ${brand.productName} conference software`,
+      description:
+        "Open pricing for conference schedule software: a free tier, one-time per-event plans, and Pro subscriptions. Every price is public — no sales calls, no quote gate.",
+    },
+    help: {
+      title: `Help — ${brand.productName} conference software`,
+      description:
+        "Guides for publishing a conference program online — importing sessions from PDF, Word, Excel or CSV, organizing papers and speakers, and attendee FAQs.",
+    },
+    security: {
+      title: `Security & data practices — ${brand.productName} conference software`,
+      description:
+        "Security and data practices for conference software: architecture, subprocessors, data export and continuity, and the product principles we publish as true.",
+    },
+  },
+} as const;
+
+/** <title> for a help article: article topic first (what the searcher asked), brand last. */
+export function marketingArticleTitle(articleTitle: string): string {
+  return `${articleTitle} — ${brand.productName} conference software`;
+}
+
+/**
  * Organizer-console copy for what a session can hold (Chunk E11.3).
  * One combined "+ Add" entry point, two preserved models — Paper and
  * SessionResource stay separate models with separate endpoints; only the

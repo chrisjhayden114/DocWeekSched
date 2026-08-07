@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, marketingArticleTitle } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import type { GetServerSideProps } from "next";
@@ -34,7 +34,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 };
 
 export default function HelpArticlePage({ article }: Props) {
-  const title = `${article.title} — ${brand.productName}`;
+  const title = marketingArticleTitle(article.title);
   const url = `${brand.primaryUrl}/help/${article.slug}`;
 
   return (

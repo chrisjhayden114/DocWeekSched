@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, marketingSeo } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import { ProseToc } from "../components/marketing/ProseToc";
@@ -15,8 +15,8 @@ const TOC = [
 ] as const;
 
 export default function SecurityPage() {
-  const title = `Security — ${brand.productName}`;
-  const description = `Security architecture, downloads, and product principles for ${brand.productName}.`;
+  const title = marketingSeo.pages.security.title;
+  const description = marketingSeo.pages.security.description;
   /** Content date — bump when this page's substance changes. Not the render date. */
   const updated = "2 August 2026";
   const url = `${brand.primaryUrl}/security`;

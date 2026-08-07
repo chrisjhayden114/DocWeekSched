@@ -1524,3 +1524,33 @@ design tokens, no layout rework.
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.**
 - Stop the web dev server first; reset ritual after (see README).
 - No migrations, no API changes.
+
+---
+
+# FUTURE STUB — consent-based support access (build when self-serve customers hit problems, not before)
+
+Context (2026-08-07): the owner asked how support can see a customer's event.
+Verified answer: it cannot. `requireEventAccess` has no owner bypass; the global
+`ADMIN` role is event-scoped. This is the multi-tenancy rule working as designed.
+
+**Interim policy — no code:**
+- **Pilot customers:** adding `support@ukedl.com` as an org member is part of
+  concierge onboarding, stated in the pilot agreement, removed at engagement end.
+- **Diagnostics:** read-only SQL via the Neon console, for debugging only.
+- **NEVER a hardcoded owner bypass.** It would be the first thing a university
+  security review flags and a standing violation of the tenancy rule.
+
+**The eventual feature (Stripe/Intercom pattern):**
+1. Customer-side button in org settings: **"Grant UKEDL support access for
+   7 days"** — creates a time-boxed org membership for a designated support
+   account.
+2. Expires automatically; revocable at any time by the customer.
+3. Visibly badged while active ("UKEDL support has access — revoke") and every
+   support action lands in `AuditLog` attributed to the support identity, never
+   impersonating the customer.
+4. Support account uses the existing membership path — no new authorization
+   branch, so the tenancy tests keep protecting it.
+5. Grant/expiry/revocation events emailed to the org owner.
+
+Trigger to build: first time a self-serve (non-pilot) customer has a problem
+that SQL diagnostics can't resolve respectfully. Not scheduled until then.

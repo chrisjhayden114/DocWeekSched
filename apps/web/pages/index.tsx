@@ -1,4 +1,5 @@
-import { brand } from "@event-app/config";
+import { brand, marketingSeo } from "@event-app/config";
+import { publicPricingPlans } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import type { GetServerSideProps } from "next";
@@ -60,10 +61,29 @@ const STEPS = [
 ] as const;
 
 export default function LandingPage() {
-  const title = `${brand.productName} — Paste your program. Your event is live.`;
-  const description =
-    "Calm event workspace for academic programs and recurring conferences. Agenda ingest, first-class papers, quiet notifications, and open pricing.";
+  // Category-first title/description convert searchers; the hero H1 tagline below converts humans.
+  const title = marketingSeo.pages.home.title;
+  const description = marketingSeo.pages.home.description;
   const ogImage = `${brand.primaryUrl}/icons/icon-512.png`;
+
+  // schema.org SoftwareApplication with offers straight from the plan catalog (E25.4).
+  const softwareJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: brand.productName,
+    description: marketingSeo.categoryLine,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    url: brand.primaryUrl,
+    offers: publicPricingPlans()
+      .filter((p) => p.displayPriceCents != null)
+      .map((p) => ({
+        "@type": "Offer",
+        name: p.name,
+        price: ((p.displayPriceCents ?? 0) / 100).toFixed(2),
+        priceCurrency: p.currency.toUpperCase(),
+      })),
+  };
 
   return (
     <>
@@ -80,6 +100,11 @@ export default function LandingPage() {
         <meta name="twitter:title" content={title} />
         <meta name="twitter:description" content={description} />
         <link rel="canonical" href={brand.primaryUrl} />
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
+        />
       </Head>
 
       <div className="mkt-page">
@@ -90,6 +115,9 @@ export default function LandingPage() {
               <div className="mkt-hero-copy">
                 <p id="mkt-hero-brand" className="mkt-hero-brand">
                   {brand.productName}
+                </p>
+                <p className="text-meta" style={{ margin: "0 0 8px" }}>
+                  {marketingSeo.categoryLine}
                 </p>
                 <h1 className="mkt-hero-headline">Paste your program. Your event is live.</h1>
                 <p className="mkt-hero-sub">

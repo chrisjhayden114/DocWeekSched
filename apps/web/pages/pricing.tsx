@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, marketingSeo } from "@event-app/config";
 import {
   PRICE_LOCK,
   PLAN_BY_SKU,
@@ -137,8 +137,8 @@ export default function PricingPage() {
       </Link>
     );
 
-  const title = `Pricing — ${brand.productName}`;
-  const description = `Open pricing for ${brand.productName}. Free, Pro, Enterprise, and one-time per-event plans. Recurring-event price lock included.`;
+  const title = marketingSeo.pages.pricing.title;
+  const description = marketingSeo.pages.pricing.description;
   const url = `${brand.primaryUrl}/pricing`;
 
   return (

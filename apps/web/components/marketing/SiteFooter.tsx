@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, marketingSeo } from "@event-app/config";
 import Link from "next/link";
 
 export function SiteFooter() {
@@ -9,7 +9,7 @@ export function SiteFooter() {
           <div>
             <p className="mkt-footer-brand">{brand.productName}</p>
             <p className="text-meta" style={{ margin: 0, maxWidth: 280 }}>
-              Calm event software for academic programs and recurring conferences.
+              {marketingSeo.categoryLine}
             </p>
           </div>
           <div className="mkt-footer-cols">

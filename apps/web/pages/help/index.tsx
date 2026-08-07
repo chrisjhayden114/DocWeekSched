@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, marketingSeo } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import type { GetServerSideProps } from "next";
@@ -13,8 +13,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
 };
 
 export default function HelpIndexPage({ articles }: Props) {
-  const title = `Help — ${brand.productName}`;
-  const description = `Guides and FAQ for ${brand.productName} organizers and attendees.`;
+  const title = marketingSeo.pages.help.title;
+  const description = marketingSeo.pages.help.description;
   const url = `${brand.primaryUrl}/help`;
 
   return (
