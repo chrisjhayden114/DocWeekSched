@@ -288,6 +288,7 @@ test files contain no skip logic and cannot opt themselves out.
 | 2026-08-03 | All, ×3 consecutive (E20 acceptance) | **374/374 pass, three times** | Flakiness resolved. Run 3's recap test took **64s** vs 4s in run 2 — the new drain waited through a long job delay instead of giving up, which is exactly the failure mode E20 fixed. |
 | 2026-08-03 | All, with a deliberately invalid `DATABASE_URL` | 24 DB suites **refused** by the guard | Accidental (placeholder text pasted literally), but a genuine verification: a non-test database is rejected before any suite runs. |
 | 2026-08-04 | All, after E21 | **391/391 pass** (60 files) | Verifies E21: `officeIngest.unit.test.ts` (14, real DOCX/XLSX fixtures) and `spreadsheetImport.db.test.ts` (3, incl. cross-org tenancy rejection). Cursor could not run these — its sandbox has no route to Neon. |
+| 2026-08-07 | All, after ER1 | **400/400 pass** (63 files) | Verifies ER1: `readiness` entitlement denied on all public tiers incl. override-true case; INTERNAL+override enables; reverts with plan. Also first run of `spreadsheetImport.db.test.ts` post-renumber. |
 
 **Tip:** set the URL once per terminal window, then reuse it —
 `export UKEDL_TEST_DB="postgresql://…/ukedl_test?sslmode=require"`, then
