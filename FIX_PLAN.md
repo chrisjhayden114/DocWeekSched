@@ -1165,7 +1165,7 @@ number is worse than none.
 # Chunk E20 — de-flake the recap certificate drain (small)
 
 Found 2026-08-03 during the first-ever full run of the database suites
-(373/374 passed — see RUNBOOK §9).
+(373/374 passed — see RUNBOOK §12).
 
 **Symptom:** `src/__tests__/recap.db.test.ts` → "4–7) generate drafts only; regen
 replaces drafts; SENT stable; certs stable" fails with
@@ -1204,7 +1204,7 @@ output. That is worse than having no test, and this is a one-person team.
 - No test breaks out of a job-drain loop on a single empty poll.
 
 ## Standing rules
-- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Run DB suites per RUNBOOK §9.
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Run DB suites per RUNBOOK §12.
 - No product code should need to change for this. If you think it does, stop and
   explain why.
 
@@ -1289,7 +1289,7 @@ malformed or hostile file must produce a clean, honest error, not a crash.
 - No user-facing string mentions a format that does not work.
 
 ## Standing rules
-- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §9 — they run now,
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12 — they run now,
   so verify with them.
 - New dependencies are flagged above; do not add others without saying why.
 - Errors must name the real cause (`.cursor/rules/product.mdc`).
@@ -1358,11 +1358,11 @@ cannot be done cleanly, say so rather than suppressing everything.
   host and the reason. It must not be possible to read that output as a pass.
 - With `DATABASE_URL` set to a valid database missing migrations: the run fails
   and says migrations are missing.
-- With the real `ukedl_test` database (RUNBOOK §9): 374+ pass as today.
+- With the real `ukedl_test` database (RUNBOOK §12): 374+ pass as today.
 - A reader scanning the last ten lines of output can tell which of these happened.
 
 ## Standing rules
-- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §9.
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §12.
 - No product code should change. If you think it must, stop and explain why.
 
 ---
@@ -1399,7 +1399,7 @@ field and remains valid.
 - Unit test with a Basil-shaped invoice payload (nested) and a legacy one (flat).
 
 ## Standing rules
-- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §9.
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §12.
 
 ---
 
@@ -1448,5 +1448,79 @@ leakage while in there.
 - No customer-facing string equals a `SubscriptionStatus` enum value.
 
 ## Standing rules
-- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §9.
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** Verify per RUNBOOK §12.
 - Design tokens only. Stop the web dev server first; reset ritual after.
+
+---
+
+# Chunk E25 — search-facing titles and category copy (marketing pages only)
+
+Context: the launch channel is inbound search. Buyers type category problems
+("conference schedule software", "publish conference program online",
+"Sched alternative"), not brand names. Today every page title leads with the
+brand and contains zero category words — the homepage is
+`UKEDL — Paste your program. Your event is live.` Google ranks pages on what
+their titles and content say they are.
+
+## Scope — marketing surfaces ONLY
+
+`/` (index), `/pricing`, `/help` + articles, `/security`, and the public event
+page template. **Do not touch signed-in app pages** — their `Brand — Page`
+titles are correct for an app and irrelevant to SEO.
+
+## E25.1 — category strings in the config layer
+
+Add to `packages/config` (all copy from config, per the standing rule):
+
+- `categoryLine`: **"Event software for academic conferences"** — the plain
+  category descriptor.
+- `seoTitle`: **"Conference schedule software for academic events — UKEDL"** —
+  category first, brand last. This is the pattern for every marketing title.
+
+## E25.2 — retitle the marketing pages
+
+| Page | New `<title>` |
+|---|---|
+| `/` | `Conference schedule software for academic events — UKEDL` |
+| `/pricing` | `Pricing — open, no sales calls — UKEDL conference software` |
+| `/help` | `Help — UKEDL conference software` |
+| `/security` | `Security & data practices — UKEDL conference software` |
+
+Meta descriptions get the same treatment: lead with what a searcher asked.
+Homepage description becomes approximately: *"Turn a conference program — PDF,
+Word, Excel or paste — into a published event site in minutes. Built for
+academic conferences: papers with ordered authors, CFP, calm notifications,
+open pricing."* (Mechanism + category + differentiators, ~155 chars max.)
+
+Keep the hero H1 as the tagline ("Paste your program. Your event is live.") —
+it converts humans; the title tag converts searchers. Both jobs, both lines.
+
+## E25.3 — the category line under the wordmark
+
+Footer (all pages) and homepage hero: render `categoryLine` in muted text near
+the UKEDL wordmark so no visitor ever wonders what the product is. One line,
+design tokens, no layout rework.
+
+## E25.4 — crawlability basics
+
+- Add `apps/web/public/robots.txt` if missing: allow all, point at sitemap.
+- Add a sitemap for the marketing pages + published public event pages (static
+  file or generated route — pick whatever fits Pages Router conventions; say
+  which and why).
+- Add `SoftwareApplication` JSON-LD to the homepage (name, category, offers
+  from the plan catalog, url). The event pages already ship Event JSON-LD from
+  E3 — do not duplicate that work.
+- Canonical link tags on the four marketing pages.
+
+## Acceptance
+- `curl -s https://ukedl.com | grep '<title>'` shows the category-first title.
+- Every marketing page has a unique title and description, category words first,
+  brand last.
+- robots.txt and sitemap resolve on production.
+- Signed-in pages are untouched (diff shows no changes under organizer/dashboard).
+- No hardcoded copy — everything through the config layer.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.**
+- Stop the web dev server first; reset ritual after (see README).
+- No migrations, no API changes.

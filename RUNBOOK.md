@@ -194,7 +194,7 @@ warning line each (`[preflight] …`). Full var-by-var documentation lives in th
 
 ---
 
-## 9. Running the database test suites
+## 12. Running the database test suites
 
 **Why this exists.** About 24 `*.db.test.ts` files have never been executed on
 this machine. They contain the multi-tenancy and authorization assertions — e.g.
@@ -297,7 +297,7 @@ with the current directory, so it is not a reliable way to tell windows apart.
 
 ---
 
-## 10. Billing go-live (test mode → live mode)
+## 13. Billing go-live (test mode → live mode)
 
 **Do this fresh, with a clear hour, not at the end of a long session.** It is the
 one procedure in this project where a tired mistake involves real money, real tax
@@ -399,7 +399,7 @@ before saving.
 
 ---
 
-## 11. Rotating a Neon database password (causes downtime if done wrong)
+## 14. Rotating a Neon database password (causes downtime if done wrong)
 
 **Incident 2026-08-06.** Production was down ~25 minutes after a Neon password
 reset. `/health/ready` returned 503 with `"db":false`; Sentry logged
