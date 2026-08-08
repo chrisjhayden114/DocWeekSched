@@ -80,6 +80,24 @@
   --radius-md: 6px; /* buttons, inputs, segmented controls */
   --radius-lg: 10px; /* modals, marketing cards */
 
+  /*
+   * —— Phase F warmer surface (F1.1, DESIGN_PHASE_F) ——
+   * Softer radii for content cards and pill controls in the pattern kit
+   * (components/kit). Data rows, chips and inputs keep the tight 4/6/10
+   * scale above — warmth is for content surfaces, not tables.
+   */
+  --radius-card: 14px; /* FeedCard, StatCard, composer panel, empty states */
+  --radius-pill: 999px; /* FilterPills, status pills, avatars, composer trigger */
+
+  /*
+   * Surface layering, named as a page → card → inner progression so the
+   * kit can express depth without shadows. Values reuse the existing
+   * neutral ramp — no new colors. (--surface / --surface-alt keep working.)
+   */
+  --surface-page: var(--gray-50); /* the page canvas */
+  --surface-card: #ffffff; /* content cards sitting on the page */
+  --surface-inner: var(--gray-50); /* inset wells inside a white card */
+
   /* —— Elevation (borders do the separation work) —— */
   --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
   --shadow-2: 0 4px 6px -2px rgba(16, 24, 40, 0.03), 0 12px 16px -4px rgba(16, 24, 40, 0.08);

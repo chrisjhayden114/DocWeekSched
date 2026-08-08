@@ -220,6 +220,28 @@ export const emptyStateCopy = {
 } as const;
 
 /**
+ * Pattern-kit shared copy (Chunk F1, DESIGN_PHASE_F).
+ * Screen-specific strings (a composer's invitation, an empty state's
+ * headline) are passed as props by each screen; only the generic strings
+ * every kit instance shares live here. Edit this module, not the
+ * components in apps/web/components/kit/.
+ */
+export const kitCopy = {
+  composer: {
+    /** Collapse the expanded composer without sending; the draft is kept. */
+    cancel: "Cancel",
+    /** Shown on the submit button while the async submit is in flight. */
+    busy: "Sending…",
+  },
+  slideOver: {
+    /** aria-label for the ✕ button in the SlideOver header. */
+    close: "Close",
+    /** Progressive-disclosure toggle for advanced fields (F1.2 #7). */
+    moreOptions: "More options",
+  },
+} as const;
+
+/**
  * Customer-facing billing status copy (Chunk E24).
  * The raw SubscriptionStatus enum (NONE / ACTIVE / TRIALING / PAST_DUE /
  * CANCELED) must never be rendered on a customer surface. A status line is

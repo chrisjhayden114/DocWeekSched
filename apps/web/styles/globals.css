@@ -6690,3 +6690,373 @@ button.schedule-meta-chip:hover {
     background: var(--gray-100);
   }
 }
+
+/* ==========================================================================
+   F1 — the content-first pattern kit (components/kit, DESIGN_PHASE_F).
+   Warmer surface language: --radius-card cards, --radius-pill controls,
+   tinted icon tiles from the existing role tints. Every duration comes from
+   the E28 motion tokens (reduced-motion collapses them); depth beyond a 1px
+   border appears only where the pattern floats (SlideOver reuses drawer-*
+   and its --shadow-3). No gradients, no glass.
+   ========================================================================== */
+
+/* —— Tinted icon tile: section identity via existing role tints only. —— */
+.kit-icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--radius-lg);
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.kit-icon-tile--primary {
+  background: var(--primary-50);
+  color: var(--primary);
+}
+
+.kit-icon-tile--success {
+  background: var(--success-50);
+  color: var(--success);
+}
+
+.kit-icon-tile--warning {
+  background: var(--warning-50);
+  color: var(--warning);
+}
+
+.kit-icon-tile--danger {
+  background: var(--danger-50);
+  color: var(--danger);
+}
+
+.kit-icon-tile--live {
+  background: var(--live-50);
+  color: var(--live);
+}
+
+.kit-icon-tile--neutral {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+/* —— PageHeader: title + one-line state + primary action (wayfinding). —— */
+.kit-page-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.kit-page-header-titles {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.kit-page-header-state {
+  font: var(--text-body);
+  color: var(--meta-color);
+  margin: 0;
+}
+
+.kit-page-header-action {
+  flex: none;
+  align-self: center;
+}
+
+/* —— Composer: collapsed affordance → expanded input. —— */
+.kit-composer-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  padding: 10px var(--space-4);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--meta-color);
+  font: var(--text-body);
+  cursor: text; /* reads as "a place to write", not a button */
+  transition: var(--transition);
+}
+
+.kit-composer-trigger:hover {
+  border-color: var(--gray-400);
+  background: var(--gray-50);
+}
+
+.kit-composer-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-1);
+  animation: motion-fade-in var(--motion) var(--ease-out) both;
+}
+
+.kit-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* —— FeedCard: avatar + byline + status pill + body + inline actions. —— */
+.kit-feed-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+
+.kit-feed-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.kit-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--primary-50);
+  color: var(--primary);
+  font: var(--text-label);
+}
+
+.kit-feed-card-byline {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+
+.kit-feed-card-name {
+  font: var(--text-label);
+  color: var(--title-color);
+  margin: 0;
+}
+
+.kit-feed-card-meta {
+  font: var(--text-meta);
+  color: var(--meta-color);
+  margin: 0;
+}
+
+.kit-feed-card-body {
+  font: var(--text-body);
+  color: var(--text-color);
+  overflow-wrap: break-word;
+}
+
+.kit-feed-card-body > p {
+  margin: 0;
+}
+
+.kit-feed-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  /* Ghost buttons carry their own padding; pull the row back to the text edge. */
+  margin-left: calc(-1 * var(--space-2));
+}
+
+/* —— Status pill: role colors, same tint pairs as .status-chip. —— */
+.kit-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  font: var(--text-meta);
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.kit-status-pill--primary {
+  background: var(--primary-50);
+  color: var(--primary);
+}
+
+.kit-status-pill--success {
+  background: var(--success-50);
+  color: var(--success);
+}
+
+.kit-status-pill--warning {
+  background: var(--warning-50);
+  color: var(--warning);
+}
+
+.kit-status-pill--danger {
+  background: var(--danger-50);
+  color: var(--danger);
+}
+
+.kit-status-pill--live {
+  background: var(--live-50);
+  color: var(--live);
+}
+
+/* —— StatCard: muted label + big confident number. —— */
+.kit-stat-card {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+
+.kit-stat-card .kit-icon-tile {
+  width: 32px;
+  height: 32px;
+  margin-bottom: var(--space-1);
+}
+
+.kit-stat-card-label {
+  font: var(--text-label);
+  color: var(--meta-color);
+  margin: 0;
+}
+
+.kit-stat-card-value {
+  font: var(--text-stat);
+  color: var(--title-color);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.kit-stat-card-hint {
+  font: var(--text-meta);
+  color: var(--meta-color);
+  margin: 0;
+}
+
+/* —— FilterPills: one active option, accent-filled, one Tab stop. —— */
+.kit-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.kit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px var(--space-4);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--text-color);
+  font: var(--text-label);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.kit-pill:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+.kit-pill.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.kit-pill-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.kit-pill-count {
+  font: var(--text-meta);
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+/* —— EmptyState: an invitation, not an apology. —— */
+.kit-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-7) var(--space-5);
+  text-align: center;
+}
+
+.kit-empty .kit-icon-tile {
+  margin-bottom: var(--space-1);
+}
+
+.kit-empty-title {
+  font: var(--text-h3);
+  color: var(--title-color);
+  margin: 0;
+}
+
+.kit-empty-body {
+  font: var(--text-body);
+  color: var(--meta-color);
+  margin: 0;
+  max-width: 44ch;
+}
+
+.kit-empty-action {
+  margin-top: var(--space-2);
+}
+
+/* —— SlideOver: reuses drawer-* (shadow-3, E28 slide-in); adds a wide
+      variant and the "More options" progressive-disclosure section. —— */
+.kit-slideover-wide {
+  width: min(560px, 100vw);
+}
+
+.kit-more-options {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-4);
+}
+
+.kit-more-options > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  font: var(--text-label);
+  color: var(--primary-600);
+  cursor: pointer;
+}
+
+.kit-more-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+.kit-more-options-chevron {
+  transition: var(--transition);
+}
+
+.kit-more-options[open] > summary .kit-more-options-chevron {
+  transform: rotate(90deg);
+}
+
+.kit-more-options-body {
+  display: grid;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}

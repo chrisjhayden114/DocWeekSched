@@ -7,6 +7,16 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { KebabMenu } from "../components/KebabMenu";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { Select } from "../components/Select";
+import {
+  Composer,
+  EmptyState,
+  FeedCard,
+  FilterPills,
+  PageHeader,
+  SlideOver,
+  SlideOverMoreOptions,
+  StatCard,
+} from "../components/kit";
 
 /**
  * Dev-only living reference for the Phase D design language
@@ -37,12 +47,75 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/* —— F1 kit demo fixtures (dev-only page; not user-facing copy) —— */
+
+function DemoIcon({ d }: { d: string }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+const ICON_CALENDAR = "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z";
+const ICON_PEOPLE =
+  "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75";
+const ICON_CHAT = "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z";
+
+type DemoPost = {
+  id: number;
+  name: string;
+  meta: string;
+  pill?: { label: string; tone: "primary" | "success" | "warning" };
+  body: string;
+};
+
+const DEMO_POSTS: DemoPost[] = [
+  {
+    id: 1,
+    name: "Priya Raman",
+    meta: "Organizer · 2h ago",
+    pill: { label: "Organizer", tone: "primary" },
+    body: "Welcome everyone! Rooms for Thursday's workshops are now posted — check the agenda for updates.",
+  },
+  {
+    id: 2,
+    name: "Daniel Okafor",
+    meta: "Presenter · 4h ago",
+    pill: { label: "Presenter", tone: "success" },
+    body: "Slides for the methods session are up under Resources. Happy to take questions here before Friday.",
+  },
+];
+
 /** Dev-only styleguide — tokens + shared components. */
 export default function StyleguidePage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectValue, setSelectValue] = useState("a");
   const [placeholderValue, setPlaceholderValue] = useState("");
+  // F1 pattern-kit demo state
+  const [posts, setPosts] = useState<DemoPost[]>(DEMO_POSTS);
+  const [composerBusy, setComposerBusy] = useState(false);
+  const [pillValue, setPillValue] = useState("all");
+  const [slideOverOpen, setSlideOverOpen] = useState(false);
+  const [statRunId, setStatRunId] = useState(0);
   const isProd = process.env.NODE_ENV === "production";
+
+  const submitDemoPost = async (value: string) => {
+    setComposerBusy(true);
+    // Simulated network delay so the busy state is reviewable.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    setPosts((prev) => [{ id: Date.now(), name: "You", meta: "Attendee · just now", body: value }, ...prev]);
+    setComposerBusy(false);
+  };
 
   if (isProd) {
     return (
@@ -302,6 +375,194 @@ export default function StyleguidePage() {
             <ListError message="Something went wrong loading this list." onRetry={() => undefined} />
           </div>
         </Section>
+
+        <header style={{ marginTop: "var(--space-5)" }}>
+          <h1 className="text-h1" style={{ margin: "0 0 var(--space-2)" }}>
+            Pattern kit (F1)
+          </h1>
+          <p className="text-body" style={{ margin: 0 }}>
+            The content-first primitives from DESIGN_PHASE_F — F2+ build real pages from these. Warmer radii
+            (<code>--radius-card</code> 14px, <code>--radius-pill</code>), layered surfaces, tinted icon tiles from the
+            existing role tints. All motion rides the E28 tokens, so <code>prefers-reduced-motion</code> is honored
+            automatically.
+          </p>
+        </header>
+
+        <Section title="PageHeader — wayfinding on every page">
+          <div style={{ display: "grid", gap: "var(--space-5)" }}>
+            <PageHeader
+              title="Spring Symposium 2027"
+              state="Draft · Jun 8–10 · 3 steps from publishing"
+              icon={<DemoIcon d={ICON_CALENDAR} />}
+              action={
+                <button type="button" className="button">
+                  Publish event
+                </button>
+              }
+            />
+            <PageHeader title="Community" state="24 posts · 8 people this week" />
+          </div>
+          <p className="text-meta" style={{ margin: 0 }}>
+            Title + one-line state + primary action, with an optional tinted icon tile for section identity. Every
+            page gets one (audit Theme B).
+          </p>
+        </Section>
+
+        <Section title="Composer + FeedCard + EmptyState — the content-first loop">
+          <div style={{ display: "grid", gap: "var(--space-3)", maxWidth: 560 }}>
+            <Composer
+              collapsedLabel="Start the conversation…"
+              submitLabel="Post"
+              busy={composerBusy}
+              onSubmit={submitDemoPost}
+            />
+            {posts.length === 0 ? (
+              <EmptyState
+                title="Start the conversation"
+                body="Introductions, plans, questions for everyone — the first post sets the tone."
+                icon={<DemoIcon d={ICON_CHAT} />}
+                actionLabel="Restore demo posts"
+                onAction={() => setPosts(DEMO_POSTS)}
+              />
+            ) : (
+              posts.map((post) => (
+                <FeedCard
+                  key={post.id}
+                  name={post.name}
+                  meta={post.meta}
+                  pill={post.pill}
+                  actions={
+                    <>
+                      <button type="button" className="button ghost">
+                        Reply
+                      </button>
+                      <button
+                        type="button"
+                        className="button ghost"
+                        onClick={() => setPosts((prev) => prev.filter((p) => p.id !== post.id))}
+                      >
+                        Remove (demo)
+                      </button>
+                    </>
+                  }
+                >
+                  <p>{post.body}</p>
+                </FeedCard>
+              ))
+            )}
+          </div>
+          <p className="text-meta" style={{ margin: 0 }}>
+            The form-first killer: creation is one affordance that expands on click. Esc or Cancel collapses and keeps
+            the draft; submit clears it. Posting here really appends a FeedCard; remove them all to see the EmptyState
+            (an invitation, never “Nothing here yet”).
+          </p>
+        </Section>
+
+        <Section title="StatCard — big confident numbers">
+          <div
+            key={statRunId}
+            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "var(--space-3)" }}
+          >
+            <StatCard label="Sessions" value={48} countUp icon={<DemoIcon d={ICON_CALENDAR} />} />
+            <StatCard label="Speakers" value={112} countUp icon={<DemoIcon d={ICON_PEOPLE} />} iconTone="success" />
+            <StatCard label="Registered" value={309} countUp hint="42 this week" />
+            <StatCard label="Rooms" value={9} />
+          </div>
+          <div>
+            <button type="button" className="button secondary" onClick={() => setStatRunId((n) => n + 1)}>
+              Replay count-up
+            </button>
+          </div>
+          <p className="text-meta" style={{ margin: 0 }}>
+            Count-up is opt-in (<code>countUp</code>) and allowed only on the organizer overview and the ingest result.
+            It reuses the E30 CountUp: duration is <code>--motion-countup</code>, which collapses to 0ms under
+            reduced motion — the final value renders instantly. “Rooms” shows the static default.
+          </p>
+        </Section>
+
+        <Section title="EmptyState — an invitation, not an apology">
+          <div style={{ maxWidth: 560, border: "1px solid var(--gray-200)", borderRadius: "var(--radius-card)" }}>
+            <EmptyState
+              title="Invite your first speaker"
+              body="Speakers you add appear here with their sessions and papers. Import a programme or add one by hand."
+              icon={<DemoIcon d={ICON_PEOPLE} />}
+              actionLabel="Add speaker"
+              onAction={() => undefined}
+            />
+          </div>
+          <p className="text-meta" style={{ margin: 0 }}>
+            Tinted icon tile + inviting headline + one line of orientation + optional CTA. Copy comes from the
+            caller&apos;s config module (e.g. <code>emptyStateCopy</code>). Compare the old <code>ListEmpty</code> above.
+          </p>
+        </Section>
+
+        <Section title="FilterPills — one active, accent-filled">
+          <FilterPills
+            label="Filter posts"
+            value={pillValue}
+            onChange={setPillValue}
+            options={[
+              { id: "all", label: "All", count: 24 },
+              { id: "questions", label: "Questions", icon: <DemoIcon d={ICON_CHAT} />, count: 9 },
+              { id: "introductions", label: "Introductions", icon: <DemoIcon d={ICON_PEOPLE} /> },
+              { id: "announcements", label: "Announcements" },
+            ]}
+          />
+          <p className="text-meta" style={{ margin: 0 }}>
+            Radio-group semantics: the row is one Tab stop; arrows move selection and focus, Home/End jump to the
+            ends. Replaces the boxy filter rows.
+          </p>
+        </Section>
+
+        <Section title="SlideOver — progressive disclosure">
+          <div>
+            <button type="button" className="button secondary" onClick={() => setSlideOverOpen(true)}>
+              Open SlideOver
+            </button>
+          </div>
+          <p className="text-meta" style={{ margin: 0 }}>
+            The E30 drawer generalized: sticky header (title + ✕), scrolling body, sticky footer, <code>--shadow-3</code>.
+            Esc closes. Essential fields stay visible; advanced ones tuck behind “More options” (the F4 tool for the
+            edit drawer and forms).
+          </p>
+        </Section>
+
+        <SlideOver
+          open={slideOverOpen}
+          title="Event settings"
+          onClose={() => setSlideOverOpen(false)}
+          footer={
+            <>
+              <button type="button" className="button ghost" onClick={() => setSlideOverOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" className="button" onClick={() => setSlideOverOpen(false)}>
+                Save changes
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: "grid", gap: "var(--space-3)", maxWidth: "var(--form-column-max)" }}>
+            <label className="text-label" style={{ display: "grid", gap: 6 }}>
+              Event name
+              <input className="input" defaultValue="Spring Symposium 2027" />
+            </label>
+            <label className="text-label" style={{ display: "grid", gap: 6 }}>
+              Venue
+              <input className="input" placeholder="Where is it held?" />
+            </label>
+            <SlideOverMoreOptions>
+              <label className="text-label" style={{ display: "grid", gap: 6 }}>
+                Registration cap
+                <input className="input" type="number" placeholder="Unlimited" />
+              </label>
+              <label className="text-label" style={{ display: "grid", gap: 6 }}>
+                Internal notes
+                <textarea className="textarea" rows={2} placeholder="Only organizers see these." />
+              </label>
+            </SlideOverMoreOptions>
+          </div>
+        </SlideOver>
 
         <ConfirmDialog
           open={confirmOpen}
