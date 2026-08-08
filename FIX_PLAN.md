@@ -1962,3 +1962,65 @@ truthfully. Left as a founder to-do, not code.
 ## Standing rules
 - **NEVER set ALLOW_DESTRUCTIVE_DB.** DB suites per RUNBOOK §12 if touched.
 - Presentation/nav only; no schema/API changes. Reset ritual after.
+
+---
+
+# Chunk F1 — the pattern kit (foundation for DESIGN_PHASE_F)
+
+Build the reusable content-first components + warmer tokens ONCE, prove them on
+the styleguide page. **No existing page is rewritten in F1** — F2–F6 adopt the
+kit. This is what keeps every screen consistent instead of drifting.
+
+Reference: DESIGN_PHASE_F.md, the two chat mockups (community content-first;
+organizer overview), and docs/ux-audit-full/00-SYNTHESIS.md.
+
+## F1.1 — warmer tokens (extend, don't replace)
+Add to `tokens.css` alongside the existing scale (keep everything E28–E30):
+- `--radius-card: 14px`, `--radius-pill: 999px` (softer than the current 10px max;
+  data rows keep their tight radii).
+- Surface layering already exists (`--surface-*`); confirm a page→card→inner
+  progression is expressible. Add tinted section-icon backgrounds using existing
+  role tints (`--primary-50` etc.) — no new colors.
+- Reuse E28 motion + E29 `--shadow-3`. No gradients, no glass.
+
+## F1.2 — the components (in apps/web/components/kit/)
+Each: token-driven, reduced-motion-safe, keyboard-accessible, copy via config
+where user-facing. Build as presentational React components with clear props.
+1. **PageHeader** — title + one-line state/subtitle + optional primary action
+   (right-aligned). The wayfinding pattern for every page. Optional tinted icon
+   tile. (Audit Theme B: no consistent header exists today.)
+2. **Composer** — collapsed affordance ("New post" / "Ask…") that expands inline
+   to the full input on click; Esc/cancel collapses; supports a primary submit.
+   This is the content-first heart (kills form-first Community/Q&A).
+3. **FeedCard** — avatar/initials + name + meta + optional status pill + body +
+   inline action row. The rich scannable card from the mockup.
+4. **StatCard** — muted label + big confident number; opt-in count-up (reuses the
+   E30 CountUp; reduced-motion → static). For the overview stat row.
+5. **FilterPills** — pill row, one active (accent-filled), icon-led, keyboard
+   navigable. Replaces the boxy filter rows.
+6. **EmptyState** — soft icon tile + headline (an invitation, not "Nothing here
+   yet") + one-line body + optional CTA. Per CDS content guidance.
+7. **SlideOver** — right-anchored panel with sticky header (title + close ✕),
+   scrolling body, sticky footer; supports progressive disclosure ("More
+   options" section). Adopts `--shadow-3`. This is the E30 drawer pattern,
+   generalized, for F4.
+
+## F1.3 — styleguide
+Extend `pages/styleguide.tsx` with a section demoing every kit component in its
+states (default/hover/active/empty/loading), so the pattern is discoverable and
+review-able. This is the F1 deliverable the founder reviews.
+
+## Out of scope for F1
+No real page adopts the kit yet (that's F2+). No behavior/schema/API changes.
+
+## Acceptance
+- All seven components exist in components/kit/, token-driven, reduced-motion-safe,
+  keyboard-accessible, each shown on /styleguide in its states.
+- Zero changes to real app pages (diff touches only kit/, styleguide.tsx,
+  tokens.css, globals.css, config copy).
+- Contrast holds; all tests green; a component test covers Composer collapse/
+  expand and StatCard reduced-motion.
+
+## Standing rules
+- **NEVER set ALLOW_DESTRUCTIVE_DB.** DB suites per RUNBOOK §12 if touched.
+- Tokens/config only for values/copy. Stop the web dev server first; reset after.
