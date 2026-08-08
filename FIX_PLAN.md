@@ -2143,3 +2143,63 @@ Fix (small): in dashboard.tsx, derive the accent from the current event's
 brandColor (reuse `lib/eventAccent.ts` `eventAccentStyle`) and pass `accentStyle`
 to `<AppShell>`, mirroring OrganizerShell. No new logic; the helper + contrast
 fallback already exist. Do this as part of F2.
+
+---
+
+# Chunk F3 — Community, Messages, session Q&A: content-first
+
+DESIGN_PHASE_F rollout step 3. The founder's flagship example: turn the
+form-first social surfaces into feed-first, compose-on-demand. Build from the F1
+kit; use the community mockup shown in chat 2026-08-07 as the reference.
+Audit refs: docs/ux-audit-full/02-attendee-app.md.
+
+## F3.1 — Community (dashboard.tsx CommunityBoard)
+Current: a permanent empty "New post" form wedged between the channel nav and
+the feed (the exact form-first problem).
+New (content-first):
+- **PageHeader** (kit): "Community" + one-line purpose + a primary **New post**
+  action (kit Composer, collapsed).
+- **FilterPills** (kit) for the channels (All / Meet-ups / Moments / Local tips /
+  General) — replace the boxy channel buttons.
+- **The feed is the hero:** posts render as **FeedCard**s (avatar, name,
+  channel + relative time, optional status pill e.g. meet-up time, body, inline
+  actions: reply count, join/RSVP where relevant). Rich and scannable.
+- **Compose on demand:** clicking New post expands the Composer inline (or a
+  SlideOver on small screens); it is never a permanent form above the feed.
+  Channel-specific fields (meet-up time, maps link, photo upload) appear inside
+  the expanded composer based on the selected channel — not all at once.
+- **EmptyState** (kit) when a channel has no posts ("Start the conversation…"),
+  not "Nothing here yet".
+
+## F3.2 — session Q&A (session/[sessionId].tsx)
+Current: an empty "Start conversation" form above the threads (resources on the
+same page already collapse theirs — make Q&A match).
+New: lead with the thread list (FeedCard-style rows: title, asker, votes, reply
+count, answered pill); a collapsed Composer ("Ask a question") expands on click;
+Top votes / Recent stays as FilterPills. Organizer controls (mark answered/hide)
+stay, shown on the thread.
+
+## F3.3 — Messages (MessagesPanel.tsx)
+Already the strongest social surface (E18). Light touch: adopt kit tokens/cards
+for consistency (FeedCard-style conversation rows, kit EmptyState, PageHeader),
+so it matches Community/Q&A. Do NOT change the phase-1 messaging behavior or
+reopen the request-gate scope.
+
+## Rules
+- Content-first everywhere: feed/threads are the hero; composing is on demand.
+- Reuse existing data/endpoints and post/reply logic — presentation + the
+  compose interaction only. No schema/API changes.
+- Uses `--event-accent`; reduced-motion safe; copy via config.
+
+## Acceptance
+- Community, Q&A, and Messages all LEAD with content, not an empty form.
+- Composing is a collapsed affordance that expands on demand; channel-specific
+  fields appear only inside the expanded composer.
+- Posts/threads/conversations render as rich scannable cards.
+- Empty channels show a teaching EmptyState.
+- Posting/replying works exactly as before; contrast holds; all tests green.
+- Before/after: none of the three greets the user with a permanent input form.
+
+## Standing rules
+- **NEVER set ALLOW_DESTRUCTIVE_DB.** DB suites per RUNBOOK §12.
+- Kit + tokens + config only. Stop the web dev server first; reset after.
