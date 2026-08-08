@@ -55,7 +55,8 @@ export type ReviewAssumption = {
  */
 
 export type ReviewChangesetProps = {
-  title?: string;
+  /** Plain string, or a node (E30.4: the ingest heading counts up its figure). */
+  title?: ReactNode;
   headers?: string[];
   mapping?: Record<string, string>;
   onMappingChange?: (mapping: Record<string, string>) => void;

@@ -97,6 +97,15 @@
   --control-quiet: 28px; /* compact row actions beside a title (desktop) */
   --tap-target: 44px; /* minimum touch target on coarse-pointer layouts */
 
+  /* —— Forms (E30.1) —— */
+  /* Readable line length for form fields inside wide drawers/panels —
+     inputs never stretch the full width of the surface. */
+  --form-column-max: 520px;
+
+  /* —— Confident numbers (E30.4) —— */
+  /* Real figures (analytics headlines, ingest results) rendered proudly. */
+  --text-stat: 600 32px/38px var(--font-body);
+
   /*
    * —— Motion (E28) ——
    * The single source for every duration/ease in the app. Components and
@@ -112,6 +121,7 @@
   --motion-stagger-step: 40ms; /* per-row delay in staggered lists */
   --motion-shimmer: 1.5s; /* skeleton shimmer loop */
   --motion-spin: 0.8s; /* ingest spinner revolution */
+  --motion-countup: 800ms; /* the ONE earned count-up (ingest result, E30.4) */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* enters */
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* moves */
 
@@ -203,6 +213,11 @@ html[data-theme="slate"] {
   font: var(--text-meta);
   color: var(--meta-color);
 }
+.stat-number {
+  font: var(--text-stat);
+  color: var(--title-color);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Chips: 4px radius, quiet gray by default. */
 .chip {
@@ -249,6 +264,7 @@ html[data-theme="slate"] {
     --motion-stagger-step: 0ms;
     --motion-shimmer: 0ms;
     --motion-spin: 0ms;
+    --motion-countup: 0ms;
   }
 
   *,

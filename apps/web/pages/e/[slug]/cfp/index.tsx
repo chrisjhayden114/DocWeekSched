@@ -165,7 +165,7 @@ export default function PublicCfpPage() {
         ) : null}
 
         {!done && data?.form.accepting ? (
-          <form onSubmit={(e) => void onSubmit(e)} style={{ display: "grid", gap: 12 }}>
+          <form onSubmit={(e) => void onSubmit(e)} className="console-form">
             <p className="help-text">Draft saves automatically in this browser. No account required.</p>
             <label>
               Your name

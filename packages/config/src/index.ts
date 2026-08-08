@@ -159,6 +159,67 @@ export const programCopy = {
 } as const;
 
 /**
+ * Session editor drawer copy (Chunk E30.1).
+ * The Edit/New session drawer shows ONE materials area: the three upload
+ * targets (image / recording / materials file) are different data fields on
+ * the session, so all three stay — but only the materials upload renders as
+ * a full dropzone; image and recording use the compact attach affordance so
+ * the drawer never shows two identical empty dropzones. Edit this module,
+ * not the component.
+ */
+export const sessionEditorCopy = {
+  editTitle: "Edit session",
+  newTitle: "New session",
+  closeLabel: "Close session editor",
+  sections: {
+    basics: "Basics",
+    schedule: "Schedule",
+    speakers: "Speakers",
+    materials: "Materials",
+    roster: "Roster & waitlist",
+  },
+  materials: {
+    /** One orienting line under the Materials heading. */
+    hint: "Links and files attendees can open from the session page.",
+    linkPlaceholder: "Presentation or resource link",
+    uploadLabel: "Materials file",
+    uploadHint: "Slides, a paper, a handout — PDF, Office, image, audio or video.",
+    attachedLabel: "Materials file attached",
+    removeAttachment: "Remove",
+    imagePlaceholder: "Image URL",
+    imageUploadLabel: "Session image",
+    recordingPlaceholder: "Recording URL",
+    recordingUploadLabel: "Recording file",
+    meetingLinkPlaceholder: "Online meeting link",
+  },
+  actions: {
+    save: "Save changes",
+    create: "Create session",
+    saving: "Saving…",
+    cancel: "Cancel",
+    delete: "Delete session",
+  },
+} as const;
+
+/**
+ * Empty states that teach (Chunk E30.3): a short line of what the area is
+ * for plus where the primary action lives. Calm, not cute. Edit this module,
+ * not the components.
+ */
+export const emptyStateCopy = {
+  sessionDiscussion: {
+    title: "No conversations yet",
+    body: "Questions and discussion for this session live here — everyone attending can read and reply. Start the first one above.",
+  },
+  communityBoard: {
+    title: "Nothing here yet",
+    body: "Community is the event-wide board — introductions, plans, questions for everyone. Start the first post above.",
+  },
+  waitlist:
+    "No one is waiting for a seat. When this session reaches capacity, attendees can join the waitlist and you can promote them from here.",
+} as const;
+
+/**
  * Customer-facing billing status copy (Chunk E24).
  * The raw SubscriptionStatus enum (NONE / ACTIVE / TRIALING / PAST_DUE /
  * CANCELED) must never be rendered on a customer surface. A status line is

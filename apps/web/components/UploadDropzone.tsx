@@ -6,6 +6,12 @@ export type UploadDropzoneProps = {
   label?: string;
   hint?: string;
   disabled?: boolean;
+  /**
+   * "compact" (E30.1): same drop/browse behavior rendered as one quiet row
+   * instead of a large empty box. Use for secondary upload targets so a form
+   * never stacks two identical empty dropzones.
+   */
+  variant?: "default" | "compact";
   onFile: (file: File) => void | Promise<void>;
 };
 
@@ -25,6 +31,7 @@ export function UploadDropzone({
   label = "Upload file",
   hint,
   disabled,
+  variant = "default",
   onFile,
 }: UploadDropzoneProps) {
   const id = useId();
@@ -57,7 +64,7 @@ export function UploadDropzone({
   );
 
   return (
-    <div className="upload-dropzone-wrap">
+    <div className={`upload-dropzone-wrap${variant === "compact" ? " upload-dropzone--compact" : ""}`}>
       <span className="field-label-text">{label}</span>
       <div
         className={`upload-dropzone${dragOver ? " is-dragover" : ""}${disabled ? " is-disabled" : ""}`}

@@ -3281,6 +3281,10 @@ button.schedule-meta-chip:hover {
   max-width: 640px;
 }
 
+/* E30.1 — the drawer is a proper three-part surface: pinned header (title +
+   close ✕), scrolling body, pinned footer with the actions. The panel itself
+   never scrolls; only .drawer-body does, so the header and actions are
+   always in reach. */
 .drawer-panel {
   position: fixed;
   top: 0;
@@ -3291,8 +3295,82 @@ button.schedule-meta-chip:hover {
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-3);
   z-index: 1001;
-  padding: var(--space-5);
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drawer-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex: none;
+}
+
+.drawer-header h3 {
+  margin: 0;
+}
+
+.drawer-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--meta-color);
+  font: var(--text-h3);
+  line-height: 1;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.drawer-close:hover {
+  background: var(--gray-100);
+  color: var(--title-color);
+}
+
+.drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+/* Readable line length: fields never stretch the full width of a wide drawer. */
+.drawer-body .session-form-section {
+  max-width: var(--form-column-max);
+}
+
+.drawer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex: none;
+}
+
+/* Destructive action sits alone on the left — a mis-click near Save cannot
+   destroy a session. */
+.drawer-footer .button-danger {
+  margin-right: auto;
 }
 
 .drawer-backdrop {
@@ -3332,6 +3410,26 @@ button.schedule-meta-chip:hover {
   cursor: pointer;
   text-align: center;
   transition: border-color var(--motion-fast) var(--ease-in-out), background var(--motion-fast) var(--ease-in-out);
+}
+
+/* E30.1 — compact attach affordance: same drop/browse behavior, one quiet
+   row instead of a big empty box. Only ONE full dropzone renders per form;
+   secondary upload targets use this so identical dropzones never stack. */
+.upload-dropzone--compact .upload-dropzone {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+
+.upload-dropzone--compact .upload-dropzone > p {
+  margin: 0;
+}
+
+.upload-dropzone--compact .upload-dropzone > p + p {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .upload-dropzone.is-dragover {
@@ -3489,6 +3587,23 @@ button.schedule-meta-chip:hover {
 
 .event-settings-modal .field-label {
   margin-bottom: var(--space-3);
+}
+
+/* E30.2 — shared action-footer pattern for forms inside scrolling modals:
+   the actions stay pinned to the bottom edge of the dialog while the form
+   scrolls behind them. Negative offsets cancel the dialog's --space-5
+   padding so the strip hugs the edge with no gap for content to peek
+   through. */
+.modal-dialog .form-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--space-5));
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--space-5)) calc(-1 * var(--space-5));
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .panel-heading {
@@ -5233,15 +5348,15 @@ button.schedule-meta-chip:hover {
 
 .console-form {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
   max-width: 560px;
   width: 100%;
 }
 
 .console-form label {
   display: grid;
-  gap: 4px;
-  font: 500 13px/18px var(--font-body);
+  gap: var(--space-1);
+  font: var(--text-label);
   color: var(--gray-700);
 }
 

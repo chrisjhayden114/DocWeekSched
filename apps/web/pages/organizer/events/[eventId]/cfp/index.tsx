@@ -174,7 +174,7 @@ export default function OrganizerCfpPage() {
         {message ? <p className="help-text">{message}</p> : null}
 
         {!forms.length ? (
-          <form onSubmit={(e) => void createForm(e)} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
+          <form onSubmit={(e) => void createForm(e)} className="console-form">
             <h2>Create CFP</h2>
             <label>
               Title

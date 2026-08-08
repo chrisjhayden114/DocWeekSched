@@ -20,6 +20,7 @@ import {
 } from "../lib/messagesView";
 import { AutolinkText } from "./AutolinkText";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ListSkeleton } from "./ListState";
 import { KebabMenu } from "./KebabMenu";
 import { SearchableMultiSelect, type SelectablePerson } from "./SearchableMultiSelect";
 
@@ -533,7 +534,7 @@ export function MessagesPanel({
           {!activeConversation ? (
             <p className="msg-thread-placeholder">Select a conversation</p>
           ) : threadLoading && messages.length === 0 ? (
-            <p className="msg-thread-placeholder">Loading…</p>
+            <ListSkeleton rows={3} />
           ) : messages.length === 0 ? (
             <p className="msg-thread-placeholder">
               This is the start of your conversation with {activeConversation.type === "GROUP" ? "this group" : activeTitle}.

@@ -6,6 +6,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { brand } from "@event-app/config";
+import { ListSkeleton } from "../../../../components/ListState";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 
@@ -108,32 +109,32 @@ export default function EventAnalyticsPage() {
           Engagement points feed these numbers — no public leaderboard unless you enable it.
         </p>
         {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
-        {!data && !error ? <p className="help-text">Loading…</p> : null}
+        {!data && !error ? <ListSkeleton rows={4} /> : null}
 
         {data ? (
           <>
             <section style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", margin: "20px 0" }}>
               <div>
                 <div className="help-text">Adoption rate</div>
-                <strong style={{ fontSize: 28 }}>{pct(data.headline.adoptionRate)}</strong>
+                <strong className="stat-number">{pct(data.headline.adoptionRate)}</strong>
                 <div className="help-text">
                   {data.headline.adoptionCount}/{data.headline.registrants} activated
                 </div>
               </div>
               <div>
                 <div className="help-text">Check-in rate</div>
-                <strong style={{ fontSize: 28 }}>{pct(data.headline.checkInRate)}</strong>
+                <strong className="stat-number">{pct(data.headline.checkInRate)}</strong>
                 <div className="help-text">
                   {data.headline.checkIns}/{data.headline.registrants}
                 </div>
               </div>
               <div>
                 <div className="help-text">Directory opt-in</div>
-                <strong style={{ fontSize: 28 }}>{pct(data.headline.directoryOptInRate)}</strong>
+                <strong className="stat-number">{pct(data.headline.directoryOptInRate)}</strong>
               </div>
               <div>
                 <div className="help-text">Engagement points</div>
-                <strong style={{ fontSize: 28 }}>{data.headline.totalEngagementPoints}</strong>
+                <strong className="stat-number">{data.headline.totalEngagementPoints}</strong>
               </div>
             </section>
 

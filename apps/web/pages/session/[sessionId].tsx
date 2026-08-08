@@ -1,4 +1,4 @@
-import { brand, programCopy } from "@event-app/config";
+import { brand, emptyStateCopy, programCopy } from "@event-app/config";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -1063,7 +1063,12 @@ export default function SessionPage() {
             </form>
             <div className="session-thread-layout">
               <div className="session-thread-list">
-                {threads.length === 0 && <p className="help-text">No conversations yet — start the first one.</p>}
+                {threads.length === 0 && (
+                  <p className="help-text" style={{ margin: 0 }}>
+                    <strong>{emptyStateCopy.sessionDiscussion.title}.</strong>{" "}
+                    {emptyStateCopy.sessionDiscussion.body}
+                  </p>
+                )}
                 {threads.map((thread) => (
                   <button
                     key={thread.id}

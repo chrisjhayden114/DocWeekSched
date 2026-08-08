@@ -17,7 +17,8 @@ import {
   isLegacyWordFile,
   isXlsxFile,
 } from "../../../../lib/spreadsheetImport";
-import { describeIngestSource, ingestReviewHeading } from "../../../../lib/ingestSource";
+import { CountUp } from "../../../../components/CountUp";
+import { describeIngestSource, ingestReviewHeading, ingestSourceName } from "../../../../lib/ingestSource";
 import { rowsToApiChangeset, toggleRemoval } from "../../../../lib/ingestReview";
 import {
   INGEST_POLL_HARD_STOP_MS,
@@ -655,13 +656,25 @@ export default function AgendaIngestPage() {
         {reviewVisible && run && sourceDisplay ? (
           <div ref={reviewRef}>
           <ReviewChangeset
-            title={ingestReviewHeading({
-              confirmed: run.status === "CONFIRMED",
-              creates: summary.creates,
-              updates: summary.updates,
-              sourceKind: run.sourceKind,
-              fileName: run.sourceFileName,
-            })}
+            title={
+              // E30.4: same wording as ingestReviewHeading, with the found
+              // figure rendered proudly — the ONE earned count-up.
+              run.status !== "CONFIRMED" && summary.creates + summary.updates > 0 ? (
+                <>
+                  Review <CountUp value={summary.creates + summary.updates} /> session
+                  {summary.creates + summary.updates === 1 ? "" : "s"} found in{" "}
+                  {ingestSourceName(run.sourceKind, run.sourceFileName)}
+                </>
+              ) : (
+                ingestReviewHeading({
+                  confirmed: run.status === "CONFIRMED",
+                  creates: summary.creates,
+                  updates: summary.updates,
+                  sourceKind: run.sourceKind,
+                  fileName: run.sourceFileName,
+                })
+              )
+            }
             sourcePreview={sourceDisplay.previewText || undefined}
             // E16.1: file sources render as a compact full-width band above
             // the review; the long-preview side column stays for paste/URL.

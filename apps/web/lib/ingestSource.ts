@@ -77,6 +77,14 @@ export function describeIngestSource(run: IngestSourceRun): IngestSourceDisplay 
   };
 }
 
+/** Human name for where a run's content came from (E11.2 / E30.4). */
+export function ingestSourceName(sourceKind: string, fileName?: string | null): string {
+  return (
+    fileName ||
+    (sourceKind === "PASTE" ? "pasted text" : sourceKind === "URL" ? "the fetched URL" : "your upload")
+  );
+}
+
 /**
  * Review-panel heading that states the outcome plainly and names the source,
  * so the connection to the upload is unmistakable (E11.2).
@@ -90,9 +98,7 @@ export function ingestReviewHeading(input: {
 }): string {
   if (input.confirmed) return "Confirmed drafts";
   const found = input.creates + input.updates;
-  const source =
-    input.fileName ||
-    (input.sourceKind === "PASTE" ? "pasted text" : input.sourceKind === "URL" ? "the fetched URL" : "your upload");
+  const source = ingestSourceName(input.sourceKind, input.fileName);
   if (found === 0) return `No sessions found in ${source}`;
   return `Review ${found} session${found === 1 ? "" : "s"} found in ${source}`;
 }

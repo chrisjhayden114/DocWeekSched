@@ -120,6 +120,7 @@ export function EventSettingsModal({
               />
             </label>
             <UploadDropzone
+              variant="compact"
               label="Logo upload"
               accept="image/*"
               maxBytes={2_000_000}
@@ -138,6 +139,7 @@ export function EventSettingsModal({
               />
             </label>
             <UploadDropzone
+              variant="compact"
               label="Banner upload"
               accept="image/*"
               maxBytes={4_500_000}
@@ -179,7 +181,7 @@ export function EventSettingsModal({
                 {error}
               </p>
             ) : null}
-            <div style={{ display: "flex", gap: "var(--space-2)", justifyContent: "flex-end" }}>
+            <div className="form-actions">
               <button type="button" className="button secondary" onClick={requestClose} disabled={saving}>
                 Cancel
               </button>

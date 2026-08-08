@@ -1,4 +1,4 @@
-import { brand, icsProductId } from "@event-app/config";
+import { brand, emptyStateCopy, icsProductId, sessionEditorCopy } from "@event-app/config";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
@@ -3438,21 +3438,32 @@ function SessionForm({
 
   return (
     <>
-      <form className="grid" onSubmit={handleSubmit}>
-        <h3 className="panel-heading">{editing ? "Edit session" : "New session"}</h3>
+      <form className="drawer-form" onSubmit={handleSubmit}>
+        <header className="drawer-header">
+          <h3 className="panel-heading">{editing ? sessionEditorCopy.editTitle : sessionEditorCopy.newTitle}</h3>
+          <button
+            type="button"
+            className="drawer-close"
+            aria-label={sessionEditorCopy.closeLabel}
+            onClick={onCancel}
+          >
+            ×
+          </button>
+        </header>
 
+        <div className="drawer-body">
         <section className="session-form-section">
-          <h4>Basics</h4>
+          <h4>{sessionEditorCopy.sections.basics}</h4>
           <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
           <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
           <input className="input" name="location" placeholder="Location / room" defaultValue={editing?.location || ""} />
         </section>
 
         <section className="session-form-section">
-          <h4>Schedule</h4>
+          <h4>{sessionEditorCopy.sections.schedule}</h4>
           <DateTimePicker name="startsAt" label="Starts" required defaultValue={defaultStart} />
           <DateTimePicker name="endsAt" label="Ends" required defaultValue={defaultEnd} />
-          <label className="help-text" style={{ margin: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <label className="help-text" style={{ margin: 0, display: "flex", gap: "var(--space-2)", alignItems: "flex-start" }}>
             <input
               type="checkbox"
               name="allowVirtualJoin"
@@ -3462,6 +3473,12 @@ function SessionForm({
             />
             <span>Allow participants to join virtually</span>
           </label>
+          <input
+            className="input"
+            name="zoomLink"
+            placeholder={sessionEditorCopy.materials.meetingLinkPlaceholder}
+            defaultValue={editing?.zoomLink || ""}
+          />
           <label>
             In-person capacity
             <input
@@ -3490,7 +3507,7 @@ function SessionForm({
         </section>
 
         <section className="session-form-section">
-          <h4>Speakers</h4>
+          <h4>{sessionEditorCopy.sections.speakers}</h4>
           <input
             className="input"
             name="speakers"
@@ -3508,61 +3525,66 @@ function SessionForm({
           />
         </section>
 
+        {/* E30.1 — ONE materials area. The three upload targets are distinct
+            session fields (fileUrl / imageUrl / recordingUrl), so all three
+            stay; only the materials upload is a full dropzone, the rest are
+            compact attach rows. Save payload is unchanged. */}
         <section className="session-form-section">
-          <h4>Media</h4>
+          <h4>{sessionEditorCopy.sections.materials}</h4>
+          <p className="text-meta" style={{ margin: 0 }}>
+            {sessionEditorCopy.materials.hint}
+          </p>
+          <input
+            className="input"
+            name="fileLink"
+            placeholder={sessionEditorCopy.materials.linkPlaceholder}
+            defaultValue={editing?.fileLink || ""}
+          />
+          <UploadDropzone
+            label={sessionEditorCopy.materials.uploadLabel}
+            hint={sessionEditorCopy.materials.uploadHint}
+            accept="audio/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,image/*"
+            onFile={async (file) => setFileUrl(await fileToDataUrl(file))}
+          />
+          {fileUrl ? (
+            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+              <span className="text-meta">{sessionEditorCopy.materials.attachedLabel}</span>
+              <button type="button" className="button secondary" onClick={() => setFileUrl("")}>
+                {sessionEditorCopy.materials.removeAttachment}
+              </button>
+            </div>
+          ) : null}
           <input
             className="input"
             name="imageUrl"
-            placeholder="Image URL"
+            placeholder={sessionEditorCopy.materials.imagePlaceholder}
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
           />
           <UploadDropzone
-            label="Session image"
+            variant="compact"
+            label={sessionEditorCopy.materials.imageUploadLabel}
             accept="image/*"
             onFile={async (file) => setImageUrl(await fileToDataUrl(file))}
-          />
-        </section>
-
-        <section className="session-form-section">
-          <h4>Links</h4>
-          <input
-            className="input"
-            name="zoomLink"
-            placeholder="Online meeting link"
-            defaultValue={editing?.zoomLink || ""}
           />
           <input
             className="input"
             name="recordingUrl"
-            placeholder="Recording URL"
+            placeholder={sessionEditorCopy.materials.recordingPlaceholder}
             value={recordingUrl}
             onChange={(e) => setRecordingUrl(e.target.value)}
           />
           <UploadDropzone
-            label="Recording file"
+            variant="compact"
+            label={sessionEditorCopy.materials.recordingUploadLabel}
             accept="audio/*,video/*"
             onFile={async (file) => setRecordingUrl(await fileToDataUrl(file))}
-          />
-          <input className="input" name="fileLink" placeholder="Presentation or resource link" defaultValue={editing?.fileLink || ""} />
-          <textarea
-            className="textarea"
-            name="fileUrl"
-            placeholder="Materials (filled by upload)"
-            value={fileUrl}
-            onChange={(e) => setFileUrl(e.target.value)}
-            rows={2}
-          />
-          <UploadDropzone
-            label="Materials upload"
-            accept="audio/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,image/*"
-            onFile={async (file) => setFileUrl(await fileToDataUrl(file))}
           />
         </section>
 
         {editing ? (
           <section className="session-form-section">
-            <h4>Roster & waitlist</h4>
+            <h4>{sessionEditorCopy.sections.roster}</h4>
             <p className="help-text" style={{ marginTop: 0 }}>
               In-person:{" "}
               {(editing.attendances || []).filter((a) => a.status === "JOINING" && a.joinMode === "IN_PERSON").length}
@@ -3573,7 +3595,7 @@ function SessionForm({
               {editing.virtualCapacity != null ? ` / ${editing.virtualCapacity}` : " (unlimited)"}
             </p>
             {waitlist.length === 0 ? (
-              <p className="text-meta">No one on the waitlist.</p>
+              <p className="text-meta" style={{ margin: 0 }}>{emptyStateCopy.waitlist}</p>
             ) : (
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
                 {waitlist.map((w) => (
@@ -3637,20 +3659,25 @@ function SessionForm({
             )}
           </section>
         ) : null}
+        </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button className="button" type="submit" disabled={submitting}>
-            {submitting ? "Saving…" : editing ? "Save changes" : "Create session"}
-          </button>
-          <button className="button secondary" type="button" onClick={onCancel}>
-            Cancel
-          </button>
+        <footer className="drawer-footer">
           {editing ? (
             <button className="button button-danger" type="button" onClick={() => setConfirmDelete(true)}>
-              Delete session
+              {sessionEditorCopy.actions.delete}
             </button>
           ) : null}
-        </div>
+          <button className="button secondary" type="button" onClick={onCancel}>
+            {sessionEditorCopy.actions.cancel}
+          </button>
+          <button className="button" type="submit" disabled={submitting}>
+            {submitting
+              ? sessionEditorCopy.actions.saving
+              : editing
+                ? sessionEditorCopy.actions.save
+                : sessionEditorCopy.actions.create}
+          </button>
+        </footer>
       </form>
       <ConfirmDialog
         open={confirmDelete}
@@ -4407,7 +4434,9 @@ function CommunityBoard({
       </form>
 
       <div className="card network-thread-list">
-        {threads.length === 0 && <p className="help-text">Nothing here yet — start the first post.</p>}
+        {threads.length === 0 && (
+          <ListEmpty title={emptyStateCopy.communityBoard.title} body={emptyStateCopy.communityBoard.body} />
+        )}
         <div
           className={
             channelFilter === "MOMENTS"

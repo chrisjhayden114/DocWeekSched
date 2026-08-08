@@ -5,6 +5,7 @@ import {
   type SentAnnouncement,
 } from "../lib/announcementDisplay";
 import { organizerFetch } from "../lib/organizerApi";
+import { ListSkeleton } from "./ListState";
 import { Select } from "./Select";
 
 type SessionOpt = { id: string; title: string };
@@ -237,7 +238,7 @@ export function AnnouncementComposer({ eventId, sessions }: Props) {
       {/* E16.3: the record of what was sent — audience, time, sender. */}
       <section style={{ marginTop: 12 }} aria-label="Sent announcements">
         <h3 style={{ margin: "0 0 4px" }}>Sent announcements</h3>
-        {sent === undefined ? <p className="help-text">Loading…</p> : null}
+        {sent === undefined ? <ListSkeleton rows={2} /> : null}
         {sent === null ? (
           <p className="help-text" style={{ color: "var(--danger)" }}>
             Couldn’t load past announcements — reload the page to retry.
