@@ -10,6 +10,8 @@ export type { EmptyStateProps } from "./EmptyState";
 export { FeedCard, initialsFor } from "./FeedCard";
 export type { FeedCardPill, FeedCardProps, PillTone } from "./FeedCard";
 export { FilterPills } from "./FilterPills";
+export { Lightbox } from "./Lightbox";
+export type { LightboxProps } from "./Lightbox";
 export type { FilterPillOption, FilterPillsProps } from "./FilterPills";
 export { PageHeader } from "./PageHeader";
 export type { IconTone, PageHeaderProps } from "./PageHeader";

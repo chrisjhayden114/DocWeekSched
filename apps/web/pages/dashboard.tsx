@@ -31,7 +31,8 @@ import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/Sched
 import { SegmentedToggle } from "../components/SegmentedToggle";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
-import { Composer, EmptyState, FeedCard, FilterPills, PageHeader } from "../components/kit";
+import { Composer, EmptyState, FeedCard, FilterPills, Lightbox, PageHeader } from "../components/kit";
+import { galleryPreview } from "../lib/gallery";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
@@ -4019,6 +4020,7 @@ function CommunityBoard({
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
 
   const nameById = useMemo(() => Object.fromEntries(attendees.map((a) => [a.id, a.name])), [attendees]);
 
@@ -4533,13 +4535,25 @@ function CommunityBoard({
                       )}
                     </>
                   )}
-                  {gallery.length > 0 && (
-                    <div className="community-thread-gallery" style={{ margin: "10px 0 0" }}>
-                      {(open ? gallery : gallery.slice(0, 3)).map((src) => (
-                        <img key={src.slice(0, 48)} src={src} alt="" />
-                      ))}
-                    </div>
-                  )}
+                  {gallery.length > 0 && (() => {
+                    const { shown, extra, gridCount } = galleryPreview(gallery, 4);
+                    return (
+                      <div className="moments-grid" data-count={gridCount}>
+                        {shown.map((src, i) => (
+                          <button
+                            type="button"
+                            key={src.slice(0, 48)}
+                            className="moments-tile"
+                            aria-label={`View photo ${i + 1} of ${gallery.length}`}
+                            onClick={() => setLightbox({ images: gallery, index: i })}
+                          >
+                            <img src={src} alt="" loading="lazy" />
+                            {i === 3 && extra > 0 ? <span className="moments-tile-more" aria-hidden>+{extra}</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {ch === "MEETUP" && (
                     <div className="community-thread-foot">
                       {t.meetupInviteEveryone
@@ -4665,6 +4679,12 @@ function CommunityBoard({
           await deleteThreadReply(confirmDeleteReply.threadId, confirmDeleteReply.replyId);
           setConfirmDeleteReply(null);
         }}
+      />
+      <Lightbox
+        images={lightbox?.images ?? []}
+        index={lightbox ? lightbox.index : null}
+        onClose={() => setLightbox(null)}
+        onIndexChange={(i) => setLightbox((lb) => (lb ? { ...lb, index: i } : lb))}
       />
     </div>
   );
