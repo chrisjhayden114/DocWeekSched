@@ -4004,6 +4004,7 @@ function CommunityBoard({
   const [meetupComposeMode, setMeetupComposeMode] = useState<"IN_PERSON" | "VIRTUAL">("IN_PERSON");
   const [meetupStartsAt, setMeetupStartsAt] = useState("");
   const [meetupDay, setMeetupDay] = useState("");
+  const [meetupCustomDate, setMeetupCustomDate] = useState("");
   const [meetupTime, setMeetupTime] = useState("");
   const [meetupMeetingUrl, setMeetupMeetingUrl] = useState("");
   const [momentImageUrls, setMomentImageUrls] = useState<string[]>([]);
@@ -4023,8 +4024,9 @@ function CommunityBoard({
 
   useEffect(() => {
     if (eventDays.length === 0) return;
-    setMeetupStartsAt(meetupDay && meetupTime ? `${meetupDay}T${meetupTime}` : "");
-  }, [meetupDay, meetupTime, eventDays.length]);
+    const datePart = meetupDay === "OTHER" ? meetupCustomDate : meetupDay;
+    setMeetupStartsAt(datePart && meetupTime ? `${datePart}T${meetupTime}` : "");
+  }, [meetupDay, meetupCustomDate, meetupTime, eventDays.length]);
 
   const composeChannels = useMemo(
     () =>
@@ -4109,6 +4111,7 @@ function CommunityBoard({
       setMeetupComposeMode("IN_PERSON");
       setMeetupStartsAt("");
       setMeetupDay("");
+      setMeetupCustomDate("");
       setMeetupTime("");
       setMeetupMeetingUrl("");
       setMomentImageUrls([]);
@@ -4307,7 +4310,26 @@ function CommunityBoard({
                           {dayChipLabel(day)}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        className={meetupDay === "OTHER" ? "kit-pill is-active" : "kit-pill"}
+                        aria-pressed={meetupDay === "OTHER"}
+                        onClick={() => setMeetupDay((prev) => (prev === "OTHER" ? "" : "OTHER"))}
+                      >
+                        Other date
+                      </button>
                     </div>
+                    {meetupDay === "OTHER" ? (
+                      <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                        Date
+                        <input
+                          className="input"
+                          type="date"
+                          value={meetupCustomDate}
+                          onChange={(e) => setMeetupCustomDate(e.target.value)}
+                        />
+                      </label>
+                    ) : null}
                     {meetupDay ? (
                       <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
                         Time
