@@ -7068,6 +7068,141 @@ button.schedule-meta-chip:hover {
 }
 
 /* ==========================================================================
+   F2 — the organizer Overview: content-first event home.
+   Stat row + quick-action cards + the "Before you publish" checklist. All
+   token-driven; the accent everywhere is --event-accent (F1.5), so the
+   overview wears the event's color.
+   ========================================================================== */
+
+.overview-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.overview-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+/* Quick-action card: icon tile + title + one-line body, whole card is the
+   link. Same surface language as kit cards (radius-card, 1px border). */
+.kit-action-card {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  text-decoration: none;
+  color: inherit;
+  transition: var(--transition);
+}
+
+a.kit-action-card:hover {
+  border-color: var(--event-accent);
+  box-shadow: var(--shadow-1);
+  text-decoration: none;
+}
+
+a.kit-action-card:focus-visible {
+  outline: 2px solid var(--event-accent);
+  outline-offset: 2px;
+}
+
+.kit-action-card-title {
+  font: var(--text-h3);
+  color: var(--gray-900);
+}
+
+.kit-action-card-body {
+  font: var(--text-meta);
+  color: var(--meta-color);
+}
+
+.kit-action-card.is-disabled {
+  opacity: 0.65;
+}
+
+/* "Before you publish" checklist — done / attention (next step) / todo. */
+.setup-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.setup-checklist-item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.setup-checklist-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  align-self: flex-start;
+  border-radius: 50%;
+  background: var(--gray-100);
+  color: var(--gray-400);
+}
+
+.setup-checklist-item--done .setup-checklist-icon {
+  background: var(--success-50);
+  color: var(--success);
+}
+
+.setup-checklist-item--attention .setup-checklist-icon {
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
+}
+
+.setup-checklist-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-checklist-label {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.setup-checklist-item--done .setup-checklist-label {
+  font-weight: 400;
+  color: var(--gray-600);
+}
+
+/* Rare/advanced overview actions behind native disclosure. */
+.overview-advanced > .overview-advanced-summary {
+  list-style: none;
+  cursor: pointer;
+  font: 600 11px/16px var(--font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+}
+
+.overview-advanced > .overview-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+
+.overview-advanced > .overview-advanced-summary::after {
+  content: "▸";
+  margin-left: 6px;
+}
+
+.overview-advanced[open] > .overview-advanced-summary::after {
+  content: "▾";
+}
+
+/* ==========================================================================
    F1.5 — event-branded surface.
    Applied (with the inline --event-accent-* variables from
    lib/eventAccent.ts#eventAccentStyle) to a surface that belongs to ONE

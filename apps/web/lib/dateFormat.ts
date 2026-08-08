@@ -63,6 +63,40 @@ export function formatEventTimeRange(
   }
 }
 
+/**
+ * Compact date range for the wayfinding state line (Chunk F2):
+ * "Jun 8–10", "Jun 28 – Jul 2", "Dec 30, 2026 – Jan 2, 2027", or "Jun 8"
+ * for a single-day event. Rendered in the event's timezone.
+ */
+export function formatEventDateRange(
+  startIso: string | Date,
+  endIso: string | Date,
+  timeZone = "UTC",
+): string {
+  const start = typeof startIso === "string" ? new Date(startIso) : startIso;
+  const end = typeof endIso === "string" ? new Date(endIso) : endIso;
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
+  try {
+    const part = (date: Date, opts: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("en-US", { ...opts, timeZone }).format(date);
+    const sYear = part(start, { year: "numeric" });
+    const eYear = part(end, { year: "numeric" });
+    if (sYear !== eYear) {
+      const md = { month: "short", day: "numeric", year: "numeric" } as const;
+      return `${part(start, md)} – ${part(end, md)}`;
+    }
+    const sMonth = part(start, { month: "short" });
+    const eMonth = part(end, { month: "short" });
+    const sDay = part(start, { day: "numeric" });
+    const eDay = part(end, { day: "numeric" });
+    if (sMonth !== eMonth) return `${sMonth} ${sDay} – ${eMonth} ${eDay}`;
+    if (sDay !== eDay) return `${sMonth} ${sDay}–${eDay}`;
+    return `${sMonth} ${sDay}`;
+  } catch {
+    return `${start.toLocaleDateString()} – ${end.toLocaleDateString()}`;
+  }
+}
+
 /** Day bucket label for notification grouping: "Mon, Jun 8" (local calendar day). */
 export function formatDayHeading(iso: string | Date, timeZone?: string): string {
   const date = typeof iso === "string" ? new Date(iso) : iso;

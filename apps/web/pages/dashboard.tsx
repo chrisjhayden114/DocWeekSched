@@ -11,7 +11,6 @@ import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../compon
 import { AppShell, type ShellNavGroup, type ShellNavItem } from "../components/AppShell";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DateTimePicker } from "../components/DateTimePicker";
-import { EventSettingsModal } from "../components/EventSettingsModal";
 import { ConciergeChat } from "../components/ConciergeChat";
 import { MatchmakerPanel } from "../components/MatchmakerPanel";
 import { KebabMenu } from "../components/KebabMenu";
@@ -22,6 +21,7 @@ import { MeetingRequestModal, MeetingRequestsPanel } from "../components/Meeting
 import { MessagesPanel } from "../components/MessagesPanel";
 import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
 import { apiFetch, apiFetchAll, clearAuthClientState } from "../lib/api";
+import { eventAccentStyle } from "../lib/eventAccent";
 import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 import { trackColor } from "../lib/trackColors";
@@ -67,6 +67,8 @@ type Event = {
   slug: string;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  /** Organizer's chosen event color; drives --event-accent (F1.5.3). */
+  brandColor?: string | null;
   timezone: string;
   startDate: string;
   endDate: string;
@@ -337,10 +339,7 @@ export default function Dashboard() {
   /** Event ids that returned 403/404 — skip them when auto-falling back. */
   const failedEventIds = useRef<Set<string>>(new Set());
   const [communityChannel, setCommunityChannel] = useState<CommunityChannelFilter>("ALL");
-  const [updatingEvent, setUpdatingEvent] = useState(false);
   const [sessionFormKey, setSessionFormKey] = useState(0);
-  const [eventSettingsOpen, setEventSettingsOpen] = useState(false);
-  const [eventSettingsError, setEventSettingsError] = useState<string | null>(null);
   const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
   const [rosterConfirm, setRosterConfirm] = useState<null | {
     kind: "make-admin" | "remove-admin" | "delete";
@@ -950,39 +949,6 @@ export default function Dashboard() {
     );
   };
 
-  const updateCurrentEvent = async (payload: {
-    name: string;
-    slug?: string;
-    bannerUrl?: string;
-    logoUrl?: string;
-    timezone: string;
-    startDate: string;
-    endDate: string;
-  }) => {
-    if (!token) return;
-    setUpdatingEvent(true);
-    setEventSettingsError(null);
-    try {
-      const updated = await apiFetch<Event>(
-        "/event",
-        withEventHeaders({ method: "PUT", body: JSON.stringify(payload) }),
-        token,
-      );
-      setEvent(updated);
-      setEventSettingsOpen(false);
-      if (isAdmin) {
-        const myEvents = await apiFetch<EventItem[]>("/event/mine", {}, token).catch(() => []);
-        setAdminEvents(mergeAdminEvents(myEvents, updated));
-      }
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Could not save event. If you uploaded large images, try a smaller file.";
-      setEventSettingsError(message);
-    } finally {
-      setUpdatingEvent(false);
-    }
-  };
-
   if (!user) return null;
 
   const eventGroupTabs: Tab[] = ["Agenda", "Attendees", MATCHMAKER_TAB, COMMUNITY_TAB, MAPS_TAB, "Messages"];
@@ -1114,6 +1080,10 @@ export default function Dashboard() {
         setSessionsLoading(true);
         setEvent(null);
       }}
+      /* F1.5.3 (F2 gap fix) — the attendee app is the event's surface, so it
+         wears the event's accent too, mirroring OrganizerShell: brandColor →
+         contrast-safe --event-accent variables on the shell root. */
+      accentStyle={event ? eventAccentStyle(event.brandColor) : undefined}
       topBarExtra={
         engagementPointsOn && typeof user.engagementPoints === "number" ? (
           <span
@@ -1127,15 +1097,15 @@ export default function Dashboard() {
       }
       accountMenu={[
         { id: "profile", label: "Profile", onSelect: () => setActive("Profile") },
+        // F2 — settings consolidated: the console's SlideOver (?settings=1)
+        // is the ONE place event settings live; the old dashboard modal is
+        // gone (it silently nulled fields it didn't show, e.g. venue).
         ...(isAdmin && event
           ? [
               {
                 id: "event-settings",
                 label: "Event settings",
-                onSelect: () => {
-                  setEventSettingsError(null);
-                  setEventSettingsOpen(true);
-                },
+                href: `/organizer/events/${event.id}?settings=1`,
               },
             ]
           : []),
@@ -1885,42 +1855,6 @@ export default function Dashboard() {
         />
       )}
       </div>
-
-      {event ? (
-        <EventSettingsModal
-          open={eventSettingsOpen}
-          eventId={event.id}
-          slugUrlPreview={
-            typeof window !== "undefined" ? `${window.location.origin}/e/${event.slug}` : `/e/${event.slug}`
-          }
-          timezoneOptions={EVENT_TIMEZONE_OPTIONS}
-          timezoneLabel={timezoneOptionLabel}
-          initial={{
-            name: event.name,
-            slug: event.slug,
-            logoUrl: event.logoUrl || "",
-            bannerUrl: event.bannerUrl || "",
-            timezone: event.timezone,
-            startDate: toLocalInputValueInTimeZone(event.startDate, event.timezone),
-            endDate: toLocalInputValueInTimeZone(event.endDate, event.timezone),
-          }}
-          saving={updatingEvent}
-          error={eventSettingsError}
-          onClose={() => setEventSettingsOpen(false)}
-          fileToDataUrl={fileToDataUrl}
-          onSave={async (values) => {
-            await updateCurrentEvent({
-              name: values.name,
-              slug: values.slug.trim() || undefined,
-              logoUrl: values.logoUrl.trim() || undefined,
-              bannerUrl: values.bannerUrl,
-              timezone: values.timezone,
-              startDate: zonedDateTimeLocalToIso(values.startDate, values.timezone),
-              endDate: zonedDateTimeLocalToIso(values.endDate, values.timezone),
-            });
-          }}
-        />
-      ) : null}
 
       <ConfirmDialog
         open={Boolean(rosterConfirm)}

@@ -242,6 +242,79 @@ export const kitCopy = {
 } as const;
 
 /**
+ * Organizer Overview copy (Chunk F2, DESIGN_PHASE_F).
+ * The content-first event home: wayfinding state line, stat labels, the
+ * "Before you publish" checklist frame, quick actions, and the relocated
+ * settings SlideOver. Edit this module, not the page/components.
+ */
+export const overviewCopy = {
+  stateLine: {
+    /** "3 steps from publishing" — drafts counting down to Publish. */
+    stepsFromPublishing: (n: number) => `${n} step${n === 1 ? "" : "s"} from publishing`,
+    /** Live events with loose ends (e.g. draft sessions still hidden). */
+    stepsRemaining: (n: number) => `${n} setup step${n === 1 ? "" : "s"} remaining`,
+    setupComplete: "Setup complete",
+  },
+  actions: {
+    publish: "Publish",
+    preview: "Preview public page",
+    settings: "Settings",
+  },
+  stats: {
+    sessions: "Sessions",
+    speakers: "Speakers",
+    registered: "Registered",
+    rooms: "Rooms",
+  },
+  checklist: {
+    /** Panel title while the event is still draft. */
+    title: "Before you publish",
+    /** Panel title once the event is live. */
+    titleLive: "Event setup",
+    nextStepLabel: "Next step:",
+    complete: "Setup complete. Sessions, rooms, speakers, and venue are in place and the event is live.",
+  },
+  quickActions: {
+    label: "Quick actions",
+    importProgram: {
+      title: "Import program",
+      body: "Paste, upload, or link a program document — the assistant drafts the schedule for review.",
+    },
+    editProgram: {
+      title: "Edit program",
+      body: "Tracks, rooms, and sessions — build or adjust the schedule by hand.",
+    },
+    preview: {
+      title: "Preview public page",
+      body: "See the event exactly as attendees do.",
+      /** Shown instead of the link while the event is still draft. */
+      draftHint: "Available once the event is published.",
+    },
+  },
+  advanced: {
+    label: "Publishing & advanced",
+    unpublish: "Unpublish (back to Draft)",
+    archive: "Archive",
+    unarchive: "Unarchive to Draft",
+    statusHelp:
+      "Draft events 404 for outsiders. Published events are reachable via slug/join link. Archive hides them from attendees while keeping data.",
+  },
+  settings: {
+    title: "Event settings",
+    intro:
+      "Everything from the create wizard, editable after the fact. Changing the timezone keeps the wall-clock times below and reinterprets them in the new zone.",
+    save: "Save settings",
+    saving: "Saving…",
+    saved: "Saved — event details updated.",
+    cancel: "Cancel",
+    /** Dirty-close guard (carried over from the old dashboard modal). */
+    discardTitle: "Discard changes?",
+    discardBody: "You have unsaved event settings. Close without saving?",
+    discardConfirm: "Discard",
+  },
+} as const;
+
+/**
  * Customer-facing billing status copy (Chunk E24).
  * The raw SubscriptionStatus enum (NONE / ACTIVE / TRIALING / PAST_DUE /
  * CANCELED) must never be rendered on a customer surface. A status line is

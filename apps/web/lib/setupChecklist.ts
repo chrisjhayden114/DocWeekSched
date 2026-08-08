@@ -76,7 +76,9 @@ export function buildSetupChecklist(input: SetupChecklistInput): SetupChecklistI
           ? "Attendees can see where the event happens."
           : "Set a venue name (or an online URL) so attendees know where to go.",
       done: Boolean(input.venueName || input.onlineUrl),
-      href: `${base}?tab=overview`,
+      // F2: settings moved off the Overview into a SlideOver; ?settings=1
+      // opens it directly (venue fields are in the essentials group).
+      href: `${base}?settings=1`,
       linkLabel: "Open Settings",
     },
     {

@@ -24,10 +24,17 @@ describe("E19.3 — Setup assistant checklist", () => {
   });
 
   it("every incomplete item deep-links into the console", () => {
+    // F2: the venue item opens the settings SlideOver (?settings=1) since
+    // settings no longer render inline on the Overview.
     for (const item of buildSetupChecklist(EMPTY_EVENT)) {
-      expect(item.href).toMatch(/^\/organizer\/events\/ev1\?tab=(program|people|overview)$/);
+      expect(item.href).toMatch(/^\/organizer\/events\/ev1\?(tab=(program|people|overview)|settings=1)$/);
       expect(item.linkLabel.length).toBeGreaterThan(0);
     }
+  });
+
+  it("the venue item opens the relocated settings SlideOver", () => {
+    const venue = buildSetupChecklist(EMPTY_EVENT).find((i) => i.key === "venue");
+    expect(venue?.href).toBe("/organizer/events/ev1?settings=1");
   });
 
   it("walks forward as state fills in: rooms, speakers, venue, publish", () => {

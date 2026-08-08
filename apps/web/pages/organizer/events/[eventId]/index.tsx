@@ -1,8 +1,9 @@
-import { brand } from "@event-app/config";
+import { brand, overviewCopy } from "@event-app/config";
 import { ASSISTANT_COPY } from "@event-app/shared";
 import Head from "next/head";
+import Link from "next/link";
 import { useRouter } from "next/router";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState, type SVGProps } from "react";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { ReviewChangeset, parseCsvToTable } from "../../../../components/ReviewChangeset";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
@@ -16,15 +17,18 @@ import { RecapPanel } from "../../../../components/RecapPanel";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListState";
 import { StatusChip } from "../../../../components/StatusChip";
-import { EventSettingsPanel } from "../../../../components/organizer/EventSettingsPanel";
+import { PageHeader, StatCard } from "../../../../components/kit";
+import { EventSettingsSlideOver } from "../../../../components/organizer/EventSettingsSlideOver";
 import {
   ProgramTab,
   type ProgramSession,
   type Room,
   type Track,
 } from "../../../../components/organizer/ProgramTab";
-import { apiFetch } from "../../../../lib/api";
-import { organizerFetch } from "../../../../lib/organizerApi";
+import { apiFetch, apiFetchAll } from "../../../../lib/api";
+import { formatEventDateRange } from "../../../../lib/dateFormat";
+import { eventHeaders, organizerFetch } from "../../../../lib/organizerApi";
+import { buildSetupChecklist } from "../../../../lib/setupChecklist";
 
 type EventDetail = {
   id: string;
@@ -77,6 +81,71 @@ const EVENT_TABS: readonly EventTab[] = [
   "recap",
 ];
 
+/** Stroke icons for the overview (same 18px stroke style as OrganizerShell). */
+function OverviewIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      aria-hidden
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    />
+  );
+}
+
+const overviewIcons = {
+  calendar: (
+    <OverviewIcon>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </OverviewIcon>
+  ),
+  people: (
+    <OverviewIcon>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </OverviewIcon>
+  ),
+  ticket: (
+    <OverviewIcon>
+      <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-6z" />
+      <path d="M13 5v2M13 17v2M13 11v2" />
+    </OverviewIcon>
+  ),
+  room: (
+    <OverviewIcon>
+      <path d="M3 21h18M9 8h1M9 12h1M14 8h1M14 12h1" />
+      <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
+      <path d="M10 21v-4a2 2 0 0 1 4 0v4" />
+    </OverviewIcon>
+  ),
+  ingest: (
+    <OverviewIcon>
+      <path d="M12 3v12M8 11l4 4 4-4" />
+      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </OverviewIcon>
+  ),
+  edit: (
+    <OverviewIcon>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </OverviewIcon>
+  ),
+  eye: (
+    <OverviewIcon>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </OverviewIcon>
+  ),
+};
+
 const MAPPING_OPTIONS = [
   { value: "email", label: "Email" },
   { value: "name", label: "Name" },
@@ -116,6 +185,20 @@ export default function OrganizerEventPage() {
     },
     [router, eventId],
   );
+
+  // F2: the settings SlideOver is URL-addressable (?settings=1) so the
+  // checklist's "Open Settings" deep link and the old dashboard entry point
+  // both land here, and Back closes the panel.
+  const settingsOpen = router.isReady && router.query.settings === "1";
+  const setSettingsOpen = useCallback(
+    (next: boolean) => {
+      const query: Record<string, string> = { eventId };
+      if (tab !== "overview") query.tab = tab;
+      if (next) query.settings = "1";
+      void router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+    },
+    [router, eventId, tab],
+  );
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [featuresDirty, setFeaturesDirty] = useState(false);
@@ -129,6 +212,8 @@ export default function OrganizerEventPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [publishConfirm, setPublishConfirm] = useState(false);
+  /** F2 stat row — registered count; null while unknown (card hidden). */
+  const [registeredCount, setRegisteredCount] = useState<number | null>(null);
 
   // People form
   const [speakerName, setSpeakerName] = useState("");
@@ -147,13 +232,17 @@ export default function OrganizerEventPage() {
     if (!eventId) return;
     const ev = await organizerFetch<EventDetail>("/event/", eventId);
     setEvent(ev);
-    const [t, r, s, sess, links, feats] = await Promise.all([
+    const [t, r, s, sess, links, feats, registered] = await Promise.all([
       organizerFetch<Track[]>("/tracks/", eventId),
       organizerFetch<Room[]>("/rooms/", eventId),
       organizerFetch<Speaker[]>("/speakers/", eventId),
       organizerFetch<ProgramSession[]>("/sessions/", eventId),
       organizerFetch<{ slugUrl?: string; joinUrl?: string }>("/event/invite-links", eventId).catch(() => null),
       organizerFetch<{ overrides: FeatureOverridesMap }>("/event/features", eventId).catch(() => ({ overrides: {} })),
+      // F2 stat row: roster size from the existing attendees endpoint.
+      apiFetchAll<{ id: string }>("/attendees/", eventHeaders(eventId))
+        .then((rows) => rows.length)
+        .catch(() => null),
     ]);
     setTracks(t);
     setRooms(r);
@@ -162,6 +251,7 @@ export default function OrganizerEventPage() {
     setInviteLinks(links);
     setFeatureOverrides(feats.overrides || {});
     setFeaturesDirty(false);
+    setRegisteredCount(registered);
   }, [eventId]);
 
   useEffect(() => {
@@ -290,6 +380,42 @@ export default function OrganizerEventPage() {
     }
   }
 
+  // F2 — the checklist input doubles as the header's "N steps from
+  // publishing" source, so the state line and the checklist always agree.
+  const checklistInput = useMemo(
+    () =>
+      event
+        ? {
+            eventId,
+            status: event.status,
+            venueName: event.venueName,
+            onlineUrl: event.onlineUrl,
+            sessionCount: sessions.length,
+            draftSessionCount: sessions.filter(
+              (s) => (s.publishStatus || "").toUpperCase() === "DRAFT",
+            ).length,
+            roomCount: rooms.length,
+            speakerCount: speakers.length,
+          }
+        : null,
+    [event, eventId, sessions, rooms, speakers],
+  );
+  const remainingSteps = useMemo(
+    () => (checklistInput ? buildSetupChecklist(checklistInput).filter((i) => !i.done).length : 0),
+    [checklistInput],
+  );
+  const stateLine = event
+    ? [
+        event.uiStatus,
+        formatEventDateRange(event.startDate, event.endDate, event.timezone),
+        event.status === "ACTIVE"
+          ? remainingSteps > 0
+            ? overviewCopy.stateLine.stepsRemaining(remainingSteps)
+            : overviewCopy.stateLine.setupComplete
+          : overviewCopy.stateLine.stepsFromPublishing(remainingSteps),
+      ].join(" · ")
+    : "";
+
   if (!eventId) return null;
 
   return (
@@ -306,7 +432,42 @@ export default function OrganizerEventPage() {
         ) : null}
         {!event && !error ? <ListSkeleton rows={5} /> : null}
 
-        {event ? (
+        {/* F2 — the Overview gets the kit wayfinding header: name, one-line
+            state ("Draft · Jun 8–10 · 3 steps from publishing"), and the
+            primary action (Publish, or Preview once live) plus Settings,
+            which opens the relocated settings SlideOver. */}
+        {event && tab === "overview" ? (
+          <PageHeader
+            title={event.name}
+            state={stateLine}
+            icon={overviewIcons.calendar}
+            action={
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <button type="button" className="button secondary" onClick={() => setSettingsOpen(true)}>
+                  {overviewCopy.actions.settings}
+                </button>
+                {event.status !== "ACTIVE" ? (
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={busy}
+                    onClick={() => {
+                      if (sessions.length === 0) setPublishConfirm(true);
+                      else void runStatus("/event/publish");
+                    }}
+                  >
+                    {overviewCopy.actions.publish}
+                  </button>
+                ) : (
+                  <a className="button" href={`/e/${event.slug}`}>
+                    {overviewCopy.actions.preview}
+                  </a>
+                )}
+              </div>
+            }
+          />
+        ) : null}
+        {event && tab !== "overview" ? (
           <header className="console-page-header">
             <div>
               <h1>{event.name}</h1>
@@ -356,105 +517,160 @@ export default function OrganizerEventPage() {
         <div className="motion-fade" key={tab}>
         {tab === "overview" && event ? (
           <section style={{ display: "grid", gap: 16 }}>
-            {/* E19.3 — the Setup assistant lives on the default tab, not only
-                inside create-event and the Features tab. */}
-            <SetupAssistantPanel
-              input={{
-                eventId,
-                status: event.status,
-                venueName: event.venueName,
-                onlineUrl: event.onlineUrl,
-                sessionCount: sessions.length,
-                draftSessionCount: sessions.filter(
-                  (s) => (s.publishStatus || "").toUpperCase() === "DRAFT",
-                ).length,
-                roomCount: rooms.length,
-                speakerCount: speakers.length,
-              }}
-              organizationId={event.organizationId}
-              onFeaturesApplied={(overrides) => {
-                setFeatureOverrides(overrides);
-                setFeaturesDirty(false);
-                setMessage("Feature settings updated");
-              }}
-            />
+            {/* F2 #2 — the earned count-up home: real counts, reduced-motion
+                safe (CountUp collapses to static under the E28 token). */}
+            <div className="overview-stat-row">
+              <StatCard
+                label={overviewCopy.stats.sessions}
+                value={sessions.length}
+                countUp
+                icon={overviewIcons.calendar}
+                hint={
+                  checklistInput && checklistInput.draftSessionCount > 0
+                    ? `${checklistInput.draftSessionCount} draft`
+                    : undefined
+                }
+              />
+              <StatCard
+                label={overviewCopy.stats.speakers}
+                value={speakers.length}
+                countUp
+                icon={overviewIcons.people}
+                iconTone="success"
+              />
+              {registeredCount != null ? (
+                <StatCard
+                  label={overviewCopy.stats.registered}
+                  value={registeredCount}
+                  countUp
+                  icon={overviewIcons.ticket}
+                  iconTone="live"
+                />
+              ) : null}
+              <StatCard
+                label={overviewCopy.stats.rooms}
+                value={rooms.length}
+                countUp
+                icon={overviewIcons.room}
+                iconTone="neutral"
+              />
+            </div>
 
-            <div className="console-panel">
-              <p className="console-panel-label">Publish</p>
-              <p className="help-text" style={{ marginTop: 0 }}>
-                Draft events 404 for outsiders. Published events are reachable via slug/join link. Archive hides them from
-                attendees while keeping data.
-              </p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {event.status !== "ACTIVE" ? (
-                  <button
-                    type="button"
-                    className="button"
-                    disabled={busy}
-                    onClick={() => {
-                      if (sessions.length === 0) setPublishConfirm(true);
-                      else void runStatus("/event/publish");
-                    }}
-                  >
-                    Publish
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={busy}
-                    onClick={() => void runStatus("/event/unpublish")}
-                  >
-                    Unpublish (back to Draft)
-                  </button>
-                )}
-                {event.status !== "ARCHIVED" ? (
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={busy}
-                    onClick={() => void runStatus("/event/archive")}
-                  >
-                    Archive
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={busy}
-                    onClick={() => void runStatus("/event/unarchive")}
-                  >
-                    Unarchive to Draft
-                  </button>
-                )}
+            {/* E19.3 / F2 #3 — the "Before you publish" checklist: live event
+                state, done/attention/todo, deep links to the fixing tab. */}
+            {checklistInput ? (
+              <SetupAssistantPanel
+                input={checklistInput}
+                organizationId={event.organizationId}
+                onFeaturesApplied={(overrides) => {
+                  setFeatureOverrides(overrides);
+                  setFeaturesDirty(false);
+                  setMessage("Feature settings updated");
+                }}
+              />
+            ) : null}
+
+            {/* F2 #4 — quick actions, deep-linking to the existing screens. */}
+            <div className="overview-quick-actions" aria-label={overviewCopy.quickActions.label}>
+              <Link className="kit-action-card" href={`/organizer/events/${eventId}/ingest`}>
+                <span className="kit-icon-tile kit-icon-tile--primary" aria-hidden>
+                  {overviewIcons.ingest}
+                </span>
+                <span className="kit-action-card-title">{overviewCopy.quickActions.importProgram.title}</span>
+                <span className="kit-action-card-body">{overviewCopy.quickActions.importProgram.body}</span>
+              </Link>
+              <Link className="kit-action-card" href={`/organizer/events/${eventId}?tab=program`}>
+                <span className="kit-icon-tile kit-icon-tile--success" aria-hidden>
+                  {overviewIcons.edit}
+                </span>
+                <span className="kit-action-card-title">{overviewCopy.quickActions.editProgram.title}</span>
+                <span className="kit-action-card-body">{overviewCopy.quickActions.editProgram.body}</span>
+              </Link>
+              {event.status === "ACTIVE" ? (
+                <a className="kit-action-card" href={`/e/${event.slug}`}>
+                  <span className="kit-icon-tile kit-icon-tile--live" aria-hidden>
+                    {overviewIcons.eye}
+                  </span>
+                  <span className="kit-action-card-title">{overviewCopy.quickActions.preview.title}</span>
+                  <span className="kit-action-card-body">{overviewCopy.quickActions.preview.body}</span>
+                </a>
+              ) : (
+                <div className="kit-action-card is-disabled" aria-disabled="true">
+                  <span className="kit-icon-tile kit-icon-tile--neutral" aria-hidden>
+                    {overviewIcons.eye}
+                  </span>
+                  <span className="kit-action-card-title">{overviewCopy.quickActions.preview.title}</span>
+                  <span className="kit-action-card-body">{overviewCopy.quickActions.preview.draftHint}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Rare/advanced actions tucked behind disclosure (audit: "Create
+                next edition" had permanent prime real estate). Same handlers,
+                same copy — just no longer the hero. */}
+            <details className="console-panel overview-advanced">
+              <summary className="overview-advanced-summary">{overviewCopy.advanced.label}</summary>
+              <div style={{ display: "grid", gap: 16, marginTop: 12 }}>
+                <div>
+                  <p className="help-text" style={{ marginTop: 0 }}>
+                    {overviewCopy.advanced.statusHelp}
+                  </p>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {event.status === "ACTIVE" ? (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        disabled={busy}
+                        onClick={() => void runStatus("/event/unpublish")}
+                      >
+                        {overviewCopy.advanced.unpublish}
+                      </button>
+                    ) : null}
+                    {event.status !== "ARCHIVED" ? (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        disabled={busy}
+                        onClick={() => void runStatus("/event/archive")}
+                      >
+                        {overviewCopy.advanced.archive}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        disabled={busy}
+                        onClick={() => void runStatus("/event/unarchive")}
+                      >
+                        {overviewCopy.advanced.unarchive}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="console-panel-label">Create next edition</p>
+                  <p className="help-text" style={{ marginTop: 0 }}>
+                    Clones tracks, rooms, speakers, sessions, papers, and presentations into a new Draft — no attendees.
+                    Dates shift from the new start.
+                  </p>
+                  <form onSubmit={createNextEdition} className="console-form">
+                    <label>
+                      New start
+                      <input
+                        className="input"
+                        type="datetime-local"
+                        required
+                        value={nextStart}
+                        onChange={(e) => setNextStart(e.target.value)}
+                      />
+                    </label>
+                    <button className="button" type="submit" disabled={busy} style={{ justifySelf: "start" }}>
+                      Create next edition
+                    </button>
+                  </form>
+                </div>
               </div>
-            </div>
-
-            <EventSettingsPanel key={event.id} eventId={eventId} event={event} onSaved={refresh} />
-
-            <div className="console-panel">
-              <p className="console-panel-label">Create next edition</p>
-              <p className="help-text" style={{ marginTop: 0 }}>
-                Clones tracks, rooms, speakers, sessions, papers, and presentations into a new Draft — no attendees. Dates
-                shift from the new start.
-              </p>
-              <form onSubmit={createNextEdition} className="console-form">
-                <label>
-                  New start
-                  <input
-                    className="input"
-                    type="datetime-local"
-                    required
-                    value={nextStart}
-                    onChange={(e) => setNextStart(e.target.value)}
-                  />
-                </label>
-                <button className="button" type="submit" disabled={busy} style={{ justifySelf: "start" }}>
-                  Create next edition
-                </button>
-              </form>
-            </div>
-
+            </details>
           </section>
         ) : null}
 
@@ -628,6 +844,20 @@ export default function OrganizerEventPage() {
           </section>
         ) : null}
         </div>
+
+        {/* F2 — event settings, relocated into a SlideOver (progressive
+            disclosure): the one settings surface, shared with the attendee
+            dashboard's "Event settings" entry point via ?settings=1. */}
+        {event ? (
+          <EventSettingsSlideOver
+            key={event.id}
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+            eventId={eventId}
+            event={event}
+            onSaved={refresh}
+          />
+        ) : null}
 
         <ConfirmDialog
           open={publishConfirm}
