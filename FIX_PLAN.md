@@ -2128,3 +2128,18 @@ docs/ux-audit-full/03-organizer-console.md; DESIGN_PHASE_F.
 ## Standing rules
 - **NEVER set ALLOW_DESTRUCTIVE_DB.** DB suites per RUNBOOK §12.
 - Kit + tokens + config only. Stop the web dev server first; reset after.
+
+---
+
+# F1.5 gap (fold into F2) — attendee dashboard doesn't wear the event accent
+
+Found 2026-08-07 in review: the organizer console (OrganizerShell) and public
+`/e/[slug]` correctly apply `--event-accent` from brandColor, but the logged-in
+**attendee app** (`pages/dashboard.tsx`, which uses `AppShell` directly) does
+not — it still shows the default blue. The attendee view is where per-event
+branding matters most.
+
+Fix (small): in dashboard.tsx, derive the accent from the current event's
+brandColor (reuse `lib/eventAccent.ts` `eventAccentStyle`) and pass `accentStyle`
+to `<AppShell>`, mirroring OrganizerShell. No new logic; the helper + contrast
+fallback already exist. Do this as part of F2.
