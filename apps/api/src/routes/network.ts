@@ -14,8 +14,8 @@ import { validationErrorBody } from "../lib/errors";
 export const networkRouter = Router();
 
 const threadSchema = z.object({
-  title: z.string().min(1).max(500),
-  body: z.string().min(1).max(8000),
+  title: z.string().max(500).optional(),
+  body: z.string().max(8000).optional(),
   channel: z.nativeEnum(NetworkChannel).optional(),
   meetupMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
   meetupStartsAt: z.string().datetime().optional(),
@@ -155,12 +155,22 @@ networkRouter.post(
     const mapsUrl =
       channel === NetworkChannel.LOCAL ? (parsed.data.mapsUrl?.trim().slice(0, 4000) || null) : null;
 
+    const normTitle = (parsed.data.title ?? "").trim();
+    const normBody = (parsed.data.body ?? "").trim();
+    if (channel === NetworkChannel.MOMENTS) {
+      if (imageUrls.length === 0 && normBody.length === 0) {
+        return res.status(400).json({ error: "Add a photo or a caption to post a Moment." });
+      }
+    } else if (normTitle.length === 0 || normBody.length === 0) {
+      return res.status(400).json({ error: "Both a title and a message are required." });
+    }
+
     const thread = await prisma.networkThread.create({
       data: {
         eventId: event.id,
         authorId: userId,
-        title: parsed.data.title,
-        body: parsed.data.body,
+        title: normTitle,
+        body: normBody,
         channel,
         meetupMode: parsed.data.meetupMode ?? null,
         meetupStartsAt: parsed.data.meetupStartsAt ? new Date(parsed.data.meetupStartsAt) : null,

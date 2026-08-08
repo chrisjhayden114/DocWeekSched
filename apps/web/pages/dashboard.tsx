@@ -4166,6 +4166,7 @@ function CommunityBoard({
         error={composeError}
         expanded={composeOpen}
         onExpandedChange={setComposeOpen}
+        allowEmptySubmit={composeChannel === "MOMENTS" && (momentImageUrls.length > 0 || momentImageUrlInput.trim().length > 0)}
         onSubmit={createThread}
       >
         {(draft) => (

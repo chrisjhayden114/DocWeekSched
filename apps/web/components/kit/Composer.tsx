@@ -38,6 +38,9 @@ export type ComposerProps = {
    */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
+  /** When true, submit is allowed even with empty title/body — the caller has other
+   *  postable content (e.g. a MOMENTS post that is only an uploaded photo). */
+  allowEmptySubmit?: boolean;
   /**
    * Called with the trimmed draft (body, then title). When it resolves, the
    * composer clears and collapses; if it THROWS, the draft is kept and the
@@ -64,6 +67,7 @@ export function Composer({
   children,
   expanded: expandedProp,
   onExpandedChange,
+  allowEmptySubmit,
   onSubmit,
 }: ComposerProps) {
   const [state, dispatch] = useReducer(composerReduce, composerInitialState);
@@ -100,7 +104,7 @@ export function Composer({
   const requireTitle = Boolean(titlePlaceholder);
 
   const submit = async () => {
-    if (busy || !composerCanSubmit(state, { requireTitle })) return;
+    if (busy || !composerCanSubmit(state, { requireTitle, allowEmpty: allowEmptySubmit })) return;
     try {
       await onSubmit(state.value.trim(), state.title.trim());
     } catch {
@@ -189,7 +193,7 @@ export function Composer({
         <button
           type="submit"
           className="button"
-          disabled={busy || !composerCanSubmit(state, { requireTitle })}
+          disabled={busy || !composerCanSubmit(state, { requireTitle, allowEmpty: allowEmptySubmit })}
         >
           {busy ? kitCopy.composer.busy : submitLabel}
         </button>

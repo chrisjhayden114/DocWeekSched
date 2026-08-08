@@ -72,6 +72,12 @@ describe("F1 — Composer collapse/expand contract", () => {
     expect(composerCanSubmit({ expanded: false, value: "hi", title: "" })).toBe(false);
   });
 
+  it("allowEmpty permits submit with an empty draft (photo-only Moments), still gated on expanded", () => {
+    const empty: ComposerState = { expanded: true, value: "", title: "" };
+    expect(composerCanSubmit(empty, { allowEmpty: true })).toBe(true);
+    expect(composerCanSubmit(empty, { allowEmpty: false })).toBe(false);
+  });
+
   it("F3: a title is required only when the screen renders a title field", () => {
     const drafted: ComposerState = { expanded: true, value: "body text", title: "  " };
     expect(composerCanSubmit(drafted)).toBe(true);

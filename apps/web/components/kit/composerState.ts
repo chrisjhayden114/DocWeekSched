@@ -47,8 +47,13 @@ export function composerReduce(state: ComposerState, event: ComposerEvent): Comp
  * Submit is allowed only from the expanded state with a non-blank draft —
  * and a non-blank title where the screen asks for one.
  */
-export function composerCanSubmit(state: ComposerState, options?: { requireTitle?: boolean }): boolean {
-  if (!state.expanded || state.value.trim().length === 0) return false;
+export function composerCanSubmit(
+  state: ComposerState,
+  options?: { requireTitle?: boolean; allowEmpty?: boolean },
+): boolean {
+  if (!state.expanded) return false;
+  if (options?.allowEmpty) return true;
+  if (state.value.trim().length === 0) return false;
   if (options?.requireTitle && state.title.trim().length === 0) return false;
   return true;
 }
