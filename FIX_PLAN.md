@@ -1861,3 +1861,59 @@ one dropzone consolidation.
 - **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12 if touched.
 - Copy + design values through the config/token layers.
 - Stop the web dev server first; reset ritual after (README).
+
+---
+
+# Chunk E31 — AI-understand real spreadsheets (fixes a wrong E21 decision)
+
+Found 2026-08-07 when the founder uploaded a real conference file,
+`IB Dunia 2025 - Rooming.xlsx`. It exposed a genuine miss in E21.
+
+## What's wrong
+E21 routed all XLSX to the **non-AI CSV column-mapper** ("No AI involved"),
+on the assumption spreadsheets are already clean/structured. Real ones are not.
+The founder's file:
+- **3 sheets**, one per timeslot ("Breakout Session 1 (10.00–11.00)", etc.)
+- columns `Sessions / No / Topic / Room / Facilitator`
+- **no start/end time columns at all** — the times are embedded in the SHEET NAMES
+- multi-line cells (a Facilitator cell contains name + role on separate lines)
+
+The column-mapper requires columns that map to title/start/end. This file has no
+time column, so it fails with "Map a column to title, start, end" and can create
+nothing — even though a human (or the AI PDF path) can clearly read it. The
+product's whole promise is "bring your messy program, AI makes sense of it"; the
+spreadsheet path broke that promise for exactly the messy case.
+
+## Fix — give spreadsheets the AI path, keep the clean path as an option
+1. When an XLSX/CSV is uploaded, offer two routes:
+   - **"Let AI read it"** (default for messy files): send the sheet(s) — including
+     **sheet names**, which carry timeslot info — to the existing AI extractor
+     used for PDFs (`lib/ai/ingest`). It already produces a reviewable changeset
+     with assumptions and per-row confidence; reuse it wholesale. The model can
+     infer start/end from a tab name like "(10.00–11.00)", map Topic→title,
+     Facilitator→speakers, Room→room, and flag what it guessed.
+   - **"Map columns myself"** (the current E21 flow): keep for users with a clean
+     sheet who want zero AI and exact control. It's good; it just shouldn't be the
+     only option.
+2. **Multi-sheet:** don't force picking one sheet. Let the AI read all sheets (or
+   let the user select several), since a real program spans tabs. Sheet name
+   becomes context, not a thing to discard.
+3. Serialize each sheet to a compact text/CSV representation (sheet name as a
+   heading) and feed it through the extractor — this reuses the E10 token-ceiling
+   and E9.2 empty-extract-guard work for free.
+4. Honest errors per the standing rule: password-protected, empty, unreadable.
+
+## Acceptance
+- `IB Dunia 2025 - Rooming.xlsx` uploaded → "Let AI read it" → a reviewable
+  changeset with real session titles (from Topic), rooms, facilitators as
+  speakers, and start/end inferred from the sheet-name timeslots, with the
+  timeslot inference surfaced as an assumption.
+- The "map columns myself" path still works unchanged for a clean template CSV.
+- Multi-sheet workbooks no longer force a single-sheet choice for the AI path.
+- Unit test: sheet-name-with-timeslot → inferred start/end reaches the changeset.
+
+## Standing rules
+- **NEVER set `ALLOW_DESTRUCTIVE_DB`.** DB suites per RUNBOOK §12.
+- All AI via the gateway; agents draft, humans confirm (the review screen already
+  enforces this).
+- Stop the web dev server first; reset ritual after.
