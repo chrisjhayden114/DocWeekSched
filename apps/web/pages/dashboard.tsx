@@ -36,6 +36,7 @@ import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRela
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
 import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
+import { Portal } from "../components/kit/Portal";
 import { Select } from "../components/Select";
 import { SponsorsStrip } from "../components/SponsorsStrip";
 import { OnboardingPanel } from "../components/OnboardingPanel";
@@ -2198,7 +2199,7 @@ function ScheduleBoard({
                       <div className="schedule-event-side" onClick={(event) => event.stopPropagation()}>
                         <button
                           type="button"
-                          className={`attendance-join-pill schedule-event-save ${joining ? "is-on" : ""}`}
+                          className={`attendance-join-pill ${joining ? "is-on" : ""}`}
                           aria-pressed={joining}
                           aria-label={joining ? "Remove from my schedule" : "Add to my schedule"}
                           title={
@@ -2276,6 +2277,7 @@ function ScheduleBoard({
         );
       })}
       {agendaModalSessionId && (
+        <Portal>
         <div
           className="agenda-add-modal-overlay"
           role="presentation"
@@ -2331,8 +2333,10 @@ function ScheduleBoard({
             </div>
           </div>
         </div>
+        </Portal>
       )}
       {calendarModalSession && (
+        <Portal>
         <div
           className="agenda-add-modal-overlay"
           role="presentation"
@@ -2386,6 +2390,7 @@ function ScheduleBoard({
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );
@@ -3999,6 +4004,7 @@ function CommunityBoard({
   const [momentImageUrls, setMomentImageUrls] = useState<string[]>([]);
   const [momentImageUrlInput, setMomentImageUrlInput] = useState("");
   const [mapsUrl, setMapsUrl] = useState("");
+  const [localPlaceQuery, setLocalPlaceQuery] = useState("");
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
   const [postingThread, setPostingThread] = useState(false);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
@@ -4096,6 +4102,7 @@ function CommunityBoard({
       setMomentImageUrls([]);
       setMomentImageUrlInput("");
       setMapsUrl("");
+      setLocalPlaceQuery("");
       setTaggedUserIds([]);
       await onThreadsUpdated();
     } catch (err) {
@@ -4198,11 +4205,20 @@ function CommunityBoard({
                     placeholder="Google Maps link (Share → Copy link from the Maps app or website)"
                   />
                 </label>
+                <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                  Search for a place
+                  <input
+                    className="input"
+                    value={localPlaceQuery}
+                    onChange={(e) => setLocalPlaceQuery(e.target.value)}
+                    placeholder="e.g. Museum of Modern Art"
+                  />
+                </label>
                 <button
                   type="button"
                   className="button secondary"
                   onClick={() => {
-                    const q = draft.title.trim() || draft.body.trim();
+                    const q = localPlaceQuery.trim() || draft.title.trim() || draft.body.trim();
                     if (!q) {
                       setComposeError(communityCopy.errors.mapsSearchNeedsText);
                       return;
@@ -4291,6 +4307,7 @@ function CommunityBoard({
                     selectedIds={meetupParticipantIds}
                     excludeIds={[currentUserId]}
                     placeholder="Search participants…"
+                    emptyLabel="No matching attendees — only people who've joined this event and opted into the directory appear here."
                     onChange={setMeetupParticipantIds}
                   />
                 )}
@@ -4304,6 +4321,7 @@ function CommunityBoard({
                   selectedIds={taggedUserIds}
                   excludeIds={[currentUserId]}
                   placeholder="Search people to tag…"
+                  emptyLabel="No matching attendees — only people who've joined this event and opted into the directory appear here."
                   onChange={setTaggedUserIds}
                 />
                 <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>

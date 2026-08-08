@@ -278,7 +278,7 @@ export const communityCopy = {
   errors: {
     meetupLink: "Add a video link for virtual meet-ups (Zoom, Google Meet, Teams, etc.).",
     meetupParticipants: "Add at least one participant, or choose “Invite everyone”.",
-    mapsSearchNeedsText: "Add a title or description first to search Maps.",
+    mapsSearchNeedsText: "Type a place name to search Maps.",
     createFailed: "Could not create the post.",
   },
   /** Teaching empty states, per channel (an invitation, never "Nothing here yet"). */

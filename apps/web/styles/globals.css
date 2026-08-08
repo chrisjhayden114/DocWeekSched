@@ -1682,6 +1682,12 @@ button.schedule-meta-chip:hover {
 /* G1b — agenda join control as a labeled pill ("Join" / "Joined ✓") instead of
    the unlabeled tick-circle. F1.5 neutral chrome off, event accent when on. */
 .attendance-join-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  width: auto;
+  height: auto;
   padding: 4px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
@@ -3803,6 +3809,12 @@ button.schedule-meta-chip:hover {
     justify-self: end;
     width: 40px;
     height: 40px;
+  }
+
+  .attendance-join-pill {
+    grid-area: save;
+    align-self: start;
+    justify-self: end;
   }
 
   .schedule-row-actions {
