@@ -35,9 +35,39 @@
   --gray-900: #161616;
 
   /* —— One accent —— */
+  /* --primary is UKEDL's own signature blue. After F1.5 it belongs to the
+     MARKETING site (and og assets); in-app accent usages read the runtime
+     --event-accent variables below instead. */
   --primary: #0033a0;
   --primary-600: #1a4fc4; /* hover / links on white */
   --primary-50: #eef2fb; /* selected / tint */
+
+  /*
+   * —— F1.5 color architecture (DESIGN_PHASE_F, 2026-08-07 decision) ——
+   *
+   * 1. The event accent is a RUNTIME variable. Everything in the app that used
+   *    to read --primary decoratively (selected states, links, focus, filled
+   *    accent controls) reads --event-accent. It defaults to --primary so
+   *    surfaces with no event context are unchanged; an event shell overrides
+   *    it inline from the event's stored brandColor via
+   *    lib/eventAccent.ts#eventAccentStyle (contrast-safe — a light brand
+   *    color is darkened until white text holds AA).
+   */
+  --event-accent: var(--primary);
+  --event-accent-hover: var(--primary-600); /* hover fills, links on white */
+  --event-accent-tint: var(--primary-50); /* selected rows / chips */
+  --event-accent-on: #ffffff; /* text on an accent fill */
+
+  /*
+   * 2. App chrome is NEUTRAL. Primary buttons are near-neutral (gray ramp),
+   *    not blue — grays and whitespace carry the UI, the accent stays scarce.
+   *    The marketing site (.mkt-page) re-points these to UKEDL blue: that is
+   *    UKEDL's surface, not a customer event's. An event-branded surface
+   *    (.event-branded) re-points them to the event accent.
+   */
+  --action-bg: var(--gray-900);
+  --action-bg-hover: var(--gray-700);
+  --action-fg: #ffffff;
 
   /* —— Text roles (never pure #000) —— */
   --title-color: var(--gray-900);
@@ -107,9 +137,10 @@
 
   /* —— Focus (E29.2) —— */
   /* Keyboard focus: 2px accent outline at 2px offset (globals :focus-visible).
-     Text fields swap the outline for this soft glow + accent border. */
-  --focus-ring-color: var(--primary);
-  --focus-ring: 0 0 0 3px var(--primary-50);
+     Text fields swap the outline for this soft glow + accent border.
+     Reads the event accent (F1.5) so focus wears the event's color too. */
+  --focus-ring-color: var(--event-accent);
+  --focus-ring: 0 0 0 3px var(--event-accent-tint);
 
   /* —— Control heights (E29.1) —— */
   --control-quiet: 28px; /* compact row actions beside a title (desktop) */
@@ -253,8 +284,8 @@ html[data-theme="slate"] {
 
 .chip--primary {
   border-color: transparent;
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
 }
 
 /* Small gray label for AI outputs — honest, quiet. */

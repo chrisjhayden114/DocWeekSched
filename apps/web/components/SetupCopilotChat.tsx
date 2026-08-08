@@ -212,7 +212,7 @@ export function SetupCopilotChat({
               maxWidth: "92%",
               padding: "8px 10px",
               borderRadius: 8,
-              background: m.role === "user" ? "var(--primary-50)" : "var(--surface-alt)",
+              background: m.role === "user" ? "var(--event-accent-tint)" : "var(--surface-alt)",
               whiteSpace: "pre-wrap",
               fontSize: 14,
               lineHeight: 1.45,

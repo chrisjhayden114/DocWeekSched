@@ -12,6 +12,7 @@ import { filterSessions } from "../../lib/agendaFilters";
 import { apiFetch, type AuthResponse, clearAuthClientState } from "../../lib/api";
 import { downloadProgramIcs } from "../../lib/calendarIcs";
 import { loginPathWithEvent } from "../../lib/entryRedirects";
+import { eventAccentStyle } from "../../lib/eventAccent";
 import { trackColor } from "../../lib/trackColors";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -23,6 +24,8 @@ export type PublicEventView = {
   description: string | null;
   bannerUrl: string | null;
   logoUrl: string | null;
+  /** The organizer's chosen event color; drives --event-accent (F1.5.3). */
+  brandColor: string | null;
   timezone: string;
   startDate: string;
   endDate: string;
@@ -616,7 +619,10 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
         {slug === brand.demoEventSlug ? null : <meta name="robots" content="noindex, follow" />}
       </Head>
 
-      <div className="mkt-page">
+      {/* F1.5.3 — this page belongs to the event, not to UKEDL: the accent
+          variables come from the event's brandColor (contrast-safe), and
+          .event-branded points primary actions at that accent. */}
+      <div className="mkt-page event-branded" style={eventAccentStyle(event.brandColor)}>
         <header className="mkt-header">
           <div className="mkt-header-inner">
             <Link href="/" className="mkt-header-brand">

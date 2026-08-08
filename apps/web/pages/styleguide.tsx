@@ -19,17 +19,20 @@ import {
 } from "../components/kit";
 
 /**
- * Dev-only living reference for the Phase D design language
- * (DESIGN_PHASE_D.md Part 2): Inter, one UK-blue accent, neutral gray ramp,
+ * Dev-only living reference for the design language: Inter, neutral chrome
+ * with a runtime event accent (F1.5 — --event-accent defaults to --primary,
+ * event shells feed it from the event's brandColor), neutral gray ramp,
  * borders over shadows, radii 4/6/10.
  */
 
 const GRAYS = [25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 
 const ACCENTS: { name: string; varName: string }[] = [
-  { name: "Primary", varName: "--primary" },
-  { name: "Primary 600 (hover/links)", varName: "--primary-600" },
-  { name: "Primary 50 (selected tint)", varName: "--primary-50" },
+  { name: "Action (app primary buttons, near-neutral)", varName: "--action-bg" },
+  { name: "Event accent (runtime, per event)", varName: "--event-accent" },
+  { name: "Event accent hover / links", varName: "--event-accent-hover" },
+  { name: "Event accent tint (selected)", varName: "--event-accent-tint" },
+  { name: "UKEDL blue (marketing only)", varName: "--primary" },
   { name: "Success", varName: "--success" },
   { name: "Danger", varName: "--danger" },
   { name: "Warning", varName: "--warning" },
@@ -140,7 +143,8 @@ export default function StyleguidePage() {
             Design reference
           </h1>
           <p className="text-body" style={{ margin: 0 }}>
-            Inter · one accent (UK blue) · neutral gray ramp · 1px borders over shadows · radii 4/6/10.
+            Inter · neutral chrome, event-driven accent (<code>--event-accent</code>) · neutral gray ramp · 1px
+            borders over shadows · radii 4/6/10.
           </p>
         </header>
 
@@ -235,8 +239,9 @@ export default function StyleguidePage() {
             </button>
           </div>
           <p className="text-meta" style={{ margin: 0 }}>
-            14px/500, radius 6px, no gradients. Hover: primary lightens; secondary gets a gray-50 wash. Focus:
-            2px ring in <code>--primary</code> at 2px offset (tab to see).
+            14px/500, radius 6px, no gradients. Primary is near-neutral (<code>--action-bg</code>, gray ramp) —
+            the accent stays scarce; secondary gets a gray-50 wash. Focus: 2px ring in{" "}
+            <code>--event-accent</code> at 2px offset (tab to see).
           </p>
         </Section>
 
@@ -347,8 +352,8 @@ export default function StyleguidePage() {
             </button>
           </div>
           <p className="text-meta" style={{ margin: 0 }}>
-            Active: <code>--primary-50</code> fill, <code>--primary</code> text, 2px left accent bar. Hover:
-            gray-50 wash.
+            Active: <code>--event-accent-tint</code> fill, <code>--event-accent</code> text, 2px left accent bar.
+            Hover: gray-50 wash.
           </p>
         </Section>
 

@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useState, type ReactNode, type SVGProps } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode, type SVGProps } from "react";
 import { apiFetch } from "../lib/api";
+import { eventAccentStyle } from "../lib/eventAccent";
 import { AppShell, type ShellEventOption, type ShellNavGroup } from "./AppShell";
 
 /**
@@ -91,6 +92,7 @@ type MineEvent = {
   startDate?: string;
   endDate?: string;
   uiStatus?: string;
+  brandColor?: string | null;
 };
 
 type OrganizerShellProps = {
@@ -107,6 +109,7 @@ export function OrganizerShell({ active, eventId, eventName, userName, children 
   const router = useRouter();
   const isActive = (id: string) => active === id;
   const [events, setEvents] = useState<ShellEventOption[]>([]);
+  const [brandColors, setBrandColors] = useState<Record<string, string | null>>({});
 
   const loadEvents = useCallback(async () => {
     try {
@@ -118,14 +121,24 @@ export function OrganizerShell({ active, eventId, eventName, userName, children 
           meta: ev.uiStatus || null,
         })),
       );
+      setBrandColors(Object.fromEntries(mine.map((ev) => [ev.id, ev.brandColor ?? null])));
     } catch {
       setEvents([]);
+      setBrandColors({});
     }
   }, []);
 
   useEffect(() => {
     void loadEvents();
   }, [loadEvents]);
+
+  /* F1.5.3 — inside an event's console, the accent variables come from that
+     event's brandColor (contrast-safe; neutral blue-gray when unset). Outside
+     an event context the token defaults apply untouched. */
+  const accentStyle = useMemo(
+    () => (eventId ? eventAccentStyle(brandColors[eventId]) : undefined),
+    [eventId, brandColors],
+  );
 
   const organizeItems = eventId
     ? [
@@ -182,6 +195,7 @@ export function OrganizerShell({ active, eventId, eventName, userName, children 
       events={events}
       activeEventId={eventId || null}
       onSelectEvent={switchEvent}
+      accentStyle={accentStyle}
       accountMenu={[
         { id: "attendee-app", label: "Open attendee app", href: "/dashboard" },
         { id: "account", label: "Account settings", href: "/account" },

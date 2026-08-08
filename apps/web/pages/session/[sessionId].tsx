@@ -1238,7 +1238,7 @@ export default function SessionPage() {
                                       style={{
                                         height: 6,
                                         width: `${pct}%`,
-                                        background: "var(--primary)",
+                                        background: "var(--event-accent)",
                                         borderRadius: 3,
                                       }}
                                     />

@@ -105,7 +105,7 @@ export function UploadDropzone({
           </p>
         ) : (
           <p className="text-body-md" style={{ margin: 0 }}>
-            Drop a file here or <span style={{ color: "var(--primary-700)", fontWeight: 700 }}>browse</span>
+            Drop a file here or <span style={{ color: "var(--event-accent)", fontWeight: 700 }}>browse</span>
           </p>
         )}
         <p className="text-meta" style={{ margin: "var(--space-1) 0 0" }}>

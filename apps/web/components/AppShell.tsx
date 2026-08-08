@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
 /**
  * Phase D app shell (DESIGN_PHASE_D.md Part 2 "Layout architecture").
@@ -66,6 +66,12 @@ type AppShellProps = {
   events?: ShellEventOption[];
   activeEventId?: string | null;
   onSelectEvent?: (eventId: string) => void;
+  /**
+   * F1.5 — the active event's accent variables (lib/eventAccent.ts
+   * eventAccentStyle), applied inline on the shell root so everything inside
+   * (selected nav, tabs, links, focus) wears that event's color.
+   */
+  accentStyle?: CSSProperties;
   children: ReactNode;
 };
 
@@ -279,6 +285,7 @@ export function AppShell({
   events,
   activeEventId,
   onSelectEvent,
+  accentStyle,
   children,
 }: AppShellProps) {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -299,7 +306,7 @@ export function AppShell({
   );
 
   return (
-    <div className="shell">
+    <div className="shell" style={accentStyle}>
       <aside className="shell-sidebar" aria-label="Main navigation">
         <Link href="/dashboard" className="shell-sidebar-brand">
           {logoUrl ? <img src={logoUrl} alt="" className="shell-topbar-logo" /> : null}

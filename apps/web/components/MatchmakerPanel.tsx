@@ -220,7 +220,7 @@ export function MatchmakerPanel({
                       width: 48,
                       height: 48,
                       borderRadius: 8,
-                      background: "var(--primary-50)",
+                      background: "var(--event-accent-tint)",
                     }}
                   />
                 )}

@@ -32,7 +32,8 @@ textarea {
 }
 
 a {
-  color: var(--primary-600);
+  /* Defaults to --primary-600; wears the event's color inside an event shell (F1.5). */
+  color: var(--event-accent-hover);
   text-decoration: none;
 }
 
@@ -66,13 +67,16 @@ a:hover {
   box-shadow: none;
 }
 
+/* F1.5.1 — the app's primary action is NEAR-NEUTRAL (--action-* tokens map to
+   the gray ramp). The marketing site and event-branded surfaces re-point the
+   tokens (see the .mkt-page / .event-branded overrides near the end). */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: var(--primary);
-  color: #ffffff;
+  background: var(--action-bg);
+  color: var(--action-fg);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   padding: 8px 14px;
@@ -86,15 +90,11 @@ a:hover {
 }
 
 .button:hover:not(:disabled) {
-  background: rgba(0, 51, 160, 0.85);
-}
-
-html[data-theme="slate"] .button:hover:not(:disabled) {
-  background: rgba(71, 85, 105, 0.85);
+  background: var(--action-bg-hover);
 }
 
 .button:active:not(:disabled) {
-  background: var(--primary);
+  background: var(--action-bg);
 }
 
 .button:disabled {
@@ -119,12 +119,12 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 
 .button.ghost {
   background: transparent;
-  color: var(--primary-600);
+  color: var(--event-accent-hover);
   border-color: transparent;
 }
 
 .button.ghost:hover:not(:disabled) {
-  background: var(--primary-50);
+  background: var(--event-accent-tint);
 }
 
 .button.button-danger {
@@ -201,8 +201,8 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 
 .select-trigger:focus {
   outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-50);
+  border-color: var(--event-accent);
+  box-shadow: 0 0 0 2px var(--event-accent-tint);
 }
 
 .select-trigger:disabled {
@@ -259,7 +259,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 }
 
 .select-option.is-active {
-  background: var(--primary-50);
+  background: var(--event-accent-tint);
 }
 
 .select-option.is-selected .select-option-label {
@@ -273,7 +273,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 
 .select-option-check {
   flex: none;
-  color: var(--primary);
+  color: var(--event-accent);
 }
 
 /* Carries `required` for native form validation while the value is empty —
@@ -380,7 +380,7 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 }
 
 .nav-tab-unread:not(.active) {
-  box-shadow: 0 0 0 2px var(--primary-50);
+  box-shadow: 0 0 0 2px var(--event-accent-tint);
 }
 
 .nav button.active.nav-tab-unread {
@@ -412,9 +412,9 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   gap: 6px;
   padding: 6px 10px;
   border-radius: var(--radius-md);
-  background: var(--primary-50);
+  background: var(--event-accent-tint);
   border: 1px solid transparent;
-  color: var(--primary);
+  color: var(--event-accent);
   font-weight: 500;
   font-size: 13px;
   text-decoration: none;
@@ -730,8 +730,8 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
 }
 
 .roster-role-badge--admin {
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
   border: 1px solid transparent;
 }
 
@@ -754,9 +754,9 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   gap: 4px;
   padding: 2px 10px;
   border-radius: 999px;
-  background: var(--primary-50);
+  background: var(--event-accent-tint);
   border: 1px solid transparent;
-  color: var(--primary);
+  color: var(--event-accent);
   font-weight: 600;
   font-size: 13px;
 }
@@ -1097,14 +1097,14 @@ html[data-theme="slate"] .button:hover:not(:disabled) {
   }
 
   .day-chip.is-active:not(.day-chip--all) {
-    background: var(--primary-50);
-    color: var(--primary);
-    box-shadow: inset 0 -2px 0 var(--primary);
+    background: var(--event-accent-tint);
+    color: var(--event-accent);
+    box-shadow: inset 0 -2px 0 var(--event-accent);
     font-weight: 700;
   }
 
   .day-chip.is-active:not(.day-chip--all) .day-chip-weekday {
-    color: var(--primary);
+    color: var(--event-accent);
     font-weight: 600;
   }
 
@@ -1458,8 +1458,8 @@ button.schedule-meta-chip:hover {
 }
 
 .row-action-btn.is-active {
-  color: var(--primary);
-  background: var(--primary-50);
+  color: var(--event-accent);
+  background: var(--event-accent-tint);
 }
 
 /*
@@ -1534,8 +1534,8 @@ button.schedule-meta-chip:hover {
 }
 
 .agenda-filter-row.is-active {
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
   font-weight: 500;
 }
 
@@ -1729,8 +1729,8 @@ button.schedule-meta-chip:hover {
 }
 
 .join-mode-switch button.is-active {
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
   font-weight: 600;
 }
 
@@ -1886,13 +1886,13 @@ button.schedule-meta-chip:hover {
 .attendee-browse-chip:hover,
 .attendee-index-letter:hover {
   background: var(--gray-50);
-  color: var(--primary);
+  color: var(--event-accent);
 }
 
 .attendee-browse-chip.is-active {
-  background: var(--primary-50);
-  border-color: var(--primary);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  border-color: var(--event-accent);
+  color: var(--event-accent);
   font-weight: 600;
 }
 
@@ -1991,8 +1991,8 @@ button.schedule-meta-chip:hover {
 }
 
 .role-attendee {
-  background: var(--primary);
-  color: #fff;
+  background: var(--event-accent);
+  color: var(--event-accent-on);
 }
 
 .attendee-name {
@@ -2123,8 +2123,8 @@ button.schedule-meta-chip:hover {
 }
 
 .community-subnav button.is-active {
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
   border-color: transparent;
   font-weight: 600;
 }
@@ -2191,7 +2191,7 @@ button.schedule-meta-chip:hover {
   align-items: center;
   gap: 6px;
   font-weight: 500;
-  color: var(--primary-600);
+  color: var(--event-accent-hover);
   text-decoration: none;
 }
 
@@ -2401,8 +2401,8 @@ button.schedule-meta-chip:hover {
 }
 
 .conversation-row[aria-current="true"] {
-  background: var(--primary-50);
-  box-shadow: inset 2px 0 0 var(--primary);
+  background: var(--event-accent-tint);
+  box-shadow: inset 2px 0 0 var(--event-accent);
 }
 
 .conversation-row-gutter {
@@ -2416,7 +2416,7 @@ button.schedule-meta-chip:hover {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--event-accent);
 }
 
 .msg-avatar {
@@ -2576,12 +2576,12 @@ button.schedule-meta-chip:hover {
 }
 
 .msg-bubble.is-self {
-  background: var(--primary);
-  color: #ffffff;
+  background: var(--event-accent);
+  color: var(--event-accent-on);
 }
 
 .msg-bubble.is-self a {
-  color: #ffffff;
+  color: var(--event-accent-on);
   text-decoration: underline;
 }
 
@@ -2627,8 +2627,8 @@ button.schedule-meta-chip:hover {
 
 .msg-new-messages-btn {
   align-self: center;
-  background: var(--primary);
-  color: #ffffff;
+  background: var(--event-accent);
+  color: var(--event-accent-on);
   border: none;
   border-radius: var(--radius-md);
   padding: var(--space-1) var(--space-3);
@@ -2682,7 +2682,7 @@ button.schedule-meta-chip:hover {
 
 .session-back-link {
   font-weight: 500;
-  color: var(--primary-600);
+  color: var(--event-accent-hover);
 }
 
 .session-back-link:hover {
@@ -3433,8 +3433,8 @@ button.schedule-meta-chip:hover {
 }
 
 .upload-dropzone.is-dragover {
-  border-color: var(--primary-700);
-  background: var(--primary-100);
+  border-color: var(--event-accent);
+  background: var(--event-accent-tint);
 }
 
 .upload-dropzone.is-disabled {
@@ -3676,7 +3676,7 @@ button.schedule-meta-chip:hover {
   padding: 0;
   border: 2px solid #fff;
   border-radius: 50% 50% 50% 0;
-  background: var(--primary-700);
+  background: var(--event-accent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
   transform: translate(-50%, -100%) rotate(-45deg);
   cursor: pointer;
@@ -3716,7 +3716,7 @@ button.schedule-meta-chip:hover {
   background: none;
   border: none;
   padding: 0;
-  color: var(--primary-600);
+  color: var(--event-accent-hover);
   font: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -3757,7 +3757,7 @@ button.schedule-meta-chip:hover {
 }
 
 .session-breadcrumb a {
-  color: var(--primary-600);
+  color: var(--event-accent-hover);
   font-weight: 500;
 }
 
@@ -3803,7 +3803,7 @@ button.schedule-meta-chip:hover {
 }
 
 .schedule-meta-my-mode {
-  color: var(--primary-700);
+  color: var(--event-accent);
   font-weight: 700;
 }
 
@@ -3844,8 +3844,8 @@ button.schedule-meta-chip:hover {
 
 .searchable-multi-option:hover,
 .searchable-multi-option.is-selected {
-  background: var(--primary-100);
-  color: var(--primary-700);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
 }
 
 .searchable-multi-check {
@@ -3854,7 +3854,7 @@ button.schedule-meta-chip:hover {
 }
 
 .interest-chip.is-active {
-  outline: 2px solid var(--primary-700);
+  outline: 2px solid var(--event-accent);
 }
 
 .messages-new-panel {
@@ -3871,8 +3871,8 @@ button.schedule-meta-chip:hover {
   margin-left: 8px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--primary-100);
-  color: var(--primary-700);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
   font: var(--text-meta);
   font-weight: 700;
 }
@@ -4106,9 +4106,9 @@ button.schedule-meta-chip:hover {
   }
 
   .console-event-tabs button.active {
-    background: var(--primary-50);
-    color: var(--primary);
-    border-color: var(--primary);
+    background: var(--event-accent-tint);
+    color: var(--event-accent);
+    border-color: var(--event-accent);
     font-weight: 600;
   }
 
@@ -4228,14 +4228,14 @@ button.schedule-meta-chip:hover {
   padding: 12px 18px;
   font: var(--text-body);
   font-weight: 500;
-  color: #fff;
-  background: var(--primary);
+  color: var(--event-accent-on);
+  background: var(--event-accent);
   box-shadow: var(--shadow-2);
   cursor: pointer;
   transition: var(--transition);
 }
 .concierge-fab:hover {
-  background: rgba(0, 51, 160, 0.85);
+  background: var(--event-accent-hover);
 }
 .concierge-fab-icon {
   display: none;
@@ -4324,8 +4324,8 @@ button.schedule-meta-chip:hover {
 .concierge-msg-user .concierge-msg-body {
   margin-left: auto;
   max-width: 90%;
-  background: var(--primary);
-  color: #fff;
+  background: var(--event-accent);
+  color: var(--event-accent-on);
   padding: 10px 12px;
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
   white-space: pre-wrap;
@@ -4382,6 +4382,12 @@ button.schedule-meta-chip:hover {
   color: var(--gray-900);
   font: 400 17px/1.6 var(--font-body);
   -webkit-font-smoothing: antialiased;
+  /* F1.5 — UKEDL's own surface keeps its signature blue on primary actions;
+     the neutral --action-* chrome applies to the app only. (An event-branded
+     page overrides this again — see .event-branded at the end of this file.) */
+  --action-bg: var(--primary);
+  --action-bg-hover: var(--primary-600);
+  --action-fg: #ffffff;
 }
 
 .mkt-header {
@@ -5181,8 +5187,8 @@ button.schedule-meta-chip:hover {
 }
 
 .shell-nav-item.is-active {
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
   font-weight: 600;
 }
 
@@ -5194,7 +5200,7 @@ button.schedule-meta-chip:hover {
   bottom: 6px;
   width: 2px;
   border-radius: 1px;
-  background: var(--primary);
+  background: var(--event-accent);
 }
 
 .shell-nav-item svg {
@@ -5282,8 +5288,8 @@ button.schedule-meta-chip:hover {
 }
 
 .shell-event-panel .kebab-item.is-active {
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
 }
 
 /* —— Organizer console (D3) —— */
@@ -5408,7 +5414,7 @@ button.schedule-meta-chip:hover {
   width: 16px;
   height: 16px;
   border: 2px solid var(--gray-300);
-  border-top-color: var(--primary);
+  border-top-color: var(--event-accent);
   border-radius: 999px;
   animation: ingest-spin var(--motion-spin) linear infinite;
 }
@@ -5492,7 +5498,7 @@ button.schedule-meta-chip:hover {
 }
 
 .console-table a:hover {
-  color: var(--primary);
+  color: var(--event-accent);
 }
 
 .status-chip {
@@ -5562,7 +5568,7 @@ button.schedule-meta-chip:hover {
 .onboarding-progress > span {
   display: block;
   height: 100%;
-  background: var(--primary);
+  background: var(--event-accent);
   border-radius: 2px;
   /* Progress fill, not decoration: width communicates determinate progress
      inside an overflow-hidden track, so surrounding layout never shifts.
@@ -5701,7 +5707,7 @@ button.schedule-meta-chip:hover {
 }
 
 .shell-bottombar-item.is-active {
-  color: var(--primary);
+  color: var(--event-accent);
   font-weight: 600;
 }
 
@@ -5719,7 +5725,7 @@ button.schedule-meta-chip:hover {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--event-accent);
   box-shadow: 0 0 0 2px #ffffff;
 }
 
@@ -6089,9 +6095,9 @@ button.schedule-meta-chip:hover {
   }
 
   .interest-chip.is-active {
-    border: 1px solid var(--primary);
-    background: var(--primary-50);
-    color: var(--primary);
+    border: 1px solid var(--event-accent);
+    background: var(--event-accent-tint);
+    color: var(--event-accent);
   }
 }
 
@@ -6484,8 +6490,8 @@ button.schedule-meta-chip:hover {
 }
 
 .switch[aria-checked="true"] {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--event-accent);
+  border-color: var(--event-accent);
 }
 
 .switch[aria-checked="true"]::after {
@@ -6714,8 +6720,8 @@ button.schedule-meta-chip:hover {
 }
 
 .kit-icon-tile--primary {
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
 }
 
 .kit-icon-tile--success {
@@ -6831,8 +6837,8 @@ button.schedule-meta-chip:hover {
   height: 36px;
   flex: none;
   border-radius: var(--radius-pill);
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
   font: var(--text-label);
 }
 
@@ -6888,8 +6894,8 @@ button.schedule-meta-chip:hover {
 }
 
 .kit-status-pill--primary {
-  background: var(--primary-50);
-  color: var(--primary);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
 }
 
 .kit-status-pill--success {
@@ -6975,9 +6981,9 @@ button.schedule-meta-chip:hover {
 }
 
 .kit-pill.is-active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #ffffff;
+  background: var(--event-accent);
+  border-color: var(--event-accent);
+  color: var(--event-accent-on);
 }
 
 .kit-pill-icon {
@@ -7039,7 +7045,7 @@ button.schedule-meta-chip:hover {
   gap: var(--space-2);
   padding: var(--space-3) 0;
   font: var(--text-label);
-  color: var(--primary-600);
+  color: var(--event-accent-hover);
   cursor: pointer;
 }
 
@@ -7059,4 +7065,18 @@ button.schedule-meta-chip:hover {
   display: grid;
   gap: var(--space-3);
   padding-bottom: var(--space-4);
+}
+
+/* ==========================================================================
+   F1.5 — event-branded surface.
+   Applied (with the inline --event-accent-* variables from
+   lib/eventAccent.ts#eventAccentStyle) to a surface that belongs to ONE
+   event — today the public /e/[slug] page. There, primary actions wear the
+   event's accent rather than the neutral chrome: it is the event's page, not
+   the app's. Declared last so it wins over the .mkt-page re-point above.
+   ========================================================================== */
+.event-branded {
+  --action-bg: var(--event-accent);
+  --action-bg-hover: var(--event-accent-hover);
+  --action-fg: var(--event-accent-on);
 }

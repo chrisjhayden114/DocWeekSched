@@ -140,7 +140,7 @@ export function TimezoneSelect({ value, onChange, required, inputId, placeholder
                     padding: "6px 8px",
                     border: "none",
                     borderRadius: "var(--radius-sm)",
-                    background: i === highlight ? "var(--primary-50)" : "transparent",
+                    background: i === highlight ? "var(--event-accent-tint)" : "transparent",
                     color: "var(--gray-900)",
                     font: "var(--text-body)",
                     textAlign: "left",
