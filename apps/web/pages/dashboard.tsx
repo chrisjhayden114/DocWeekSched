@@ -1656,6 +1656,7 @@ export default function Dashboard() {
       {active === COMMUNITY_TAB && (
         <CommunityBoard
           threads={networkThreads}
+          eventDays={dayOptions}
           channelFilter={communityChannel}
           onChannelChange={setCommunityChannel}
           isAdmin={isAdmin}
@@ -3976,6 +3977,7 @@ function CommunityBoard({
   withEventHeaders,
   onThreadsUpdated,
   enabledChannels,
+  eventDays,
 }: {
   threads: NetworkThread[];
   channelFilter: CommunityChannelFilter;
@@ -3989,6 +3991,7 @@ function CommunityBoard({
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onThreadsUpdated: () => Promise<void>;
   enabledChannels: Record<Exclude<CommunityChannelFilter, "ALL">, boolean>;
+  eventDays: string[];
 }) {
   const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
   // F3.1 — compose is on demand: the composer is collapsed until invoked
@@ -4000,6 +4003,8 @@ function CommunityBoard({
   const [meetupParticipantIds, setMeetupParticipantIds] = useState<string[]>([]);
   const [meetupComposeMode, setMeetupComposeMode] = useState<"IN_PERSON" | "VIRTUAL">("IN_PERSON");
   const [meetupStartsAt, setMeetupStartsAt] = useState("");
+  const [meetupDay, setMeetupDay] = useState("");
+  const [meetupTime, setMeetupTime] = useState("");
   const [meetupMeetingUrl, setMeetupMeetingUrl] = useState("");
   const [momentImageUrls, setMomentImageUrls] = useState<string[]>([]);
   const [momentImageUrlInput, setMomentImageUrlInput] = useState("");
@@ -4015,6 +4020,11 @@ function CommunityBoard({
   const [editBody, setEditBody] = useState("");
 
   const nameById = useMemo(() => Object.fromEntries(attendees.map((a) => [a.id, a.name])), [attendees]);
+
+  useEffect(() => {
+    if (eventDays.length === 0) return;
+    setMeetupStartsAt(meetupDay && meetupTime ? `${meetupDay}T${meetupTime}` : "");
+  }, [meetupDay, meetupTime, eventDays.length]);
 
   const composeChannels = useMemo(
     () =>
@@ -4098,6 +4108,8 @@ function CommunityBoard({
       setMeetupParticipantIds([]);
       setMeetupComposeMode("IN_PERSON");
       setMeetupStartsAt("");
+      setMeetupDay("");
+      setMeetupTime("");
       setMeetupMeetingUrl("");
       setMomentImageUrls([]);
       setMomentImageUrlInput("");
@@ -4280,15 +4292,45 @@ function CommunityBoard({
                     </p>
                   </>
                 )}
-                <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-                  Starts at
-                  <input
-                    className="input"
-                    type="datetime-local"
-                    value={meetupStartsAt}
-                    onChange={(e) => setMeetupStartsAt(e.target.value)}
-                  />
-                </label>
+                {eventDays.length > 0 ? (
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <span className="help-text" style={{ margin: 0 }}>Starts at (optional)</span>
+                    <div className="kit-filter-pills" role="group" aria-label="Meet-up day">
+                      {eventDays.map((day) => (
+                        <button
+                          key={day}
+                          type="button"
+                          className={meetupDay === day ? "kit-pill is-active" : "kit-pill"}
+                          aria-pressed={meetupDay === day}
+                          onClick={() => setMeetupDay((prev) => (prev === day ? "" : day))}
+                        >
+                          {dayChipLabel(day)}
+                        </button>
+                      ))}
+                    </div>
+                    {meetupDay ? (
+                      <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                        Time
+                        <input
+                          className="input"
+                          type="time"
+                          value={meetupTime}
+                          onChange={(e) => setMeetupTime(e.target.value)}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                ) : (
+                  <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                    Starts at
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      value={meetupStartsAt}
+                      onChange={(e) => setMeetupStartsAt(e.target.value)}
+                    />
+                  </label>
+                )}
                 <label className="help-text" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
                   <input
                     type="checkbox"
