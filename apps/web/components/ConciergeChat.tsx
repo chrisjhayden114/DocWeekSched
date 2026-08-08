@@ -45,7 +45,6 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [teaser, setTeaser] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const loaded = useRef(false);
@@ -91,7 +90,6 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
     if (!trimmed || busy) return;
     setBusy(true);
     setError(null);
-    setTeaser(null);
     setInput("");
     const tempId = `local-${Date.now()}`;
     setMessages((prev) => [...prev, { id: tempId, role: "user", body: trimmed }]);
@@ -117,7 +115,8 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
       const e = err as Error & { status?: number };
       const msg = e.message || `${ATTENDEE_ASSISTANT.name} unavailable`;
       if (e.status === 402 || /allowance|upgrade|limit/i.test(msg)) {
-        setTeaser(msg);
+        // F0.1 — allowance limits are stated plainly in the thread; attendees
+        // can't buy plans, so no pricing upsell here (anti-goal: dark patterns).
         setMessages((prev) => [
           ...prev,
           {
@@ -233,16 +232,6 @@ export function ConciergeChat({ eventId, enabled, onMapHint }: Props) {
                 </button>
               ))}
             </div>
-
-            {teaser ? (
-              <div className="concierge-teaser" role="status">
-                <strong>Free teaser</strong>
-                <p style={{ margin: "6px 0 0" }}>{teaser}</p>
-                <a href="/pricing" className="button secondary" style={{ marginTop: 10, display: "inline-block" }}>
-                  See plans
-                </a>
-              </div>
-            ) : null}
 
             <div className="concierge-messages">
               {messages.length === 0 ? (

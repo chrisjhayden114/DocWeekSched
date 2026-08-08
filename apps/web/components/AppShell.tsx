@@ -333,9 +333,8 @@ export function AppShell({
               <span className="shell-topbar-title-text">{title}</span>
             </span>
           )}
-          <div className="shell-topbar-search">
-            <input className="input" type="search" placeholder="Search" aria-label="Search" readOnly />
-          </div>
+          {/* F0.3: no top-bar search until real search exists — a dead
+              readOnly control promises a feature the product doesn't have. */}
           <div className="shell-topbar-actions">
             {topBarExtra}
             <AvatarMenu userName={userName} userPhotoUrl={userPhotoUrl} userMeta={userMeta} items={accountMenu} />

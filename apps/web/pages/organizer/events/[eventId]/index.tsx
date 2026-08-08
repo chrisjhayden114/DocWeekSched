@@ -93,12 +93,29 @@ export default function OrganizerEventPage() {
 
   // E12.1: honor deep links like ?tab=program (used by "View program" after
   // an ingest confirm). Unknown values fall back to the default tab.
+  // F0.2: the URL is the source of truth — this also runs on Back/Forward
+  // (popstate), so history navigation moves between tabs instead of exiting
+  // the console, and a refresh keeps the current tab.
   useEffect(() => {
+    if (!router.isReady) return;
     const q = router.query.tab;
-    if (typeof q === "string" && (EVENT_TABS as readonly string[]).includes(q)) {
-      setTab(q as EventTab);
-    }
-  }, [router.query.tab]);
+    setTab(
+      typeof q === "string" && (EVENT_TABS as readonly string[]).includes(q)
+        ? (q as EventTab)
+        : "overview",
+    );
+  }, [router.isReady, router.query.tab]);
+
+  // F0.2: tab clicks write the tab to the query string (shallow — no data
+  // refetch); the effect above reads it back into state.
+  const selectTab = useCallback(
+    (next: EventTab) => {
+      const query: Record<string, string> = { eventId };
+      if (next !== "overview") query.tab = next;
+      void router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+    },
+    [router, eventId],
+  );
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [featuresDirty, setFeaturesDirty] = useState(false);
@@ -280,7 +297,10 @@ export default function OrganizerEventPage() {
       <Head>
         <title>{`${event?.name || "Event"} — Organizer — ${brand.productName}`}</title>
       </Head>
-      <OrganizerShell active="overview" eventId={eventId} eventName={event?.name}>
+      {/* F0.2: only claim "Overview" in the sidebar when the Overview tab is
+          actually selected — other tabs have no sidebar item, so nothing
+          highlights (rather than lying). Nav unification is later F work. */}
+      <OrganizerShell active={tab === "overview" ? "overview" : undefined} eventId={eventId} eventName={event?.name}>
         {error && !event ? (
           <ListError message={error} onRetry={() => void refresh().catch((err) => setError(err instanceof Error ? err.message : "Failed to load event"))} />
         ) : null}
@@ -323,7 +343,7 @@ export default function OrganizerEventPage() {
               key={id}
               type="button"
               className={tab === id ? "active" : ""}
-              onClick={() => setTab(id)}
+              onClick={() => selectTab(id)}
             >
               {label}
             </button>
