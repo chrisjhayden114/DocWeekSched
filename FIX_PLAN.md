@@ -1917,3 +1917,48 @@ spreadsheet path broke that promise for exactly the messy case.
 - All AI via the gateway; agents draft, humans confirm (the review screen already
   enforces this).
 - Stop the web dev server first; reset ritual after.
+
+---
+
+# Chunk F0 — pre-design quick wins (from the full UX audit synthesis)
+
+Small, near-zero-risk fixes the audit surfaced that should not wait for the
+design phase. See docs/ux-audit-full/00-SYNTHESIS.md.
+
+## F0.1 — remove the attendee pricing upsell (anti-goal breach)
+`components/ConciergeChat.tsx:237-244` shows a "See plans" pricing upsell to
+ATTENDEES, who cannot buy anything. This violates the no-dark-pattern
+positioning (HANDOFF_BRIEF §1). Remove the upsell from the attendee-facing
+assistant entirely. (Organizer-facing upgrade prompts elsewhere are fine; this
+is specifically the attendee surface.)
+
+## F0.2 — console navigation truth
+`pages/organizer/events/[eventId]/index.tsx`:
+- Put the active tab in the URL (`?tab=program` etc. — a deep-link path already
+  exists from E12; make Back/refresh preserve the tab instead of resetting to
+  Overview and instead of Back exiting the whole console).
+- Fix the sidebar highlight: it's hardcoded to "Overview"; it should reflect the
+  actual active section.
+
+## F0.3 — the dead global search
+The top-bar search is a `readOnly` control on every authed page — it looks like a
+feature that doesn't exist. Real search is a later feature, not F0. For now,
+**remove/hide the dead control** so the UI doesn't promise something it can't do.
+(A real search lands in a future chunk.)
+
+## NOT in F0 — founder decision, not a code change
+The live Terms and Privacy pages show a "DRAFT — requires legal review" banner.
+**Do NOT remove the banner** — that would hide, not fix, the fact the docs are
+unreviewed. The honest path is: get the docs a legal pass, then drop the banner
+truthfully. Left as a founder to-do, not code.
+
+## Acceptance
+- Attendees never see a pricing upsell in the Event assistant.
+- Console tab survives Back/refresh and deep-links; sidebar highlight is correct.
+- No dead readOnly search control remains on authed pages.
+- Terms/Privacy DRAFT banner unchanged (deliberately).
+- All tests green.
+
+## Standing rules
+- **NEVER set ALLOW_DESTRUCTIVE_DB.** DB suites per RUNBOOK §12 if touched.
+- Presentation/nav only; no schema/API changes. Reset ritual after.
