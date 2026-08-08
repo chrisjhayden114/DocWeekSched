@@ -797,6 +797,164 @@ export default function SessionPage() {
             </div>
           </div>
 
+          <div className="card session-conversation-card">
+            <h3 style={{ marginTop: 0 }}>{sessionQaCopy.title}</h3>
+            <p className="help-text" style={{ marginTop: 0 }}>
+              {sessionQaCopy.purpose}
+            </p>
+            {/* F3.2 — content-first: the thread list leads; asking is a
+                collapsed Composer, matching the resources section above. */}
+            <div style={{ marginBottom: 10 }}>
+              <FilterPills
+                label={sessionQaCopy.sortLabel}
+                options={[
+                  { id: "votes", label: sessionQaCopy.sortVotes },
+                  { id: "recent", label: sessionQaCopy.sortRecent },
+                ]}
+                value={qaSort}
+                onChange={(id) => setQaSort(id as "votes" | "recent")}
+              />
+            </div>
+            <Composer
+              collapsedLabel={sessionQaCopy.composer.collapsed}
+              submitLabel={sessionQaCopy.composer.submit}
+              titlePlaceholder={sessionQaCopy.composer.titlePlaceholder}
+              placeholder={sessionQaCopy.composer.bodyPlaceholder}
+              onSubmit={async (body, title) => {
+                await createThread(title, body);
+              }}
+            />
+            <div className="session-thread-layout">
+              <div className="session-thread-list">
+                {threads.length === 0 && (
+                  <EmptyState
+                    title={emptyStateCopy.sessionDiscussion.title}
+                    body={emptyStateCopy.sessionDiscussion.body}
+                  />
+                )}
+                {threads.map((thread) => (
+                  <button
+                    key={thread.id}
+                    type="button"
+                    className={`session-thread-link ${thread.id === openThreadId ? "is-active" : ""}`}
+                    onClick={() => setOpenThreadId(thread.id)}
+                  >
+                    <span className="session-thread-link-top">
+                      <strong>{thread.title}</strong>
+                      {thread.isAnswered ? (
+                        <span className="kit-status-pill kit-status-pill--success">{sessionQaCopy.answeredPill}</span>
+                      ) : null}
+                    </span>
+                    <span className="help-text">
+                      {sessionQaCopy.votes(thread.upvoteCount ?? 0)} · {thread.author?.name ?? DELETED_PARTICIPANT_LABEL} ·{" "}
+                      {sessionQaCopy.replies(thread.replies.length)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="session-message-list">
+                {!openThread && threads.length > 0 && <p className="help-text">Select a conversation title to read the thread.</p>}
+                {openThread && (
+                  <div className="session-thread-detail">
+                    <div className="session-message-row">
+                      <div className="session-message-author">
+                        {openThread.author?.photoUrl ? (
+                          <img src={openThread.author.photoUrl} alt="" className="session-message-avatar" />
+                        ) : (
+                          <div className="session-message-avatar session-message-avatar-ph">
+                            {(openThread.author?.name ?? DELETED_PARTICIPANT_LABEL).charAt(0)}
+                          </div>
+                        )}
+                        <div>
+                          <strong>{openThread.title}</strong>
+                          <div className="help-text">
+                            {openThread.author?.name ?? DELETED_PARTICIPANT_LABEL}
+                            {openThread.author?.role ? ` · ${openThread.author.role}` : ""} ·{" "}
+                            {new Date(openThread.createdAt).toLocaleString()}
+                            {openThread.isAnswered ? " · Answered" : ""}
+                          </div>
+                        </div>
+                      </div>
+                      <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{openThread.body}</p>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                        <button
+                          type="button"
+                          className={openThread.upvotedByMe ? "button" : "button secondary"}
+                          onClick={() => void toggleUpvote(openThread.id, Boolean(openThread.upvotedByMe))}
+                        >
+                          ▲ {openThread.upvoteCount ?? 0}
+                        </button>
+                        {canManage ? (
+                          <>
+                            <button
+                              type="button"
+                              className="button secondary"
+                              onClick={() => void setAnswered(openThread.id, !openThread.isAnswered)}
+                            >
+                              {openThread.isAnswered ? "Unmark answered" : "Mark answered"}
+                            </button>
+                            <button type="button" className="button secondary" onClick={() => void hideThread(openThread.id)}>
+                              Hide
+                            </button>
+                            <button type="button" className="button secondary" onClick={() => deleteThread(openThread.id)}>
+                              Delete
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                    {openThread.replies.map((reply) => (
+                      <div key={reply.id} className="session-message-row">
+                        <div className="session-message-author">
+                          {reply.author?.photoUrl ? (
+                            <img src={reply.author.photoUrl} alt="" className="session-message-avatar" />
+                          ) : (
+                            <div className="session-message-avatar session-message-avatar-ph">
+                              {(reply.author?.name ?? DELETED_PARTICIPANT_LABEL).charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <strong>{reply.author?.name ?? DELETED_PARTICIPANT_LABEL}</strong>
+                            <span className="help-text">
+                              {" "}
+                              · {reply.author?.role ?? "—"} · {new Date(reply.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{reply.body}</p>
+                        {canManage && (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            style={{ marginTop: 8 }}
+                            onClick={() => deleteReply(openThread.id, reply.id)}
+                          >
+                            Delete reply
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <form
+                      className="grid"
+                      style={{ gap: 8, marginTop: 8 }}
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const form = new FormData(e.currentTarget);
+                        const body = String(form.get("body") || "").trim();
+                        if (!body) return;
+                        await sendReply(openThread.id, body);
+                        e.currentTarget.reset();
+                      }}
+                    >
+                      <textarea className="textarea" name="body" placeholder="Reply to this conversation…" required rows={2} />
+                      <button type="submit" className="button secondary">Reply</button>
+                    </form>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {session.items && session.items.length > 0 ? (
             <div className="card" style={{ marginBottom: 16 }}>
               <h2 className="text-h3" style={{ margin: "0 0 12px" }}>
@@ -1022,164 +1180,6 @@ export default function SessionPage() {
                 </div>
               </form>
             )}
-          </div>
-
-          <div className="card session-conversation-card">
-            <h3 style={{ marginTop: 0 }}>{sessionQaCopy.title}</h3>
-            <p className="help-text" style={{ marginTop: 0 }}>
-              {sessionQaCopy.purpose}
-            </p>
-            {/* F3.2 — content-first: the thread list leads; asking is a
-                collapsed Composer, matching the resources section above. */}
-            <div style={{ marginBottom: 10 }}>
-              <FilterPills
-                label={sessionQaCopy.sortLabel}
-                options={[
-                  { id: "votes", label: sessionQaCopy.sortVotes },
-                  { id: "recent", label: sessionQaCopy.sortRecent },
-                ]}
-                value={qaSort}
-                onChange={(id) => setQaSort(id as "votes" | "recent")}
-              />
-            </div>
-            <Composer
-              collapsedLabel={sessionQaCopy.composer.collapsed}
-              submitLabel={sessionQaCopy.composer.submit}
-              titlePlaceholder={sessionQaCopy.composer.titlePlaceholder}
-              placeholder={sessionQaCopy.composer.bodyPlaceholder}
-              onSubmit={async (body, title) => {
-                await createThread(title, body);
-              }}
-            />
-            <div className="session-thread-layout">
-              <div className="session-thread-list">
-                {threads.length === 0 && (
-                  <EmptyState
-                    title={emptyStateCopy.sessionDiscussion.title}
-                    body={emptyStateCopy.sessionDiscussion.body}
-                  />
-                )}
-                {threads.map((thread) => (
-                  <button
-                    key={thread.id}
-                    type="button"
-                    className={`session-thread-link ${thread.id === openThreadId ? "is-active" : ""}`}
-                    onClick={() => setOpenThreadId(thread.id)}
-                  >
-                    <span className="session-thread-link-top">
-                      <strong>{thread.title}</strong>
-                      {thread.isAnswered ? (
-                        <span className="kit-status-pill kit-status-pill--success">{sessionQaCopy.answeredPill}</span>
-                      ) : null}
-                    </span>
-                    <span className="help-text">
-                      {sessionQaCopy.votes(thread.upvoteCount ?? 0)} · {thread.author?.name ?? DELETED_PARTICIPANT_LABEL} ·{" "}
-                      {sessionQaCopy.replies(thread.replies.length)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="session-message-list">
-                {!openThread && threads.length > 0 && <p className="help-text">Select a conversation title to read the thread.</p>}
-                {openThread && (
-                  <div className="session-thread-detail">
-                    <div className="session-message-row">
-                      <div className="session-message-author">
-                        {openThread.author?.photoUrl ? (
-                          <img src={openThread.author.photoUrl} alt="" className="session-message-avatar" />
-                        ) : (
-                          <div className="session-message-avatar session-message-avatar-ph">
-                            {(openThread.author?.name ?? DELETED_PARTICIPANT_LABEL).charAt(0)}
-                          </div>
-                        )}
-                        <div>
-                          <strong>{openThread.title}</strong>
-                          <div className="help-text">
-                            {openThread.author?.name ?? DELETED_PARTICIPANT_LABEL}
-                            {openThread.author?.role ? ` · ${openThread.author.role}` : ""} ·{" "}
-                            {new Date(openThread.createdAt).toLocaleString()}
-                            {openThread.isAnswered ? " · Answered" : ""}
-                          </div>
-                        </div>
-                      </div>
-                      <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{openThread.body}</p>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                        <button
-                          type="button"
-                          className={openThread.upvotedByMe ? "button" : "button secondary"}
-                          onClick={() => void toggleUpvote(openThread.id, Boolean(openThread.upvotedByMe))}
-                        >
-                          ▲ {openThread.upvoteCount ?? 0}
-                        </button>
-                        {canManage ? (
-                          <>
-                            <button
-                              type="button"
-                              className="button secondary"
-                              onClick={() => void setAnswered(openThread.id, !openThread.isAnswered)}
-                            >
-                              {openThread.isAnswered ? "Unmark answered" : "Mark answered"}
-                            </button>
-                            <button type="button" className="button secondary" onClick={() => void hideThread(openThread.id)}>
-                              Hide
-                            </button>
-                            <button type="button" className="button secondary" onClick={() => deleteThread(openThread.id)}>
-                              Delete
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                    {openThread.replies.map((reply) => (
-                      <div key={reply.id} className="session-message-row">
-                        <div className="session-message-author">
-                          {reply.author?.photoUrl ? (
-                            <img src={reply.author.photoUrl} alt="" className="session-message-avatar" />
-                          ) : (
-                            <div className="session-message-avatar session-message-avatar-ph">
-                              {(reply.author?.name ?? DELETED_PARTICIPANT_LABEL).charAt(0)}
-                            </div>
-                          )}
-                          <div>
-                            <strong>{reply.author?.name ?? DELETED_PARTICIPANT_LABEL}</strong>
-                            <span className="help-text">
-                              {" "}
-                              · {reply.author?.role ?? "—"} · {new Date(reply.createdAt).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                        <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{reply.body}</p>
-                        {canManage && (
-                          <button
-                            type="button"
-                            className="button secondary"
-                            style={{ marginTop: 8 }}
-                            onClick={() => deleteReply(openThread.id, reply.id)}
-                          >
-                            Delete reply
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    <form
-                      className="grid"
-                      style={{ gap: 8, marginTop: 8 }}
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const form = new FormData(e.currentTarget);
-                        const body = String(form.get("body") || "").trim();
-                        if (!body) return;
-                        await sendReply(openThread.id, body);
-                        e.currentTarget.reset();
-                      }}
-                    >
-                      <textarea className="textarea" name="body" placeholder="Reply to this conversation…" required rows={2} />
-                      <button type="submit" className="button secondary">Reply</button>
-                    </form>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
 
           {pollsOn ? (

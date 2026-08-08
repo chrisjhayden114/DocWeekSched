@@ -21,6 +21,7 @@ import { MeetingRequestModal, MeetingRequestsPanel } from "../components/Meeting
 import { MessagesPanel } from "../components/MessagesPanel";
 import { ModerationReportsPanel } from "../components/ModerationReportsPanel";
 import { apiFetch, apiFetchAll, clearAuthClientState } from "../lib/api";
+import { matchesNameQuery } from "../lib/nameSearch";
 import { eventAccentStyle } from "../lib/eventAccent";
 import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
@@ -2197,7 +2198,7 @@ function ScheduleBoard({
                       <div className="schedule-event-side" onClick={(event) => event.stopPropagation()}>
                         <button
                           type="button"
-                          className={`attendance-join-dot schedule-event-save ${joining ? "is-on" : ""}`}
+                          className={`attendance-join-pill schedule-event-save ${joining ? "is-on" : ""}`}
                           aria-pressed={joining}
                           aria-label={joining ? "Remove from my schedule" : "Add to my schedule"}
                           title={
@@ -2215,7 +2216,9 @@ function ScheduleBoard({
                               setAgendaModalSessionId(s.id);
                             }
                           }}
-                        />
+                        >
+                          {joining ? "Joined ✓" : "Join"}
+                        </button>
                         <div className="schedule-row-actions">
                           {qaEnabled ? (
                             <button
@@ -3744,8 +3747,8 @@ function AttendeeDirectory({
         if (!interests.some((t) => t === interestLower)) return false;
       }
       if (!q) return true;
-      const hay = `${a.name} ${a.email} ${a.researchInterests || ""} ${a.title || ""} ${a.affiliation || ""} ${a.bio || ""}`.toLowerCase();
-      return hay.includes(q);
+      const hay = `${a.name} ${a.email} ${a.researchInterests || ""} ${a.title || ""} ${a.affiliation || ""} ${a.bio || ""}`;
+      return matchesNameQuery(hay, q);
     });
   }, [attendees, q, interestLower]);
 
@@ -4212,10 +4215,10 @@ function CommunityBoard({
                     );
                   }}
                 >
-                  Find on Google Maps
+                  Search Google Maps ↗
                 </button>
                 <p className="help-text" style={{ margin: 0 }}>
-                  Open the place in Google Maps, use <strong>Share</strong>, copy the link, and paste it above.
+                  Opens Google Maps in a new tab. Find the place, use <strong>Share</strong> → Copy link, and paste it above.
                 </p>
               </>
             )}

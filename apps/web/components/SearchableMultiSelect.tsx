@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { matchesNameQuery } from "../lib/nameSearch";
 
 export type SelectablePerson = {
   id: string;
@@ -37,8 +38,8 @@ export function SearchableMultiSelect({
       .filter((p) => !exclude.has(p.id))
       .filter((p) => {
         if (!q) return true;
-        const hay = `${p.name} ${p.email || ""} ${p.role || ""}`.toLowerCase();
-        return hay.includes(q);
+        const hay = `${p.name} ${p.email || ""} ${p.role || ""}`;
+        return matchesNameQuery(hay, q);
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [people, exclude, query]);
