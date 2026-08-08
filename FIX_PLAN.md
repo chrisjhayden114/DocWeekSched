@@ -2024,3 +2024,107 @@ No real page adopts the kit yet (that's F2+). No behavior/schema/API changes.
 ## Standing rules
 - **NEVER set ALLOW_DESTRUCTIVE_DB.** DB suites per RUNBOOK §12 if touched.
 - Tokens/config only for values/copy. Stop the web dev server first; reset after.
+
+---
+
+# Chunk F1.5 — color architecture: neutral chrome + event-driven accent
+
+Implements the 2026-08-07 color decision in DESIGN_PHASE_F. Small, token-level;
+no new components, no page rebuilds. Do this BEFORE F2 so the overview is built
+in the final color model, not repainted.
+
+## F1.5.1 — neutralize the app chrome
+- Primary buttons / primary actions in the APP (not marketing) become
+  near-neutral (a dark neutral from the gray ramp, ~`--gray-800/900`), not blue —
+  the Sched/Linear/Stripe approach. Update the shared button treatment in
+  globals.css so this flows everywhere.
+- Reduce blue used decoratively (selected rows, chips, links) to the *accent*
+  variable defined below, so blue is scarce and intentional, not wallpaper.
+- Do NOT touch marketing pages (index, pricing, compare, help, security) — UKEDL's
+  own site keeps its brand blue as identity.
+
+## F1.5.2 — make the accent a runtime variable
+- Introduce `--event-accent` (+ `-hover`, `-tint` for selected/tint states,
+  `-on` for text-on-accent). Default `--event-accent: var(--primary)` so nothing
+  breaks where no event context exists.
+- Point the in-app accent usages (selected states, links, focus ring, filled
+  accent buttons like the kit's) at `--event-accent` rather than raw `--primary`.
+- The kit (FilterPills active, Composer submit, StatCard, PageHeader action)
+  reads `--event-accent`.
+
+## F1.5.3 — feed the event's brand color in
+- Where an event context exists (organizer console for an event; public
+  `/e/[slug]`), set `--event-accent` from the event's stored `brandColor` on a
+  wrapping element (inline style var on the shell, or a small injected style).
+- **Contrast safety (required):** if `brandColor` is too light for white text,
+  derive a darker shade for `--event-accent`/`-on`, or fall back to the neutral
+  default. Never render an unreadable CTA. Add a helper (e.g.
+  `accentFromBrand(hex)` returning accessible accent + on-color) and unit-test it
+  with a light color (e.g. #FFD400) → readable result.
+- No brand color set → neutral default (a restrained blue-gray), not bright blue.
+
+## Out of scope
+Marketing-site colors; track colors (stay categorical); dark mode (later);
+per-event *theme presets* beyond the single accent (later attendee work).
+
+## Acceptance
+- App primary buttons are neutral, not blue; the styleguide reflects it.
+- Setting an event's brand color changes that event's accent (console + public
+  page) — demonstrable by changing brandColor in event settings.
+- A very light brand color still yields a readable button (contrast helper +
+  test).
+- Marketing pages unchanged. Contrast holds app-wide. All tests green.
+
+## Standing rules
+- **NEVER set ALLOW_DESTRUCTIVE_DB.** DB suites per RUNBOOK §12 if touched.
+- Tokens/CSS only; no schema/API changes (brandColor already exists). Reset after.
+
+---
+
+# Chunk F2 — organizer Overview: the content-first home
+
+DESIGN_PHASE_F rollout, step 2. The audit's #1 fix. Build the orienting overview
+from the F1 kit, in the F1.5 color model. This replaces the current Overview tab,
+which leads with the entire settings form.
+
+Reference: the organizer-overview mockup shown in chat 2026-08-07;
+docs/ux-audit-full/03-organizer-console.md; DESIGN_PHASE_F.
+
+## What the new Overview shows (top to bottom)
+1. **PageHeader** (kit): event name + state line ("Draft · Jun 8–10 · N steps
+   from publishing") + primary action (Publish, or Preview when published).
+2. **StatCard row** (kit): Sessions · Speakers · Registered · Rooms — real counts
+   from existing data, with the opt-in count-up (reduced-motion safe). These are
+   an *earned* count-up home.
+3. **"Before you publish" checklist** — reuse the existing SetupAssistantPanel /
+   setupChecklist logic (it already reads live event state: sessions, rooms,
+   speakers, venue, draft sessions, publish status). Render as a clean checklist
+   with done/attention/todo states and a deep link to the tab that fixes each.
+4. **Quick actions** (kit cards): Import program · Edit program · Preview public
+   page — deep-linking to the existing screens.
+
+## What moves OFF the Overview
+- **Event settings** (name/description/timezone/venue/brand color/dates) moves
+  into a **SlideOver** (kit) opened from a "Settings" action in the header —
+  progressive disclosure. It is no longer the first thing you see. Same fields,
+  same save logic (unchanged) — just relocated and grouped (essential fields
+  shown; advanced behind "More options").
+
+## Rules
+- Content-first: state and next-actions are the hero; the settings FORM is on
+  demand, not on arrival.
+- Reuse existing data/logic; this is presentation + relocation. No schema/API/
+  behavior changes to settings save, publish, or the checklist computation.
+- Uses `--event-accent` (F1.5) so the overview wears the event's color.
+
+## Acceptance
+- Landing on an event opens to state + checklist + stats + quick actions — NOT a
+  settings form.
+- The "before you publish" items reflect real event state and deep-link correctly.
+- Settings open in a SlideOver and save exactly as before.
+- Stat count-ups respect reduced-motion. Contrast holds. All tests green.
+- Before/after: the Overview no longer greets the user with a form.
+
+## Standing rules
+- **NEVER set ALLOW_DESTRUCTIVE_DB.** DB suites per RUNBOOK §12.
+- Kit + tokens + config only. Stop the web dev server first; reset after.
