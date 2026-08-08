@@ -65,28 +65,55 @@ FEATURE (real build) · DECISION (needs founder call, incl. cost/positioning).
   the deferred request-gate/consent scope from RESEARCH_MESSAGING.md. Treat as
   its own phase, not a single chunk.
 
-## The decisions only the founder can make
-1. **Place autocomplete (3b):** pay for Google Places, use free Nominatim, or
-   keep "open Maps in a tab"? (Ongoing cost vs quality vs status quo.)
-2. **Break the ice (4) & General targeting (5):** proceed, keeping them CALM
-   (facilitation, not gamification; respect notification budget; directory
-   opt-in only)? Confirm this doesn't drift into the anti-goals.
-3. **Messaging (7) scope:** how far? A visual refresh toward a WhatsApp feel is
-   bounded; full presence/real-time/consent-gate is a large multi-chunk phase.
+## Founder decisions — RESOLVED 2026-08-08
+1. **Place autocomplete (3b): KEEP "open Maps in a tab" (free).** No API, no
+   billing. Only work is making the button clearer that it opens a new tab.
+   G6 is descoped to that affordance fix.
+2. **Break the ice (4) & General targeting (5): GENUINELY REPOSITION toward
+   engagement (Whova-style).** Founder chose this deliberately after being shown
+   twice that it reverses the "calm, no engagement mechanics" positioning. This
+   is now a STRATEGIC PIVOT, not a scoped feature. Consequence: the anti-goals
+   and the shipped marketing that contradict it must change in lockstep, or the
+   product and its own marketing will contradict each other. See "Repositioning
+   work" below.
+3. **Messaging (7): FULL messaging phase.** Visual WhatsApp-style refresh PLUS
+   the deferred consent/request-gate, block/report, presence, richer real-time
+   (RESEARCH_MESSAGING.md). Its own multi-chunk phase (M-series), the largest
+   single item on the board.
+
+## Repositioning work (new, because of decision 2)
+Moving toward engagement mechanics is only coherent if the claims change too.
+Before or alongside G4/G5, update:
+- **Homepage (`/`)** — remove/soften "without notification spam" and "no
+  engagement bait"; describe the networking/engagement value honestly.
+- **`/compare/whova`** — the differentiator "Whova markets leaderboards and
+  gamified surveys; we don't" is no longer true. Rewrite the comparison so it
+  doesn't claim an anti-engagement stance we've abandoned.
+- **`/pricing`** ("engagement features" already listed under Pro) — align.
+- **Anti-goals doc (HANDOFF_BRIEF.md §1) + DESIGN_PHASE_E/F** — record that the
+  "no engagement mechanics" anti-goal is intentionally retired for networking
+  surfaces. Keep the anti-goals that still hold: no dark patterns, no
+  manufactured urgency, honest AI, accessibility, reduced-motion.
+- Notifications: even repositioned, additions ride the existing digest/quiet-
+  hours budget by default; opt-in escalation, not spam-by-default.
 
 ## Recommended sequence
-- **G1 — bug fixes + quick wins (do first):** 2a Moments post bug; 1a/2c shared
-  type-ahead name search (first+last); 1c join pill; 6a Q&A reposition; clarify
-  3a. Concrete, safe, no decisions needed. Presentation/interaction only where
-  possible.
+- **G1 — bug fixes + quick wins (do first, needs no decisions):** 2a Moments
+  post bug; 1a/2c shared type-ahead name search (first+last); 1c join pill;
+  6a Q&A reposition; 3a clarify "opens Maps in a tab". Presentation/interaction
+  only where possible.
 - **G2 — photo gallery (2b).** Contained feature.
 - **G3 — Q&A recipient option (6b).** Small feature.
-- **G4 — break the ice (4)** — only after the positioning call.
-- **G5 — General post targeting (5)** — after the notifications/anti-goal call.
-- **G6 — place autocomplete (3b)** — only after the cost decision.
-- **Messaging (7)** — its own later phase; scope TBD.
+- **G-REPO — marketing/anti-goal realignment** (see above). Do this BEFORE G4/G5
+  ship publicly so product and marketing never contradict.
+- **G4 — break the ice (4).** Now a real engagement feature (faces carousel,
+  multi-select, connection prompts).
+- **G5 — General post targeting (5).** Audience-scoped posts + visibility model.
+- **G6 — Local tips affordance (3a/3b).** Just clarify the Maps-in-a-tab button.
+- **M-series — full messaging phase.** Its own scoped plan (M1…), largest item.
 
-## Standing rules (unchanged)
-Anti-goals hold (no gamification, no notification spam, no dark patterns);
-directory features honor opt-in; reduced-motion; tokens/config; agents draft,
-humans confirm. NEVER set ALLOW_DESTRUCTIVE_DB.
+## Standing rules (revised)
+Retire "no engagement mechanics" for networking surfaces (founder decision 2).
+STILL hold: no dark patterns, no manufactured urgency, honest AI (agents draft/
+humans confirm), accessibility + reduced-motion, tokens/config not hardcoded,
+directory features honor opt-in. NEVER set ALLOW_DESTRUCTIVE_DB.
