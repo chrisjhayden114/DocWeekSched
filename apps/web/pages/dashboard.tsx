@@ -1,4 +1,4 @@
-import { brand, emptyStateCopy, icsProductId, sessionEditorCopy } from "@event-app/config";
+import { brand, communityCopy, emptyStateCopy, icsProductId, sessionEditorCopy } from "@event-app/config";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
@@ -30,6 +30,7 @@ import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/Sched
 import { SegmentedToggle } from "../components/SegmentedToggle";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
+import { Composer, EmptyState, FeedCard, FilterPills, PageHeader } from "../components/kit";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
@@ -3982,11 +3983,19 @@ function CommunityBoard({
   enabledChannels: Record<Exclude<CommunityChannelFilter, "ALL">, boolean>;
 }) {
   const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
+  // F3.1 — compose is on demand: the composer is collapsed until invoked
+  // (trigger, or the empty state's CTA via controlled expansion).
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeError, setComposeError] = useState<string | null>(null);
   const [composeChannel, setComposeChannel] = useState<Exclude<CommunityChannelFilter, "ALL">>("GENERAL");
   const [meetupInviteEveryone, setMeetupInviteEveryone] = useState(false);
   const [meetupParticipantIds, setMeetupParticipantIds] = useState<string[]>([]);
   const [meetupComposeMode, setMeetupComposeMode] = useState<"IN_PERSON" | "VIRTUAL">("IN_PERSON");
+  const [meetupStartsAt, setMeetupStartsAt] = useState("");
+  const [meetupMeetingUrl, setMeetupMeetingUrl] = useState("");
   const [momentImageUrls, setMomentImageUrls] = useState<string[]>([]);
+  const [momentImageUrlInput, setMomentImageUrlInput] = useState("");
+  const [mapsUrl, setMapsUrl] = useState("");
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
   const [postingThread, setPostingThread] = useState(false);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
@@ -4026,14 +4035,15 @@ function CommunityBoard({
     onFocusThreadConsumed();
   }, [focusThreadId, onFocusThreadConsumed]);
 
-  async function createThread(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  /**
+   * F3.1 — called by the kit Composer with the trimmed draft. Same payload
+   * and endpoint as before; validation now surfaces inline in the composer
+   * (a thrown error keeps the draft and the panel open — never
+   * window.alert).
+   */
+  async function createThread(body: string, title: string) {
     if (postingThread) return;
-    // Capture before any await: React detaches currentTarget after dispatch.
-    const formEl = event.currentTarget;
-    const form = new FormData(formEl);
-    const title = String(form.get("title") || "").trim();
-    const body = String(form.get("body") || "").trim();
+    setComposeError(null);
     const payload: Record<string, unknown> = {
       title,
       body,
@@ -4041,50 +4051,53 @@ function CommunityBoard({
     };
     if (composeChannel === "MEETUP") {
       payload.meetupMode = meetupComposeMode;
-      const start = String(form.get("meetupStartsAt") || "").trim();
-      if (start) {
-        payload.meetupStartsAt = new Date(start).toISOString();
+      if (meetupStartsAt.trim()) {
+        payload.meetupStartsAt = new Date(meetupStartsAt).toISOString();
       }
       payload.meetupInviteEveryone = meetupInviteEveryone;
       if (!meetupInviteEveryone) {
         payload.meetupParticipantIds = meetupParticipantIds;
       }
       if (meetupComposeMode === "VIRTUAL") {
-        const link = String(form.get("meetupMeetingUrl") || "").trim();
+        const link = meetupMeetingUrl.trim();
         if (!link) {
-          window.alert("Add a video link for virtual meet-ups (Zoom, Google Meet, Teams, etc.).");
-          return;
+          setComposeError(communityCopy.errors.meetupLink);
+          throw new Error(communityCopy.errors.meetupLink);
         }
         payload.meetupMeetingUrl = link;
       }
+      if (!meetupInviteEveryone && meetupParticipantIds.length === 0) {
+        setComposeError(communityCopy.errors.meetupParticipants);
+        throw new Error(communityCopy.errors.meetupParticipants);
+      }
     }
     if (composeChannel === "MOMENTS") {
-      const img = String(form.get("imageUrl") || "").trim();
+      const img = momentImageUrlInput.trim();
       const urls = [...momentImageUrls];
       if (img) urls.push(img);
       if (urls.length) payload.imageUrls = urls.slice(0, 12);
       if (taggedUserIds.length) payload.taggedUserIds = taggedUserIds;
     }
     if (composeChannel === "LOCAL") {
-      const maps = String(form.get("mapsUrl") || "").trim();
+      const maps = mapsUrl.trim();
       if (maps) payload.mapsUrl = maps;
-    }
-    if (composeChannel === "MEETUP" && !meetupInviteEveryone && meetupParticipantIds.length === 0) {
-      window.alert("Add at least one participant, or choose Invite everyone.");
-      return;
     }
     setPostingThread(true);
     try {
       await apiFetch("/network/threads", withEventHeaders({ method: "POST", body: JSON.stringify(payload) }), token);
-      formEl?.reset();
       setMeetupInviteEveryone(false);
       setMeetupParticipantIds([]);
       setMeetupComposeMode("IN_PERSON");
+      setMeetupStartsAt("");
+      setMeetupMeetingUrl("");
       setMomentImageUrls([]);
+      setMomentImageUrlInput("");
+      setMapsUrl("");
       setTaggedUserIds([]);
       await onThreadsUpdated();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Could not create post.");
+      setComposeError(err instanceof Error && err.message ? err.message : communityCopy.errors.createFailed);
+      throw err;
     } finally {
       setPostingThread(false);
     }
@@ -4111,459 +4124,438 @@ function CommunityBoard({
     await onThreadsUpdated();
   }
 
-  const pills: { key: CommunityChannelFilter; label: string }[] = (
-    [
-      { key: "ALL", label: "All" },
-      { key: "MEETUP", label: "Meet-ups" },
-      { key: "MOMENTS", label: "Share your moments" },
-      { key: "LOCAL", label: "Local recommendations" },
-      { key: "ICEBREAKER", label: "Break the ice" },
-      { key: "GENERAL", label: "General" },
-    ] as { key: CommunityChannelFilter; label: string }[]
-  ).filter((p) => p.key === "ALL" || enabledChannels[p.key]);
+  const channelPills = (
+    ["ALL", "MEETUP", "MOMENTS", "LOCAL", "ICEBREAKER", "GENERAL"] as CommunityChannelFilter[]
+  )
+    .filter((key) => key === "ALL" || enabledChannels[key])
+    .map((key) => ({
+      id: key,
+      label: communityCopy.channels[key],
+      icon: <CommunityPillIcon channel={key} size={16} />,
+    }));
 
-  const composeHint =
-    composeChannel === "MEETUP"
-      ? "Propose a meet-up and invite specific people, or open it to everyone at this event."
-      : composeChannel === "MOMENTS"
-        ? "Upload one or more photos, tag people from the directory, and add a caption."
-        : composeChannel === "LOCAL"
-          ? "Recommend a place and paste a Google Maps link so others can open it in Maps."
-          : composeChannel === "ICEBREAKER"
-            ? "Welcome others — share a quick intro or icebreaker prompt."
-            : "Open discussion for everyone at this event.";
+  const composeHint = communityCopy.hints[composeChannel];
+  const emptyCopy = communityCopy.empty[channelFilter];
+  const headerState =
+    threads.length > 0
+      ? `${communityCopy.header.postCount(threads.length)} · ${communityCopy.header.purpose}`
+      : communityCopy.header.purpose;
 
   return (
-    <>
-      {channelFilter === "ICEBREAKER" && (
-        <div className="icebreaker-hero-strip card">
-          <div className="icebreaker-hero-copy">
-            <strong>Break the ice</strong>
-            <p className="help-text" style={{ margin: "6px 0 0" }}>
-              Welcome others with a short intro or icebreaker question.
-            </p>
-          </div>
-          <div className="icebreaker-hero-art">
-            <img
-              src="/community/icebreaker-hero.png"
-              alt="Friendly polar bears breaking the ice — share a quick intro and welcome others"
-              className="icebreaker-hero-img"
-            />
-          </div>
-        </div>
-      )}
-      <div className="grid networking-board">
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Community</h3>
-        <p className="help-text" style={{ marginTop: 0 }}>
-          Meet-ups, moments, local tips, and introductions — Whova-style spaces for your event. Session-specific Q&amp;A stays on each session page.
-        </p>
-        <div className="community-subnav" role="tablist" aria-label="Community areas">
-          {pills.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              role="tab"
-              aria-selected={channelFilter === p.key}
-              className={channelFilter === p.key ? "is-active" : ""}
-              onClick={() => onChannelChange(p.key)}
-            >
-              <span className="community-pill-inner">
-                <CommunityPillIcon channel={p.key} />
-                <span>{p.label}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="kit-page-stack">
+      {/* F3.1 — content-first: wayfinding header, channel pills, then the
+          feed as the hero. Composing is one collapsed affordance. */}
+      <PageHeader title={communityCopy.header.title} state={headerState} />
+      <FilterPills
+        label="Community channels"
+        options={channelPills}
+        value={channelFilter}
+        onChange={(id) => onChannelChange(id as CommunityChannelFilter)}
+      />
 
-      <form className="card grid community-compose-card" onSubmit={createThread}>
-        <h4 style={{ margin: 0 }}>New post</h4>
-        <p className="help-text" style={{ margin: 0 }}>
-          {composeHint}
-        </p>
-        {channelFilter === "ALL" && (
-          <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-            Post in
-            <Select
-              value={composeChannel}
-              onChange={(v) => setComposeChannel(v as typeof composeChannel)}
-              options={[
-                { value: "GENERAL", label: "General discussion" },
-                { value: "MEETUP", label: "Meet-up" },
-                { value: "MOMENTS", label: "Share your moments" },
-                { value: "LOCAL", label: "Local recommendations" },
-                { value: "ICEBREAKER", label: "Break the ice" },
-              ].filter((o) => composeChannels.includes(o.value as (typeof composeChannels)[number]))}
-            />
-          </label>
-        )}
-        <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-          Title
-          <input className="input" name="title" placeholder="Title" required />
-        </label>
-        <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-          Message
-          <textarea className="textarea" name="body" placeholder="Description or message" required rows={4} />
-        </label>
-        {composeChannel === "LOCAL" && (
+      {/* Compose on demand — channel-specific fields appear only inside the
+          expanded composer, based on the selected channel. Same payloads and
+          endpoint as the old permanent form. */}
+      <Composer
+        collapsedLabel={communityCopy.composer.collapsed}
+        submitLabel={communityCopy.composer.submit}
+        titlePlaceholder={communityCopy.composer.titlePlaceholder}
+        placeholder={communityCopy.composer.bodyPlaceholder}
+        rows={4}
+        busy={postingThread}
+        error={composeError}
+        expanded={composeOpen}
+        onExpandedChange={setComposeOpen}
+        onSubmit={createThread}
+      >
+        {(draft) => (
           <>
-            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-              Maps link
-              <input
-                className="input"
-                name="mapsUrl"
-                placeholder="Google Maps link (Share → Copy link from the Maps app or website)"
-              />
-            </label>
-            <button
-              type="button"
-              className="button secondary"
-              onClick={(e) => {
-                const form = e.currentTarget.closest("form");
-                const titleInput = form?.querySelector<HTMLInputElement>('input[name="title"]');
-                const q = (titleInput?.value || "").trim() || (form?.querySelector<HTMLTextAreaElement>("textarea[name=\"body\"]")?.value || "").trim();
-                if (!q) {
-                  window.alert("Add a title or description first to search Maps.");
-                  return;
-                }
-                window.open(
-                  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`,
-                  "_blank",
-                  "noopener,noreferrer",
-                );
-              }}
-            >
-              Find on Google Maps
-            </button>
             <p className="help-text" style={{ margin: 0 }}>
-              Open the place in Google Maps, use <strong>Share</strong>, copy the link, and paste it above.
+              {composeHint}
             </p>
-          </>
-        )}
-        {composeChannel === "MEETUP" && (
-          <>
-            <div className="join-mode-switch" role="group" aria-label="Meet-up format">
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="radio"
-                  name="meetupMode"
-                  value="IN_PERSON"
-                  checked={meetupComposeMode === "IN_PERSON"}
-                  onChange={() => setMeetupComposeMode("IN_PERSON")}
+            {channelFilter === "ALL" && (
+              <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                {communityCopy.composer.postInLabel}
+                <Select
+                  value={composeChannel}
+                  onChange={(v) => setComposeChannel(v as typeof composeChannel)}
+                  options={composeChannels.map((key) => ({ value: key, label: communityCopy.channels[key] }))}
                 />
-                In person
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="radio"
-                  name="meetupMode"
-                  value="VIRTUAL"
-                  checked={meetupComposeMode === "VIRTUAL"}
-                  onChange={() => setMeetupComposeMode("VIRTUAL")}
-                />
-                Virtual
-              </label>
-            </div>
-            {meetupComposeMode === "VIRTUAL" && (
+            )}
+            {composeChannel === "LOCAL" && (
               <>
-                <label className="help-text" style={{ margin: 0 }} htmlFor="meetup-meeting-url">
-                  Video meeting link
+                <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                  Maps link
+                  <input
+                    className="input"
+                    value={mapsUrl}
+                    onChange={(e) => setMapsUrl(e.target.value)}
+                    placeholder="Google Maps link (Share → Copy link from the Maps app or website)"
+                  />
                 </label>
-                <input
-                  id="meetup-meeting-url"
-                  className="input"
-                  name="meetupMeetingUrl"
-                  placeholder="Paste Zoom, Google Meet, Microsoft Teams, or other link"
-                  autoComplete="off"
-                />
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    const q = draft.title.trim() || draft.body.trim();
+                    if (!q) {
+                      setComposeError(communityCopy.errors.mapsSearchNeedsText);
+                      return;
+                    }
+                    setComposeError(null);
+                    window.open(
+                      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  }}
+                >
+                  Find on Google Maps
+                </button>
                 <p className="help-text" style={{ margin: 0 }}>
-                  Participants use this link to join at the scheduled time.
+                  Open the place in Google Maps, use <strong>Share</strong>, copy the link, and paste it above.
                 </p>
               </>
             )}
-            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-              Starts at
-              <input className="input" type="datetime-local" name="meetupStartsAt" />
-            </label>
-            <label className="help-text" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <input
-                type="checkbox"
-                checked={meetupInviteEveryone}
-                onChange={(e) => {
-                  setMeetupInviteEveryone(e.target.checked);
-                  if (e.target.checked) setMeetupParticipantIds([]);
-                }}
-              />
-              Invite everyone at this event
-            </label>
-            {!meetupInviteEveryone && (
-              <SearchableMultiSelect
-                label="Participants (required if not inviting everyone)"
-                people={attendees}
-                selectedIds={meetupParticipantIds}
-                excludeIds={[currentUserId]}
-                placeholder="Search participants…"
-                onChange={setMeetupParticipantIds}
-              />
+            {composeChannel === "MEETUP" && (
+              <>
+                <div className="join-mode-switch" role="group" aria-label="Meet-up format">
+                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="radio"
+                      name="meetupMode"
+                      value="IN_PERSON"
+                      checked={meetupComposeMode === "IN_PERSON"}
+                      onChange={() => setMeetupComposeMode("IN_PERSON")}
+                    />
+                    In person
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="radio"
+                      name="meetupMode"
+                      value="VIRTUAL"
+                      checked={meetupComposeMode === "VIRTUAL"}
+                      onChange={() => setMeetupComposeMode("VIRTUAL")}
+                    />
+                    Virtual
+                  </label>
+                </div>
+                {meetupComposeMode === "VIRTUAL" && (
+                  <>
+                    <label className="help-text" style={{ margin: 0 }} htmlFor="meetup-meeting-url">
+                      Video meeting link
+                    </label>
+                    <input
+                      id="meetup-meeting-url"
+                      className="input"
+                      value={meetupMeetingUrl}
+                      onChange={(e) => setMeetupMeetingUrl(e.target.value)}
+                      placeholder="Paste Zoom, Google Meet, Microsoft Teams, or other link"
+                      autoComplete="off"
+                    />
+                    <p className="help-text" style={{ margin: 0 }}>
+                      Participants use this link to join at the scheduled time.
+                    </p>
+                  </>
+                )}
+                <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                  Starts at
+                  <input
+                    className="input"
+                    type="datetime-local"
+                    value={meetupStartsAt}
+                    onChange={(e) => setMeetupStartsAt(e.target.value)}
+                  />
+                </label>
+                <label className="help-text" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={meetupInviteEveryone}
+                    onChange={(e) => {
+                      setMeetupInviteEveryone(e.target.checked);
+                      if (e.target.checked) setMeetupParticipantIds([]);
+                    }}
+                  />
+                  Invite everyone at this event
+                </label>
+                {!meetupInviteEveryone && (
+                  <SearchableMultiSelect
+                    label="Participants (required if not inviting everyone)"
+                    people={attendees}
+                    selectedIds={meetupParticipantIds}
+                    excludeIds={[currentUserId]}
+                    placeholder="Search participants…"
+                    onChange={setMeetupParticipantIds}
+                  />
+                )}
+              </>
             )}
-          </>
-        )}
-        {composeChannel === "MOMENTS" && (
-          <>
-            <SearchableMultiSelect
-              label="Tag people (optional)"
-              people={attendees}
-              selectedIds={taggedUserIds}
-              excludeIds={[currentUserId]}
-              placeholder="Search people to tag…"
-              onChange={setTaggedUserIds}
-            />
-            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-              Image URL
-              <input className="input" name="imageUrl" placeholder="Image URL (optional, in addition to uploads)" />
-            </label>
-            <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-              Upload photos
-              <input
-                className="input"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={async (ev) => {
-                  // Capture before any await: React detaches currentTarget after dispatch.
-                  const inputEl = ev.currentTarget;
-                  const files = [...(inputEl.files || [])].slice(0, 12);
-                  const next: string[] = [];
-                  for (const file of files) {
-                    next.push(await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 }));
-                  }
-                  setMomentImageUrls((prev) => [...prev, ...next].slice(0, 12));
-                  if (inputEl) inputEl.value = "";
-                }}
-              />
-            </label>
-            {momentImageUrls.length > 0 && (
-              <div className="moment-thumb-strip moment-thumb-strip--composer">
-                {momentImageUrls.map((url, idx) => (
-                  <div key={`${idx}-${url.slice(0, 24)}`} className="moment-thumb">
-                    <img src={url} alt="" />
-                    <button
-                      type="button"
-                      className="moment-thumb-remove"
-                      aria-label="Remove photo"
-                      onClick={() => setMomentImageUrls((prev) => prev.filter((_, i) => i !== idx))}
-                    >
-                      ×
-                    </button>
+            {composeChannel === "MOMENTS" && (
+              <>
+                <SearchableMultiSelect
+                  label="Tag people (optional)"
+                  people={attendees}
+                  selectedIds={taggedUserIds}
+                  excludeIds={[currentUserId]}
+                  placeholder="Search people to tag…"
+                  onChange={setTaggedUserIds}
+                />
+                <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                  Image URL
+                  <input
+                    className="input"
+                    value={momentImageUrlInput}
+                    onChange={(e) => setMomentImageUrlInput(e.target.value)}
+                    placeholder="Image URL (optional, in addition to uploads)"
+                  />
+                </label>
+                <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                  Upload photos
+                  <input
+                    className="input"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={async (ev) => {
+                      // Capture before any await: React detaches currentTarget after dispatch.
+                      const inputEl = ev.currentTarget;
+                      const files = [...(inputEl.files || [])].slice(0, 12);
+                      const next: string[] = [];
+                      for (const file of files) {
+                        next.push(await fileToDataUrl(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 }));
+                      }
+                      setMomentImageUrls((prev) => [...prev, ...next].slice(0, 12));
+                      if (inputEl) inputEl.value = "";
+                    }}
+                  />
+                </label>
+                {momentImageUrls.length > 0 && (
+                  <div className="moment-thumb-strip moment-thumb-strip--composer">
+                    {momentImageUrls.map((url, idx) => (
+                      <div key={`${idx}-${url.slice(0, 24)}`} className="moment-thumb">
+                        <img src={url} alt="" />
+                        <button
+                          type="button"
+                          className="moment-thumb-remove"
+                          aria-label="Remove photo"
+                          onClick={() => setMomentImageUrls((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </>
         )}
-        <button className="button" type="submit" disabled={postingThread}>
-          {postingThread ? "Posting…" : "Post"}
-        </button>
-      </form>
+      </Composer>
 
-      <div className="card network-thread-list">
-        {threads.length === 0 && (
-          <ListEmpty title={emptyStateCopy.communityBoard.title} body={emptyStateCopy.communityBoard.body} />
-        )}
-        <div
-          className={
-            channelFilter === "MOMENTS"
-              ? "community-thread-rows community-thread-rows--moments"
-              : "community-thread-rows"
-          }
-        >
+      {/* The feed is the hero: rich, scannable FeedCards. */}
+      {threads.length === 0 ? (
+        <div className="card" style={{ padding: 0 }}>
+          <EmptyState
+            title={emptyCopy.title}
+            body={emptyCopy.body}
+            icon={<CommunityPillIcon channel={channelFilter} size={20} />}
+            actionLabel={communityCopy.empty.action}
+            onAction={() => setComposeOpen(true)}
+          />
+        </div>
+      ) : (
+        <div className="community-feed">
           {threads.map((t) => {
             const open = openId === t.id;
             const ch = t.channel || "GENERAL";
-            const channelIconKey = networkThreadChannelKey(ch);
+            const channelKey = networkThreadChannelKey(ch);
             const lastReply = t.replies?.[t.replies.length - 1];
             const gallery = threadImageGallery(t);
             const taggedNames = (t.taggedUserIds ?? []).map((id) => nameById[id]).filter(Boolean);
             const meetupNames = (t.meetupParticipantIds ?? []).map((id) => nameById[id]).filter(Boolean);
+            const replyCount = t.replies?.length ?? 0;
             return (
               <div key={t.id} id={`network-thread-${t.id}`}>
-                <div className={`community-thread-row${ch === "MOMENTS" && gallery[0] ? " community-thread-row--with-photo" : ""}`}>
-                  <div className="community-thread-lead" aria-hidden>
-                    {ch === "MOMENTS" && gallery[0] ? (
-                      <img src={gallery[0]} alt="" className="community-thread-thumb" />
-                    ) : (
-                      <div className={`community-thread-icon ${ch}`}>
-                        <CommunityPillIcon channel={channelIconKey} size={22} />
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div className="community-thread-meta">
-                      {lastReply
-                        ? `Last reply ${formatRelativeTime(lastReply.createdAt)}`
-                        : `Started ${formatRelativeTime(t.createdAt)}`}
-                    </div>
-                    <h4 className="community-thread-title">{t.title}</h4>
-                    <p className="community-thread-desc">{t.body}</p>
-                    {ch === "MEETUP" && (
-                      <div className="community-thread-foot">
-                        {t.meetupInviteEveryone
-                          ? "Everyone at this event is invited"
-                          : meetupNames.length > 0
-                            ? `With ${meetupNames.join(", ")}`
-                            : "Meet-up"}
-                        {t.meetupMode
-                          ? ` · ${t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"}`
-                          : ""}
-                        {t.meetupStartsAt ? ` · ${formatEventDateTime(t.meetupStartsAt)}` : ""}
-                      </div>
-                    )}
-                    {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
-                      <div className="community-thread-foot">
-                        <OnlineMeetingLink href={ensureHttpUrl(t.meetupMeetingUrl)} />
-                      </div>
-                    ) : null}
-                    {ch === "MOMENTS" && taggedNames.length > 0 && (
-                      <div className="community-thread-foot">Tagged: {taggedNames.join(", ")}</div>
-                    )}
-                    {ch === "LOCAL" && t.mapsUrl && (
-                      <div className="community-thread-foot">
-                        <a className="local-maps-link" href={t.mapsUrl} target="_blank" rel="noreferrer">
+                <FeedCard
+                  name={t.author?.name ?? DELETED_PARTICIPANT_LABEL}
+                  meta={`${communityCopy.channels[channelKey]} · ${
+                    lastReply
+                      ? `last reply ${formatRelativeTime(lastReply.createdAt)}`
+                      : `started ${formatRelativeTime(t.createdAt)}`
+                  }`}
+                  pill={
+                    ch === "MEETUP" && t.meetupStartsAt
+                      ? { label: formatEventDateTime(t.meetupStartsAt), tone: "primary" }
+                      : undefined
+                  }
+                  actions={
+                    <>
+                      <button
+                        type="button"
+                        className="button ghost"
+                        aria-expanded={open}
+                        onClick={() => setOpenId(open ? null : t.id)}
+                      >
+                        {open ? "Close" : replyCount === 1 ? "1 reply" : `${replyCount} replies`}
+                      </button>
+                      {ch === "LOCAL" && t.mapsUrl ? (
+                        <a className="button ghost" href={t.mapsUrl} target="_blank" rel="noreferrer">
                           Open in Google Maps
                         </a>
-                      </div>
-                    )}
-                    {t.meetupMode && ch !== "MEETUP" && (
-                      <div className="community-thread-foot">
-                        {t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"} meet-up
-                        {t.meetupStartsAt ? ` · ${formatEventDateTime(t.meetupStartsAt)}` : ""}
-                      </div>
-                    )}
-                    <div className="community-thread-foot">{t.replies?.length ?? 0} replies</div>
-                  </div>
-                  <button type="button" className="button secondary community-open-btn" onClick={() => setOpenId(open ? null : t.id)}>
-                    {open ? "Close" : "Open"}
-                  </button>
-                </div>
-                {open && (
-                  <div className="network-thread-body" style={{ padding: "0 0 16px 64px" }}>
-                    {gallery.length > 0 && (
-                      <div className="community-thread-gallery">
-                        {gallery.map((src) => (
-                          <img key={src.slice(0, 48)} src={src} alt="" />
-                        ))}
-                      </div>
-                    )}
-                    {editingThreadId === t.id ? (
-                      <form
-                        className="grid"
-                        style={{ gap: 8, marginBottom: 12 }}
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          await apiFetch(
-                            `/network/threads/${t.id}`,
-                            withEventHeaders({
-                              method: "PATCH",
-                              body: JSON.stringify({ title: editTitle, body: editBody }),
-                            }),
-                            token,
-                          );
-                          setEditingThreadId(null);
-                          await onThreadsUpdated();
-                        }}
-                      >
-                        <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
-                        <textarea className="textarea" rows={4} value={editBody} onChange={(e) => setEditBody(e.target.value)} required />
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button className="button" type="submit">
-                            Save post
-                          </button>
-                          <button className="button secondary" type="button" onClick={() => setEditingThreadId(null)}>
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p>
-                    )}
-                    {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
-                      <p style={{ margin: "12px 0" }}>
-                        <OnlineMeetingLink href={ensureHttpUrl(t.meetupMeetingUrl)} />
-                      </p>
-                    ) : null}
-                    {isAdmin && (
-                      <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button
-                          className="button secondary"
-                          type="button"
-                          onClick={() => {
-                            setEditingThreadId(t.id);
-                            setEditTitle(t.title);
-                            setEditBody(t.body);
-                          }}
-                        >
-                          Edit post
-                        </button>
-                        <button
-                          className="button button-danger"
-                          type="button"
-                          onClick={() => setConfirmDeleteThreadId(t.id)}
-                        >
-                          Delete thread
-                        </button>
-                      </div>
-                    )}
-                    <div className="network-replies">
-                      {t.replies?.map((r) => (
-                        <div key={r.id} className="network-reply">
-                          <strong>{r.author?.name ?? DELETED_PARTICIPANT_LABEL}</strong>
-                          <span className="help-text"> · {formatEventDateTime(r.createdAt)}</span>
-                          <p>{r.body}</p>
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              className="button secondary"
-                              onClick={() => setConfirmDeleteReply({ threadId: t.id, replyId: r.id })}
-                              style={{ marginTop: 6 }}
-                            >
-                              Delete reply
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                      ) : null}
+                    </>
+                  }
+                >
+                  {editingThreadId === t.id ? (
                     <form
                       className="grid"
-                      style={{ gap: 8, marginTop: 8 }}
+                      style={{ gap: 8 }}
                       onSubmit={async (e) => {
                         e.preventDefault();
-                        if (replyingToId) return;
-                        // Capture before any await: React detaches currentTarget after dispatch.
-                        const formEl = e.currentTarget;
-                        const form = new FormData(formEl);
-                        const body = String(form.get("body") || "");
-                        setReplyingToId(t.id);
-                        try {
-                          await sendReply(t.id, body);
-                          formEl?.reset();
-                        } finally {
-                          setReplyingToId(null);
-                        }
+                        await apiFetch(
+                          `/network/threads/${t.id}`,
+                          withEventHeaders({
+                            method: "PATCH",
+                            body: JSON.stringify({ title: editTitle, body: editBody }),
+                          }),
+                          token,
+                        );
+                        setEditingThreadId(null);
+                        await onThreadsUpdated();
                       }}
                     >
-                      <textarea className="textarea" name="body" placeholder="Write a reply…" required rows={2} />
-                      <button className="button secondary" type="submit" disabled={replyingToId === t.id}>
-                        {replyingToId === t.id ? "Sending…" : "Reply"}
-                      </button>
+                      <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+                      <textarea className="textarea" rows={4} value={editBody} onChange={(e) => setEditBody(e.target.value)} required />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="button" type="submit">
+                          Save post
+                        </button>
+                        <button className="button secondary" type="button" onClick={() => setEditingThreadId(null)}>
+                          Cancel
+                        </button>
+                      </div>
                     </form>
-                  </div>
-                )}
+                  ) : (
+                    <>
+                      <h4 className="community-thread-title">{t.title}</h4>
+                      {open ? (
+                        <p style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{t.body}</p>
+                      ) : (
+                        <p className="community-thread-desc">{t.body}</p>
+                      )}
+                    </>
+                  )}
+                  {gallery.length > 0 && (
+                    <div className="community-thread-gallery" style={{ margin: "10px 0 0" }}>
+                      {(open ? gallery : gallery.slice(0, 3)).map((src) => (
+                        <img key={src.slice(0, 48)} src={src} alt="" />
+                      ))}
+                    </div>
+                  )}
+                  {ch === "MEETUP" && (
+                    <div className="community-thread-foot">
+                      {t.meetupInviteEveryone
+                        ? "Everyone at this event is invited"
+                        : meetupNames.length > 0
+                          ? `With ${meetupNames.join(", ")}`
+                          : "Meet-up"}
+                      {t.meetupMode
+                        ? ` · ${t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"}`
+                        : ""}
+                      {t.meetupStartsAt ? ` · ${formatEventDateTime(t.meetupStartsAt)}` : ""}
+                    </div>
+                  )}
+                  {ch === "MEETUP" && t.meetupMode === "VIRTUAL" && t.meetupMeetingUrl ? (
+                    <div className="community-thread-foot">
+                      <OnlineMeetingLink href={ensureHttpUrl(t.meetupMeetingUrl)} />
+                    </div>
+                  ) : null}
+                  {ch === "MOMENTS" && taggedNames.length > 0 && (
+                    <div className="community-thread-foot">Tagged: {taggedNames.join(", ")}</div>
+                  )}
+                  {t.meetupMode && ch !== "MEETUP" && (
+                    <div className="community-thread-foot">
+                      {t.meetupMode === "VIRTUAL" ? "Virtual" : "In-person"} meet-up
+                      {t.meetupStartsAt ? ` · ${formatEventDateTime(t.meetupStartsAt)}` : ""}
+                    </div>
+                  )}
+                  {open && (
+                    <div className="network-thread-body">
+                      {isAdmin && (
+                        <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            className="button secondary"
+                            type="button"
+                            onClick={() => {
+                              setEditingThreadId(t.id);
+                              setEditTitle(t.title);
+                              setEditBody(t.body);
+                            }}
+                          >
+                            Edit post
+                          </button>
+                          <button
+                            className="button button-danger"
+                            type="button"
+                            onClick={() => setConfirmDeleteThreadId(t.id)}
+                          >
+                            Delete thread
+                          </button>
+                        </div>
+                      )}
+                      <div className="network-replies">
+                        {t.replies?.map((r) => (
+                          <div key={r.id} className="network-reply">
+                            <strong>{r.author?.name ?? DELETED_PARTICIPANT_LABEL}</strong>
+                            <span className="help-text"> · {formatEventDateTime(r.createdAt)}</span>
+                            <p>{r.body}</p>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                className="button secondary"
+                                onClick={() => setConfirmDeleteReply({ threadId: t.id, replyId: r.id })}
+                                style={{ marginTop: 6 }}
+                              >
+                                Delete reply
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <form
+                        className="grid"
+                        style={{ gap: 8, marginTop: 8 }}
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (replyingToId) return;
+                          // Capture before any await: React detaches currentTarget after dispatch.
+                          const formEl = e.currentTarget;
+                          const form = new FormData(formEl);
+                          const body = String(form.get("body") || "");
+                          setReplyingToId(t.id);
+                          try {
+                            await sendReply(t.id, body);
+                            formEl?.reset();
+                          } finally {
+                            setReplyingToId(null);
+                          }
+                        }}
+                      >
+                        <textarea className="textarea" name="body" placeholder="Write a reply…" required rows={2} />
+                        <button className="button secondary" type="submit" disabled={replyingToId === t.id}>
+                          {replyingToId === t.id ? "Sending…" : "Reply"}
+                        </button>
+                      </form>
+                    </div>
+                  )}
+                </FeedCard>
               </div>
             );
           })}
         </div>
-      </div>
+      )}
       <ConfirmDialog
         open={Boolean(confirmDeleteThreadId)}
         title="Delete this community post?"
@@ -4589,7 +4581,6 @@ function CommunityBoard({
         }}
       />
     </div>
-    </>
   );
 }
 

@@ -522,21 +522,6 @@ a:hover {
   border: 1px solid var(--border);
 }
 
-.community-pill-inner {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.community-pill-inner svg {
-  flex-shrink: 0;
-  opacity: 0.9;
-}
-
-.community-subnav button.is-active .community-pill-inner svg {
-  opacity: 1;
-}
-
 .header h1 {
   font: var(--text-h1);
   letter-spacing: -0.01em;
@@ -2096,124 +2081,10 @@ button.schedule-meta-chip:hover {
   border-color: var(--gray-400);
 }
 
-/* Community (Whova-style list) */
-.community-subnav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.community-subnav button {
-  border-radius: var(--radius-md);
-  padding: 8px 14px;
-  border: 1px solid var(--gray-300);
-  background: #fff;
-  font-weight: 500;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--gray-700);
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: var(--transition);
-}
-
-.community-subnav button:hover:not(:disabled):not(.is-active) {
-  background: var(--gray-50);
-}
-
-.community-subnav button.is-active {
-  background: var(--event-accent-tint);
-  color: var(--event-accent);
-  border-color: transparent;
-  font-weight: 600;
-}
-
-.community-thread-rows {
+/* Community (F3.1 — content-first feed of kit FeedCards) */
+.community-feed {
   display: grid;
-  gap: 0;
-}
-
-.community-thread-rows--moments {
-  gap: 16px;
-}
-
-.community-thread-rows--moments > div {
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  padding: 14px;
-  background: #ffffff;
-  box-shadow: none;
-}
-
-.community-thread-rows--moments .community-thread-row {
-  border-bottom: none;
-  padding: 0 0 8px;
-}
-
-.community-thread-rows--moments .community-thread-row:last-child {
-  border-bottom: none;
-}
-
-.community-thread-row {
-  display: grid;
-  grid-template-columns: 52px 1fr auto;
-  gap: 12px;
-  align-items: start;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.community-thread-row--with-photo {
-  grid-template-columns: 96px 1fr auto;
-}
-
-.community-thread-row:last-child {
-  border-bottom: none;
-}
-
-.community-thread-lead {
-  flex-shrink: 0;
-}
-
-.community-thread-thumb {
-  width: 96px;
-  height: 96px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--gray-200);
-  display: block;
-  box-shadow: none;
-}
-
-.local-maps-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-  color: var(--event-accent-hover);
-  text-decoration: none;
-}
-
-.local-maps-link:hover {
-  text-decoration: underline;
-}
-
-.community-thread-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background: var(--gray-100);
-  border: 1px solid var(--gray-200);
-}
-
-.community-thread-icon svg {
-  display: block;
-  color: var(--gray-600);
+  gap: var(--space-3);
 }
 
 .community-thread-title {
@@ -2245,84 +2116,6 @@ button.schedule-meta-chip:hover {
   color: var(--ink-500);
 }
 
-.community-open-btn {
-  align-self: center;
-  white-space: nowrap;
-}
-
-.icebreaker-hero-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px 20px;
-  margin-bottom: 16px;
-  padding: 14px 18px;
-  border-radius: var(--radius-sm);
-}
-
-.icebreaker-hero-copy {
-  flex: 1 1 220px;
-  min-width: min(100%, 200px);
-  margin-right: auto;
-  color: var(--ink-900);
-}
-
-.icebreaker-hero-copy .help-text {
-  max-width: 42rem;
-}
-
-.icebreaker-hero-art {
-  flex: 0 0 auto;
-  width: min(240px, 28vw);
-  max-width: 100%;
-}
-
-.icebreaker-hero-img {
-  display: block;
-  width: 100%;
-  height: auto;
-  object-fit: contain;
-}
-
-@media (max-width: 640px) {
-  .icebreaker-hero-art {
-    width: min(200px, 55vw);
-    margin-left: auto;
- }
-}
-
-/* Networking */
-.networking-board {
-  align-items: start;
-}
-
-.network-thread-list {
-  display: grid;
-  gap: 12px;
-}
-
-.network-thread-toggle {
-  width: 100%;
-  text-align: left;
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  cursor: pointer;
-  color: inherit;
-  display: grid;
-  gap: 4px;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: var(--transition);
-}
-
-.network-thread-toggle:hover {
-  border-color: var(--gray-300);
-  background: #ffffff;
-}
-
 .network-thread-body {
   margin-top: 12px;
   padding-top: 12px;
@@ -2346,24 +2139,11 @@ button.schedule-meta-chip:hover {
   min-width: 0;
 }
 
-.msg-list-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-3);
-}
-
 .new-chat-panel {
   margin-bottom: var(--space-4);
   padding: var(--space-3);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-}
-
-.msg-empty-inbox {
-  margin-top: var(--space-4);
 }
 
 /* Conversation rows: a list with hairlines between rows, not a stack of cards. */
@@ -2830,6 +2610,14 @@ button.schedule-meta-chip:hover {
   background: #ffffff;
 }
 
+/* F3.2 — Q&A row header: title + answered pill on one line. */
+.session-thread-link-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 .session-thread-detail {
   display: grid;
   gap: 14px;
@@ -3141,18 +2929,6 @@ button.schedule-meta-chip:hover {
     align-items: stretch;
   }
 
-  .community-subnav {
-    gap: 6px;
-  }
-
-  .community-subnav button {
-    min-height: 42px;
-  }
-
-  .community-thread-row {
-    padding: 12px 10px;
-  }
-
   .messages-layout {
     grid-template-columns: 1fr;
   }
@@ -3247,8 +3023,7 @@ button.schedule-meta-chip:hover {
 
   .button,
   .button.secondary,
-  .session-thread-link,
-  .network-thread-toggle {
+  .session-thread-link {
     min-height: 44px;
   }
 }
@@ -3883,7 +3658,6 @@ button.schedule-meta-chip:hover {
 .schedule-toolbar-btn,
 .attendee-msg-btn,
 .attendee-index-letter,
-.community-subnav button,
 .message-sidebar-card .button,
 .session-page-toolbar .button {
   min-height: 44px;
@@ -6811,6 +6585,21 @@ button.schedule-meta-chip:hover {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* F3 — inline composer validation (never window.alert). */
+.kit-composer-error {
+  font: var(--text-meta);
+  color: var(--danger);
+  margin: 0;
+}
+
+/* F3 — vertical rhythm for a kit-built page/tab: header → pills →
+   composer → feed, one consistent gap. */
+.kit-page-stack {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
 }
 
 /* —— FeedCard: avatar + byline + status pill + body + inline actions. —— */

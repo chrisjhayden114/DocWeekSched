@@ -4,7 +4,7 @@
  * safe, keyboard accessible. Demoed on /styleguide.
  */
 export { Composer } from "./Composer";
-export type { ComposerProps } from "./Composer";
+export type { ComposerDraft, ComposerProps } from "./Composer";
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
 export { FeedCard, initialsFor } from "./FeedCard";

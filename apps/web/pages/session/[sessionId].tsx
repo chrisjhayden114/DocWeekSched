@@ -1,4 +1,4 @@
-import { brand, emptyStateCopy, programCopy } from "@event-app/config";
+import { brand, emptyStateCopy, programCopy, sessionQaCopy } from "@event-app/config";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -6,6 +6,7 @@ import { DELETED_PARTICIPANT_LABEL, resolveFeatureEnabled, type FeatureKey, type
 import { AppShell, type ShellNavGroup } from "../../components/AppShell";
 import { MainNavIcon } from "../../components/dashboardNavIcons";
 import { ListSkeleton } from "../../components/ListState";
+import { Composer, EmptyState, FilterPills } from "../../components/kit";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { SegmentedToggle } from "../../components/SegmentedToggle";
 import { ConciergeChat } from "../../components/ConciergeChat";
@@ -1024,50 +1025,39 @@ export default function SessionPage() {
           </div>
 
           <div className="card session-conversation-card">
-            <h3 style={{ marginTop: 0 }}>Session Q&amp;A</h3>
+            <h3 style={{ marginTop: 0 }}>{sessionQaCopy.title}</h3>
             <p className="help-text" style={{ marginTop: 0 }}>
-              Ask questions, upvote what matters, and (for organizers) mark answered or hide. Updates every few seconds.
+              {sessionQaCopy.purpose}
             </p>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              <button
-                type="button"
-                className={qaSort === "votes" ? "button" : "button secondary"}
-                onClick={() => setQaSort("votes")}
-              >
-                Top votes
-              </button>
-              <button
-                type="button"
-                className={qaSort === "recent" ? "button" : "button secondary"}
-                onClick={() => setQaSort("recent")}
-              >
-                Recent
-              </button>
+            {/* F3.2 — content-first: the thread list leads; asking is a
+                collapsed Composer, matching the resources section above. */}
+            <div style={{ marginBottom: 10 }}>
+              <FilterPills
+                label={sessionQaCopy.sortLabel}
+                options={[
+                  { id: "votes", label: sessionQaCopy.sortVotes },
+                  { id: "recent", label: sessionQaCopy.sortRecent },
+                ]}
+                value={qaSort}
+                onChange={(id) => setQaSort(id as "votes" | "recent")}
+              />
             </div>
-            <form
-              className="grid"
-              style={{ gap: 10 }}
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const form = new FormData(e.currentTarget);
-                const title = String(form.get("title") || "").trim();
-                const body = String(form.get("body") || "").trim();
-                if (!title || !body) return;
+            <Composer
+              collapsedLabel={sessionQaCopy.composer.collapsed}
+              submitLabel={sessionQaCopy.composer.submit}
+              titlePlaceholder={sessionQaCopy.composer.titlePlaceholder}
+              placeholder={sessionQaCopy.composer.bodyPlaceholder}
+              onSubmit={async (body, title) => {
                 await createThread(title, body);
-                e.currentTarget.reset();
               }}
-            >
-              <input className="input" name="title" placeholder="Conversation title" required />
-              <textarea className="textarea" name="body" placeholder="Start a new session conversation…" required rows={3} />
-              <button type="submit" className="button">Start conversation</button>
-            </form>
+            />
             <div className="session-thread-layout">
               <div className="session-thread-list">
                 {threads.length === 0 && (
-                  <p className="help-text" style={{ margin: 0 }}>
-                    <strong>{emptyStateCopy.sessionDiscussion.title}.</strong>{" "}
-                    {emptyStateCopy.sessionDiscussion.body}
-                  </p>
+                  <EmptyState
+                    title={emptyStateCopy.sessionDiscussion.title}
+                    body={emptyStateCopy.sessionDiscussion.body}
+                  />
                 )}
                 {threads.map((thread) => (
                   <button
@@ -1076,13 +1066,15 @@ export default function SessionPage() {
                     className={`session-thread-link ${thread.id === openThreadId ? "is-active" : ""}`}
                     onClick={() => setOpenThreadId(thread.id)}
                   >
-                    <strong>
-                      {thread.isAnswered ? "✓ " : ""}
-                      {thread.title}
-                    </strong>
+                    <span className="session-thread-link-top">
+                      <strong>{thread.title}</strong>
+                      {thread.isAnswered ? (
+                        <span className="kit-status-pill kit-status-pill--success">{sessionQaCopy.answeredPill}</span>
+                      ) : null}
+                    </span>
                     <span className="help-text">
-                      {thread.upvoteCount ?? 0} votes · {thread.author?.name ?? DELETED_PARTICIPANT_LABEL} ·{" "}
-                      {thread.replies.length} replies
+                      {sessionQaCopy.votes(thread.upvoteCount ?? 0)} · {thread.author?.name ?? DELETED_PARTICIPANT_LABEL} ·{" "}
+                      {sessionQaCopy.replies(thread.replies.length)}
                     </span>
                   </button>
                 ))}

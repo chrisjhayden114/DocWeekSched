@@ -1,3 +1,4 @@
+import { messagesCopy } from "@event-app/config";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DELETED_PARTICIPANT_LABEL } from "@event-app/shared";
 import { apiFetch, apiFetchAll } from "../lib/api";
@@ -21,6 +22,7 @@ import {
 import { AutolinkText } from "./AutolinkText";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSkeleton } from "./ListState";
+import { EmptyState, PageHeader } from "./kit";
 import { KebabMenu } from "./KebabMenu";
 import { SearchableMultiSelect, type SelectablePerson } from "./SearchableMultiSelect";
 
@@ -365,20 +367,25 @@ export function MessagesPanel({
   const emptyInbox = messagingConversations.length === 0;
 
   return (
+    <div className="kit-page-stack">
+      {/* F3.3 — light touch only: the kit wayfinding header (the "New
+          message" toggle moves up here); phase-1 behavior is unchanged. */}
+      <PageHeader
+        title={messagesCopy.title}
+        state={messagesCopy.purpose}
+        action={
+          <button
+            type="button"
+            className="button"
+            onClick={() => setNewConversationMode((prev) => (prev ? null : "direct"))}
+          >
+            {newConversationMode ? messagesCopy.closeNew : messagesCopy.newMessage}
+          </button>
+        }
+      />
     <div className="grid messages-layout">
       {/* ——— conversation list pane ——— */}
       <div className="card message-sidebar-card">
-        <div className="msg-list-header">
-          <h3 style={{ margin: 0 }}>Messages</h3>
-          <button
-            type="button"
-            className="button secondary"
-            onClick={() => setNewConversationMode((prev) => (prev ? null : "direct"))}
-          >
-            {newConversationMode ? "Close" : "New message"}
-          </button>
-        </div>
-
         {newConversationMode ? (
           <div className="new-chat-panel">
             {groupsEnabled && dmsEnabled ? (
@@ -442,18 +449,12 @@ export function MessagesPanel({
         />
 
         {emptyInbox ? (
-          <div className="msg-empty-inbox">
-            <p style={{ margin: 0, fontWeight: 600, color: "var(--gray-900)" }}>No messages yet.</p>
-            <p className="help-text" style={{ margin: "6px 0 0" }}>
-              Message someone from the Attendees list, or from a speaker&apos;s name on any session page.
-              Looking for open discussion instead? That&apos;s in Community.
-            </p>
-            {directoryEnabled ? (
-              <button type="button" className="button secondary" style={{ marginTop: 12 }} onClick={onBrowseAttendees}>
-                Browse attendees
-              </button>
-            ) : null}
-          </div>
+          <EmptyState
+            title={messagesCopy.empty.title}
+            body={messagesCopy.empty.body}
+            actionLabel={directoryEnabled ? messagesCopy.empty.action : undefined}
+            onAction={directoryEnabled ? onBrowseAttendees : undefined}
+          />
         ) : visibleConversations.length === 0 ? (
           <p className="help-text" style={{ marginTop: 16 }}>
             No conversations match &ldquo;{searchQuery.trim()}&rdquo;.
@@ -747,6 +748,7 @@ export function MessagesPanel({
           }
         }}
       />
+    </div>
     </div>
   );
 }

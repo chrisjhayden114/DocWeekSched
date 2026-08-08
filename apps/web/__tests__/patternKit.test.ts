@@ -42,7 +42,7 @@ function run(events: ComposerEvent[], from: ComposerState = composerInitialState
 
 describe("F1 — Composer collapse/expand contract", () => {
   it("starts collapsed and empty", () => {
-    expect(composerInitialState).toEqual({ expanded: false, value: "" });
+    expect(composerInitialState).toEqual({ expanded: false, value: "", title: "" });
   });
 
   it("expands on invoke and accepts a draft", () => {
@@ -62,14 +62,33 @@ describe("F1 — Composer collapse/expand contract", () => {
 
   it("a successful submit clears the draft and collapses", () => {
     const state = run([{ type: "expand" }, { type: "change", value: "posted!" }, { type: "submitted" }]);
-    expect(state).toEqual({ expanded: false, value: "" });
+    expect(state).toEqual({ expanded: false, value: "", title: "" });
   });
 
   it("submit is allowed only when expanded with a non-blank draft", () => {
     expect(composerCanSubmit(composerInitialState)).toBe(false);
-    expect(composerCanSubmit({ expanded: true, value: "   " })).toBe(false);
-    expect(composerCanSubmit({ expanded: true, value: "hi" })).toBe(true);
-    expect(composerCanSubmit({ expanded: false, value: "hi" })).toBe(false);
+    expect(composerCanSubmit({ expanded: true, value: "   ", title: "" })).toBe(false);
+    expect(composerCanSubmit({ expanded: true, value: "hi", title: "" })).toBe(true);
+    expect(composerCanSubmit({ expanded: false, value: "hi", title: "" })).toBe(false);
+  });
+
+  it("F3: a title is required only when the screen renders a title field", () => {
+    const drafted: ComposerState = { expanded: true, value: "body text", title: "  " };
+    expect(composerCanSubmit(drafted)).toBe(true);
+    expect(composerCanSubmit(drafted, { requireTitle: true })).toBe(false);
+    expect(composerCanSubmit({ ...drafted, title: "A headline" }, { requireTitle: true })).toBe(true);
+  });
+
+  it("F3: the title rides the draft contract — kept on collapse, cleared on submit", () => {
+    const collapsed = run([
+      { type: "expand" },
+      { type: "changeTitle", value: "Dinner plans" },
+      { type: "change", value: "Anyone up for tapas?" },
+      { type: "collapse" },
+    ]);
+    expect(collapsed.title).toBe("Dinner plans");
+    const submitted = run([{ type: "expand" }, { type: "submitted" }], collapsed);
+    expect(submitted).toEqual({ expanded: false, value: "", title: "" });
   });
 });
 

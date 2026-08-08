@@ -208,12 +208,8 @@ export const sessionEditorCopy = {
  */
 export const emptyStateCopy = {
   sessionDiscussion: {
-    title: "No conversations yet",
-    body: "Questions and discussion for this session live here — everyone attending can read and reply. Start the first one above.",
-  },
-  communityBoard: {
-    title: "Nothing here yet",
-    body: "Community is the event-wide board — introductions, plans, questions for everyone. Start the first post above.",
+    title: "Ask the first question",
+    body: "Questions and discussion for this session live here — everyone attending can read and reply. Use “Ask a question” above.",
   },
   waitlist:
     "No one is waiting for a seat. When this session reaches capacity, attendees can join the waitlist and you can promote them from here.",
@@ -238,6 +234,118 @@ export const kitCopy = {
     close: "Close",
     /** Progressive-disclosure toggle for advanced fields (F1.2 #7). */
     moreOptions: "More options",
+  },
+} as const;
+
+/**
+ * Community copy (Chunk F3.1, DESIGN_PHASE_F) — the content-first board:
+ * wayfinding header, channel pills, the on-demand composer (with its
+ * per-channel hints and inline validation), and teaching empty states.
+ * Edit this module, not dashboard.tsx.
+ */
+export const communityCopy = {
+  header: {
+    title: "Community",
+    purpose: "Meet-ups, moments, local tips, and introductions — spaces for everyone at this event.",
+    postCount: (n: number) => `${n} post${n === 1 ? "" : "s"}`,
+  },
+  /** Channel pill labels (the filter row). */
+  channels: {
+    ALL: "All",
+    MEETUP: "Meet-ups",
+    MOMENTS: "Moments",
+    LOCAL: "Local tips",
+    ICEBREAKER: "Break the ice",
+    GENERAL: "General",
+  },
+  composer: {
+    collapsed: "Start a post…",
+    submit: "Post",
+    titlePlaceholder: "Title",
+    bodyPlaceholder: "Description or message",
+    /** Channel picker label, shown when composing from the All view. */
+    postInLabel: "Post in",
+  },
+  /** One orienting line inside the expanded composer, per channel. */
+  hints: {
+    MEETUP: "Propose a meet-up and invite specific people, or open it to everyone at this event.",
+    MOMENTS: "Upload one or more photos, tag people from the directory, and add a caption.",
+    LOCAL: "Recommend a place and paste a Google Maps link so others can open it in Maps.",
+    ICEBREAKER: "Welcome others — share a quick intro or icebreaker prompt.",
+    GENERAL: "Open discussion for everyone at this event.",
+  },
+  /** Inline composer validation — never window.alert. */
+  errors: {
+    meetupLink: "Add a video link for virtual meet-ups (Zoom, Google Meet, Teams, etc.).",
+    meetupParticipants: "Add at least one participant, or choose “Invite everyone”.",
+    mapsSearchNeedsText: "Add a title or description first to search Maps.",
+    createFailed: "Could not create the post.",
+  },
+  /** Teaching empty states, per channel (an invitation, never "Nothing here yet"). */
+  empty: {
+    action: "Start a post",
+    ALL: {
+      title: "Start the conversation",
+      body: "Introductions, plans, questions for everyone — the first post sets the tone.",
+    },
+    GENERAL: {
+      title: "Start the conversation",
+      body: "Open discussion for everyone at this event — the first post sets the tone.",
+    },
+    MEETUP: {
+      title: "Propose the first meet-up",
+      body: "Coffee, dinner, a walk between sessions — invite specific people or everyone at the event.",
+    },
+    MOMENTS: {
+      title: "Share the first moment",
+      body: "Photos from talks, posters, and everything in between — tag the people in them.",
+    },
+    LOCAL: {
+      title: "Share a local tip",
+      body: "Know a good spot near the venue? Recommend it with a Maps link so others can find it.",
+    },
+    ICEBREAKER: {
+      title: "Break the ice",
+      body: "Introduce yourself — where you're from, what you work on, what you're hoping to get from the event.",
+    },
+  },
+} as const;
+
+/**
+ * Session Q&A copy (Chunk F3.2, DESIGN_PHASE_F) — threads lead, asking is
+ * on demand. Edit this module, not pages/session/[sessionId].tsx.
+ */
+export const sessionQaCopy = {
+  title: "Session Q&A",
+  purpose: "Ask questions, upvote what matters, and (for organizers) mark answered or hide. Updates every few seconds.",
+  sortLabel: "Sort questions",
+  sortVotes: "Top votes",
+  sortRecent: "Recent",
+  composer: {
+    collapsed: "Ask a question…",
+    submit: "Post question",
+    titlePlaceholder: "Question title",
+    bodyPlaceholder: "What would you like to ask or discuss?",
+  },
+  answeredPill: "Answered",
+  votes: (n: number) => `${n} vote${n === 1 ? "" : "s"}`,
+  replies: (n: number) => `${n} repl${n === 1 ? "y" : "ies"}`,
+} as const;
+
+/**
+ * Messages copy (Chunk F3.3, DESIGN_PHASE_F) — light touch only: the
+ * wayfinding header and the kit empty state. Phase-1 messaging behavior
+ * (E18) is unchanged. Edit this module, not MessagesPanel.tsx.
+ */
+export const messagesCopy = {
+  title: "Messages",
+  purpose: "Private 1:1 and group conversations with people at this event.",
+  newMessage: "New message",
+  closeNew: "Close",
+  empty: {
+    title: "Start a conversation",
+    body: "Message someone from the Attendees list, or from a speaker's name on any session page. Open discussion lives in Community.",
+    action: "Browse attendees",
   },
 } as const;
 
