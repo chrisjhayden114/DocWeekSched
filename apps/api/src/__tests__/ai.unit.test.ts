@@ -166,7 +166,8 @@ describe("AI gateway (mock provider, no DB)", () => {
 
   it("maps AGENT_ATTENDEE_TOUCH to DIGEST (never INTERRUPT)", () => {
     expect(classForKind(NotificationKind.AGENT_ATTENDEE_TOUCH)).toBe(NotificationClass.DIGEST);
-    expect(classForKind(NotificationKind.MESSAGE)).toBe(NotificationClass.INTERRUPT);
+    expect(classForKind(NotificationKind.MESSAGE)).toBe(NotificationClass.DIGEST);
+    expect(classForKind(NotificationKind.ANNOUNCEMENT)).toBe(NotificationClass.INTERRUPT);
   });
 
   it("rejects foreign IDs in grounding assert", () => {

@@ -14,7 +14,7 @@ import {
 
 describe("calm notification class routing", () => {
   it("maps kinds to INTERRUPT vs DIGEST", () => {
-    expect(classForKind(NotificationKind.MESSAGE)).toBe(NotificationClass.INTERRUPT);
+    expect(classForKind(NotificationKind.MESSAGE)).toBe(NotificationClass.DIGEST);
     expect(classForKind(NotificationKind.ANNOUNCEMENT)).toBe(NotificationClass.INTERRUPT);
     expect(classForKind(NotificationKind.SESSION_CHANGED)).toBe(NotificationClass.INTERRUPT);
     expect(classForKind(NotificationKind.COMMUNITY_THREAD)).toBe(NotificationClass.DIGEST);

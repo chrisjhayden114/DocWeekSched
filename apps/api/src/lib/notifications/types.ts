@@ -13,7 +13,6 @@ export type MuteCategory =
   | "session_alerts";
 
 const INTERRUPT_KINDS = new Set<NotificationKind>([
-  NotificationKind.MESSAGE,
   NotificationKind.ADMIN_REQUEST,
   NotificationKind.WAITLIST_PROMOTED,
   NotificationKind.ANNOUNCEMENT,

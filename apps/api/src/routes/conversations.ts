@@ -2,9 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
-import { getDirectConversation, getOrCreateEventConversation } from "../lib/conversations";
+import { getDirectConversation } from "../lib/conversations";
 import { allAttendeeUserIds, notifyNewMessage } from "../lib/notifications";
-import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
@@ -45,7 +44,6 @@ conversationsRouter.get(
     const userId = req.user!.id;
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(userId, event.id);
-    await getOrCreateEventConversation(event.id);
     const { take, cursor } = parsePagination(req.query);
 
     const { featureEnabled } = await import("../lib/features");
@@ -274,8 +272,6 @@ conversationsRouter.post(
       },
       include: { user: { select: { id: true, name: true, role: true } } },
     });
-
-    await awardEngagementPoints(userId, POINTS.MESSAGE);
 
     try {
       if (conversation.type === "EVENT" && access.canManageEvent) {

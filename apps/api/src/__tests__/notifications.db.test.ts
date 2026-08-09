@@ -120,7 +120,7 @@ describe("calm notification platform (DB)", () => {
         {
           userId: ids.userId!,
           eventId: ids.eventId!,
-          kind: NotificationKind.MESSAGE,
+          kind: NotificationKind.ANNOUNCEMENT,
           title: `Push ${i + 1}`,
           body: "hi",
         },
@@ -135,7 +135,7 @@ describe("calm notification platform (DB)", () => {
       {
         userId: ids.userId!,
         eventId: ids.eventId!,
-        kind: NotificationKind.MESSAGE,
+        kind: NotificationKind.ANNOUNCEMENT,
         title: "Push 6",
         body: "over",
       },
@@ -156,8 +156,8 @@ describe("calm notification platform (DB)", () => {
       {
         userId: ids.userId!,
         eventId: ids.eventId!,
-        kind: NotificationKind.MESSAGE,
-        title: "Late DM",
+        kind: NotificationKind.ANNOUNCEMENT,
+        title: "Late announcement",
       },
       at2300,
     );
