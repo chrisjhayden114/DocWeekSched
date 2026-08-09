@@ -96,6 +96,7 @@ export function MessagesPanel({
   const [newIncomingCount, setNewIncomingCount] = useState(0);
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
   const [isOffline, setIsOffline] = useState(false);
+  const [threadError, setThreadError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const threadHeadingRef = useRef<HTMLHeadingElement | null>(null);
@@ -201,6 +202,7 @@ export function MessagesPanel({
     setMessages([]);
     setEditingMessageId(null);
     setNewIncomingCount(0);
+    setThreadError(null);
     stickToBottomRef.current = true;
     prevLastMessageIdRef.current = null;
     if (!activeConversationId) return;
@@ -303,6 +305,7 @@ export function MessagesPanel({
         token,
       );
       setMessages((prev) => prev.map((m) => (m.clientId === clientId ? saved : m)));
+      setThreadError(null);
       setLiveAnnouncement("Message sent");
       onMessageSent?.();
       void refreshConversations();
@@ -372,7 +375,6 @@ export function MessagesPanel({
           message" toggle moves up here); phase-1 behavior is unchanged. */}
       <PageHeader
         title={messagesCopy.title}
-        state={messagesCopy.purpose}
         action={
           <button
             type="button"
@@ -533,7 +535,11 @@ export function MessagesPanel({
           onScroll={handleThreadScroll}
         >
           {!activeConversation ? (
-            <p className="msg-thread-placeholder">Select a conversation</p>
+            emptyInbox ? (
+              <EmptyState title={messagesCopy.empty.title} body={messagesCopy.empty.body} />
+            ) : (
+              <p className="msg-thread-placeholder">Select a conversation</p>
+            )
           ) : threadLoading && messages.length === 0 ? (
             <ListSkeleton rows={3} />
           ) : messages.length === 0 ? (
@@ -582,7 +588,7 @@ export function MessagesPanel({
                                     setMessages((prev) => prev.map((row) => (row.id === m.id ? updated : row)));
                                     setEditingMessageId(null);
                                   } catch (err) {
-                                    window.alert(err instanceof Error ? err.message : "Could not save message");
+                                    setThreadError(err instanceof Error ? err.message : "Couldn't save that edit.");
                                   }
                                 }}
                               >
@@ -685,6 +691,15 @@ export function MessagesPanel({
           <p className="msg-offline-strip">You&apos;re offline. Messages will send when you reconnect.</p>
         ) : null}
 
+        {threadError ? (
+          <div className="msg-thread-error" role="alert">
+            <span>{threadError}</span>
+            <button type="button" className="msg-inline-action" onClick={() => setThreadError(null)}>
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
         {activeConversation ? (
           composerBlockedNotice ? (
             <p className="help-text" role="status" style={{ margin: "8px 0 0" }}>
@@ -744,7 +759,9 @@ export function MessagesPanel({
             setMessages((prev) => prev.filter((m) => m.id !== deleteConfirmId));
             setDeleteConfirmId(null);
           } catch (err) {
-            window.alert(err instanceof Error ? err.message : "Could not delete message");
+            // Close the dialog so the inline thread notice is visible.
+            setDeleteConfirmId(null);
+            setThreadError(err instanceof Error ? err.message : "Couldn't delete that message.");
           }
         }}
       />

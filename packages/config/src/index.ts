@@ -343,8 +343,8 @@ export const messagesCopy = {
   newMessage: "New message",
   closeNew: "Close",
   empty: {
-    title: "Start a conversation",
-    body: "Message someone from the Attendees list, or from a speaker's name on any session page. Open discussion lives in Community.",
+    title: "No conversations yet",
+    body: "Start one from an attendee's profile, a session, or the Break the ice tab.",
     action: "Browse attendees",
   },
 } as const;

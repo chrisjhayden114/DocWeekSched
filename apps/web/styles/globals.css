@@ -2368,7 +2368,7 @@ button.schedule-meta-chip:hover {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .msg-group.is-self {
@@ -2389,11 +2389,30 @@ button.schedule-meta-chip:hover {
 .msg-bubble {
   background: var(--gray-100);
   color: var(--gray-900);
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   padding: var(--space-2) var(--space-3);
   max-width: min(62ch, 78%);
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+
+/* Collapse adjacent corners within a sender's run (each .msg-group is one run).
+   :*-of-type instead of :*-child — the run's last child is the .msg-group-meta
+   <p>, so :last-child would never match a row. Rows are the group's only divs. */
+.msg-group:not(.is-self) .msg-row:not(:first-of-type) .msg-bubble {
+  border-top-left-radius: 6px;
+}
+
+.msg-group:not(.is-self) .msg-row:not(:last-of-type) .msg-bubble {
+  border-bottom-left-radius: 6px;
+}
+
+.msg-group.is-self .msg-row:not(:first-of-type) .msg-bubble {
+  border-top-right-radius: 6px;
+}
+
+.msg-group.is-self .msg-row:not(:last-of-type) .msg-bubble {
+  border-bottom-right-radius: 6px;
 }
 
 .msg-bubble.is-self {
@@ -2423,6 +2442,18 @@ button.schedule-meta-chip:hover {
 .msg-send-failed {
   font: var(--text-meta);
   color: var(--danger);
+}
+
+.msg-thread-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--danger-50);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font: var(--text-meta);
 }
 
 .msg-inline-action {
@@ -2478,6 +2509,16 @@ button.schedule-meta-chip:hover {
   resize: vertical;
   min-height: 56px;
   max-height: 200px;
+  font-size: 16px; /* ≥16px prevents iOS Safari auto-zoom on focus */
+}
+
+@media (max-width: 767px) {
+  .msg-composer {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface);
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+  }
 }
 
 .msg-composer-footer {
