@@ -163,6 +163,19 @@ describe("Phase 5 engagement (DB)", () => {
     });
     const t = await prisma.sessionDiscussionThread.findUnique({ where: { id: ids.threadId! } });
     expect(t?.answeredAt).toBeTruthy();
+
+    // G3: audience defaults to EVERYONE; PRESENTERS persists when provided.
+    expect(t?.audience).toBe("EVERYONE");
+    const presenterThread = await prisma.sessionDiscussionThread.create({
+      data: {
+        sessionId: ids.sessionId!,
+        authorId: ids.attendeeId!,
+        title: "For the presenter?",
+        body: "Directed question",
+        audience: "PRESENTERS",
+      },
+    });
+    expect(presenterThread.audience).toBe("PRESENTERS");
   });
 
   it("live poll open/vote/close", async () => {

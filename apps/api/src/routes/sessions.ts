@@ -50,6 +50,7 @@ const attendanceSchema = z.object({
 const threadSchema = z.object({
   title: z.string().min(1).max(500),
   body: z.string().min(1).max(8000),
+  audience: z.enum(["EVERYONE", "PRESENTERS"]).optional(),
 });
 
 const replySchema = z.object({
@@ -934,6 +935,7 @@ sessionsRouter.post(
         authorId: userId,
         title: parsed.data.title,
         body: parsed.data.body,
+        audience: parsed.data.audience ?? "EVERYONE",
       },
       include: {
         author: { select: { id: true, name: true, role: true, photoUrl: true } },

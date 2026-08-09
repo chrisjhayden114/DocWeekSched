@@ -1109,6 +1109,7 @@ model SessionDiscussionThread {
   id          String                    @id @default(cuid())
   title       String
   body        String
+  audience    String                    @default("EVERYONE")
   createdAt   DateTime                  @default(now())
   sessionId   String
   session     Session                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)

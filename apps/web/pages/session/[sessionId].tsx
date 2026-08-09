@@ -100,6 +100,7 @@ type SessionThread = {
   upvotedByMe?: boolean;
   isAnswered?: boolean;
   isHidden?: boolean;
+  audience?: "EVERYONE" | "PRESENTERS";
 };
 
 type SessionPoll = {
@@ -205,6 +206,7 @@ export default function SessionPage() {
   const [threads, setThreads] = useState<SessionThread[]>([]);
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [qaSort, setQaSort] = useState<"recent" | "votes">("votes");
+  const [qaAudience, setQaAudience] = useState<"EVERYONE" | "PRESENTERS">("EVERYONE");
   const [polls, setPolls] = useState<SessionPoll[]>([]);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [pollsOn, setPollsOn] = useState(false);
@@ -459,10 +461,11 @@ export default function SessionPage() {
     if (!token || !sessionId) return;
     const thread = await apiFetch<SessionThread>(`/sessions/${sessionId}/conversations`, {
       method: "POST",
-      body: JSON.stringify({ title, body }),
+      body: JSON.stringify({ title, body, audience: qaAudience }),
     }, token);
     setThreads((prev) => [thread, ...prev]);
     setOpenThreadId(thread.id);
+    setQaAudience("EVERYONE");
     await refreshUser(token);
   };
 
@@ -823,7 +826,19 @@ export default function SessionPage() {
               onSubmit={async (body, title) => {
                 await createThread(title, body);
               }}
-            />
+            >
+              <div style={{ margin: "0 0 4px" }}>
+                <FilterPills
+                  label="Ask"
+                  options={[
+                    { id: "EVERYONE", label: "Everyone" },
+                    { id: "PRESENTERS", label: "For the presenter" },
+                  ]}
+                  value={qaAudience}
+                  onChange={(id) => setQaAudience(id as "EVERYONE" | "PRESENTERS")}
+                />
+              </div>
+            </Composer>
             <div className="session-thread-layout">
               <div className="session-thread-list">
                 {threads.length === 0 && (
@@ -841,6 +856,9 @@ export default function SessionPage() {
                   >
                     <span className="session-thread-link-top">
                       <strong>{thread.title}</strong>
+                      {thread.audience === "PRESENTERS" && (
+                        <span className="kit-status-pill">For the presenter</span>
+                      )}
                       {thread.isAnswered ? (
                         <span className="kit-status-pill kit-status-pill--success">{sessionQaCopy.answeredPill}</span>
                       ) : null}
