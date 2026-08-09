@@ -36,6 +36,7 @@ import { galleryPreview } from "../lib/gallery";
 import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
+import { BreakTheIceCarousel } from "../components/BreakTheIceCarousel";
 import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
 import { Portal } from "../components/kit/Portal";
 import { Select } from "../components/Select";
@@ -1667,6 +1668,8 @@ export default function Dashboard() {
           onFocusThreadConsumed={clearCommunityFocus}
           token={token!}
           withEventHeaders={withEventHeaders}
+          eventName={event?.name || "this event"}
+          onSayHi={sayHiToAttendee}
           enabledChannels={{
             MEETUP: featureOn("community_meetups"),
             MOMENTS: featureOn("community_moments"),
@@ -3979,6 +3982,8 @@ function CommunityBoard({
   onThreadsUpdated,
   enabledChannels,
   eventDays,
+  eventName,
+  onSayHi,
 }: {
   threads: NetworkThread[];
   channelFilter: CommunityChannelFilter;
@@ -3993,6 +3998,8 @@ function CommunityBoard({
   onThreadsUpdated: () => Promise<void>;
   enabledChannels: Record<Exclude<CommunityChannelFilter, "ALL">, boolean>;
   eventDays: string[];
+  eventName: string;
+  onSayHi: (attendee: User) => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
   // F3.1 — compose is on demand: the composer is collapsed until invoked
@@ -4441,6 +4448,16 @@ function CommunityBoard({
           </>
         )}
       </Composer>
+
+      {channelFilter === "ICEBREAKER" ? (
+        <BreakTheIceCarousel
+          people={attendees.filter((a) => a.id !== currentUserId)}
+          token={token}
+          withEventHeaders={withEventHeaders}
+          eventName={eventName}
+          onOpenDm={(p) => onSayHi(attendees.find((a) => a.id === p.id) ?? (p as unknown as User))}
+        />
+      ) : null}
 
       {/* The feed is the hero: rich, scannable FeedCards. */}
       {threads.length === 0 ? (

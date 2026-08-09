@@ -7051,3 +7051,27 @@ a.kit-action-card:focus-visible {
   --action-bg-hover: var(--event-accent-hover);
   --action-fg: var(--event-accent-on);
 }
+
+/* ==========================================================================
+   G4 — "Break the ice": faces carousel atop the ICEBREAKER channel.
+   ========================================================================== */
+.break-ice-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.break-ice-title { margin: 0 0 4px; font: var(--text-h3); color: var(--title-color); }
+.break-ice-carousel { position: relative; }
+.break-ice-track { display: flex; gap: 10px; overflow-x: auto; scroll-behavior: smooth; padding: 4px 2px 8px; scrollbar-width: thin; }
+.break-ice-card { position: relative; flex: 0 0 auto; width: 132px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 8px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); cursor: pointer; text-align: center; transition: var(--transition); }
+.break-ice-card:hover { border-color: var(--gray-400); }
+.break-ice-card.is-selected { border-color: var(--event-accent, var(--action-bg)); box-shadow: 0 0 0 2px var(--event-accent-tint, var(--gray-200)); }
+.break-ice-avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.break-ice-avatar--ph { display: flex; align-items: center; justify-content: center; background: var(--event-accent-tint, var(--gray-100)); color: var(--fg); font: 600 22px/1 var(--font-body); }
+.break-ice-name { font-weight: 600; font-size: 13px; }
+.break-ice-aff { font-size: 12px; color: var(--gray-600); }
+.break-ice-cta { margin-top: 4px; font-size: 12px; color: var(--event-accent, var(--action-bg)); font-weight: 600; }
+.break-ice-check { position: absolute; top: 6px; right: 8px; width: 22px; height: 22px; border-radius: 50%; background: var(--event-accent, var(--action-bg)); color: var(--event-accent-on, #fff); display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.break-ice-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); cursor: pointer; z-index: 1; }
+.break-ice-prev { left: -6px; }
+.break-ice-next { right: -6px; }
+.break-ice-actionbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.break-ice-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.break-ice-result { margin-top: 8px; }
+@media (prefers-reduced-motion: reduce) { .break-ice-track { scroll-behavior: auto; } }
