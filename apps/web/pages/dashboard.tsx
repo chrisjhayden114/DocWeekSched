@@ -217,6 +217,10 @@ type NetworkThread = {
   meetupInviteEveryone?: boolean;
   meetupParticipantIds?: string[];
   taggedUserIds?: string[];
+  audienceType?: "EVERYONE" | "SESSION" | "TRACK" | "GROUP";
+  audienceSessionId?: string | null;
+  audienceTrackId?: string | null;
+  audienceUserIds?: string[];
   imageUrl?: string | null;
   imageUrls?: string[];
   mapsUrl?: string | null;
@@ -1664,6 +1668,8 @@ export default function Dashboard() {
           isAdmin={isAdmin}
           currentUserId={user.id}
           attendees={attendees}
+          communitySessions={sortedSessions.map((s) => ({ id: s.id, title: s.title }))}
+          communityTracks={trackOptions.map((t) => ({ id: t.id, name: t.name }))}
           focusThreadId={communityFocusThreadId}
           onFocusThreadConsumed={clearCommunityFocus}
           token={token!}
@@ -3975,6 +3981,8 @@ function CommunityBoard({
   isAdmin,
   currentUserId,
   attendees,
+  communitySessions,
+  communityTracks,
   focusThreadId,
   onFocusThreadConsumed,
   token,
@@ -3991,6 +3999,8 @@ function CommunityBoard({
   isAdmin: boolean;
   currentUserId: string;
   attendees: User[];
+  communitySessions: { id: string; title: string }[];
+  communityTracks: { id: string; name: string }[];
   focusThreadId: string | null;
   onFocusThreadConsumed: () => void;
   token: string;
@@ -4020,6 +4030,10 @@ function CommunityBoard({
   const [mapsUrl, setMapsUrl] = useState("");
   const [localPlaceQuery, setLocalPlaceQuery] = useState("");
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
+  const [postAudienceType, setPostAudienceType] = useState<"EVERYONE" | "SESSION" | "TRACK" | "GROUP">("EVERYONE");
+  const [postAudienceSessionId, setPostAudienceSessionId] = useState("");
+  const [postAudienceTrackId, setPostAudienceTrackId] = useState("");
+  const [postAudienceGroupIds, setPostAudienceGroupIds] = useState<string[]>([]);
   const [postingThread, setPostingThread] = useState(false);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [confirmDeleteThreadId, setConfirmDeleteThreadId] = useState<string | null>(null);
@@ -4079,6 +4093,24 @@ function CommunityBoard({
       body,
       channel: composeChannel,
     };
+    if (composeChannel === "GENERAL" && postAudienceType !== "EVERYONE") {
+      if (postAudienceType === "SESSION" && !postAudienceSessionId) {
+        setComposeError("Pick a session to post to.");
+        throw new Error("Pick a session to post to.");
+      }
+      if (postAudienceType === "TRACK" && !postAudienceTrackId) {
+        setComposeError("Pick a track to post to.");
+        throw new Error("Pick a track to post to.");
+      }
+      if (postAudienceType === "GROUP" && postAudienceGroupIds.length === 0) {
+        setComposeError("Choose at least one person.");
+        throw new Error("Choose at least one person.");
+      }
+      payload.audienceType = postAudienceType;
+      if (postAudienceType === "SESSION") payload.audienceSessionId = postAudienceSessionId;
+      if (postAudienceType === "TRACK") payload.audienceTrackId = postAudienceTrackId;
+      if (postAudienceType === "GROUP") payload.audienceUserIds = postAudienceGroupIds;
+    }
     if (composeChannel === "MEETUP") {
       payload.meetupMode = meetupComposeMode;
       if (meetupStartsAt.trim()) {
@@ -4128,6 +4160,10 @@ function CommunityBoard({
       setMapsUrl("");
       setLocalPlaceQuery("");
       setTaggedUserIds([]);
+      setPostAudienceType("EVERYONE");
+      setPostAudienceSessionId("");
+      setPostAudienceTrackId("");
+      setPostAudienceGroupIds([]);
       await onThreadsUpdated();
     } catch (err) {
       setComposeError(err instanceof Error && err.message ? err.message : communityCopy.errors.createFailed);
@@ -4217,6 +4253,56 @@ function CommunityBoard({
                   options={composeChannels.map((key) => ({ value: key, label: communityCopy.channels[key] }))}
                 />
               </label>
+            )}
+            {composeChannel === "GENERAL" && (
+              <>
+                <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                  Post to
+                  <Select
+                    value={postAudienceType}
+                    onChange={(v) => setPostAudienceType(v as typeof postAudienceType)}
+                    options={[
+                      { value: "EVERYONE", label: "Everyone" },
+                      { value: "SESSION", label: "A session" },
+                      { value: "TRACK", label: "A track" },
+                      { value: "GROUP", label: "Specific people" },
+                    ]}
+                  />
+                </label>
+                {postAudienceType === "SESSION" && (
+                  <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                    Session
+                    <Select
+                      value={postAudienceSessionId}
+                      onChange={setPostAudienceSessionId}
+                      placeholder="Pick a session…"
+                      options={communitySessions.map((s) => ({ value: s.id, label: s.title }))}
+                    />
+                  </label>
+                )}
+                {postAudienceType === "TRACK" && (
+                  <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                    Track
+                    <Select
+                      value={postAudienceTrackId}
+                      onChange={setPostAudienceTrackId}
+                      placeholder="Pick a track…"
+                      options={communityTracks.map((tr) => ({ value: tr.id, label: tr.name }))}
+                    />
+                  </label>
+                )}
+                {postAudienceType === "GROUP" && (
+                  <SearchableMultiSelect
+                    label="People who can see this post"
+                    people={attendees}
+                    selectedIds={postAudienceGroupIds}
+                    excludeIds={[currentUserId]}
+                    placeholder="Search participants…"
+                    emptyLabel="No matching attendees — only people who've joined this event and opted into the directory appear here."
+                    onChange={setPostAudienceGroupIds}
+                  />
+                )}
+              </>
             )}
             {composeChannel === "LOCAL" && (
               <>
@@ -4481,6 +4567,19 @@ function CommunityBoard({
             const taggedNames = (t.taggedUserIds ?? []).map((id) => nameById[id]).filter(Boolean);
             const meetupNames = (t.meetupParticipantIds ?? []).map((id) => nameById[id]).filter(Boolean);
             const replyCount = t.replies?.length ?? 0;
+            let audienceLabel: string | null = null;
+            if (t.audienceType && t.audienceType !== "EVERYONE") {
+              if (t.audienceType === "SESSION") {
+                const s = communitySessions.find((x) => x.id === t.audienceSessionId);
+                audienceLabel = `To: ${s?.title ?? "a session"}`;
+              } else if (t.audienceType === "TRACK") {
+                const tr = communityTracks.find((x) => x.id === t.audienceTrackId);
+                audienceLabel = `To: ${tr?.name ?? "a track"}`;
+              } else if (t.audienceType === "GROUP") {
+                const n = (t.audienceUserIds ?? []).length;
+                audienceLabel = `To: ${n} ${n === 1 ? "person" : "people"}`;
+              }
+            }
             return (
               <div key={t.id} id={`network-thread-${t.id}`}>
                 <FeedCard
@@ -4493,7 +4592,9 @@ function CommunityBoard({
                   pill={
                     ch === "MEETUP" && t.meetupStartsAt
                       ? { label: formatEventDateTime(t.meetupStartsAt), tone: "primary" }
-                      : undefined
+                      : audienceLabel
+                        ? { label: audienceLabel, tone: "neutral" }
+                        : undefined
                   }
                   actions={
                     <>

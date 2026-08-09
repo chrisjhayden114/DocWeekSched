@@ -9,6 +9,7 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { featureKeyForNetworkChannel, requireFeature, featureEnabled } from "../lib/features";
 import { authorOrDeleted } from "../lib/authorDisplay";
+import { threadVisibleTo } from "../lib/threadAudience";
 import { validationErrorBody } from "../lib/errors";
 
 export const networkRouter = Router();
@@ -26,6 +27,10 @@ const threadSchema = z.object({
   imageUrl: z.string().max(2_000_000).optional(),
   imageUrls: z.array(z.string().max(2_000_000)).max(12).optional(),
   mapsUrl: z.string().max(4000).optional(),
+  audienceType: z.enum(["EVERYONE", "SESSION", "TRACK", "GROUP"]).optional(),
+  audienceSessionId: z.string().min(1).optional(),
+  audienceTrackId: z.string().min(1).optional(),
+  audienceUserIds: z.array(z.string().min(1)).max(500).optional(),
 });
 
 const replySchema = z.object({
@@ -47,7 +52,7 @@ networkRouter.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const event = await resolveEventFromRequest(req);
-    await requireEventAccess(req.user!.id, event.id);
+    const access = await requireEventAccess(req.user!.id, event.id);
     await requireFeature(event.id, "community");
 
     const rawChannel = typeof req.query.channel === "string" ? req.query.channel : undefined;
@@ -79,12 +84,29 @@ networkRouter.get(
         },
       },
     });
+
+    // Targeted General posts are hidden from viewers outside the audience
+    // (author + event managers always see them).
+    const isManager = access.canManageEvent;
+    let joinedSessionIds = new Set<string>();
+    let joinedTrackIds = new Set<string>();
+    if (!isManager) {
+      const atts = await prisma.sessionAttendance.findMany({
+        where: { userId: req.user!.id, status: "JOINING", session: { eventId: event.id } },
+        select: { sessionId: true, session: { select: { trackId: true } } },
+      });
+      joinedSessionIds = new Set(atts.map((a) => a.sessionId));
+      joinedTrackIds = new Set(atts.map((a) => a.session.trackId).filter((x): x is string => !!x));
+    }
+
     return res.json(
-      threads.map((t) => ({
-        ...t,
-        author: authorOrDeleted(t.author),
-        replies: t.replies.map((r) => ({ ...r, author: authorOrDeleted(r.author) })),
-      })),
+      threads
+        .filter((t) => threadVisibleTo(t, { userId: req.user!.id, isManager, joinedSessionIds, joinedTrackIds }))
+        .map((t) => ({
+          ...t,
+          author: authorOrDeleted(t.author),
+          replies: t.replies.map((r) => ({ ...r, author: authorOrDeleted(r.author) })),
+        })),
     );
   }),
 );
@@ -145,6 +167,32 @@ networkRouter.post(
       }
     }
 
+    // Post targeting — General channel only; other channels are always EVERYONE.
+    let audienceType = "EVERYONE";
+    let audienceSessionId: string | null = null;
+    let audienceTrackId: string | null = null;
+    let audienceUserIds: string[] = [];
+    if (channel === NetworkChannel.GENERAL && parsed.data.audienceType && parsed.data.audienceType !== "EVERYONE") {
+      audienceType = parsed.data.audienceType;
+      if (audienceType === "SESSION") {
+        const sid = parsed.data.audienceSessionId;
+        if (!sid) return res.status(400).json({ error: "Pick a session to post to." });
+        const s = await prisma.session.findFirst({ where: { id: sid, eventId: event.id }, select: { id: true } });
+        if (!s) return res.status(400).json({ error: "That session isn't in this event." });
+        audienceSessionId = sid;
+      } else if (audienceType === "TRACK") {
+        const tid = parsed.data.audienceTrackId;
+        if (!tid) return res.status(400).json({ error: "Pick a track to post to." });
+        const tr = await prisma.track.findFirst({ where: { id: tid, eventId: event.id }, select: { id: true } });
+        if (!tr) return res.status(400).json({ error: "That track isn't in this event." });
+        audienceTrackId = tid;
+      } else if (audienceType === "GROUP") {
+        audienceUserIds = Array.from(new Set(parsed.data.audienceUserIds ?? []));
+        if (audienceUserIds.length === 0) return res.status(400).json({ error: "Choose at least one person." });
+        await assertEventMembers(event.id, audienceUserIds);
+      }
+    }
+
     let imageUrls = (parsed.data.imageUrls ?? []).filter((u) => u && u.trim());
     const single = parsed.data.imageUrl?.trim();
     if (single && imageUrls.length === 0) {
@@ -178,6 +226,10 @@ networkRouter.post(
         meetupInviteEveryone,
         meetupParticipantIds,
         taggedUserIds,
+        audienceType,
+        audienceSessionId,
+        audienceTrackId,
+        audienceUserIds,
         imageUrl,
         imageUrls,
         mapsUrl,

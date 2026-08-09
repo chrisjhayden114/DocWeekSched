@@ -1051,6 +1051,10 @@ model NetworkThread {
   meetupInviteEveryone   Boolean           @default(false)
   meetupParticipantIds   String[]          @default([])
   taggedUserIds          String[]          @default([])
+  audienceType           String            @default("EVERYONE")
+  audienceSessionId      String?
+  audienceTrackId        String?
+  audienceUserIds        String[]          @default([])
   imageUrl               String?
   imageUrls              String[]          @default([])
   mapsUrl                String?
