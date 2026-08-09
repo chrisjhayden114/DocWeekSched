@@ -81,21 +81,40 @@ FEATURE (real build) · DECISION (needs founder call, incl. cost/positioning).
    (RESEARCH_MESSAGING.md). Its own multi-chunk phase (M-series), the largest
    single item on the board.
 
-## Repositioning work (new, because of decision 2)
-Moving toward engagement mechanics is only coherent if the claims change too.
-Before or alongside G4/G5, update:
-- **Homepage (`/`)** — remove/soften "without notification spam" and "no
-  engagement bait"; describe the networking/engagement value honestly.
-- **`/compare/whova`** — the differentiator "Whova markets leaderboards and
-  gamified surveys; we don't" is no longer true. Rewrite the comparison so it
-  doesn't claim an anti-engagement stance we've abandoned.
-- **`/pricing`** ("engagement features" already listed under Pro) — align.
-- **Anti-goals doc (HANDOFF_BRIEF.md §1) + DESIGN_PHASE_E/F** — record that the
-  "no engagement mechanics" anti-goal is intentionally retired for networking
-  surfaces. Keep the anti-goals that still hold: no dark patterns, no
-  manufactured urgency, honest AI, accessibility, reduced-motion.
-- Notifications: even repositioned, additions ride the existing digest/quiet-
-  hours budget by default; opt-in escalation, not spam-by-default.
+## Repositioning work (G-REPO) — CORRECTED after founder clarification 2026-08-08
+The earlier framing ("retire the no-engagement anti-goal") was too strong. Founder
+clarified: NO leaderboards, gamification, or engagement bait — the new work is
+opt-in *communication/networking* features (icebreaker can be turned off, posts
+are organizer-targeted). So the anti-goals HOLD; the only fix is copy that
+currently implies UKEDL has NO social features at all, which would undersell the
+opt-in networking once G4/G5 ship.
+
+**Positioning line:** "Calm by default, with opt-in networking and targeted
+posting the organizer turns on at their discretion." Networking is present but
+never forced, off by default, and respects the notification budget + quiet hours.
+
+Surfaces (drafts approved; source drafts updated):
+- **`docs/marketing-drafts/ukedl-vs-whova.md`** — added point 6 "Connection
+  without the coercion"; softened the closer; added networking clause to the
+  short version. (DONE)
+- **`docs/marketing-drafts/ukedl-vs-sched.md`** — reframed point 4 to "Calm by
+  default; networking when you want it" (still no gamification). (DONE)
+- **Homepage (`/`)** — feature card 3 → "Calm by default, social when you want
+  it"; opt-in networking named. (Cursor mirror)
+- **`/compare/whova` + `/compare/sched`** — mirror the source-draft edits.
+  (Cursor mirror)
+- **Anti-goals (HANDOFF_BRIEF.md §1)** — add: networking/community features are
+  NOT anti-goals; they're opt-in, organizer-controlled, off by default. The
+  anti-goals (leaderboards, gamification, engagement bait, unsolicited push,
+  auto-activity, dark patterns) STILL hold. (Cursor mirror)
+- **Product principles (config)** — keep "No ads / No attendee-data monetization
+  / No engagement bait" — all still true. No change.
+- **Pricing** — "engagement features" under Pro now reads accurately (opt-in,
+  Pro-gated). No change.
+
+Also folded in: broaden remaining "papers"-only marketing copy to "papers and
+presentations" (compare/sched prose, whova import line, session page heading).
+Leave code identifiers, dense count pills, and sample-demo text as-is.
 
 ## Recommended sequence
 - **G1 — bug fixes + quick wins (do first, needs no decisions):** 2a Moments

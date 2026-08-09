@@ -50,8 +50,8 @@ export default function CompareWhovaPage() {
             </p>
             <p>
               Choose <strong>{brand.productName}</strong> if your attendees are colleagues who want
-              the programme, their own schedule, and quiet — and you want to know the price without a
-              sales call.
+              the programme, their own schedule, and quiet — with networking there when they want
+              it, not forced on everyone — and you want to know the price without a sales call.
             </p>
 
             <h2>What&apos;s genuinely different</h2>
@@ -85,7 +85,7 @@ export default function CompareWhovaPage() {
               <strong>4. Programme import.</strong>
               <br />
               Upload the PDF or Word programme you already have; the AI drafts sessions, papers,
-              authors, rooms and tracks for your review. Whova&apos;s strongest academic asset is
+              presentations, authors, rooms and tracks for your review. Whova&apos;s strongest academic asset is
               direct HotCRP/OpenReview import — if your workflow lives in HotCRP, that is a genuine
               point in Whova&apos;s favour.
             </p>
@@ -94,6 +94,15 @@ export default function CompareWhovaPage() {
               <br />
               {brand.productName} is a fast web app: attendees tap a link. (Whova also offers web
               access now, so evaluate the <em>quality</em> of each, not the checkbox.)
+            </p>
+            <p>
+              <strong>6. Connection without the coercion.</strong>
+              <br />
+              {brand.productName} does have networking — meet-ups, a photo feed, icebreakers, and posts
+              you can target to a session or track. The difference is they&apos;re opt-in and
+              organizer-controlled, off by default, and they respect the same notification budget and
+              quiet hours. Whova&apos;s engagement is always-on and gamified; ours is there when you want
+              it, quiet when you don&apos;t.
             </p>
 
             <h2>Honest reasons to pick Whova instead</h2>
@@ -112,9 +121,10 @@ export default function CompareWhovaPage() {
 
             <h2>The philosophical difference, plainly</h2>
             <p>
-              Whova measures success in engagement; we measure it in a conference that ran calmly.
-              Those genuinely are different products. Pick the one that matches what your attendees
-              thank you for afterwards.
+              Whova makes engagement the product — always-on and gamified. We make the calm
+              conference the product, with networking available when you want it, never forced on
+              everyone. Those genuinely are different products. Pick the one that matches what your
+              attendees thank you for afterwards.
             </p>
 
             <p className="text-meta" style={{ marginTop: 32 }}>

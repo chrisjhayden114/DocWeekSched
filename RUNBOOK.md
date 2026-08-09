@@ -440,6 +440,22 @@ suspends a compute when nothing successfully connects.
 6. Confirm: `https://api.ukedl.com/health/ready` returns
    `{"ok":true,"db":true,…}`. Then load a public event page.
 
+### Known state — local `.env` dev DB password is stale (2026-08-08)
+
+The `DATABASE_URL` in the repo `.env` points at the **dev** Neon branch
+(`ep-delicate-bread`) and its password is out of date (a leftover from the
+rotation work). `prisma migrate deploy` against dev fails with `P1000:
+Authentication failed`. This is **harmless in the current workflow**: nothing
+runs the local API stack, tests use the `ukedl_test` branch, and production uses
+Render's own valid `DATABASE_URL` (deploys migrate prod automatically). The only
+effect is that the **dev** branch is behind on migrations (e.g. it never got
+`20260808120000_qa_audience`).
+
+To re-sync only if you want local dev again: reset the `ep-delicate-bread`
+role password in the Neon Connect dialog, paste the new pooled string into
+`.env` (`DATABASE_URL`), then run the guarded dev `prisma migrate deploy` from
+§12. No production impact — dev is not used by any deployed service.
+
 ### After rotating, also update
 
 - **`dev` branch** — reset it too if the password was shared, then update the

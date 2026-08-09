@@ -21,7 +21,8 @@ Choose **Whova** if engagement mechanics are the point: leaderboards, contests,
 sponsor activations, an exhibitor hall.
 
 Choose **UKEDL** if your attendees are colleagues who want the programme, their
-own schedule, and quiet — and you want to know the price without a sales call.
+own schedule, and quiet — with networking there when they want it, not forced on
+everyone — and you want to know the price without a sales call.
 
 ## What's genuinely different
 
@@ -47,13 +48,20 @@ programme, UKEDL is deeper.
 
 **4. Programme import.**
 Upload the PDF or Word programme you already have; the AI drafts sessions,
-papers, authors, rooms and tracks for your review. Whova's strongest academic
+papers, presentations, authors, rooms and tracks for your review. Whova's strongest academic
 asset is direct HotCRP/OpenReview import — if your workflow lives in HotCRP,
 that is a genuine point in Whova's favour.
 
 **5. No app store.**
 UKEDL is a fast web app: attendees tap a link. (Whova also offers web access
 now, so evaluate the *quality* of each, not the checkbox.)
+
+**6. Connection without the coercion.**
+UKEDL does have networking — meet-ups, a photo feed, icebreakers, and posts you
+can target to a session or track. The difference is that they're opt-in and
+organizer-controlled, off by default, and they respect the same notification
+budget and quiet hours. Whova's engagement is always-on and gamified; ours is
+there when you want it, quiet when you don't.
 
 ## Honest reasons to pick Whova instead
 
@@ -64,6 +72,7 @@ now, so evaluate the *quality* of each, not the checkbox.)
 
 ## The philosophical difference, plainly
 
-Whova measures success in engagement; we measure it in a conference that ran
-calmly. Those genuinely are different products. Pick the one that matches
+Whova makes engagement the product — always-on and gamified. We make the calm
+conference the product, with networking available when you want it, never forced
+on everyone. Those genuinely are different products. Pick the one that matches
 what your attendees thank you for afterwards.

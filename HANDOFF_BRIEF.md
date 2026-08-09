@@ -33,6 +33,11 @@ or gamification, unsolicited push notifications, auto-generated activity
 ("X viewed your profile"), dark-pattern upgrade prompts, ads or attendee-data
 monetisation, sales-call-gated pricing. These are positioning, not oversights.
 
+Networking and community features (meet-ups, moments, icebreakers, targeted
+posts) are **not** anti-goals — they're opt-in, organizer-controlled, off by
+default, and respect the notification budget and quiet hours. The anti-goals
+above are about coercive or gamified mechanics, not connection itself.
+
 ---
 
 ## 2. Stack and shape

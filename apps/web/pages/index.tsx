@@ -37,8 +37,8 @@ const FEATURES = [
   },
   {
     eyebrow: "Attendee experience",
-    title: "Calm by design",
-    body: "Digest-first notifications, quiet hours, and no engagement bait. Attendees get a scannable agenda without the noise.",
+    title: "Calm by default, social when you want it",
+    body: "Digest-first notifications and quiet hours, no engagement bait. Networking, meet-ups, photos, and targeted posts are opt-in — turn on only what fits your event.",
   },
 ] as const;
 

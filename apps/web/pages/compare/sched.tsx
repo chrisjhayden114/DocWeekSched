@@ -40,8 +40,8 @@ export default function CompareSchedPage() {
               Sched is good software. It has been the default &quot;just publish the schedule&quot; tool
               for a decade, and if you are running a film festival or a tech meetup it may be all you
               need. This page is about the specific case of <strong>academic and education
-              conferences</strong> — paper sessions, ordered authors, a CFP, and a programme that
-              arrives as a PDF or Word document three weeks before show day.
+              conferences</strong> — sessions with papers and presentations, ordered authors, a CFP,
+              and a programme that arrives as a PDF or Word document three weeks before show day.
             </p>
 
             <h2>The short version</h2>
@@ -50,9 +50,10 @@ export default function CompareSchedPage() {
               your sessions are simple: one title, some speakers, a room.
             </p>
             <p>
-              Choose <strong>{brand.productName}</strong> if your programme has <em>papers inside
-              sessions</em> — author order that matters, discussants, a review process — or if your
-              programme already exists as a document and you would rather not re-type it.
+              Choose <strong>{brand.productName}</strong> if your programme has <em>papers and
+              presentations inside sessions</em> — author or presenter order that matters,
+              discussants, a review process — or if your programme already exists as a document and
+              you would rather not re-type it.
             </p>
 
             <h2>What&apos;s genuinely different</h2>
@@ -63,12 +64,12 @@ export default function CompareSchedPage() {
               one session and participants are joined in a single column. For a paper session with
               four papers and nine ordered authors, that model has nowhere to put the structure. In{" "}
               {brand.productName}, you upload the programme you already have — PDF, Word, Excel, CSV,
-              or pasted text. The AI extracts sessions, papers, authors, rooms and tracks into a
-              reviewable draft; nothing publishes until you approve it. A real 7-page programme
-              becomes a reviewable 22-session draft in about two minutes.
+              or pasted text. The AI extracts sessions, papers, presentations, authors, rooms and
+              tracks into a reviewable draft; nothing publishes until you approve it. A real 7-page
+              programme becomes a reviewable 22-session draft in about two minutes.
             </p>
             <p>
-              <strong>2. Papers as first-class records.</strong>
+              <strong>2. Papers and presentations as first-class records.</strong>
               <br />
               {brand.productName} models papers and presentations <em>inside</em> sessions with
               ordered authors or presenters and discussants — the parent/child structure academic
@@ -85,10 +86,12 @@ export default function CompareSchedPage() {
               credit where due, Sched also sells self-serve.
             </p>
             <p>
-              <strong>4. What we deliberately do not do.</strong>
+              <strong>4. Calm by default; networking when you want it.</strong>
               <br />
               No engagement leaderboards, no push-notification campaigns, no attendee-data
-              monetisation. Academic attendees are colleagues, not an audience to activate. If
+              monetisation. {brand.productName} does include opt-in networking — meet-ups, a photo
+              feed, icebreakers, targeted posts — but it&apos;s organizer-controlled, off by default,
+              and never gamified. Academic attendees are colleagues, not an audience to activate. If
               gamification is what your event needs, neither we nor Sched are the tool — that&apos;s{" "}
               <Link href="/compare/whova">Whova&apos;s territory</Link>.
             </p>

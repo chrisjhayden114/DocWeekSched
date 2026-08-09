@@ -976,7 +976,7 @@ export default function SessionPage() {
           {session.items && session.items.length > 0 ? (
             <div className="card" style={{ marginBottom: 16 }}>
               <h2 className="text-h3" style={{ margin: "0 0 12px" }}>
-                Papers ({session.items.length})
+                Papers &amp; presentations ({session.items.length})
               </h2>
               <ol className="session-papers">
                 {session.items.map((item) => (
