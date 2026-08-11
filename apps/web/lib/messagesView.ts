@@ -31,6 +31,8 @@ export type ConversationView = {
   createdAt?: string;
   members: ConversationMemberView[];
   messages: { id: string; body: string; createdAt: string; user: { id: string; name: string } | null }[];
+  unread?: boolean;
+  muted?: boolean;
 };
 
 export type MessageView = {

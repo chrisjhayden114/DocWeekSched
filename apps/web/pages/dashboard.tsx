@@ -43,7 +43,7 @@ import { Select } from "../components/Select";
 import { SponsorsStrip } from "../components/SponsorsStrip";
 import { OnboardingPanel } from "../components/OnboardingPanel";
 import { sayHiPrefill } from "../lib/sayHi";
-import { unreadConversationIdSet, type ConversationView } from "../lib/messagesView";
+import { type ConversationView } from "../lib/messagesView";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -643,13 +643,22 @@ export default function Dashboard() {
     () => notifications.filter((row) => !row.readAt).length,
     [notifications],
   );
-  /* Unread by CONVERSATION, never by message (E18.2). */
-  const unreadConversationIds = useMemo(() => unreadConversationIdSet(notifications), [notifications]);
+  /* Unread by CONVERSATION from server lastReadAt (M2). */
+  const unreadConversationIds = useMemo(
+    () => new Set(conversations.filter((c) => c.unread).map((c) => c.id)),
+    [conversations],
+  );
 
-  /** Opening a conversation clears its unread state (marks MESSAGE notifications read). */
+  /** Opening a conversation clears unread (lastReadAt + MESSAGE notifications). */
   const markConversationNotificationsRead = useCallback(
     (conversationId: string) => {
       if (!token) return;
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, unread: false } : c)),
+      );
+      apiFetch(`/conversations/${conversationId}/read`, withEventHeaders({ method: "POST" }), token).catch(
+        () => null,
+      );
       const unread = notifications.filter(
         (n) => n.kind === "MESSAGE" && !n.readAt && n.conversationId === conversationId,
       );

@@ -2202,6 +2202,50 @@ button.schedule-meta-chip:hover {
   border-bottom: none;
 }
 
+.msg-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.conversation-row-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.conversation-row-wrap.is-muted {
+  opacity: 0.72;
+}
+
+.conversation-row-wrap .conversation-row {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.conversation-mute-btn {
+  flex: none;
+  align-self: center;
+  padding: 6px;
+  min-width: 0;
+  color: var(--gray-500);
+  line-height: 0;
+}
+
+.conversation-mute-btn:hover {
+  color: var(--gray-800);
+}
+
+.conversation-muted-icon {
+  display: inline-flex;
+  margin-left: 6px;
+  vertical-align: -2px;
+  color: var(--gray-500);
+}
+
 .conversation-row {
   display: flex;
   align-items: flex-start;

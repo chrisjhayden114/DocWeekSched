@@ -27,6 +27,10 @@ const messageSchema = z.object({
   body: z.string().min(1),
 });
 
+const muteSchema = z.object({
+  muted: z.boolean(),
+});
+
 async function assertEventMembers(eventId: string, userIds: string[]) {
   if (userIds.length === 0) return;
   const count = await prisma.eventMembership.count({
@@ -66,7 +70,10 @@ conversationsRouter.get(
         // affiliation/photoUrl feed the conversation rows on the Messages
         // surface (E18.2) — display fields only, never contact details.
         members: {
-          include: {
+          select: {
+            userId: true,
+            lastReadAt: true,
+            mutedAt: true,
             user: { select: { id: true, name: true, role: true, affiliation: true, photoUrl: true } },
           },
         },
@@ -83,7 +90,25 @@ conversationsRouter.get(
 
     const page = slicePage(conversations, take);
     setPageHeaders(res, page);
-    return res.json(page.items);
+    return res.json(
+      page.items.map((item) => {
+        const viewerMember = item.members.find((m) => m.userId === userId);
+        const lastMessage = item.messages[0];
+        const muted = !!viewerMember?.mutedAt;
+        const unread =
+          !!lastMessage &&
+          lastMessage.user?.id !== userId &&
+          (!viewerMember?.lastReadAt ||
+            new Date(lastMessage.createdAt) > new Date(viewerMember.lastReadAt)) &&
+          !muted;
+        return {
+          ...item,
+          unread,
+          muted,
+          members: item.members.map((m) => ({ user: m.user })),
+        };
+      }),
+    );
   }),
 );
 
@@ -180,6 +205,84 @@ conversationsRouter.post(
     });
 
     return res.json(conversation);
+  }),
+);
+
+conversationsRouter.post(
+  "/read-all",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const userId = req.user!.id;
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(userId, event.id);
+
+    await prisma.conversationMember.updateMany({
+      where: { userId, conversation: { eventId: event.id } },
+      data: { lastReadAt: new Date() },
+    });
+
+    return res.json({ ok: true });
+  }),
+);
+
+conversationsRouter.post(
+  "/:id/read",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const userId = req.user!.id;
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: req.params.id },
+      include: { members: true },
+    });
+    if (!conversation) {
+      throw new HttpError(404, { error: "Conversation not found" });
+    }
+    await requireEventAccess(userId, conversation.eventId);
+    if (!conversation.members.some((m) => m.userId === userId)) {
+      throw new HttpError(403, { error: "Forbidden" });
+    }
+
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId: conversation.id, userId } },
+      data: { lastReadAt: new Date() },
+    });
+
+    return res.json({ ok: true });
+  }),
+);
+
+conversationsRouter.post(
+  "/:id/mute",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = muteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
+
+    const userId = req.user!.id;
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: req.params.id },
+      include: { members: true },
+    });
+    if (!conversation) {
+      throw new HttpError(404, { error: "Conversation not found" });
+    }
+    await requireEventAccess(userId, conversation.eventId);
+    if (!conversation.members.some((m) => m.userId === userId)) {
+      throw new HttpError(403, { error: "Forbidden" });
+    }
+
+    const muted = parsed.data.muted;
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId: conversation.id, userId } },
+      data: { mutedAt: muted ? new Date() : null },
+    });
+
+    return res.json({ muted });
   }),
 );
 

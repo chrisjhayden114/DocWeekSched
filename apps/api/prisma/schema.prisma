@@ -1009,6 +1009,8 @@ model ConversationMember {
   conversationId String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId         String
+  lastReadAt     DateTime?
+  mutedAt        DateTime?
 
   @@unique([conversationId, userId])
 }

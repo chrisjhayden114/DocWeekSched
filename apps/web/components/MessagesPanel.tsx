@@ -65,6 +65,27 @@ function tabIsVisible() {
   return typeof document === "undefined" || document.visibilityState === "visible";
 }
 
+/** Small bell / bell-off for per-conversation mute (M2). */
+function MuteBellIcon({ off }: { off?: boolean }) {
+  if (off) {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
+        <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+        <path d="M18 8a6 6 0 0 0-9.33-5" />
+        <line x1="1" y1="1" x2="23" y2="23" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
 export function MessagesPanel({
   token,
   user,
@@ -368,6 +389,37 @@ export function MessagesPanel({
   const activeOther = activeConversation ? otherMember(activeConversation, user.id) : null;
 
   const emptyInbox = messagingConversations.length === 0;
+  const hasUnread = conversations.some((c) => c.unread);
+
+  const markAllAsRead = useCallback(async () => {
+    try {
+      await apiFetch("/conversations/read-all", withEventHeaders({ method: "POST" }), token);
+    } catch {
+      /* ignore — still clear local unread so the UI stays calm */
+    }
+    onConversationsChange(conversations.map((c) => ({ ...c, unread: false })));
+  }, [conversations, onConversationsChange, token, withEventHeaders]);
+
+  const toggleMute = useCallback(
+    async (c: ConversationView) => {
+      const next = !c.muted;
+      try {
+        await apiFetch(
+          `/conversations/${c.id}/mute`,
+          withEventHeaders({ method: "POST", body: JSON.stringify({ muted: next }) }),
+          token,
+        );
+      } catch {
+        return;
+      }
+      onConversationsChange(
+        conversations.map((row) =>
+          row.id === c.id ? { ...row, muted: next, unread: next ? false : row.unread } : row,
+        ),
+      );
+    },
+    [conversations, onConversationsChange, token, withEventHeaders],
+  );
 
   return (
     <div className="kit-page-stack">
@@ -376,13 +428,20 @@ export function MessagesPanel({
       <PageHeader
         title={messagesCopy.title}
         action={
-          <button
-            type="button"
-            className="button"
-            onClick={() => setNewConversationMode((prev) => (prev ? null : "direct"))}
-          >
-            {newConversationMode ? messagesCopy.closeNew : messagesCopy.newMessage}
-          </button>
+          <div className="msg-header-actions">
+            {hasUnread ? (
+              <button type="button" className="button secondary" onClick={() => void markAllAsRead()}>
+                Mark all as read
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="button"
+              onClick={() => setNewConversationMode((prev) => (prev ? null : "direct"))}
+            >
+              {newConversationMode ? messagesCopy.closeNew : messagesCopy.newMessage}
+            </button>
+          </div>
         }
       />
     <div className="grid messages-layout">
@@ -465,13 +524,14 @@ export function MessagesPanel({
           <ul className="conversation-list motion-stagger">
             {visibleConversations.map((c) => {
               const unread = unreadConversationIds.has(c.id);
+              const muted = !!c.muted;
               const title = conversationTitle(c, user.id);
               const secondary = conversationSecondaryLine(c, user.id);
               const preview = conversationPreview(c, user.id);
               const lastAt = c.messages?.[0]?.createdAt ?? c.createdAt ?? null;
               const photoUrl = c.type === "DIRECT" ? otherMember(c, user.id)?.photoUrl : null;
               return (
-                <li key={c.id}>
+                <li key={c.id} className={`conversation-row-wrap${muted ? " is-muted" : ""}`}>
                   <button
                     type="button"
                     className={`conversation-row${unread ? " is-unread" : ""}`}
@@ -491,7 +551,14 @@ export function MessagesPanel({
                     </span>
                     <span className="conversation-row-main">
                       <span className="conversation-row-top">
-                        <span className="conversation-row-name">{title}</span>
+                        <span className="conversation-row-name">
+                          {title}
+                          {muted ? (
+                            <span className="conversation-muted-icon" aria-hidden title="Muted">
+                              <MuteBellIcon off />
+                            </span>
+                          ) : null}
+                        </span>
                         {lastAt ? (
                           <time className="conversation-row-time" dateTime={lastAt} title={new Date(lastAt).toLocaleString()}>
                             {conversationTimestamp(lastAt)}
@@ -505,7 +572,20 @@ export function MessagesPanel({
                         <span className="conversation-row-preview conversation-row-preview--empty">No messages yet</span>
                       )}
                       {unread ? <span className="sr-only">Unread</span> : null}
+                      {muted ? <span className="sr-only">Muted</span> : null}
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="conversation-mute-btn button ghost"
+                    aria-label={muted ? "Unmute conversation" : "Mute conversation"}
+                    aria-pressed={muted}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void toggleMute(c);
+                    }}
+                  >
+                    <MuteBellIcon off={muted} />
                   </button>
                 </li>
               );

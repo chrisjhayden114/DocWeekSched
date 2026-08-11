@@ -135,7 +135,20 @@ export async function notifyNewMessage(params: {
   memberUserIds: string[];
   title?: string;
 }): Promise<void> {
-  const recipients = params.memberUserIds.filter((id) => id !== params.senderId);
+  let recipients = params.memberUserIds.filter((id) => id !== params.senderId);
+  if (recipients.length > 0) {
+    const mutedRows = await prisma.conversationMember.findMany({
+      where: {
+        conversationId: params.conversationId,
+        userId: { in: recipients },
+        mutedAt: { not: null },
+      },
+      select: { userId: true },
+    });
+    const mutedUserIds = new Set(mutedRows.map((r) => r.userId));
+    recipients = recipients.filter((id) => !mutedUserIds.has(id));
+  }
+
   const title = params.title ?? `Message from ${params.senderName}`;
   const body = params.preview.slice(0, 200);
 
