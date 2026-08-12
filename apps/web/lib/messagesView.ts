@@ -33,6 +33,7 @@ export type ConversationView = {
   messages: { id: string; body: string; createdAt: string; user: { id: string; name: string } | null }[];
   unread?: boolean;
   muted?: boolean;
+  blocked?: boolean;
 };
 
 export type MessageView = {

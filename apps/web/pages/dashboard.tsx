@@ -1836,6 +1836,10 @@ export default function Dashboard() {
           messagePrefill={messagePrefill}
           onPrefillConsumed={() => setMessagePrefill(null)}
           onBrowseAttendees={() => setActive("Attendees")}
+          onViewProfile={(id) => {
+            setActive("Attendees");
+            window.location.hash = `attendee-${id}`;
+          }}
           onMessageSent={() => {
             void refreshUser();
             apiFetch<UserNotificationRow[]>("/notifications", withEventHeaders(), token)

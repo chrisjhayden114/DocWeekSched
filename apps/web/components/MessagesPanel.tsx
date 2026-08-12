@@ -23,8 +23,11 @@ import { AutolinkText } from "./AutolinkText";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSkeleton } from "./ListState";
 import { EmptyState, PageHeader } from "./kit";
+import { Portal } from "./kit/Portal";
 import { KebabMenu } from "./KebabMenu";
 import { SearchableMultiSelect, type SelectablePerson } from "./SearchableMultiSelect";
+
+const REPORT_REASONS = ["Harassment", "Spam", "Impersonation", "Other"] as const;
 
 /**
  * Messages, phase 1 (Chunk E18) — 1:1 and small named-group correspondence.
@@ -59,6 +62,8 @@ type Props = {
   onBrowseAttendees: () => void;
   /** Fired after a successful send (parent refreshes engagement points etc.). */
   onMessageSent?: () => void;
+  /** Open the attendee directory focused on this user (DIRECT thread menu). */
+  onViewProfile?: (userId: string) => void;
 };
 
 function tabIsVisible() {
@@ -106,6 +111,7 @@ export function MessagesPanel({
   onPrefillConsumed,
   onBrowseAttendees,
   onMessageSent,
+  onViewProfile,
 }: Props) {
   const [messages, setMessages] = useState<MessageView[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
@@ -118,6 +124,10 @@ export function MessagesPanel({
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
   const [isOffline, setIsOffline] = useState(false);
   const [threadError, setThreadError] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<(typeof REPORT_REASONS)[number]>("Harassment");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const threadHeadingRef = useRef<HTMLHeadingElement | null>(null);
@@ -297,6 +307,9 @@ export function MessagesPanel({
   /* Draft per conversation (E18.4): restore on open, persist on change. */
   useEffect(() => {
     setComposerBlockedNotice(null);
+    setReportOpen(false);
+    setReportReason("Harassment");
+    setReportDetails("");
     if (!activeConversationId || typeof window === "undefined") {
       setComposerBody("");
       return;
@@ -309,6 +322,17 @@ export function MessagesPanel({
     setComposerBody(window.localStorage.getItem(draftStorageKey(activeConversationId)) ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
+
+  /* Sync blocked composer notice from list state (M3). */
+  useEffect(() => {
+    if (activeConversation?.blocked) {
+      setComposerBlockedNotice("You can't send messages to this person.");
+    } else if (activeConversation && !activeConversation.blocked) {
+      setComposerBlockedNotice((prev) =>
+        prev === "You can't send messages to this person." ? null : prev,
+      );
+    }
+  }, [activeConversation?.blocked, activeConversation]);
 
   const updateComposerBody = (value: string) => {
     setComposerBody(value);
@@ -420,6 +444,64 @@ export function MessagesPanel({
     },
     [conversations, onConversationsChange, token, withEventHeaders],
   );
+
+  const otherUserId = activeConversation ? otherMember(activeConversation, user.id)?.id : undefined;
+
+  const toggleBlock = useCallback(async () => {
+    if (!activeConversation || !otherUserId) return;
+    const nextBlocked = !activeConversation.blocked;
+    try {
+      if (nextBlocked) {
+        await apiFetch(
+          "/moderation/block",
+          withEventHeaders({ method: "POST", body: JSON.stringify({ userId: otherUserId }) }),
+          token,
+        );
+      } else {
+        await apiFetch(
+          `/moderation/block/${otherUserId}`,
+          withEventHeaders({ method: "DELETE" }),
+          token,
+        );
+      }
+    } catch {
+      return;
+    }
+    onConversationsChange(
+      conversations.map((row) => (row.id === activeConversation.id ? { ...row, blocked: nextBlocked } : row)),
+    );
+    if (nextBlocked) {
+      setComposerBlockedNotice("You can't send messages to this person.");
+    } else {
+      setComposerBlockedNotice(null);
+    }
+  }, [activeConversation, conversations, onConversationsChange, otherUserId, token, withEventHeaders]);
+
+  const submitReport = useCallback(async () => {
+    if (!otherUserId || reportSubmitting) return;
+    setReportSubmitting(true);
+    try {
+      await apiFetch(
+        "/moderation/report",
+        withEventHeaders({
+          method: "POST",
+          body: JSON.stringify({
+            userId: otherUserId,
+            reason: reportReason,
+            details: reportDetails.trim() || undefined,
+          }),
+        }),
+        token,
+      );
+      setReportOpen(false);
+      setReportDetails("");
+      setThreadError("Reported to organizers.");
+    } catch (err) {
+      setThreadError(err instanceof Error ? err.message : "Couldn't submit that report.");
+    } finally {
+      setReportSubmitting(false);
+    }
+  }, [otherUserId, reportDetails, reportReason, reportSubmitting, token, withEventHeaders]);
 
   return (
     <div className="kit-page-stack">
@@ -596,14 +678,51 @@ export function MessagesPanel({
 
       {/* ——— thread pane ——— */}
       <div className="card message-thread-card">
-        <div className="msg-thread-header">
-          <h3 ref={threadHeadingRef} tabIndex={-1} style={{ margin: 0 }}>
-            {activeTitle ?? "Select a conversation"}
-          </h3>
-          {activeSecondary ? (
-            <p className="text-meta" style={{ margin: "2px 0 0" }}>
-              {activeSecondary}
-            </p>
+        <div
+          className="msg-thread-header"
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <h3 ref={threadHeadingRef} tabIndex={-1} style={{ margin: 0 }}>
+              {activeTitle ?? "Select a conversation"}
+            </h3>
+            {activeSecondary ? (
+              <p className="text-meta" style={{ margin: "2px 0 0" }}>
+                {activeSecondary}
+              </p>
+            ) : null}
+          </div>
+          {activeConversation?.type === "DIRECT" && otherUserId ? (
+            <KebabMenu
+              label="Conversation actions"
+              items={[
+                {
+                  id: "profile",
+                  label: "View profile",
+                  onSelect: () => onViewProfile?.(otherUserId),
+                },
+                {
+                  id: "mute",
+                  label: activeConversation.muted ? "Unmute" : "Mute",
+                  onSelect: () => void toggleMute(activeConversation),
+                },
+                {
+                  id: "block",
+                  label: activeConversation.blocked ? "Unblock" : "Block",
+                  onSelect: () => void toggleBlock(),
+                },
+                {
+                  id: "report",
+                  label: "Report",
+                  onSelect: () => setReportOpen(true),
+                },
+              ]}
+            />
           ) : null}
         </div>
 
@@ -845,6 +964,74 @@ export function MessagesPanel({
           }
         }}
       />
+
+      {reportOpen && otherUserId ? (
+        <Portal>
+          <div
+            className="agenda-add-modal-overlay"
+            role="presentation"
+            onClick={() => {
+              if (!reportSubmitting) setReportOpen(false);
+            }}
+          >
+            <div
+              className="agenda-add-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="msg-report-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4 id="msg-report-title">Report</h4>
+              <p className="help-text" style={{ marginTop: 0 }}>
+                Organizers will review this report. The other person is not notified.
+              </p>
+              <label className="help-text" style={{ display: "grid", gap: 6, marginBottom: 12 }}>
+                Reason
+                <select
+                  className="input"
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value as (typeof REPORT_REASONS)[number])}
+                  disabled={reportSubmitting}
+                >
+                  {REPORT_REASONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="help-text" style={{ display: "grid", gap: 6, marginBottom: 16 }}>
+                Details (optional)
+                <textarea
+                  className="textarea"
+                  rows={3}
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  disabled={reportSubmitting}
+                />
+              </label>
+              <div className="agenda-add-modal-actions">
+                <button
+                  type="button"
+                  className="button"
+                  disabled={reportSubmitting}
+                  onClick={() => void submitReport()}
+                >
+                  {reportSubmitting ? "Submitting…" : "Submit"}
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={reportSubmitting}
+                  onClick={() => setReportOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      ) : null}
     </div>
     </div>
   );

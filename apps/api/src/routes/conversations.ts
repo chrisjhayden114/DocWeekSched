@@ -7,7 +7,7 @@ import { allAttendeeUserIds, notifyNewMessage } from "../lib/notifications";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature } from "../lib/features";
-import { assertMutuallyVisible } from "../lib/visibility";
+import { assertMutuallyVisible, isBlockedBetween } from "../lib/visibility";
 import { authorOrDeleted } from "../lib/authorDisplay";
 import { validationErrorBody } from "../lib/errors";
 import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
@@ -90,6 +90,13 @@ conversationsRouter.get(
 
     const page = slicePage(conversations, take);
     setPageHeaders(res, page);
+
+    const blocks = await prisma.userBlock.findMany({
+      where: { eventId: event.id, OR: [{ blockerId: userId }, { blockedId: userId }] },
+      select: { blockerId: true, blockedId: true },
+    });
+    const blockedOthers = new Set(blocks.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
+
     return res.json(
       page.items.map((item) => {
         const viewerMember = item.members.find((m) => m.userId === userId);
@@ -101,10 +108,13 @@ conversationsRouter.get(
           (!viewerMember?.lastReadAt ||
             new Date(lastMessage.createdAt) > new Date(viewerMember.lastReadAt)) &&
           !muted;
+        const otherId = item.type === "DIRECT" ? item.members.find((m) => m.userId !== userId)?.userId : null;
+        const blocked = !!otherId && blockedOthers.has(otherId);
         return {
           ...item,
           unread,
           muted,
+          blocked,
           members: item.members.map((m) => ({ user: m.user })),
         };
       }),
@@ -365,6 +375,13 @@ conversationsRouter.post(
 
     if (conversation.type !== "EVENT" && !conversation.members.some((m) => m.userId === userId)) {
       throw new HttpError(403, { error: "Forbidden" });
+    }
+
+    if (conversation.type === "DIRECT") {
+      const other = conversation.members.find((m) => m.userId !== userId);
+      if (other && (await isBlockedBetween(conversation.eventId, userId, other.userId))) {
+        throw new HttpError(403, { error: "You can't send messages to this person." });
+      }
     }
 
     const message = await prisma.conversationMessage.create({

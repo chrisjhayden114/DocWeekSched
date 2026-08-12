@@ -26,3 +26,17 @@ export async function assertMutuallyVisible(eventId: string, userA: string, user
   if (block) return false;
   return true;
 }
+
+export async function isBlockedBetween(eventId: string, userA: string, userB: string): Promise<boolean> {
+  if (userA === userB) return false;
+  const block = await prisma.userBlock.findFirst({
+    where: {
+      eventId,
+      OR: [
+        { blockerId: userA, blockedId: userB },
+        { blockerId: userB, blockedId: userA },
+      ],
+    },
+  });
+  return !!block;
+}
