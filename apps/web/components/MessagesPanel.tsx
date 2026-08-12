@@ -15,6 +15,7 @@ import {
   isAwaitingReply,
   isIncomingRequest,
   isMessagingConversation,
+  isSeenByOther,
   mergeServerMessages,
   messageGroupTime,
   otherMember,
@@ -462,6 +463,15 @@ export function MessagesPanel({
 
   /* ——— derived thread view ——— */
   const dayGroups = useMemo(() => groupMessagesForThread(messages, user.id), [messages, user.id]);
+  const lastSelfGroupKey = useMemo(() => {
+    let key: string | null = null;
+    for (const day of dayGroups) {
+      day.groups.forEach((group, groupIdx) => {
+        if (group.isSelf) key = `${day.dayKey}-${groupIdx}`;
+      });
+    }
+    return key;
+  }, [dayGroups]);
   const activeTitle = activeConversation ? conversationTitle(activeConversation, user.id) : null;
   const activeSecondary = activeConversation
     ? activeConversation.type === "GROUP"
@@ -1031,6 +1041,11 @@ export function MessagesPanel({
                         : group.isSelf && !group.messages[group.messages.length - 1]?.localStatus
                           ? " ✓"
                           : ""}
+                      {`${day.dayKey}-${groupIdx}` === lastSelfGroupKey &&
+                      activeConversation?.type === "DIRECT" &&
+                      isSeenByOther(group.lastAt, activeConversation?.otherLastReadAt)
+                        ? " · Seen"
+                        : ""}
                     </p>
                   </div>
                 ))}

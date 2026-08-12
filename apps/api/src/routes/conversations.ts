@@ -114,36 +114,73 @@ conversationsRouter.get(
     });
     const blockedOthers = new Set(blocks.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
 
+    // An empty request shouldn't appear for its recipient (M4b).
+    const items = page.items.filter(
+      (item) =>
+        !(item.status === "REQUESTED" && item.initiatedById !== userId && item.messages.length === 0),
+    );
+
+    const [eventPref, globalPref] = await Promise.all([
+      prisma.notificationPreference.findFirst({ where: { userId, eventId: event.id } }),
+      prisma.notificationPreference.findFirst({ where: { userId, eventId: null } }),
+    ]);
+    const viewerReadReceipts = (eventPref || globalPref)?.readReceipts ?? false;
+
+    const otherPrefByUserId = new Map<string, { readReceipts: boolean }>();
+    if (viewerReadReceipts) {
+      const otherUserIds = [
+        ...new Set(
+          items
+            .filter((item) => item.type === "DIRECT")
+            .map((item) => item.members.find((m) => m.userId !== userId)?.userId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      if (otherUserIds.length > 0) {
+        const otherPrefs = await prisma.notificationPreference.findMany({
+          where: { userId: { in: otherUserIds }, OR: [{ eventId: event.id }, { eventId: null }] },
+          select: { userId: true, eventId: true, readReceipts: true },
+        });
+        for (const p of otherPrefs) {
+          const current = otherPrefByUserId.get(p.userId);
+          if (!current || p.eventId === event.id) {
+            otherPrefByUserId.set(p.userId, { readReceipts: p.readReceipts });
+          }
+        }
+      }
+    }
+
     return res.json(
-      page.items
-        // An empty request shouldn't appear for its recipient (M4b).
-        .filter(
-          (item) =>
-            !(item.status === "REQUESTED" && item.initiatedById !== userId && item.messages.length === 0),
-        )
-        .map((item) => {
-          const viewerMember = item.members.find((m) => m.userId === userId);
-          const lastMessage = item.messages[0];
-          const muted = !!viewerMember?.mutedAt;
-          const unread =
-            item.status !== "REQUESTED" &&
-            !!lastMessage &&
-            lastMessage.user?.id !== userId &&
-            (!viewerMember?.lastReadAt ||
-              new Date(lastMessage.createdAt) > new Date(viewerMember.lastReadAt)) &&
-            !muted;
-          const otherId = item.type === "DIRECT" ? item.members.find((m) => m.userId !== userId)?.userId : null;
-          const blocked = !!otherId && blockedOthers.has(otherId);
-          return {
-            ...item,
-            unread,
-            muted,
-            blocked,
-            status: item.status,
-            initiatedByMe: item.initiatedById === userId,
-            members: item.members.map((m) => ({ user: m.user })),
-          };
-        }),
+      items.map((item) => {
+        const viewerMember = item.members.find((m) => m.userId === userId);
+        const lastMessage = item.messages[0];
+        const muted = !!viewerMember?.mutedAt;
+        const unread =
+          item.status !== "REQUESTED" &&
+          !!lastMessage &&
+          lastMessage.user?.id !== userId &&
+          (!viewerMember?.lastReadAt ||
+            new Date(lastMessage.createdAt) > new Date(viewerMember.lastReadAt)) &&
+          !muted;
+        const otherId = item.type === "DIRECT" ? item.members.find((m) => m.userId !== userId)?.userId : null;
+        const blocked = !!otherId && blockedOthers.has(otherId);
+        const otherMemberRow = item.type === "DIRECT" ? item.members.find((m) => m.userId !== userId) : undefined;
+        const otherPref = otherMemberRow ? otherPrefByUserId.get(otherMemberRow.userId) : undefined;
+        const otherLastReadAt =
+          viewerReadReceipts && item.type === "DIRECT" && otherPref?.readReceipts
+            ? (otherMemberRow?.lastReadAt?.toISOString() ?? null)
+            : null;
+        return {
+          ...item,
+          unread,
+          muted,
+          blocked,
+          status: item.status,
+          initiatedByMe: item.initiatedById === userId,
+          otherLastReadAt,
+          members: item.members.map((m) => ({ user: m.user })),
+        };
+      }),
     );
   }),
 );

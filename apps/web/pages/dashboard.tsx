@@ -2844,6 +2844,7 @@ function ProfileEditor({
   const [matchMeEnabled, setMatchMeEnabled] = useState(true);
   const [messagePolicy, setMessagePolicy] = useState<"ANYONE" | "EXISTING_ONLY" | "NONE">("ANYONE");
   const [messageEmail, setMessageEmail] = useState(true);
+  const [readReceipts, setReadReceipts] = useState(false);
   const [participantType, setParticipantType] = useState<
     "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | ""
   >(
@@ -2886,12 +2887,14 @@ function ProfileEditor({
         setMatchMeEnabled(true);
         setMessagePolicy("ANYONE");
       });
-    apiFetch<{ messageEmail?: boolean }>("/notifications/preferences", withEventHeaders(), token)
+    apiFetch<{ messageEmail?: boolean; readReceipts?: boolean }>("/notifications/preferences", withEventHeaders(), token)
       .then((r) => {
         setMessageEmail(r.messageEmail !== false);
+        setReadReceipts(r.readReceipts === true);
       })
       .catch(() => {
         setMessageEmail(true);
+        setReadReceipts(false);
       });
     apiFetch<{ qrPayload: string; checkedIn: boolean; checkedInAt: string | null }>(
       "/checkins/me/code",
@@ -2957,7 +2960,7 @@ function ProfileEditor({
         }
         await apiFetch("/notifications/preferences", withEventHeaders({
           method: "PUT",
-          body: JSON.stringify({ messageEmail }),
+          body: JSON.stringify({ messageEmail, readReceipts }),
         }), token);
       }
       onSaved(updated);
@@ -3156,6 +3159,14 @@ function ProfileEditor({
               onChange={(e) => setMessageEmail(e.target.checked)}
             />
             Email me about unread messages (max one per day)
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={readReceipts}
+              onChange={(e) => setReadReceipts(e.target.checked)}
+            />
+            Show read receipts — see when your messages are read; others see when you read theirs
           </label>
         </>
       ) : null}

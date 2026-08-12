@@ -1290,6 +1290,8 @@ model NotificationPreference {
   digestEmail     Boolean  @default(false)
   /// Unread-DM emails only (separate from digestEmail). Default ON — calm, batched, easy opt-out.
   messageEmail    Boolean  @default(true)
+  /// Opt-in "Seen" receipts (reciprocal: off = you neither share nor see read state).
+  readReceipts    Boolean  @default(false)
   mutedCategories String[] @default([])
   timezone        String?
   createdAt       DateTime @default(now())

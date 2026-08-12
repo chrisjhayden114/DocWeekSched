@@ -13,6 +13,7 @@ import {
   isAwaitingReply,
   isIncomingRequest,
   isMessagingConversation,
+  isSeenByOther,
   mergeServerMessages,
   roleLabel,
   sortConversationsByActivity,
@@ -278,6 +279,28 @@ describe("message request gate helpers (M4b)", () => {
       isAwaitingReply(direct({ status: "ACTIVE", initiatedByMe: true, messages: [myMessage] }), ME),
     ).toBe(false);
     expect(isAwaitingReply(direct({ messages: [myMessage] }), ME)).toBe(false);
+  });
+});
+
+describe("isSeenByOther (M-SEEN)", () => {
+  it("returns false when lastSelfMessageIso or otherLastReadAt is null/undefined", () => {
+    expect(isSeenByOther(null, "2026-08-04T10:00:00.000Z")).toBe(false);
+    expect(isSeenByOther("2026-08-04T10:00:00.000Z", null)).toBe(false);
+    expect(isSeenByOther("2026-08-04T10:00:00.000Z", undefined)).toBe(false);
+    expect(isSeenByOther(null, null)).toBe(false);
+    expect(isSeenByOther(null, undefined)).toBe(false);
+  });
+
+  it("returns true when the other read after send", () => {
+    expect(isSeenByOther("2026-08-04T10:00:00.000Z", "2026-08-04T10:01:00.000Z")).toBe(true);
+  });
+
+  it("returns false when the other read before send", () => {
+    expect(isSeenByOther("2026-08-04T10:01:00.000Z", "2026-08-04T10:00:00.000Z")).toBe(false);
+  });
+
+  it("returns true when timestamps are equal", () => {
+    expect(isSeenByOther("2026-08-04T10:00:00.000Z", "2026-08-04T10:00:00.000Z")).toBe(true);
   });
 });
 

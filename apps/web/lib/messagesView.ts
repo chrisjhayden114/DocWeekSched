@@ -37,6 +37,7 @@ export type ConversationView = {
   /** M4b request gate: "ACTIVE" or "REQUESTED". */
   status?: string;
   initiatedByMe?: boolean;
+  otherLastReadAt?: string | null;
 };
 
 export type MessageView = {
@@ -62,6 +63,12 @@ export function isIncomingRequest(c: ConversationView): boolean {
 /** M4b: I opened the request and already used my one message — composer waits. */
 export function isAwaitingReply(c: ConversationView, currentUserId: string): boolean {
   return c.status === "REQUESTED" && !!c.initiatedByMe && c.messages?.[0]?.user?.id === currentUserId;
+}
+
+/** M-SEEN — whether the viewer's message run should show "Seen". */
+export function isSeenByOther(lastSelfMessageIso: string | null, otherLastReadAt: string | null | undefined): boolean {
+  if (!lastSelfMessageIso || !otherLastReadAt) return false;
+  return new Date(otherLastReadAt).getTime() >= new Date(lastSelfMessageIso).getTime();
 }
 
 export function otherMember(

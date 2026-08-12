@@ -16,6 +16,7 @@ const notificationPrefsSchema = z.object({
   digestLocalTime: z.string().regex(/^\d{1,2}:\d{2}$/).optional(),
   digestEmail: z.boolean().optional(),
   messageEmail: z.boolean().optional(),
+  readReceipts: z.boolean().optional(),
   mutedCategories: z.array(z.string()).optional(),
   timezone: z.string().nullable().optional(),
 });
@@ -49,6 +50,7 @@ function resolvedPrefs(
     digestLocalTime: string;
     digestEmail: boolean;
     messageEmail?: boolean;
+    readReceipts?: boolean;
     mutedCategories: string[];
     timezone: string | null;
   } | null,
@@ -60,6 +62,7 @@ function resolvedPrefs(
     digestLocalTime: row?.digestLocalTime ?? DEFAULT_PREFS.digestLocalTime,
     digestEmail: row?.digestEmail ?? DEFAULT_PREFS.digestEmail,
     messageEmail: row?.messageEmail ?? true,
+    readReceipts: row?.readReceipts ?? false,
     mutedCategories: row?.mutedCategories ?? DEFAULT_PREFS.mutedCategories,
     timezone: row?.timezone || eventTimezone || "UTC",
   };
@@ -100,6 +103,7 @@ notificationsRouter.put(
       ...(parsed.data.digestLocalTime !== undefined ? { digestLocalTime: parsed.data.digestLocalTime } : {}),
       ...(parsed.data.digestEmail !== undefined ? { digestEmail: parsed.data.digestEmail } : {}),
       ...(parsed.data.messageEmail !== undefined ? { messageEmail: parsed.data.messageEmail } : {}),
+      ...(parsed.data.readReceipts !== undefined ? { readReceipts: parsed.data.readReceipts } : {}),
       ...(parsed.data.mutedCategories !== undefined ? { mutedCategories: parsed.data.mutedCategories } : {}),
       ...(parsed.data.timezone !== undefined ? { timezone: parsed.data.timezone } : {}),
     };
