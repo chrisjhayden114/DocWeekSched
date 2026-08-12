@@ -6,7 +6,14 @@ import { getDirectConversation } from "../lib/conversations";
 import { allAttendeeUserIds, notifyNewMessage } from "../lib/notifications";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
-import { requireFeature } from "../lib/features";
+import { featureEnabled, requireFeature } from "../lib/features";
+import {
+  firstMessageTooLong,
+  promotesOnSend,
+  REQUEST_FIRST_MESSAGE_MAX,
+  requestSendDecision,
+  withinRequestCaps,
+} from "../lib/requestGate";
 import { assertMutuallyVisible, isBlockedBetween } from "../lib/visibility";
 import { authorOrDeleted } from "../lib/authorDisplay";
 import { validationErrorBody } from "../lib/errors";
@@ -98,26 +105,35 @@ conversationsRouter.get(
     const blockedOthers = new Set(blocks.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
 
     return res.json(
-      page.items.map((item) => {
-        const viewerMember = item.members.find((m) => m.userId === userId);
-        const lastMessage = item.messages[0];
-        const muted = !!viewerMember?.mutedAt;
-        const unread =
-          !!lastMessage &&
-          lastMessage.user?.id !== userId &&
-          (!viewerMember?.lastReadAt ||
-            new Date(lastMessage.createdAt) > new Date(viewerMember.lastReadAt)) &&
-          !muted;
-        const otherId = item.type === "DIRECT" ? item.members.find((m) => m.userId !== userId)?.userId : null;
-        const blocked = !!otherId && blockedOthers.has(otherId);
-        return {
-          ...item,
-          unread,
-          muted,
-          blocked,
-          members: item.members.map((m) => ({ user: m.user })),
-        };
-      }),
+      page.items
+        // An empty request shouldn't appear for its recipient (M4b).
+        .filter(
+          (item) =>
+            !(item.status === "REQUESTED" && item.initiatedById !== userId && item.messages.length === 0),
+        )
+        .map((item) => {
+          const viewerMember = item.members.find((m) => m.userId === userId);
+          const lastMessage = item.messages[0];
+          const muted = !!viewerMember?.mutedAt;
+          const unread =
+            item.status !== "REQUESTED" &&
+            !!lastMessage &&
+            lastMessage.user?.id !== userId &&
+            (!viewerMember?.lastReadAt ||
+              new Date(lastMessage.createdAt) > new Date(viewerMember.lastReadAt)) &&
+            !muted;
+          const otherId = item.type === "DIRECT" ? item.members.find((m) => m.userId !== userId)?.userId : null;
+          const blocked = !!otherId && blockedOthers.has(otherId);
+          return {
+            ...item,
+            unread,
+            muted,
+            blocked,
+            status: item.status,
+            initiatedByMe: item.initiatedById === userId,
+            members: item.members.map((m) => ({ user: m.user })),
+          };
+        }),
     );
   }),
 );
@@ -135,7 +151,7 @@ conversationsRouter.post(
     const userId = req.user!.id;
     const otherUserId = parsed.data.userId;
     const event = await resolveEventFromRequest(req);
-    await requireEventAccess(userId, event.id);
+    const access = await requireEventAccess(userId, event.id);
     await requireFeature(event.id, "messaging_dms");
     await assertEventMembers(event.id, [otherUserId]);
 
@@ -163,10 +179,33 @@ conversationsRouter.post(
       return res.json(full);
     }
 
+    // M4b request gate: a stranger's first DM lands as a silent REQUEST.
+    // Organizers are exempt; caps are DB-counted (never the in-memory limiter).
+    const gateOn = await featureEnabled(event.id, "messaging_requests");
+    const isManager = access.canManageEvent;
+    let status = "ACTIVE";
+    if (gateOn && !isManager) {
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const [today, eventTotal] = await Promise.all([
+        prisma.conversation.count({
+          where: { initiatedById: userId, eventId: event.id, createdAt: { gte: dayAgo } },
+        }),
+        prisma.conversation.count({ where: { initiatedById: userId, eventId: event.id } }),
+      ]);
+      if (!withinRequestCaps({ today, event: eventTotal })) {
+        throw new HttpError(429, {
+          error: "You've reached the limit for starting new conversations. Try again tomorrow.",
+        });
+      }
+      status = "REQUESTED";
+    }
+
     const conversation = await prisma.conversation.create({
       data: {
         eventId: event.id,
         type: "DIRECT",
+        status,
+        initiatedById: userId,
         members: {
           create: [{ userId }, { userId: otherUserId }],
         },
@@ -384,6 +423,32 @@ conversationsRouter.post(
       }
     }
 
+    // M4b request gate: the initiator gets one (capped) message until the
+    // recipient replies; a reply from anyone else accepts the request.
+    if (conversation.type === "DIRECT") {
+      const senderMessageCount = await prisma.conversationMessage.count({
+        where: { conversationId: conversation.id, userId },
+      });
+      const decision = requestSendDecision(conversation, userId, senderMessageCount);
+      if (!decision.allowed) {
+        throw new HttpError(403, {
+          error: "Waiting for a reply. You can send another message once they respond.",
+        });
+      }
+      if (firstMessageTooLong(conversation, userId, senderMessageCount, parsed.data.body)) {
+        return res
+          .status(400)
+          .json({ error: `Keep your first message under ${REQUEST_FIRST_MESSAGE_MAX} characters.` });
+      }
+      if (promotesOnSend(conversation, userId)) {
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { status: "ACTIVE" },
+        });
+        conversation.status = "ACTIVE";
+      }
+    }
+
     const message = await prisma.conversationMessage.create({
       data: {
         conversationId: conversation.id,
@@ -405,7 +470,11 @@ conversationsRouter.post(
           memberUserIds,
           title: `Event-wide · ${message.user?.name ?? "Deleted participant"}`,
         });
-      } else if (conversation.type === "DIRECT" || conversation.type === "GROUP") {
+      } else if (
+        (conversation.type === "DIRECT" || conversation.type === "GROUP") &&
+        // Requests are silent — no notification until the recipient accepts.
+        conversation.status !== "REQUESTED"
+      ) {
         const memberUserIds = conversation.members.map((m) => m.userId);
         await notifyNewMessage({
           eventId: conversation.eventId,

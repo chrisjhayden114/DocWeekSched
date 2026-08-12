@@ -9,6 +9,8 @@ import {
   filterConversations,
   groupMessagesForThread,
   initialsFor,
+  isAwaitingReply,
+  isIncomingRequest,
   isMessagingConversation,
   mergeServerMessages,
   roleLabel,
@@ -225,6 +227,56 @@ describe("list ordering and search", () => {
     expect(filterConversations([c], "pre-print", ME)).toHaveLength(1);
     expect(filterConversations([c], "zebra", ME)).toHaveLength(0);
     expect(filterConversations([c], "  ", ME)).toHaveLength(1);
+  });
+});
+
+describe("message request gate helpers (M4b)", () => {
+  const theirMessage = {
+    id: "m1",
+    body: "hi there",
+    createdAt: "2026-08-04T10:00:00.000Z",
+    user: { id: "user-aisha", name: "Aisha Rahman" },
+  };
+  const myMessage = {
+    id: "m2",
+    body: "hello!",
+    createdAt: "2026-08-04T10:01:00.000Z",
+    user: { id: ME, name: "Chris Hayden" },
+  };
+
+  it("flags an incoming request only when REQUESTED and initiated by someone else", () => {
+    expect(isIncomingRequest(direct({ status: "REQUESTED", initiatedByMe: false }))).toBe(true);
+    expect(isIncomingRequest(direct({ status: "REQUESTED", initiatedByMe: true }))).toBe(false);
+    expect(isIncomingRequest(direct({ status: "ACTIVE", initiatedByMe: false }))).toBe(false);
+    expect(isIncomingRequest(direct({}))).toBe(false);
+  });
+
+  it("awaits a reply only when I initiated and the last message is mine", () => {
+    expect(
+      isAwaitingReply(direct({ status: "REQUESTED", initiatedByMe: true, messages: [myMessage] }), ME),
+    ).toBe(true);
+  });
+
+  it("does not await a reply before I have sent anything", () => {
+    expect(
+      isAwaitingReply(direct({ status: "REQUESTED", initiatedByMe: true, messages: [] }), ME),
+    ).toBe(false);
+  });
+
+  it("does not await a reply once they have responded", () => {
+    expect(
+      isAwaitingReply(direct({ status: "REQUESTED", initiatedByMe: true, messages: [theirMessage] }), ME),
+    ).toBe(false);
+  });
+
+  it("does not await a reply for incoming requests or ACTIVE conversations", () => {
+    expect(
+      isAwaitingReply(direct({ status: "REQUESTED", initiatedByMe: false, messages: [myMessage] }), ME),
+    ).toBe(false);
+    expect(
+      isAwaitingReply(direct({ status: "ACTIVE", initiatedByMe: true, messages: [myMessage] }), ME),
+    ).toBe(false);
+    expect(isAwaitingReply(direct({ messages: [myMessage] }), ME)).toBe(false);
   });
 });
 

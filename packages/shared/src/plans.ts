@@ -62,6 +62,7 @@ const CORE_ATTENDEE_FEATURES: Partial<Record<EntitlementKey, boolean>> = {
   community_icebreakers: true,
   community_general: true,
   messaging_dms: true,
+  messaging_requests: true,
   messaging_groups: true,
   messaging_event_chat: true,
   session_qa: true,

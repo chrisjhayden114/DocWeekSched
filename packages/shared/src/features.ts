@@ -21,6 +21,7 @@ export type FeatureKey =
   | "community_icebreakers"
   | "community_general"
   | "messaging_dms"
+  | "messaging_requests"
   | "messaging_groups"
   | "messaging_event_chat"
   | "session_qa"
@@ -111,6 +112,13 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     key: "messaging_dms",
     name: "Direct messages",
     plainDescription: "One-to-one private chats between attendees.",
+    category: "messaging",
+    defaultOn: true,
+  },
+  {
+    key: "messaging_requests",
+    name: "Message requests",
+    plainDescription: "First messages from someone new arrive quietly as a request; replying accepts.",
     category: "messaging",
     defaultOn: true,
   },
@@ -310,6 +318,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       community_icebreakers: true,
       community_general: true,
       messaging_dms: true,
+      messaging_requests: true,
       messaging_groups: true,
       messaging_event_chat: true,
       session_qa: true,
@@ -343,6 +352,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       community_icebreakers: false,
       community_general: false,
       messaging_dms: false,
+      messaging_requests: false,
       messaging_groups: false,
       messaging_event_chat: false,
       session_qa: true,
@@ -378,6 +388,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       community_icebreakers: true,
       community_general: true,
       messaging_dms: true,
+      messaging_requests: true,
       messaging_groups: true,
       messaging_event_chat: true,
       session_qa: true,

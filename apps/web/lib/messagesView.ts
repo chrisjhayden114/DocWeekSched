@@ -34,6 +34,9 @@ export type ConversationView = {
   unread?: boolean;
   muted?: boolean;
   blocked?: boolean;
+  /** M4b request gate: "ACTIVE" or "REQUESTED". */
+  status?: string;
+  initiatedByMe?: boolean;
 };
 
 export type MessageView = {
@@ -49,6 +52,16 @@ export type MessageView = {
 /** Only DIRECT and GROUP conversations belong on the Messages surface (E18.1). */
 export function isMessagingConversation(c: Pick<ConversationView, "type">): boolean {
   return c.type === "DIRECT" || c.type === "GROUP";
+}
+
+/** M4b: a request someone else opened with me — shown in the quiet "Requests" section. */
+export function isIncomingRequest(c: ConversationView): boolean {
+  return c.status === "REQUESTED" && !c.initiatedByMe;
+}
+
+/** M4b: I opened the request and already used my one message — composer waits. */
+export function isAwaitingReply(c: ConversationView, currentUserId: string): boolean {
+  return c.status === "REQUESTED" && !!c.initiatedByMe && c.messages?.[0]?.user?.id === currentUserId;
 }
 
 export function otherMember(

@@ -11,6 +11,8 @@ import {
   filterConversations,
   groupMessagesForThread,
   initialsFor,
+  isAwaitingReply,
+  isIncomingRequest,
   isMessagingConversation,
   mergeServerMessages,
   messageGroupTime,
@@ -142,6 +144,15 @@ export function MessagesPanel({
   const visibleConversations = useMemo(
     () => filterConversations(messagingConversations, searchQuery, user.id),
     [messagingConversations, searchQuery, user.id],
+  );
+  /* M4b: incoming requests sit in a quiet section below the regular list. */
+  const regularConversations = useMemo(
+    () => visibleConversations.filter((c) => !isIncomingRequest(c)),
+    [visibleConversations],
+  );
+  const requestConversations = useMemo(
+    () => visibleConversations.filter(isIncomingRequest),
+    [visibleConversations],
   );
   const activeConversation = useMemo(
     () => messagingConversations.find((c) => c.id === activeConversationId) ?? null,
@@ -323,16 +334,30 @@ export function MessagesPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
 
-  /* Sync blocked composer notice from list state (M3). */
+  /* Sync blocked / awaiting-reply composer notice from list state (M3 + M4b). */
   useEffect(() => {
-    if (activeConversation?.blocked) {
+    if (!activeConversation) return;
+    if (activeConversation.blocked) {
       setComposerBlockedNotice("You can't send messages to this person.");
-    } else if (activeConversation && !activeConversation.blocked) {
-      setComposerBlockedNotice((prev) =>
-        prev === "You can't send messages to this person." ? null : prev,
-      );
+      return;
     }
-  }, [activeConversation?.blocked, activeConversation]);
+    if (isAwaitingReply(activeConversation, user.id)) {
+      const name = otherMember(activeConversation, user.id)?.name ?? "them";
+      setComposerBlockedNotice(
+        `Waiting for a reply. You can send another message once ${name} responds.`,
+      );
+      return;
+    }
+    setComposerBlockedNotice((prev) => {
+      if (
+        prev === "You can't send messages to this person." ||
+        (typeof prev === "string" && prev.startsWith("Waiting for a reply."))
+      ) {
+        return null;
+      }
+      return prev;
+    });
+  }, [activeConversation, user.id]);
 
   const updateComposerBody = (value: string) => {
     setComposerBody(value);
@@ -353,6 +378,13 @@ export function MessagesPanel({
       setThreadError(null);
       setLiveAnnouncement("Message sent");
       onMessageSent?.();
+      // Accepting reply: promote REQUESTED → ACTIVE locally; refresh confirms.
+      const prior = conversations.find((c) => c.id === conversationId);
+      if (prior?.status === "REQUESTED" && !prior.initiatedByMe) {
+        onConversationsChange(
+          conversations.map((c) => (c.id === conversationId ? { ...c, status: "ACTIVE" } : c)),
+        );
+      }
       void refreshConversations();
     } catch (err) {
       const status = (err as { status?: number }).status;
@@ -556,11 +588,14 @@ export function MessagesPanel({
                 token={token}
                 withEventHeaders={withEventHeaders}
                 onCreated={(c) => {
-                  if (!conversations.some((row) => row.id === c.id)) {
-                    onConversationsChange([c, ...conversations]);
+                  // Creator is always the initiator; GET list will confirm via refresh.
+                  const row = { ...c, initiatedByMe: true };
+                  if (!conversations.some((existing) => existing.id === c.id)) {
+                    onConversationsChange([row, ...conversations]);
                   }
                   selectConversation(c.id);
                   setNewConversationMode(null);
+                  void refreshConversations();
                 }}
               />
             ) : (
@@ -604,7 +639,7 @@ export function MessagesPanel({
           </p>
         ) : (
           <ul className="conversation-list motion-stagger">
-            {visibleConversations.map((c) => {
+            {regularConversations.map((c) => {
               const unread = unreadConversationIds.has(c.id);
               const muted = !!c.muted;
               const title = conversationTitle(c, user.id);
@@ -672,6 +707,84 @@ export function MessagesPanel({
                 </li>
               );
             })}
+            {requestConversations.length > 0 ? (
+              <>
+                <li className="conversation-requests-heading" aria-label={`Requests, ${requestConversations.length}`}>
+                  Requests · {requestConversations.length}
+                </li>
+                {requestConversations.map((c) => {
+                  // Requests never show an unread dot (server already returns unread false).
+                  const muted = !!c.muted;
+                  const title = conversationTitle(c, user.id);
+                  const secondary = conversationSecondaryLine(c, user.id);
+                  const preview = conversationPreview(c, user.id);
+                  const lastAt = c.messages?.[0]?.createdAt ?? c.createdAt ?? null;
+                  const photoUrl = c.type === "DIRECT" ? otherMember(c, user.id)?.photoUrl : null;
+                  return (
+                    <li key={c.id} className={`conversation-row-wrap${muted ? " is-muted" : ""}`}>
+                      <button
+                        type="button"
+                        className="conversation-row"
+                        aria-current={activeConversationId === c.id ? "true" : undefined}
+                        onClick={() => selectConversation(c.id)}
+                      >
+                        <span className="conversation-row-gutter" aria-hidden />
+                        <span className="msg-avatar" aria-hidden>
+                          {photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={photoUrl} alt="" />
+                          ) : (
+                            initialsFor(title)
+                          )}
+                        </span>
+                        <span className="conversation-row-main">
+                          <span className="conversation-row-top">
+                            <span className="conversation-row-name">
+                              {title}
+                              {muted ? (
+                                <span className="conversation-muted-icon" aria-hidden title="Muted">
+                                  <MuteBellIcon off />
+                                </span>
+                              ) : null}
+                            </span>
+                            {lastAt ? (
+                              <time
+                                className="conversation-row-time"
+                                dateTime={lastAt}
+                                title={new Date(lastAt).toLocaleString()}
+                              >
+                                {conversationTimestamp(lastAt)}
+                              </time>
+                            ) : null}
+                          </span>
+                          {secondary ? <span className="conversation-row-secondary">{secondary}</span> : null}
+                          {preview ? (
+                            <span className="conversation-row-preview">{preview}</span>
+                          ) : (
+                            <span className="conversation-row-preview conversation-row-preview--empty">
+                              No messages yet
+                            </span>
+                          )}
+                          {muted ? <span className="sr-only">Muted</span> : null}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="conversation-mute-btn button ghost"
+                        aria-label={muted ? "Unmute conversation" : "Mute conversation"}
+                        aria-pressed={muted}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleMute(c);
+                        }}
+                      >
+                        <MuteBellIcon off={muted} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </>
+            ) : null}
           </ul>
         )}
       </div>
@@ -897,6 +1010,12 @@ export function MessagesPanel({
               Dismiss
             </button>
           </div>
+        ) : null}
+
+        {activeConversation && isIncomingRequest(activeConversation) ? (
+          <p className="msg-thread-notice" role="status">
+            Replying will let {activeOther?.name ?? "them"} message you.
+          </p>
         ) : null}
 
         {activeConversation ? (
