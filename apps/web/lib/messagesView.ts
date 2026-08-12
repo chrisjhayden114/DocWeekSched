@@ -301,3 +301,22 @@ export function mergeServerMessages(local: MessageView[], server: MessageView[])
   );
   return [...server, ...stillPending];
 }
+
+/**
+ * M9 — append an incremental poll result to local state. Dedupes by id, keeps
+ * local optimistic rows (sending/failed) at the end, preserves order.
+ */
+export function appendIncomingMessages(local: MessageView[], incoming: MessageView[]): MessageView[] {
+  if (incoming.length === 0) return local;
+  const known = new Set(local.map((m) => m.id));
+  const fresh = incoming.filter((m) => !known.has(m.id));
+  if (fresh.length === 0) return local;
+  const pending = local.filter((m) => m.localStatus);
+  const settled = local.filter((m) => !m.localStatus);
+  // Drop optimistic rows the server has now persisted (same sender + body), like mergeServerMessages.
+  const freshKeys = new Set(fresh.map((m) => `${m.user?.id ?? ""}\n${m.body}`));
+  const stillPending = pending.filter(
+    (m) => m.localStatus === "failed" || !freshKeys.has(`${m.user?.id ?? ""}\n${m.body}`),
+  );
+  return [...settled, ...fresh, ...stillPending];
+}

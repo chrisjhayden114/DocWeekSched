@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DELETED_PARTICIPANT_LABEL } from "@event-app/shared";
 import { apiFetch, apiFetchAll } from "../lib/api";
 import {
+  appendIncomingMessages,
   conversationPreview,
   conversationSecondaryLine,
   conversationTimestamp,
@@ -137,6 +138,8 @@ export function MessagesPanel({
   const focusThreadOnOpenRef = useRef(false);
   const stickToBottomRef = useRef(true);
   const prevLastMessageIdRef = useRef<string | null>(null);
+  const messagesRef = useRef<MessageView[]>([]);
+  messagesRef.current = messages;
 
   const messagingConversations = useMemo(
     () => sortConversationsByActivity(conversations.filter(isMessagingConversation)),
@@ -225,12 +228,33 @@ export function MessagesPanel({
       if (!activeConversationId) return;
       if (!opts?.background) setThreadLoading(true);
       try {
-        const rows = await apiFetchAll<MessageView>(
-          `/conversations/${activeConversationId}/messages`,
-          withEventHeaders(),
-          token,
-        );
-        setMessages((prev) => mergeServerMessages(prev, rows));
+        const conversationId = activeConversationId;
+        const current = messagesRef.current;
+        let lastId: string | undefined;
+        if (opts?.background && current.length > 0) {
+          for (let i = current.length - 1; i >= 0; i--) {
+            if (!current[i]!.localStatus) {
+              lastId = current[i]!.id;
+              break;
+            }
+          }
+        }
+        if (opts?.background && current.length > 0 && lastId) {
+          // Edits/deletes by the other person surface on the next full fetch (focus/switch), not the incremental tick.
+          const latest = await apiFetch<MessageView[]>(
+            `/conversations/${conversationId}/messages?cursor=${lastId}&take=100`,
+            withEventHeaders(),
+            token,
+          );
+          setMessages((prev) => appendIncomingMessages(prev, latest));
+        } else {
+          const rows = await apiFetchAll<MessageView>(
+            `/conversations/${conversationId}/messages`,
+            withEventHeaders(),
+            token,
+          );
+          setMessages((prev) => mergeServerMessages(prev, rows));
+        }
       } catch {
         /* transient — the next poll retries */
       } finally {

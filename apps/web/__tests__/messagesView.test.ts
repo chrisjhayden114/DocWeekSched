@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendIncomingMessages,
   conversationPreview,
   conversationSecondaryLine,
   conversationTimestamp,
@@ -323,5 +324,80 @@ describe("optimistic send bookkeeping (E18.4)", () => {
     ];
     const merged = mergeServerMessages([pending], server);
     expect(merged.map((m) => m.id)).toEqual(["s1", "s2"]);
+  });
+});
+
+describe("appendIncomingMessages (M9 incremental poll)", () => {
+  it("returns the same reference when incoming is empty", () => {
+    const local = [msg({ id: "s1", createdAt: "2026-08-04T09:00:00.000Z" })];
+    expect(appendIncomingMessages(local, [])).toBe(local);
+  });
+
+  it("ignores incoming rows whose ids are already local", () => {
+    const local = [
+      msg({ id: "s1", createdAt: "2026-08-04T09:00:00.000Z", body: "hello" }),
+      msg({ id: "s2", createdAt: "2026-08-04T09:01:00.000Z", body: "there" }),
+    ];
+    const incoming = [
+      msg({ id: "s2", createdAt: "2026-08-04T09:01:00.000Z", body: "there (edited)" }),
+    ];
+    expect(appendIncomingMessages(local, incoming)).toBe(local);
+    expect(appendIncomingMessages(local, incoming).map((m) => m.body)).toEqual(["hello", "there"]);
+  });
+
+  it("appends new messages after settled rows, before pending ones", () => {
+    const pending = msg({
+      id: "local-1",
+      clientId: "local-1",
+      createdAt: "2026-08-04T10:01:00.000Z",
+      body: "on the way",
+      user: { id: ME, name: "Chris" },
+      localStatus: "sending",
+    });
+    const local = [msg({ id: "s1", createdAt: "2026-08-04T09:00:00.000Z", body: "hello" }), pending];
+    const incoming = [msg({ id: "s2", createdAt: "2026-08-04T09:30:00.000Z", body: "new from them" })];
+    expect(appendIncomingMessages(local, incoming).map((m) => m.id)).toEqual(["s1", "s2", "local-1"]);
+  });
+
+  it("drops a pending sending row once an incoming message matches sender and body", () => {
+    const pending = msg({
+      id: "local-2",
+      clientId: "local-2",
+      createdAt: "2026-08-04T10:01:00.000Z",
+      body: "on the way",
+      user: { id: ME, name: "Chris" },
+      localStatus: "sending",
+    });
+    const local = [msg({ id: "s1", createdAt: "2026-08-04T09:00:00.000Z", body: "hello" }), pending];
+    const incoming = [
+      msg({
+        id: "s2",
+        createdAt: "2026-08-04T10:01:02.000Z",
+        body: "on the way",
+        user: { id: ME, name: "Chris" },
+      }),
+    ];
+    expect(appendIncomingMessages(local, incoming).map((m) => m.id)).toEqual(["s1", "s2"]);
+  });
+
+  it("keeps a failed row even when an incoming message matches sender and body", () => {
+    const failed = msg({
+      id: "local-1",
+      clientId: "local-1",
+      createdAt: "2026-08-04T10:00:00.000Z",
+      body: "never made it",
+      user: { id: ME, name: "Chris" },
+      localStatus: "failed",
+    });
+    const local = [msg({ id: "s1", createdAt: "2026-08-04T09:00:00.000Z", body: "hello" }), failed];
+    const incoming = [
+      msg({
+        id: "s2",
+        createdAt: "2026-08-04T10:00:02.000Z",
+        body: "never made it",
+        user: { id: ME, name: "Chris" },
+      }),
+    ];
+    expect(appendIncomingMessages(local, incoming).map((m) => m.id)).toEqual(["s1", "s2", "local-1"]);
   });
 });
