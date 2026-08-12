@@ -129,6 +129,7 @@ export function MessagesPanel({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<(typeof REPORT_REASONS)[number]>("Harassment");
   const [reportDetails, setReportDetails] = useState("");
+  const [reportAlsoBlock, setReportAlsoBlock] = useState(true);
   const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -321,6 +322,7 @@ export function MessagesPanel({
     setReportOpen(false);
     setReportReason("Harassment");
     setReportDetails("");
+    setReportAlsoBlock(true);
     if (!activeConversationId || typeof window === "undefined") {
       setComposerBody("");
       return;
@@ -510,7 +512,7 @@ export function MessagesPanel({
   }, [activeConversation, conversations, onConversationsChange, otherUserId, token, withEventHeaders]);
 
   const submitReport = useCallback(async () => {
-    if (!otherUserId || reportSubmitting) return;
+    if (!otherUserId || !activeConversationId || reportSubmitting) return;
     setReportSubmitting(true);
     try {
       await apiFetch(
@@ -521,19 +523,49 @@ export function MessagesPanel({
             userId: otherUserId,
             reason: reportReason,
             details: reportDetails.trim() || undefined,
+            conversationId: activeConversationId,
           }),
         }),
         token,
       );
+      if (reportAlsoBlock) {
+        try {
+          await apiFetch(
+            "/moderation/block",
+            withEventHeaders({ method: "POST", body: JSON.stringify({ userId: otherUserId }) }),
+            token,
+          );
+          onConversationsChange(
+            conversations.map((row) =>
+              row.id === activeConversationId ? { ...row, blocked: true } : row,
+            ),
+          );
+          setComposerBlockedNotice("You can't send messages to this person.");
+        } catch {
+          /* report already succeeded */
+        }
+      }
       setReportOpen(false);
       setReportDetails("");
+      setReportAlsoBlock(true);
       setThreadError("Reported to organizers.");
     } catch (err) {
       setThreadError(err instanceof Error ? err.message : "Couldn't submit that report.");
     } finally {
       setReportSubmitting(false);
     }
-  }, [otherUserId, reportDetails, reportReason, reportSubmitting, token, withEventHeaders]);
+  }, [
+    activeConversationId,
+    conversations,
+    onConversationsChange,
+    otherUserId,
+    reportAlsoBlock,
+    reportDetails,
+    reportReason,
+    reportSubmitting,
+    token,
+    withEventHeaders,
+  ]);
 
   return (
     <div className="kit-page-stack">
@@ -832,7 +864,10 @@ export function MessagesPanel({
                 {
                   id: "report",
                   label: "Report",
-                  onSelect: () => setReportOpen(true),
+                  onSelect: () => {
+                    setReportAlsoBlock(true);
+                    setReportOpen(true);
+                  },
                 },
               ]}
             />
@@ -1119,7 +1154,7 @@ export function MessagesPanel({
                   ))}
                 </select>
               </label>
-              <label className="help-text" style={{ display: "grid", gap: 6, marginBottom: 16 }}>
+              <label className="help-text" style={{ display: "grid", gap: 6, marginBottom: 12 }}>
                 Details (optional)
                 <textarea
                   className="textarea"
@@ -1128,6 +1163,18 @@ export function MessagesPanel({
                   onChange={(e) => setReportDetails(e.target.value)}
                   disabled={reportSubmitting}
                 />
+              </label>
+              <label
+                className="help-text"
+                style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={reportAlsoBlock}
+                  onChange={(e) => setReportAlsoBlock(e.target.checked)}
+                  disabled={reportSubmitting}
+                />
+                Also block {activeOther?.name ?? "this person"}
               </label>
               <div className="agenda-add-modal-actions">
                 <button

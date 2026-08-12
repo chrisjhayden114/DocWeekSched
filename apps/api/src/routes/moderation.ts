@@ -58,12 +58,42 @@ moderationRouter.post(
         userId: z.string().min(1),
         reason: z.string().min(1).max(200),
         details: z.string().max(2000).optional(),
+        conversationId: z.string().min(1).optional(),
       })
       .safeParse(req.body);
     if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     const reporterId = req.user!.id;
     await requireEventAccess(reporterId, event.id);
+
+    let conversationId: string | null = null;
+    let transcriptSnapshot: Array<{
+      senderId: string | null;
+      senderName: string;
+      body: string;
+      createdAt: string;
+    }> | null = null;
+    if (parsed.data.conversationId) {
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: parsed.data.conversationId, eventId: event.id },
+        include: { members: { select: { userId: true } } },
+      });
+      if (!conversation || !conversation.members.some((m) => m.userId === reporterId)) {
+        throw new HttpError(403, { error: "Forbidden" });
+      }
+      conversationId = conversation.id;
+      const messages = await prisma.conversationMessage.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: "asc" },
+        include: { user: { select: { id: true, name: true } } },
+      });
+      transcriptSnapshot = messages.map((m) => ({
+        senderId: m.user?.id ?? null,
+        senderName: m.user?.name ?? "Deleted participant",
+        body: m.body,
+        createdAt: m.createdAt.toISOString(),
+      }));
+    }
 
     const report = await prisma.userReport.create({
       data: {
@@ -72,6 +102,8 @@ moderationRouter.post(
         reportedUserId: parsed.data.userId,
         reason: parsed.data.reason.trim(),
         details: parsed.data.details?.trim() || null,
+        conversationId,
+        transcriptSnapshot: transcriptSnapshot ?? undefined,
       },
     });
 
@@ -110,7 +142,45 @@ moderationRouter.get(
       orderBy: { createdAt: "desc" },
       take: 100,
     });
-    return res.json(reports);
+    const reportedIds = [...new Set(reports.map((r) => r.reportedUserId))];
+    const memberships =
+      reportedIds.length === 0
+        ? []
+        : await prisma.eventMembership.findMany({
+            where: { eventId: event.id, userId: { in: reportedIds }, deletedAt: null },
+            select: { userId: true, messagingSuspendedAt: true },
+          });
+    const suspendedByUser = new Map(
+      memberships.map((m) => [m.userId, !!m.messagingSuspendedAt] as const),
+    );
+    return res.json(
+      reports.map((r) => ({
+        ...r,
+        conversationId: r.conversationId,
+        transcriptSnapshot: r.transcriptSnapshot,
+        reportedUserSuspended: suspendedByUser.get(r.reportedUserId) ?? false,
+      })),
+    );
+  }),
+);
+
+moderationRouter.post(
+  "/suspend-messaging",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = z
+      .object({ userId: z.string().min(1), suspended: z.boolean() })
+      .safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    const updated = await prisma.eventMembership.updateMany({
+      where: { eventId: event.id, userId: parsed.data.userId, deletedAt: null },
+      data: { messagingSuspendedAt: parsed.data.suspended ? new Date() : null },
+    });
+    if (updated.count === 0) throw new HttpError(404, { error: "Membership not found" });
+    return res.json({ userId: parsed.data.userId, suspended: parsed.data.suspended });
   }),
 );
 

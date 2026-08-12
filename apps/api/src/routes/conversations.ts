@@ -48,6 +48,16 @@ async function assertEventMembers(eventId: string, userIds: string[]) {
   }
 }
 
+async function assertNotMessagingSuspended(eventId: string, userId: string) {
+  const m = await prisma.eventMembership.findFirst({
+    where: { eventId, userId, deletedAt: null },
+    select: { messagingSuspendedAt: true },
+  });
+  if (m?.messagingSuspendedAt) {
+    throw new HttpError(403, { error: "Messaging isn't available for your account at this event." });
+  }
+}
+
 conversationsRouter.get(
   "/",
   requireAuth,
@@ -153,6 +163,7 @@ conversationsRouter.post(
     const event = await resolveEventFromRequest(req);
     const access = await requireEventAccess(userId, event.id);
     await requireFeature(event.id, "messaging_dms");
+    await assertNotMessagingSuspended(event.id, userId);
     await assertEventMembers(event.id, [otherUserId]);
 
     const visible = await assertMutuallyVisible(event.id, userId, otherUserId);
@@ -415,6 +426,8 @@ conversationsRouter.post(
     if (conversation.type !== "EVENT" && !conversation.members.some((m) => m.userId === userId)) {
       throw new HttpError(403, { error: "Forbidden" });
     }
+
+    await assertNotMessagingSuspended(conversation.eventId, userId);
 
     if (conversation.type === "DIRECT") {
       const other = conversation.members.find((m) => m.userId !== userId);

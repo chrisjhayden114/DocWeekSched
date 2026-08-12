@@ -436,6 +436,8 @@ model EventMembership {
   /// Client-side default (cuid) so every membership-create path auto-populates it;
   /// column is NOT NULL in the DB with existing rows backfilled. Do NOT remove this default.
   checkInCode    String          @default(cuid())
+  /// Organizer-suspended from sending messages at this event. Null = not suspended.
+  messagingSuspendedAt DateTime?
 
   @@unique([eventId, userId])
   @@unique([eventId, checkInCode])
@@ -1401,6 +1403,8 @@ model UserReport {
   event          Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
   reason         String
   details        String?
+  conversationId     String?
+  transcriptSnapshot Json?
   status         ModerationReportStatus @default(OPEN)
   createdAt      DateTime               @default(now())
   resolvedAt     DateTime?
