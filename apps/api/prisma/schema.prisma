@@ -994,6 +994,13 @@ model Conversation {
   id        String               @id @default(cuid())
   name      String?
   type      ConversationType
+  /// M4 request gate: ACTIVE (normal) or REQUESTED (first contact awaiting a reply).
+  /// String, not enum, so future states need no enum migration. No code reads this
+  /// until M4b (flag: messaging_requests).
+  status         String    @default("ACTIVE")
+  /// Who opened the conversation (drives the one-message cap + promote-on-reply in M4b).
+  /// Plain scalar, no @relation — membership is validated at the route layer.
+  initiatedById  String?
   createdAt DateTime             @default(now())
   event     Event                @relation(fields: [eventId], references: [id])
   eventId   String
