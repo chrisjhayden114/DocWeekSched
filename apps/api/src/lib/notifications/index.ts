@@ -27,6 +27,7 @@ export { notifyMany, deliverNotification, flushQueuedPushes } from "./deliver";
 export type { NotifyManyRow } from "./deliver";
 export { getPushBudgetStatus, minRemainingPushBudget, tryChargePushBudget } from "./budget";
 export { rollupMorningDigest } from "./digest";
+export { sweepUnreadMessageEmails } from "./messageEmailSweep";
 export { dailyPushBudgetCeiling, classForKind } from "./types";
 export type { DeliverInput, DeliverResult } from "./types";
 export {

@@ -438,6 +438,8 @@ model EventMembership {
   checkInCode    String          @default(cuid())
   /// Organizer-suspended from sending messages at this event. Null = not suspended.
   messagingSuspendedAt DateTime?
+  /// Who may START a new DM with me: ANYONE | EXISTING_ONLY | NONE. Existing threads unaffected.
+  messagePolicy String @default("ANYONE")
 
   @@unique([eventId, userId])
   @@unique([eventId, checkInCode])
@@ -1286,6 +1288,8 @@ model NotificationPreference {
   quietHoursEnd   String   @default("07:00")
   digestLocalTime String   @default("07:30")
   digestEmail     Boolean  @default(false)
+  /// Unread-DM emails only (separate from digestEmail). Default ON — calm, batched, easy opt-out.
+  messageEmail    Boolean  @default(true)
   mutedCategories String[] @default([])
   timezone        String?
   createdAt       DateTime @default(now())

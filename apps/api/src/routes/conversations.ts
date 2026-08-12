@@ -194,6 +194,19 @@ conversationsRouter.post(
     // Organizers are exempt; caps are DB-counted (never the in-memory limiter).
     const gateOn = await featureEnabled(event.id, "messaging_requests");
     const isManager = access.canManageEvent;
+
+    // Who-can-message: EXISTING_ONLY/NONE block NEW conversations only.
+    // Existing threads returned above; organizer senders exempt like the gate.
+    if (!isManager) {
+      const targetMembership = await prisma.eventMembership.findFirst({
+        where: { eventId: event.id, userId: otherUserId, deletedAt: null },
+        select: { messagePolicy: true },
+      });
+      const policy = targetMembership?.messagePolicy ?? "ANYONE";
+      if (policy === "NONE" || policy === "EXISTING_ONLY") {
+        throw new HttpError(403, { error: "This person isn't accepting new messages." });
+      }
+    }
     let status = "ACTIVE";
     if (gateOn && !isManager) {
       const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);

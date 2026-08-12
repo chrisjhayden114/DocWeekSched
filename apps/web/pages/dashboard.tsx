@@ -2842,6 +2842,8 @@ function ProfileEditor({
   const [bio, setBio] = useState(user.bio || "");
   const [directoryOptIn, setDirectoryOptIn] = useState(false);
   const [matchMeEnabled, setMatchMeEnabled] = useState(true);
+  const [messagePolicy, setMessagePolicy] = useState<"ANYONE" | "EXISTING_ONLY" | "NONE">("ANYONE");
+  const [messageEmail, setMessageEmail] = useState(true);
   const [participantType, setParticipantType] = useState<
     "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | ""
   >(
@@ -2867,14 +2869,29 @@ function ProfileEditor({
 
   useEffect(() => {
     if (!token || !activeEventId) return;
-    apiFetch<{ directoryOptIn: boolean; matchMeEnabled?: boolean }>("/attendees/me", withEventHeaders(), token)
+    apiFetch<{ directoryOptIn: boolean; matchMeEnabled?: boolean; messagePolicy?: string }>(
+      "/attendees/me",
+      withEventHeaders(),
+      token,
+    )
       .then((r) => {
         setDirectoryOptIn(r.directoryOptIn);
         setMatchMeEnabled(r.matchMeEnabled !== false);
+        if (r.messagePolicy === "ANYONE" || r.messagePolicy === "EXISTING_ONLY" || r.messagePolicy === "NONE") {
+          setMessagePolicy(r.messagePolicy);
+        }
       })
       .catch(() => {
         setDirectoryOptIn(false);
         setMatchMeEnabled(true);
+        setMessagePolicy("ANYONE");
+      });
+    apiFetch<{ messageEmail?: boolean }>("/notifications/preferences", withEventHeaders(), token)
+      .then((r) => {
+        setMessageEmail(r.messageEmail !== false);
+      })
+      .catch(() => {
+        setMessageEmail(true);
       });
     apiFetch<{ qrPayload: string; checkedIn: boolean; checkedInAt: string | null }>(
       "/checkins/me/code",
@@ -2928,7 +2945,7 @@ function ProfileEditor({
       if (activeEventId) {
         await apiFetch("/attendees/me/directory", withEventHeaders({
           method: "PUT",
-          body: JSON.stringify({ directoryOptIn }),
+          body: JSON.stringify({ directoryOptIn, messagePolicy }),
         }), token);
         try {
           await apiFetch("/attendees/me/match-me", withEventHeaders({
@@ -2938,6 +2955,10 @@ function ProfileEditor({
         } catch {
           /* ignore */
         }
+        await apiFetch("/notifications/preferences", withEventHeaders({
+          method: "PUT",
+          body: JSON.stringify({ messageEmail }),
+        }), token);
       }
       onSaved(updated);
       setSaveSuccess("Profile saved.");
@@ -3094,6 +3115,47 @@ function ProfileEditor({
               onChange={(e) => setMatchMeEnabled(e.target.checked)}
             />
             Match me — suggest people with shared interests (one-tap mute when off)
+          </label>
+          <fieldset style={{ border: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+            <legend style={{ fontWeight: 600, marginBottom: 4 }}>Who can message me</legend>
+            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="radio"
+                name="messagePolicy"
+                value="ANYONE"
+                checked={messagePolicy === "ANYONE"}
+                onChange={() => setMessagePolicy("ANYONE")}
+              />
+              Anyone at this event
+            </label>
+            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="radio"
+                name="messagePolicy"
+                value="EXISTING_ONLY"
+                checked={messagePolicy === "EXISTING_ONLY"}
+                onChange={() => setMessagePolicy("EXISTING_ONLY")}
+              />
+              Only people I&apos;ve already messaged, plus organizers
+            </label>
+            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="radio"
+                name="messagePolicy"
+                value="NONE"
+                checked={messagePolicy === "NONE"}
+                onChange={() => setMessagePolicy("NONE")}
+              />
+              No one new
+            </label>
+          </fieldset>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={messageEmail}
+              onChange={(e) => setMessageEmail(e.target.checked)}
+            />
+            Email me about unread messages (max one per day)
           </label>
         </>
       ) : null}

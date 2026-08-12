@@ -124,6 +124,33 @@ export async function sendCertificateReadyEmail(opts: {
   });
 }
 
+export async function sendUnreadMessagesEmail(opts: {
+  to: string;
+  name: string;
+  eventName: string;
+  count: number;
+  lines: string[];
+  dashboardUrl: string;
+}): Promise<SendEmailResult> {
+  const from = buildFromLine(opts.eventName);
+  const subject = `${opts.count} new message${opts.count === 1 ? "" : "s"} at ${opts.eventName}`;
+  const lineHtml = opts.lines
+    .map((line) => `<p style="margin:0 0 8px">${escapeHtml(line)}</p>`)
+    .join("");
+  return getEmailProvider().send({
+    to: opts.to,
+    from,
+    subject,
+    logLabel: "unread-messages",
+    copyUrl: opts.dashboardUrl,
+    html: `<p>Hi ${escapeHtml(opts.name)},</p>
+<p>You have <strong>${opts.count} unread message${opts.count === 1 ? "" : "s"}</strong> at <strong>${escapeHtml(opts.eventName)}</strong>.</p>
+${lineHtml}
+<p><a href="${opts.dashboardUrl.replace(/"/g, "&quot;")}">Open Messages</a></p>
+<p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.dashboardUrl)}</p>`,
+  });
+}
+
 export async function sendWaitlistPromotedEmail(opts: {
   to: string;
   name: string;

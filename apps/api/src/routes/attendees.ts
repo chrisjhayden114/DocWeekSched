@@ -249,6 +249,7 @@ attendeesRouter.get(
     return res.json({
       directoryOptIn: m.directoryOptIn,
       matchMeEnabled: m.matchMeEnabled,
+      messagePolicy: m.messagePolicy ?? "ANYONE",
       role: m.role,
     });
   }),
@@ -259,13 +260,21 @@ attendeesRouter.put(
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const parsed = z.object({ directoryOptIn: z.boolean() }).safeParse(req.body);
+    const parsed = z
+      .object({
+        directoryOptIn: z.boolean(),
+        messagePolicy: z.enum(["ANYONE", "EXISTING_ONLY", "NONE"]).optional(),
+      })
+      .safeParse(req.body);
     if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
     const updated = await prisma.eventMembership.updateMany({
       where: { eventId: event.id, userId: req.user!.id, deletedAt: null },
-      data: { directoryOptIn: parsed.data.directoryOptIn },
+      data: {
+        directoryOptIn: parsed.data.directoryOptIn,
+        ...(parsed.data.messagePolicy ? { messagePolicy: parsed.data.messagePolicy } : {}),
+      },
     });
     if (updated.count === 0) throw new HttpError(404, { error: "Not a member of this event" });
 
@@ -279,7 +288,10 @@ attendeesRouter.put(
       }).catch(() => undefined);
     }
 
-    return res.json({ directoryOptIn: parsed.data.directoryOptIn });
+    return res.json({
+      directoryOptIn: parsed.data.directoryOptIn,
+      ...(parsed.data.messagePolicy ? { messagePolicy: parsed.data.messagePolicy } : {}),
+    });
   }),
 );
 
