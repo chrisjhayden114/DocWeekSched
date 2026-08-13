@@ -1033,6 +1033,18 @@ export default function SessionPage() {
             </div>
           ) : null}
 
+          {/* M8: quiet entry into Messages with this session as compose context. */}
+          {token && user ? (
+            <p style={{ margin: "0 0 16px" }}>
+              <Link
+                href={`/dashboard?tab=Messages&contextSessionId=${encodeURIComponent(session.id)}&contextTitle=${encodeURIComponent(session.title)}`}
+                className="button secondary"
+              >
+                Message about this session
+              </Link>
+            </p>
+          ) : null}
+
           <div className="card" style={{ marginBottom: 16 }}>
             <h3 style={{ marginTop: 0 }}>Session resources</h3>
             <p className="help-text" style={{ marginTop: 0 }}>

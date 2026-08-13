@@ -38,6 +38,8 @@ export type ConversationView = {
   status?: string;
   initiatedByMe?: boolean;
   otherLastReadAt?: string | null;
+  /** M8: session this DM is about (context chip). */
+  contextSession?: { id: string; title: string } | null;
 };
 
 export type MessageView = {
@@ -292,6 +294,14 @@ export function unreadConversationIdSet(
 /** localStorage key for the per-conversation unsent draft (E18.4). */
 export function draftStorageKey(conversationId: string): string {
   return `messageDraft:${conversationId}`;
+}
+
+/**
+ * M8 — localStorage key for dismissing a context chip. Per conversation+session
+ * so a NEW context on the same conversation gets a new key (chip reappears).
+ */
+export function contextChipKey(conversationId: string, sessionId: string): string {
+  return `ctxchip:${conversationId}:${sessionId}`;
 }
 
 /**

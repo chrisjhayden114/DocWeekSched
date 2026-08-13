@@ -327,6 +327,8 @@ export default function Dashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messagePrefill, setMessagePrefill] = useState<string | null>(null);
+  /** M8: session context for the new-message composer (from session page entry). */
+  const [composeContext, setComposeContext] = useState<{ sessionId: string; title: string } | null>(null);
   const [directoryDmNotice, setDirectoryDmNotice] = useState<{ userId: string; text: string } | null>(null);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [agendaView, setAgendaView] = useState<"Event Schedule" | "My Schedule">("Event Schedule");
@@ -723,6 +725,21 @@ export default function Dashboard() {
       setActive(tabMatch);
     }
   }, [router.isReady, router.query.mapId, router.query.pinId, router.query.tab]);
+
+  // M8: session-page entry → open Messages with compose context, then clear URL params.
+  useEffect(() => {
+    if (!router.isReady) return;
+    const sessionId =
+      typeof router.query.contextSessionId === "string" ? router.query.contextSessionId : null;
+    const title = typeof router.query.contextTitle === "string" ? router.query.contextTitle : null;
+    if (!sessionId || !title) return;
+    setComposeContext({ sessionId, title });
+    const rest = { ...router.query };
+    delete rest.contextSessionId;
+    delete rest.contextTitle;
+    void router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query.contextSessionId, router.query.contextTitle]);
 
   useEffect(() => {
     if (!availableTabs.some((tab) => tab === active)) {
@@ -1835,6 +1852,7 @@ export default function Dashboard() {
           onConversationOpened={markConversationNotificationsRead}
           messagePrefill={messagePrefill}
           onPrefillConsumed={() => setMessagePrefill(null)}
+          composeContext={composeContext}
           onBrowseAttendees={() => setActive("Attendees")}
           onViewProfile={(id) => {
             setActive("Attendees");

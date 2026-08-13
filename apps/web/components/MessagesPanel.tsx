@@ -1,9 +1,11 @@
 import { messagesCopy } from "@event-app/config";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DELETED_PARTICIPANT_LABEL } from "@event-app/shared";
 import { apiFetch, apiFetchAll } from "../lib/api";
 import {
   appendIncomingMessages,
+  contextChipKey,
   conversationPreview,
   conversationSecondaryLine,
   conversationTimestamp,
@@ -63,6 +65,8 @@ type Props = {
   onConversationOpened: (conversationId: string) => void;
   messagePrefill: string | null;
   onPrefillConsumed: () => void;
+  /** M8: open new-message composer pre-tagged with a session context chip. */
+  composeContext?: { sessionId: string; title: string } | null;
   onBrowseAttendees: () => void;
   /** Fired after a successful send (parent refreshes engagement points etc.). */
   onMessageSent?: () => void;
@@ -113,6 +117,7 @@ export function MessagesPanel({
   onConversationOpened,
   messagePrefill,
   onPrefillConsumed,
+  composeContext = null,
   onBrowseAttendees,
   onMessageSent,
   onViewProfile,
@@ -121,6 +126,12 @@ export function MessagesPanel({
   const [threadLoading, setThreadLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [newConversationMode, setNewConversationMode] = useState<null | "direct" | "group">(null);
+  /** Local copy so the composer pill can be dismissed without waiting on the parent. */
+  const [activeComposeContext, setActiveComposeContext] = useState<{
+    sessionId: string;
+    title: string;
+  } | null>(composeContext ?? null);
+  const [contextChipHidden, setContextChipHidden] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageBody, setEditingMessageBody] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -177,6 +188,26 @@ export function MessagesPanel({
       window.removeEventListener("online", goOnline);
     };
   }, []);
+
+  /* M8: session entry → auto-open new-message composer with About pill. */
+  useEffect(() => {
+    setActiveComposeContext(composeContext ?? null);
+    if (composeContext?.sessionId) {
+      setNewConversationMode("direct");
+    }
+  }, [composeContext]);
+
+  /* M8: per-viewer context chip dismissal (localStorage, try/catch for SSR). */
+  useEffect(() => {
+    setContextChipHidden(false);
+    const ctx = activeConversation?.contextSession;
+    if (!activeConversation || !ctx || typeof window === "undefined") return;
+    try {
+      setContextChipHidden(!!window.localStorage.getItem(contextChipKey(activeConversation.id, ctx.id)));
+    } catch {
+      /* ignore storage failures */
+    }
+  }, [activeConversation?.id, activeConversation?.contextSession?.id]);
 
   /* ——— conversation list: fetch on mount, poll every 20s while visible ——— */
   const refreshConversations = useCallback(async () => {
@@ -657,22 +688,41 @@ export function MessagesPanel({
               </div>
             ) : null}
             {newConversationMode === "direct" && dmsEnabled ? (
-              <NewDirectConversationForm
-                attendees={attendees}
-                currentUserId={user.id}
-                token={token}
-                withEventHeaders={withEventHeaders}
-                onCreated={(c) => {
-                  // Creator is always the initiator; GET list will confirm via refresh.
-                  const row = { ...c, initiatedByMe: true };
-                  if (!conversations.some((existing) => existing.id === c.id)) {
-                    onConversationsChange([row, ...conversations]);
-                  }
-                  selectConversation(c.id);
-                  setNewConversationMode(null);
-                  void refreshConversations();
-                }}
-              />
+              <>
+                {activeComposeContext ? (
+                  <div className="msg-context-pill" role="status">
+                    <span className="msg-context-pill-text">
+                      About: {activeComposeContext.title}
+                    </span>
+                    <button
+                      type="button"
+                      className="msg-context-pill-dismiss"
+                      aria-label="Remove session context"
+                      onClick={() => setActiveComposeContext(null)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : null}
+                <NewDirectConversationForm
+                  attendees={attendees}
+                  currentUserId={user.id}
+                  token={token}
+                  withEventHeaders={withEventHeaders}
+                  contextSessionId={activeComposeContext?.sessionId ?? null}
+                  onCreated={(c) => {
+                    // Creator is always the initiator; GET list will confirm via refresh.
+                    const row = { ...c, initiatedByMe: true };
+                    if (!conversations.some((existing) => existing.id === c.id)) {
+                      onConversationsChange([row, ...conversations]);
+                    }
+                    selectConversation(c.id);
+                    setNewConversationMode(null);
+                    setActiveComposeContext(null);
+                    void refreshConversations();
+                  }}
+                />
+              </>
             ) : (
               <NewGroupConversationForm
                 attendees={attendees}
@@ -883,6 +933,33 @@ export function MessagesPanel({
               <p className="text-meta" style={{ margin: "2px 0 0" }}>
                 {activeSecondary}
               </p>
+            ) : null}
+            {activeConversation?.contextSession && !contextChipHidden ? (
+              <div className="msg-context-chip" role="status">
+                <span>
+                  About:{" "}
+                  <Link href={`/session/${activeConversation.contextSession.id}`}>
+                    {activeConversation.contextSession.title}
+                  </Link>
+                </span>
+                <button
+                  type="button"
+                  className="msg-context-chip-dismiss"
+                  aria-label="Dismiss session context"
+                  onClick={() => {
+                    const ctx = activeConversation.contextSession;
+                    if (!ctx) return;
+                    try {
+                      window.localStorage.setItem(contextChipKey(activeConversation.id, ctx.id), "1");
+                    } catch {
+                      /* ignore storage failures */
+                    }
+                    setContextChipHidden(true);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
             ) : null}
           </div>
           {activeConversation?.type === "DIRECT" && otherUserId ? (
@@ -1256,12 +1333,15 @@ function NewDirectConversationForm({
   currentUserId,
   token,
   withEventHeaders,
+  contextSessionId,
   onCreated,
 }: {
   attendees: SelectablePerson[];
   currentUserId: string;
   token: string;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
+  /** M8: optional session this new DM is about. */
+  contextSessionId?: string | null;
   onCreated: (c: ConversationView) => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -1273,9 +1353,11 @@ function NewDirectConversationForm({
     if (!userId) return;
     setError(null);
     try {
+      const body: { userId: string; contextSessionId?: string } = { userId };
+      if (contextSessionId) body.contextSessionId = contextSessionId;
       const conversation = await apiFetch<ConversationView>(
         "/conversations/direct",
-        withEventHeaders({ method: "POST", body: JSON.stringify({ userId }) }),
+        withEventHeaders({ method: "POST", body: JSON.stringify(body) }),
         token,
       );
       onCreated(conversation);

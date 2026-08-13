@@ -28,6 +28,8 @@ const createGroupSchema = z.object({
 
 const createDirectSchema = z.object({
   userId: z.string().min(1),
+  /** M8: optional session this DM is about (context chip). Ignored if invalid. */
+  contextSessionId: z.string().optional(),
 });
 
 const messageSchema = z.object({
@@ -150,6 +152,19 @@ conversationsRouter.get(
       }
     }
 
+    // M8: batch-load session titles for context chips (one query).
+    const contextSessionIds = [
+      ...new Set(items.map((item) => item.contextSessionId).filter((id): id is string => Boolean(id))),
+    ];
+    const contextSessions =
+      contextSessionIds.length > 0
+        ? await prisma.session.findMany({
+            where: { id: { in: contextSessionIds } },
+            select: { id: true, title: true },
+          })
+        : [];
+    const contextSessionById = new Map(contextSessions.map((s) => [s.id, s]));
+
     return res.json(
       items.map((item) => {
         const viewerMember = item.members.find((m) => m.userId === userId);
@@ -170,6 +185,9 @@ conversationsRouter.get(
           viewerReadReceipts && item.type === "DIRECT" && otherPref?.readReceipts
             ? (otherMemberRow?.lastReadAt?.toISOString() ?? null)
             : null;
+        const contextSession = item.contextSessionId
+          ? (contextSessionById.get(item.contextSessionId) ?? null)
+          : null;
         return {
           ...item,
           unread,
@@ -178,6 +196,7 @@ conversationsRouter.get(
           status: item.status,
           initiatedByMe: item.initiatedById === userId,
           otherLastReadAt,
+          contextSession,
           members: item.members.map((m) => ({ user: m.user })),
         };
       }),
@@ -210,6 +229,16 @@ conversationsRouter.post(
       });
     }
 
+    // M8: optional context session — must exist on this event; invalid → null (no error).
+    let contextSessionId: string | null = null;
+    if (parsed.data.contextSessionId) {
+      const ctx = await prisma.session.findFirst({
+        where: { id: parsed.data.contextSessionId, eventId: event.id },
+        select: { id: true },
+      });
+      if (ctx) contextSessionId = ctx.id;
+    }
+
     const memberInclude = {
       members: {
         include: {
@@ -220,6 +249,13 @@ conversationsRouter.post(
 
     const existing = await getDirectConversation(userId, otherUserId, event.id);
     if (existing) {
+      // Messaging about a new session refreshes the chip on the existing thread.
+      if (contextSessionId) {
+        await prisma.conversation.update({
+          where: { id: existing.id },
+          data: { contextSessionId },
+        });
+      }
       const full = await prisma.conversation.findUnique({
         where: { id: existing.id },
         include: memberInclude,
@@ -267,6 +303,7 @@ conversationsRouter.post(
         type: "DIRECT",
         status,
         initiatedById: userId,
+        contextSessionId,
         members: {
           create: [{ userId }, { userId: otherUserId }],
         },

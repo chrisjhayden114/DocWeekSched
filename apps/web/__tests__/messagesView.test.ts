@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appendIncomingMessages,
+  contextChipKey,
   conversationPreview,
   conversationSecondaryLine,
   conversationTimestamp,
@@ -422,5 +423,15 @@ describe("appendIncomingMessages (M9 incremental poll)", () => {
       }),
     ];
     expect(appendIncomingMessages(local, incoming).map((m) => m.id)).toEqual(["s1", "s2", "local-1"]);
+  });
+});
+
+describe("context chip key (M8)", () => {
+  it("shapes the localStorage key as ctxchip:conversation:session", () => {
+    expect(contextChipKey("conv-1", "sess-a")).toBe("ctxchip:conv-1:sess-a");
+  });
+
+  it("uses a different key when the session changes on the same conversation", () => {
+    expect(contextChipKey("conv-1", "sess-a")).not.toBe(contextChipKey("conv-1", "sess-b"));
   });
 });
