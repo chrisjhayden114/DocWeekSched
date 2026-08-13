@@ -20,6 +20,7 @@ import {
   isSeenByOther,
   mergeServerMessages,
   messageGroupTime,
+  MESSAGES_MOBILE_QUERY,
   otherMember,
   sortConversationsByActivity,
   type ConversationView,
@@ -248,7 +249,8 @@ export function MessagesPanel({
       onSelectConversation(messagingConversations[0]?.id ?? null);
       return;
     }
-    if (!activeConversationId && messagingConversations.length > 0) {
+    const mobile = typeof window !== "undefined" && window.matchMedia(MESSAGES_MOBILE_QUERY).matches;
+    if (!activeConversationId && messagingConversations.length > 0 && !mobile) {
       onSelectConversation(messagingConversations[0]!.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -664,7 +666,7 @@ export function MessagesPanel({
           </div>
         }
       />
-    <div className="grid messages-layout">
+    <div className={`grid messages-layout${activeConversationId ? " is-thread-open" : ""}`}>
       {/* ——— conversation list pane ——— */}
       <div className="card message-sidebar-card">
         {newConversationMode ? (
@@ -925,42 +927,54 @@ export function MessagesPanel({
             gap: 12,
           }}
         >
-          <div style={{ minWidth: 0 }}>
-            <h3 ref={threadHeadingRef} tabIndex={-1} style={{ margin: 0 }}>
-              {activeTitle ?? "Select a conversation"}
-            </h3>
-            {activeSecondary ? (
-              <p className="text-meta" style={{ margin: "2px 0 0" }}>
-                {activeSecondary}
-              </p>
+          <div style={{ minWidth: 0, display: "flex", alignItems: "flex-start" }}>
+            {activeConversation ? (
+              <button
+                type="button"
+                className="msg-back"
+                aria-label="Back to conversations"
+                onClick={() => onSelectConversation(null)}
+              >
+                ←
+              </button>
             ) : null}
-            {activeConversation?.contextSession && !contextChipHidden ? (
-              <div className="msg-context-chip" role="status">
-                <span>
-                  About:{" "}
-                  <Link href={`/session/${activeConversation.contextSession.id}`}>
-                    {activeConversation.contextSession.title}
-                  </Link>
-                </span>
-                <button
-                  type="button"
-                  className="msg-context-chip-dismiss"
-                  aria-label="Dismiss session context"
-                  onClick={() => {
-                    const ctx = activeConversation.contextSession;
-                    if (!ctx) return;
-                    try {
-                      window.localStorage.setItem(contextChipKey(activeConversation.id, ctx.id), "1");
-                    } catch {
-                      /* ignore storage failures */
-                    }
-                    setContextChipHidden(true);
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            ) : null}
+            <div style={{ minWidth: 0 }}>
+              <h3 ref={threadHeadingRef} tabIndex={-1} style={{ margin: 0 }}>
+                {activeTitle ?? "Select a conversation"}
+              </h3>
+              {activeSecondary ? (
+                <p className="text-meta" style={{ margin: "2px 0 0" }}>
+                  {activeSecondary}
+                </p>
+              ) : null}
+              {activeConversation?.contextSession && !contextChipHidden ? (
+                <div className="msg-context-chip" role="status">
+                  <span>
+                    About:{" "}
+                    <Link href={`/session/${activeConversation.contextSession.id}`}>
+                      {activeConversation.contextSession.title}
+                    </Link>
+                  </span>
+                  <button
+                    type="button"
+                    className="msg-context-chip-dismiss"
+                    aria-label="Dismiss session context"
+                    onClick={() => {
+                      const ctx = activeConversation.contextSession;
+                      if (!ctx) return;
+                      try {
+                        window.localStorage.setItem(contextChipKey(activeConversation.id, ctx.id), "1");
+                      } catch {
+                        /* ignore storage failures */
+                      }
+                      setContextChipHidden(true);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
           {activeConversation?.type === "DIRECT" && otherUserId ? (
             <KebabMenu

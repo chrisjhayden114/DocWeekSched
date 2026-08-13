@@ -3,7 +3,7 @@
  * (max one per day, skips muted / REQUESTED / opted-out).
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { existsSync } from "fs";
 import { resolve } from "path";
 import dotenv from "dotenv";
@@ -32,6 +32,7 @@ import { conversationsRouter } from "../routes/conversations";
 import { sweepUnreadMessageEmails } from "../lib/notifications/messageEmailSweep";
 import { localDayKey } from "../lib/notifications/timezone";
 import { messageEmailDedupKey } from "../lib/notifications/messageEmailRules";
+import { getEmailProvider } from "../lib/email";
 
 describe("message policy (DB)", () => {
   const prisma = new PrismaClient();
@@ -425,9 +426,16 @@ describe("unread message email sweep (DB)", () => {
   }
 
   it("sends once for an aged unread ACTIVE DM and dedups the same day", async () => {
+    const sendSpy = vi.spyOn(getEmailProvider(), "send");
     await seedUnread(ids.userA!, ids.convA!);
     const first = await sweepUnreadMessageEmails(now);
     expect(first.sent).toBeGreaterThanOrEqual(1);
+    expect(
+      sendSpy.mock.calls.some((call) =>
+        String(call[0]?.copyUrl ?? "").includes(`tab=Messages&c=${ids.convA}`),
+      ),
+    ).toBe(true);
+    sendSpy.mockRestore();
 
     const dayKey = localDayKey(now, "UTC");
     const dedup = messageEmailDedupKey(ids.userA!, ids.eventId!, dayKey);

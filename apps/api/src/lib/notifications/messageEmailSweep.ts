@@ -130,7 +130,11 @@ export async function sweepUnreadMessageEmails(now = new Date()): Promise<{ sent
 
     const count = eligible.length;
     const lines = eligible.slice(0, 5).map((r) => previewLine(r.senderName, r.preview));
-    const dashboardUrl = `${webBase()}/dashboard?tab=Messages`;
+    const uniqueConversationIds = [...new Set(eligible.map((r) => r.conversationId))];
+    const dashboardUrl =
+      uniqueConversationIds.length === 1
+        ? `${webBase()}/dashboard?tab=Messages&c=${uniqueConversationIds[0]}`
+        : `${webBase()}/dashboard?tab=Messages`;
 
     await sendUnreadMessagesEmail({
       to: user.email,

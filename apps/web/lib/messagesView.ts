@@ -11,6 +11,14 @@
 
 import { DELETED_PARTICIPANT_LABEL } from "@event-app/shared";
 
+/** Mobile Messages: one pane at a time (list OR thread). */
+export const MESSAGES_MOBILE_QUERY = "(max-width: 720px)";
+
+/** Query object for the Messages tab, optionally deep-linked to one conversation. */
+export function messagesTabQuery(conversationId: string | null): Record<string, string> {
+  return conversationId ? { tab: "Messages", c: conversationId } : { tab: "Messages" };
+}
+
 /** Sender-run grouping window (research §5.3). */
 const GROUP_WINDOW_MS = 5 * 60_000;
 

@@ -16,6 +16,7 @@ import {
   isMessagingConversation,
   isSeenByOther,
   mergeServerMessages,
+  messagesTabQuery,
   roleLabel,
   sortConversationsByActivity,
   unreadConversationIdSet,
@@ -423,6 +424,16 @@ describe("appendIncomingMessages (M9 incremental poll)", () => {
       }),
     ];
     expect(appendIncomingMessages(local, incoming).map((m) => m.id)).toEqual(["s1", "s2", "local-1"]);
+  });
+});
+
+describe("messagesTabQuery (M7)", () => {
+  it("returns Messages tab without a conversation id", () => {
+    expect(messagesTabQuery(null)).toEqual({ tab: "Messages" });
+  });
+
+  it("deep-links a conversation id as c", () => {
+    expect(messagesTabQuery("conv-123")).toEqual({ tab: "Messages", c: "conv-123" });
   });
 });
 

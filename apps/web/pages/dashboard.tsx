@@ -43,7 +43,7 @@ import { Select } from "../components/Select";
 import { SponsorsStrip } from "../components/SponsorsStrip";
 import { OnboardingPanel } from "../components/OnboardingPanel";
 import { sayHiPrefill } from "../lib/sayHi";
-import { type ConversationView } from "../lib/messagesView";
+import { MESSAGES_MOBILE_QUERY, messagesTabQuery, type ConversationView } from "../lib/messagesView";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -678,6 +678,18 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [token, notifications, activeEventId],
   );
+
+  const openMessagesConversation = useCallback(
+    (id: string | null) => {
+      setActiveConversationId(id);
+      setActive("Messages");
+      const isMobile =
+        typeof window !== "undefined" && window.matchMedia(MESSAGES_MOBILE_QUERY).matches;
+      const nav = id && isMobile ? router.push : router.replace;
+      void nav({ pathname: "/dashboard", query: messagesTabQuery(id) }, undefined, { shallow: true });
+    },
+    [router],
+  );
   const notificationsByDay = useMemo(() => {
     const groups: { heading: string; items: UserNotificationRow[] }[] = [];
     let current = "";
@@ -723,8 +735,17 @@ export default function Dashboard() {
       setMapsFocus({ mapId, pinId });
     } else if (tabMatch) {
       setActive(tabMatch);
+      if (tabMatch === "Messages" && typeof router.query.c === "string") {
+        setActiveConversationId(router.query.c);
+      }
     }
   }, [router.isReady, router.query.mapId, router.query.pinId, router.query.tab]);
+
+  useEffect(() => {
+    if (!router.isReady || active !== "Messages") return;
+    const c = typeof router.query.c === "string" ? router.query.c : null;
+    setActiveConversationId(c);
+  }, [router.isReady, router.query.c, active]);
 
   // M8: session-page entry → open Messages with compose context, then clear URL params.
   useEffect(() => {
@@ -949,8 +970,7 @@ export default function Dashboard() {
       setConversations((prev) => [conversation, ...prev]);
     }
     setMessagePrefill(prefillBody?.trim() ? prefillBody : null);
-    setActive("Messages");
-    setActiveConversationId(conversation.id);
+    openMessagesConversation(conversation.id);
   };
 
   /** Directory-safe DM start: API rejections become a quiet inline row notice. */
@@ -1541,9 +1561,8 @@ export default function Dashboard() {
                 .then(setConversations)
                 .catch(() => null);
             }
-            setActiveConversationId(conversationId);
             setMessagePrefill(prefillBody);
-            setActive("Messages");
+            openMessagesConversation(conversationId);
           }}
         />
       ) : null}
@@ -1788,8 +1807,7 @@ export default function Dashboard() {
                               setCommunityFocusThreadId(n.threadId);
                               setActive(COMMUNITY_TAB);
                             } else if (n.conversationId) {
-                              setActive("Messages");
-                              setActiveConversationId(n.conversationId);
+                              openMessagesConversation(n.conversationId);
                               apiFetch<Conversation[]>("/conversations", withEventHeaders(), token!)
                                 .then(setConversations)
                                 .catch(() => null);
@@ -1847,7 +1865,7 @@ export default function Dashboard() {
           conversations={conversations}
           onConversationsChange={setConversations}
           activeConversationId={activeConversationId}
-          onSelectConversation={setActiveConversationId}
+          onSelectConversation={openMessagesConversation}
           unreadConversationIds={unreadConversationIds}
           onConversationOpened={markConversationNotificationsRead}
           messagePrefill={messagePrefill}

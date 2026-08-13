@@ -2382,6 +2382,10 @@ button.schedule-meta-chip:hover {
   outline: none;
 }
 
+.msg-back {
+  display: none;
+}
+
 /* M8 — calm one-line session context chip (thread + composer). */
 .msg-context-chip,
 .msg-context-pill {
@@ -3133,6 +3137,31 @@ button.schedule-meta-chip:hover {
 
   .messages-layout .card {
     padding: 14px;
+  }
+
+  .messages-layout.is-thread-open .message-sidebar-card {
+    display: none;
+  }
+
+  .messages-layout:not(.is-thread-open) .message-thread-card {
+    display: none;
+  }
+
+  .messages-layout.is-thread-open .message-thread-scroll {
+    max-height: none;
+  }
+
+  .msg-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    margin-right: 4px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
   }
 
   .hero-banner {
