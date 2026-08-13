@@ -3283,6 +3283,57 @@ button.schedule-meta-chip:hover {
   max-width: 640px;
 }
 
+.welcome-flow-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.welcome-flow-skip {
+  padding: 0;
+  min-height: 0;
+  font-weight: 500;
+  color: var(--ink-secondary, var(--gray-600));
+}
+
+.welcome-flow-dots {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 var(--space-4);
+}
+
+.welcome-flow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gray-300);
+}
+
+.welcome-flow-dot.is-active {
+  background: var(--event-accent, var(--gray-900));
+}
+
+.welcome-flow-body {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.welcome-flow-photo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.welcome-flow-initials {
+  width: 96px;
+  height: 96px;
+  font-size: 28px;
+  flex: none;
+}
+
 /* E30.1 — the drawer is a proper three-part surface: pinned header (title +
    close ✕), scrolling body, pinned footer with the actions. The panel itself
    never scrolls; only .drawer-body does, so the header and actions are

@@ -44,6 +44,9 @@ import { SponsorsStrip } from "../components/SponsorsStrip";
 import { OnboardingPanel } from "../components/OnboardingPanel";
 import { sayHiPrefill } from "../lib/sayHi";
 import { MESSAGES_MOBILE_QUERY, messagesTabQuery, type ConversationView } from "../lib/messagesView";
+import { fileToDataUrl } from "../lib/photoDataUrl";
+import { shouldShowWelcome } from "../lib/welcome";
+import { WelcomeFlow } from "../components/WelcomeFlow";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -368,6 +371,12 @@ export default function Dashboard() {
   });
   const [meetingTarget, setMeetingTarget] = useState<{ id: string; name: string } | null>(null);
   const [meetingsRefreshKey, setMeetingsRefreshKey] = useState(0);
+  const [welcomeMe, setWelcomeMe] = useState<{
+    role: string;
+    welcomeSeenAt: string | null;
+  } | null>(null);
+  const [welcomeMeResolved, setWelcomeMeResolved] = useState(false);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const myTimezone = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -625,6 +634,32 @@ export default function Dashboard() {
       cancelled = true;
     };
   }, [active, token, activeEventId]);
+
+  useEffect(() => {
+    if (!token || !activeEventId) {
+      setWelcomeMe(null);
+      setWelcomeMeResolved(false);
+      return;
+    }
+    let cancelled = false;
+    setWelcomeMeResolved(false);
+    apiFetch<{ role: string; welcomeSeenAt: string | null }>("/attendees/me", withEventHeaders(), token)
+      .then((r) => {
+        if (cancelled) return;
+        setWelcomeMe({ role: r.role, welcomeSeenAt: r.welcomeSeenAt ?? null });
+        setWelcomeMeResolved(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setWelcomeMe(null);
+        setWelcomeMeResolved(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  // withEventHeaders closes over activeEventId; token + event are the real deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, activeEventId]);
 
   const isAdmin = useMemo(() => Boolean(user?.isEventAdmin || user?.role === "ADMIN"), [user]);
   /* E18.1: Messages owns 1:1 and group correspondence only — event chat is
@@ -1887,6 +1922,7 @@ export default function Dashboard() {
 
       {active === "Profile" && (
         <ProfileEditor
+          key={profileRefreshKey}
           token={token!}
           user={user}
           adminEvents={adminEvents}
@@ -1981,6 +2017,29 @@ export default function Dashboard() {
             if (hint.mapId && featureOn("venue_maps")) {
               setActive(MAPS_TAB);
             }
+          }}
+        />
+      ) : null}
+
+      {token &&
+      activeEventId &&
+      user &&
+      welcomeMeResolved &&
+      shouldShowWelcome({
+        role: welcomeMe?.role,
+        welcomeSeenAt: welcomeMe ? welcomeMe.welcomeSeenAt : undefined,
+        isAdmin,
+      }) ? (
+        <WelcomeFlow
+          open
+          token={token}
+          activeEventId={activeEventId}
+          withEventHeaders={withEventHeaders}
+          user={{ name: user.name, photoUrl: user.photoUrl, researchInterests: user.researchInterests }}
+          onDone={() => {
+            setWelcomeMe((prev) => (prev ? { ...prev, welcomeSeenAt: new Date().toISOString() } : prev));
+            void refreshUser();
+            setProfileRefreshKey((k) => k + 1);
           }}
         />
       ) : null}
@@ -5138,42 +5197,3 @@ function groupSessionsByDayAndTime(sessions: Session[], timeZone = "UTC") {
   });
 }
 
-function fileToDataUrl(
-  file: File,
-  options?: { maxWidth?: number; maxHeight?: number; quality?: number },
-) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const raw = String(reader.result || "");
-      if (!options || !file.type.startsWith("image/")) {
-        resolve(raw);
-        return;
-      }
-
-      const image = new Image();
-      image.onload = () => {
-        const maxWidth = options.maxWidth ?? image.width;
-        const maxHeight = options.maxHeight ?? image.height;
-        const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
-        const width = Math.max(1, Math.round(image.width * scale));
-        const height = Math.max(1, Math.round(image.height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        if (!context) {
-          resolve(raw);
-          return;
-        }
-        context.drawImage(image, 0, 0, width, height);
-        const output = canvas.toDataURL("image/jpeg", options.quality ?? 0.85);
-        resolve(output);
-      };
-      image.onerror = () => resolve(raw);
-      image.src = raw;
-    };
-    reader.onerror = () => reject(reader.error || new Error("Unable to read file"));
-    reader.readAsDataURL(file);
-  });
-}

@@ -246,11 +246,13 @@ attendeesRouter.get(
       where: { eventId: event.id, userId: req.user!.id, deletedAt: null },
     });
     if (!m) throw new HttpError(404, { error: "Not a member of this event" });
+    const welcomeSeenAt = (m as { welcomeSeenAt?: Date | null }).welcomeSeenAt ?? null;
     return res.json({
       directoryOptIn: m.directoryOptIn,
       matchMeEnabled: m.matchMeEnabled,
       messagePolicy: m.messagePolicy ?? "ANYONE",
       role: m.role,
+      welcomeSeenAt: welcomeSeenAt ? welcomeSeenAt.toISOString() : null,
     });
   }),
 );
@@ -310,6 +312,32 @@ attendeesRouter.put(
     });
     if (updated.count === 0) throw new HttpError(404, { error: "Not a member of this event" });
     return res.json({ matchMeEnabled: parsed.data.matchMeEnabled });
+  }),
+);
+
+attendeesRouter.post(
+  "/me/welcome-seen",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+    const m = await prisma.eventMembership.findFirst({
+      where: { eventId: event.id, userId: req.user!.id, deletedAt: null },
+    });
+    if (!m) throw new HttpError(404, { error: "Not a member of this event" });
+    const existing = (m as { welcomeSeenAt?: Date | null }).welcomeSeenAt ?? null;
+    if (existing) {
+      return res.json({ welcomeSeenAt: existing.toISOString() });
+    }
+    const now = new Date();
+    await prisma.eventMembership.update({
+      where: { id: m.id },
+      data: { welcomeSeenAt: now } as never,
+    });
+    const stamped = await prisma.eventMembership.findUnique({ where: { id: m.id } });
+    const at = (stamped as { welcomeSeenAt?: Date | null } | null)?.welcomeSeenAt ?? now;
+    return res.json({ welcomeSeenAt: at.toISOString() });
   }),
 );
 

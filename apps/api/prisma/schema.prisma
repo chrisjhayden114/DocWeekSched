@@ -440,6 +440,8 @@ model EventMembership {
   messagingSuspendedAt DateTime?
   /// Who may START a new DM with me: ANYONE | EXISTING_ONLY | NONE. Existing threads unaffected.
   messagePolicy String @default("ANYONE")
+  /// ONB-A: first-run welcome stamped once per (user,event); skip counts as seen.
+  welcomeSeenAt DateTime?
 
   @@unique([eventId, userId])
   @@unique([eventId, checkInCode])
