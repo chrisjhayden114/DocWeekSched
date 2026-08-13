@@ -283,8 +283,17 @@ export function MessagesPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId, loadThread]);
 
-  /* Opening a conversation clears its unread state; re-clears if new message
-   * notifications arrive while the thread stays open. */
+  /* Opening a conversation always records the read (M-SEEN): requests are never
+   * flagged "unread", so gating on unread would skip lastReadAt for them and the
+   * requester would never see "Seen" on their first message. */
+  useEffect(() => {
+    if (activeConversationId) {
+      onConversationOpened(activeConversationId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId]);
+
+  /* Re-clears unread if new message notifications arrive while the thread stays open. */
   useEffect(() => {
     if (activeConversationId && unreadConversationIds.has(activeConversationId)) {
       onConversationOpened(activeConversationId);
