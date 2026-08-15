@@ -29,6 +29,7 @@ export type FeatureKey =
   | "engagement_points"
   | "public_leaderboard"
   | "timezone_toggle"
+  | "breakout_style"
   | "attendee_directory"
   | "matchmaker"
   | "concierge"
@@ -179,6 +180,17 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     plainDescription: "Let attendees switch between their local time and the event timezone.",
     category: "schedule",
     defaultOn: true,
+  },
+  {
+    // H5 (DESIGN_PHASE_H D5 + D7): organizer-declared breakout shape. Not in
+    // any preset — absent = defaultOn false. AI suggestion via ingest
+    // assumptions is a later chunk.
+    key: "breakout_style",
+    name: "Pick-one breakouts",
+    plainDescription:
+      "Attendees choose one session per timeslot — the agenda becomes a slot-by-slot chooser instead of a card wall. For PD days and breakout-style programs.",
+    category: "schedule",
+    defaultOn: false,
   },
   {
     key: "attendee_directory",

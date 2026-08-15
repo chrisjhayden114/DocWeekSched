@@ -25,6 +25,8 @@ import { matchesNameQuery } from "../lib/nameSearch";
 import { eventAccentStyle } from "../lib/eventAccent";
 import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
+import { buildBreakoutSlots, type BreakoutSlot } from "../lib/breakoutSlots";
+import { BreakoutSlotBoard } from "../components/BreakoutSlotBoard";
 import { trackColor } from "../lib/trackColors";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/ScheduleViewSwitcher";
@@ -349,6 +351,17 @@ export default function Dashboard() {
   /** H4 — session peek sheet over the Grid / By-room timetables. */
   const [peekSessionId, setPeekSessionId] = useState<string | null>(null);
   const [peekJoinBusy, setPeekJoinBusy] = useState(false);
+  /** H5 — pick-one breakout accordion: join busy + replace-confirm. */
+  const [breakoutJoinBusy, setBreakoutJoinBusy] = useState(false);
+  const [breakoutConfirm, setBreakoutConfirm] = useState<null | {
+    startLabel: string;
+    currentId: string;
+    currentTitle: string;
+    targetId: string;
+    targetTitle: string;
+  }>(null);
+  /** Resolves the board's pending onJoin promise when the confirm settles. */
+  const breakoutConfirmResolve = useRef<((ok: boolean | void) => void) | null>(null);
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
@@ -870,6 +883,17 @@ export default function Dashboard() {
     () => myAttendance.filter((item) => item.status === "JOINING").map((item) => item.sessionId),
     [myAttendance]
   );
+  /* H5 — pick-one breakouts: the Event Schedule List view becomes a timeslot
+   * accordion, fed from the SAME filteredSessions (day/search/track/room
+   * filters keep working). Flag off = zero difference anywhere. */
+  const breakoutStyleOn = featureOn("breakout_style");
+  const breakoutSlots = useMemo(
+    () =>
+      breakoutStyleOn
+        ? buildBreakoutSlots(filteredSessions, new Set(joiningSessionIds), agendaDisplayTimezone)
+        : [],
+    [breakoutStyleOn, filteredSessions, joiningSessionIds, agendaDisplayTimezone],
+  );
   const myScheduledSessions = useMemo(
     () => filteredSessions.filter((session) => joiningSessionIds.includes(session.id)),
     [filteredSessions, joiningSessionIds]
@@ -948,6 +972,64 @@ export default function Dashboard() {
       // Polling / next focus refresh catches up.
     }
     return true;
+  };
+
+  /** Post-failure resync so the UI never lies about a half-applied replace. */
+  const refreshAgendaData = async () => {
+    if (!token) return;
+    try {
+      const meta = await apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(), token);
+      setMyAttendance(meta.attendance);
+      setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
+    } catch {
+      /* polling / next focus refresh catches up */
+    }
+  };
+
+  /**
+   * H5 — breakout join. Resolves true (joined — the board collapses the slot
+   * and advances), false (failure — inline error in the board), or undefined
+   * (replace-confirm canceled — nothing happened). A join into a slot that
+   * already has a different choice never replaces silently: it opens the
+   * ConfirmDialog and resolves when that settles.
+   */
+  const breakoutJoin = (sessionId: string, slot: BreakoutSlot<Session>): Promise<boolean | void> => {
+    if (slot.chosenSessionId && slot.chosenSessionId !== sessionId) {
+      const current = slot.sessions.find((s) => s.id === slot.chosenSessionId);
+      const target = slot.sessions.find((s) => s.id === sessionId);
+      return new Promise<boolean | void>((resolve) => {
+        breakoutConfirmResolve.current = resolve;
+        setBreakoutConfirm({
+          startLabel: new Date(slot.startsAt).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+            timeZone: agendaDisplayTimezone,
+          }),
+          currentId: slot.chosenSessionId!,
+          currentTitle: current?.title || "your current session",
+          targetId: sessionId,
+          targetTitle: target?.title || "this session",
+        });
+      });
+    }
+    return (async () => {
+      setBreakoutJoinBusy(true);
+      try {
+        return await patchSessionAttendance(
+          sessionId,
+          { status: "JOINING", joinMode: "IN_PERSON" },
+          { quiet: true },
+        );
+      } finally {
+        setBreakoutJoinBusy(false);
+      }
+    })();
+  };
+
+  const settleBreakoutConfirm = (ok: boolean | void) => {
+    breakoutConfirmResolve.current?.(ok);
+    breakoutConfirmResolve.current = null;
+    setBreakoutConfirm(null);
   };
 
   const goToSessionPage = (sessionId: string) => {
@@ -1409,6 +1491,23 @@ export default function Dashboard() {
             {(!sessionsLoading || sortedSessions.length > 0) && agendaView === "Event Schedule" && (
               <>
                 <div className={`schedule-list-screen${scheduleLayout !== "list" ? " is-desktop-hidden" : ""}`}>
+                  {breakoutStyleOn ? (
+                    breakoutSlots.length > 0 ? (
+                      <BreakoutSlotBoard
+                        slots={breakoutSlots}
+                        joinBusy={breakoutJoinBusy}
+                        onJoin={breakoutJoin}
+                        onOpenSession={setPeekSessionId}
+                        trackColor={(s) => trackColor(s.trackId, s.track?.color, orderedTrackIds)}
+                        timeZone={agendaDisplayTimezone}
+                      />
+                    ) : (
+                      <ListEmpty
+                        title="No sessions in this view"
+                        body="Adjust the day or filters, or check back once the program is published."
+                      />
+                    )
+                  ) : (
                   <ScheduleBoard
                     grouped={groupedAgenda}
                     eventName={event?.name || "Event"}
@@ -1433,6 +1532,7 @@ export default function Dashboard() {
                     }}
                     onGoToSession={goToSessionPage}
                   />
+                  )}
                 </div>
                 {scheduleLayout === "grid" ? (
                   <div className="schedule-desktop-views">
@@ -2071,6 +2171,48 @@ export default function Dashboard() {
             window.alert(err instanceof Error ? err.message : "Action failed");
           } finally {
             setRosterBusy(false);
+          }
+        }}
+      />
+
+      {/* H5 — honest conflict: replacing a chosen breakout is never silent. */}
+      <ConfirmDialog
+        open={Boolean(breakoutConfirm)}
+        title={`Replace your ${breakoutConfirm?.startLabel} session?`}
+        body={`You're joined to '${breakoutConfirm?.currentTitle}'. Join '${breakoutConfirm?.targetTitle}' instead?`}
+        confirmLabel="Replace"
+        tone="default"
+        busy={breakoutJoinBusy}
+        onCancel={() => settleBreakoutConfirm(undefined)}
+        onConfirm={async () => {
+          if (!breakoutConfirm) return;
+          setBreakoutJoinBusy(true);
+          try {
+            const left = await patchSessionAttendance(
+              breakoutConfirm.currentId,
+              { status: "NOT_JOINING" },
+              { quiet: true },
+            );
+            if (!left) {
+              await refreshAgendaData();
+              settleBreakoutConfirm(false);
+              return;
+            }
+            const joined = await patchSessionAttendance(
+              breakoutConfirm.targetId,
+              { status: "JOINING", joinMode: "IN_PERSON" },
+              { quiet: true },
+            );
+            if (!joined) {
+              // The old join is already released — resync so the accordion
+              // reopens the slot instead of showing a stale choice.
+              await refreshAgendaData();
+              settleBreakoutConfirm(false);
+              return;
+            }
+            settleBreakoutConfirm(true);
+          } finally {
+            setBreakoutJoinBusy(false);
           }
         }}
       />

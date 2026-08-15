@@ -1340,6 +1340,232 @@ a:hover {
   align-self: center;
 }
 
+/*
+ * H5 — pick-one timeslot accordion (breakout_style flag).
+ * Calm by design: one open slot, chosen slots collapse to a quiet card,
+ * rows ≥ var(--tap-target). Tokens only.
+ */
+.breakout-board {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.breakout-board .schedule-day {
+  min-width: 0;
+}
+
+.breakout-minimal {
+  margin-bottom: var(--space-2);
+}
+
+/* Chosen slot: a single quiet line — the 20 unchosen options are gone. */
+.breakout-choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--gray-25);
+  overflow: hidden;
+}
+
+.breakout-choice::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--track-color, var(--gray-300));
+}
+
+.breakout-choice-body {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.breakout-choice-label {
+  display: block;
+  font: var(--text-meta);
+  color: var(--gray-500);
+}
+
+.breakout-choice-title {
+  display: block;
+  font: var(--text-label);
+  color: var(--gray-900);
+  overflow-wrap: break-word;
+}
+
+.breakout-change {
+  flex-shrink: 0;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-2);
+  border: none;
+  background: transparent;
+  font: var(--text-label);
+  color: var(--event-accent);
+  cursor: pointer;
+}
+
+.breakout-change:hover {
+  color: var(--event-accent-hover);
+  text-decoration: underline;
+}
+
+/* Open / collapsed choice slot. */
+.breakout-slot {
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.breakout-slot-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.breakout-slot-header:hover {
+  background: var(--gray-25);
+}
+
+.breakout-slot-time {
+  flex-shrink: 0;
+  font: var(--text-label);
+  color: var(--gray-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.breakout-slot-label {
+  flex: 1;
+  min-width: 0;
+  font: var(--text-body);
+  color: var(--gray-600);
+}
+
+.breakout-slot-caret {
+  flex-shrink: 0;
+  color: var(--gray-400);
+}
+
+.breakout-slot.is-open > .breakout-slot-header {
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.breakout-slot-options {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.breakout-filter {
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--gray-25);
+  font: var(--text-body);
+  color: var(--gray-900);
+}
+
+/* Single-column option row: title, room, first speaker, track bar. */
+.breakout-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  overflow: hidden;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.breakout-option::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--track-color, var(--gray-300));
+}
+
+.breakout-option:hover {
+  border-color: var(--gray-300);
+  background: var(--gray-25);
+}
+
+.breakout-option-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.breakout-option-title {
+  margin: 0;
+  font: var(--text-label);
+  color: var(--gray-900);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.breakout-option-meta {
+  margin: 2px 0 0;
+  font: var(--text-meta);
+  color: var(--gray-500);
+  overflow-wrap: break-word;
+}
+
+.breakout-join {
+  flex-shrink: 0;
+  min-height: var(--tap-target);
+  min-width: 64px;
+}
+
+.breakout-option-chosen {
+  flex-shrink: 0;
+  font: var(--text-label);
+  color: var(--success);
+}
+
+.breakout-error {
+  margin: 0;
+  font: var(--text-label);
+  color: var(--danger);
+}
+
+.breakout-empty {
+  margin: 0;
+  padding: var(--space-2) var(--space-1);
+  font: var(--text-body);
+  color: var(--gray-500);
+}
+
 /* Inline chips on the 12px meta line (Zoom / recording / map). */
 .schedule-meta-chip {
   display: inline-flex;
