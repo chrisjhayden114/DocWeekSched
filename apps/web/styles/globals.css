@@ -6416,9 +6416,10 @@ button.schedule-meta-chip:hover {
 /*
  * —— H4: session peek sheet (D6) ——
  * Bottom sheet over the Grid / By-room timetables: essentials + real actions
- * without navigating away. Tokens only; the slide-up rides the E28 motion
- * tokens, so prefers-reduced-motion collapses it automatically (plus the
- * explicit gate below, matching the lightbox).
+ * without navigating away. Below 768px: slide-up from bottom. ≥768px: centered
+ * dialog with the shared modal fade/scale (motion-pop-in). Tokens only; both
+ * animations ride E28 motion tokens, so prefers-reduced-motion collapses them
+ * automatically (plus the explicit gate below, matching the lightbox).
  */
 @keyframes session-peek-up {
   from {
@@ -6454,11 +6455,18 @@ button.schedule-meta-chip:hover {
   animation: session-peek-up var(--motion-slow) var(--ease-out) both;
 }
 
-/* ≥768px: still bottom-anchored, but centered and capped at 520px. */
+/* ≥768px: centered dialog (modal fade/scale), not a bottom sheet. */
 @media (min-width: 768px) {
+  .session-peek-backdrop {
+    align-items: center;
+  }
+
   .session-peek-sheet {
     max-width: 520px;
-    padding: var(--space-5) var(--space-5) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    max-height: 80vh;
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    animation: motion-pop-in var(--motion) var(--ease-out) both;
   }
 }
 

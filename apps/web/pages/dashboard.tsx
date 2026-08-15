@@ -924,25 +924,30 @@ export default function Dashboard() {
         method: "PUT",
         body: JSON.stringify(body),
       }, token);
-      const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token);
-      setMyAttendance(meta.attendance);
-      setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
-      if (body.status === "JOINING") {
-        void refreshUser();
-        void offerPushAfterFirstAgendaSave(token);
-      }
-      return true;
     } catch (err) {
       setMyAttendance(prevAttendance);
       const msg = err instanceof Error ? err.message : "Could not update attendance";
       if (/waitlist|full/i.test(msg)) {
         if (!opts?.quiet) window.alert(msg);
         setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token).catch(() => sessions));
-        const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token).catch(() => null);
+        const meta = await apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(), token).catch(() => null);
         if (meta) setMyAttendance(meta.attendance);
       }
       return false;
     }
+    // Attendance PUT succeeded — refresh hiccups must not roll back or report failure.
+    try {
+      const meta = await apiFetch<MySessionMeta>("/sessions/me", withEventHeaders(), token);
+      setMyAttendance(meta.attendance);
+      setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token));
+      if (body.status === "JOINING") {
+        void refreshUser();
+        void offerPushAfterFirstAgendaSave(token);
+      }
+    } catch {
+      // Polling / next focus refresh catches up.
+    }
+    return true;
   };
 
   const goToSessionPage = (sessionId: string) => {
