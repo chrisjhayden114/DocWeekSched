@@ -27,6 +27,7 @@ import {
 } from "../../../../components/organizer/ProgramTab";
 import { apiFetch, apiFetchAll } from "../../../../lib/api";
 import { formatEventDateRange } from "../../../../lib/dateFormat";
+import { openAttendeeApp, publicEventUrl } from "../../../../lib/organizerLinks";
 import { eventHeaders, organizerFetch } from "../../../../lib/organizerApi";
 import { buildSetupChecklist } from "../../../../lib/setupChecklist";
 
@@ -144,6 +145,12 @@ const overviewIcons = {
       <circle cx="12" cy="12" r="3" />
     </OverviewIcon>
   ),
+  app: (
+    <OverviewIcon>
+      <rect x="5" y="2" width="14" height="20" rx="2" />
+      <path d="M12 18h.01" />
+    </OverviewIcon>
+  ),
 };
 
 const MAPPING_OPTIONS = [
@@ -204,6 +211,8 @@ export default function OrganizerEventPage() {
   const [featuresDirty, setFeaturesDirty] = useState(false);
   const [featuresSaving, setFeaturesSaving] = useState(false);
   const [askAssistant, setAskAssistant] = useState(false);
+  /** H1 — brief inline "Copied" after Copy link on the publish success block. */
+  const [linkCopied, setLinkCopied] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -459,9 +468,18 @@ export default function OrganizerEventPage() {
                     {overviewCopy.actions.publish}
                   </button>
                 ) : (
-                  <a className="button" href={`/e/${event.slug}`}>
-                    {overviewCopy.actions.preview}
-                  </a>
+                  <>
+                    <a className="button" href={publicEventUrl(event.slug)}>
+                      {overviewCopy.actions.preview}
+                    </a>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => openAttendeeApp(event.id)}
+                    >
+                      {overviewCopy.actions.openAttendeeApp}
+                    </button>
+                  </>
                 )}
               </div>
             }
@@ -482,7 +500,63 @@ export default function OrganizerEventPage() {
           </header>
         ) : null}
 
-        {message ? <p style={{ color: "var(--success)" }}>{message}</p> : null}
+        {message &&
+        event?.status === "ACTIVE" &&
+        message.startsWith("Published event") ? (
+          // H1 / D4 — publish moment: live URL + Copy / View as attendees /
+          // Open attendee app (same calm banner language as ingest success).
+          <div
+            role="status"
+            style={{
+              padding: 12,
+              borderRadius: "var(--radius-sm)",
+              background: "var(--success-50, #f0fdf4)",
+              border: "1px solid var(--gray-200)",
+            }}
+          >
+            <p style={{ margin: 0, color: "var(--success)" }}>
+              {overviewCopy.publishSuccess.liveAt(event.slug)}
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(`${window.location.origin}${publicEventUrl(event.slug)}`)
+                    .then(() => {
+                      setLinkCopied(true);
+                      window.setTimeout(() => setLinkCopied(false), 2000);
+                    })
+                    .catch(() => {
+                      /* clipboard may be denied — leave label unchanged */
+                    });
+                }}
+              >
+                {linkCopied
+                  ? overviewCopy.publishSuccess.copied
+                  : overviewCopy.publishSuccess.copyLink}
+              </button>
+              <a
+                className="button secondary"
+                href={publicEventUrl(event.slug)}
+                target="_blank"
+                rel="noopener"
+              >
+                {overviewCopy.publishSuccess.viewAsAttendees}
+              </a>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => openAttendeeApp(event.id)}
+              >
+                {overviewCopy.actions.openAttendeeApp}
+              </button>
+            </div>
+          </div>
+        ) : message ? (
+          <p style={{ color: "var(--success)" }}>{message}</p>
+        ) : null}
         {error && event ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
         {event ? (
@@ -587,7 +661,7 @@ export default function OrganizerEventPage() {
                 <span className="kit-action-card-body">{overviewCopy.quickActions.editProgram.body}</span>
               </Link>
               {event.status === "ACTIVE" ? (
-                <a className="kit-action-card" href={`/e/${event.slug}`}>
+                <a className="kit-action-card" href={publicEventUrl(event.slug)}>
                   <span className="kit-icon-tile kit-icon-tile--live" aria-hidden>
                     {overviewIcons.eye}
                   </span>
@@ -601,6 +675,35 @@ export default function OrganizerEventPage() {
                   </span>
                   <span className="kit-action-card-title">{overviewCopy.quickActions.preview.title}</span>
                   <span className="kit-action-card-body">{overviewCopy.quickActions.preview.draftHint}</span>
+                </div>
+              )}
+              {event.status === "ACTIVE" ? (
+                <button
+                  type="button"
+                  className="kit-action-card"
+                  onClick={() => openAttendeeApp(event.id)}
+                >
+                  <span className="kit-icon-tile kit-icon-tile--live" aria-hidden>
+                    {overviewIcons.app}
+                  </span>
+                  <span className="kit-action-card-title">
+                    {overviewCopy.quickActions.openAttendeeApp.title}
+                  </span>
+                  <span className="kit-action-card-body">
+                    {overviewCopy.quickActions.openAttendeeApp.body}
+                  </span>
+                </button>
+              ) : (
+                <div className="kit-action-card is-disabled" aria-disabled="true">
+                  <span className="kit-icon-tile kit-icon-tile--neutral" aria-hidden>
+                    {overviewIcons.app}
+                  </span>
+                  <span className="kit-action-card-title">
+                    {overviewCopy.quickActions.openAttendeeApp.title}
+                  </span>
+                  <span className="kit-action-card-body">
+                    {overviewCopy.quickActions.preview.draftHint}
+                  </span>
                 </div>
               )}
             </div>

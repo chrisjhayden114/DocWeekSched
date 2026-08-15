@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, overviewCopy } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -28,6 +28,7 @@ import {
   ingestStageLabel,
   isIngestRunActive,
 } from "../../../../lib/ingestStatus";
+import { openAttendeeApp } from "../../../../lib/organizerLinks";
 import { organizerFetch } from "../../../../lib/organizerApi";
 
 type IngestRun = {
@@ -535,6 +536,13 @@ export default function AgendaIngestPage() {
               <Link href={`/organizer/events/${eventId}?tab=program`} className="button">
                 View program
               </Link>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => openAttendeeApp(eventId)}
+              >
+                {overviewCopy.actions.openAttendeeApp}
+              </button>
               <button
                 type="button"
                 className="button secondary"

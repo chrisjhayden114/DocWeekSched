@@ -366,7 +366,16 @@ export const overviewCopy = {
   actions: {
     publish: "Publish",
     preview: "Preview public page",
+    /** Event-scoped jump into /dashboard?tab=Agenda (sets activeEventId). */
+    openAttendeeApp: "Open attendee app",
     settings: "Settings",
+  },
+  /** Post-publish success block (H1 / DESIGN_PHASE_H D4). */
+  publishSuccess: {
+    liveAt: (slug: string) => `Your event is live at ${brand.domain}/e/${slug}`,
+    copyLink: "Copy link",
+    copied: "Copied",
+    viewAsAttendees: "View as attendees",
   },
   stats: {
     sessions: "Sessions",
@@ -397,6 +406,10 @@ export const overviewCopy = {
       body: "See the event exactly as attendees do.",
       /** Shown instead of the link while the event is still draft. */
       draftHint: "Available once the event is published.",
+    },
+    openAttendeeApp: {
+      title: "Open attendee app",
+      body: "Agenda, messages, and community — exactly what a participant sees.",
     },
   },
   advanced: {

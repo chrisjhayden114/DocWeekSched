@@ -7174,15 +7174,26 @@ button.schedule-meta-chip:hover {
   transition: var(--transition);
 }
 
-a.kit-action-card:hover {
+a.kit-action-card:hover,
+button.kit-action-card:hover {
   border-color: var(--event-accent);
   box-shadow: var(--shadow-1);
   text-decoration: none;
 }
 
-a.kit-action-card:focus-visible {
+a.kit-action-card:focus-visible,
+button.kit-action-card:focus-visible {
   outline: 2px solid var(--event-accent);
   outline-offset: 2px;
+}
+
+/* H1 — "Open attendee app" quick action is a button (sets localStorage then
+   navigates); reset native button chrome so it matches link cards. */
+button.kit-action-card {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .kit-action-card-title {
