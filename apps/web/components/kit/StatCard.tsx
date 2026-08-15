@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { CountUp } from "../CountUp";
 import type { IconTone } from "./PageHeader";
@@ -18,12 +19,14 @@ export type StatCardProps = {
   /** Optional section-identity icon in a tinted tile. */
   icon?: ReactNode;
   iconTone?: IconTone;
+  /** INV-1 — optional deep link (e.g. Registered → Participants tab); renders the card as a Link. */
+  href?: string;
 };
 
 /** F1.2 #4 — muted label + big confident number for the overview stat row. */
-export function StatCard({ label, value, countUp, hint, icon, iconTone = "primary" }: StatCardProps) {
-  return (
-    <div className="kit-stat-card">
+export function StatCard({ label, value, countUp, hint, icon, iconTone = "primary", href }: StatCardProps) {
+  const body = (
+    <>
       {icon ? (
         <span className={`kit-icon-tile kit-icon-tile--${iconTone}`} aria-hidden>
           {icon}
@@ -34,6 +37,14 @@ export function StatCard({ label, value, countUp, hint, icon, iconTone = "primar
         {countUp ? <CountUp value={value} /> : <span style={{ fontVariantNumeric: "tabular-nums" }}>{value}</span>}
       </p>
       {hint ? <p className="kit-stat-card-hint">{hint}</p> : null}
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link className="kit-stat-card kit-stat-card--link" href={href}>
+        {body}
+      </Link>
+    );
+  }
+  return <div className="kit-stat-card">{body}</div>;
 }

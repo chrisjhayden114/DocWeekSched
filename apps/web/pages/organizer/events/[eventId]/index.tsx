@@ -15,6 +15,7 @@ import { EventFaqEditor } from "../../../../components/EventFaqEditor";
 import { OpsInboxPanel } from "../../../../components/OpsInboxPanel";
 import { RecapPanel } from "../../../../components/RecapPanel";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
+import { KebabMenu } from "../../../../components/KebabMenu";
 import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListState";
 import { StatusChip } from "../../../../components/StatusChip";
 import { PageHeader, StatCard } from "../../../../components/kit";
@@ -29,6 +30,12 @@ import { apiFetch, apiFetchAll } from "../../../../lib/api";
 import { formatEventDateRange } from "../../../../lib/dateFormat";
 import { openAttendeeApp, publicEventUrl } from "../../../../lib/organizerLinks";
 import { eventHeaders, organizerFetch } from "../../../../lib/organizerApi";
+import {
+  filterParticipants,
+  inviteStatusChipStatus,
+  inviteStatusLabel,
+  type InviteStatus,
+} from "../../../../lib/participants";
 import { buildSetupChecklist } from "../../../../lib/setupChecklist";
 
 type EventDetail = {
@@ -52,6 +59,18 @@ type EventDetail = {
 };
 
 type Speaker = { id: string; name: string; title?: string | null; affiliation?: string | null };
+
+/** INV-1 — roster row from GET /attendees (managers get inviteStatus). */
+type ParticipantRow = {
+  id: string;
+  name: string;
+  email: string;
+  eventRole?: "ADMIN" | "ATTENDEE" | string;
+  inviteStatus?: InviteStatus;
+};
+
+type RosterAction = { kind: "make-admin" | "remove-admin" | "remove"; row: ParticipantRow };
+
 type DryRun = {
   headers: string[];
   mapping: Record<string, string>;
@@ -153,6 +172,30 @@ const overviewIcons = {
   ),
 };
 
+/** INV-1 — copy-to-clipboard with a brief inline "Copied" state (no toast). */
+function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="button secondary"
+      onClick={() => {
+        void navigator.clipboard
+          .writeText(value)
+          .then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+          })
+          .catch(() => {
+            /* clipboard may be denied — leave label unchanged */
+          });
+      }}
+    >
+      {copied ? "Copied" : label}
+    </button>
+  );
+}
+
 const MAPPING_OPTIONS = [
   { value: "email", label: "Email" },
   { value: "name", label: "Name" },
@@ -174,7 +217,10 @@ export default function OrganizerEventPage() {
   // the console, and a refresh keeps the current tab.
   useEffect(() => {
     if (!router.isReady) return;
-    const q = router.query.tab;
+    const raw = router.query.tab;
+    // INV-1: the tab is named Participants now, but the id stays "invites"
+    // for deep-link compat — accept both spellings in the URL.
+    const q = raw === "participants" ? "invites" : raw;
     setTab(
       typeof q === "string" && (EVENT_TABS as readonly string[]).includes(q)
         ? (q as EventTab)
@@ -235,23 +281,33 @@ export default function OrganizerEventPage() {
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
   const [csvMapping, setCsvMapping] = useState<Record<string, string>>({});
   const [dryRun, setDryRun] = useState<DryRun | null>(null);
-  const [inviteLinks, setInviteLinks] = useState<{ slugUrl?: string; joinUrl?: string } | null>(null);
+  const [inviteLinks, setInviteLinks] = useState<{ slugUrl?: string; joinUrl?: string | null } | null>(null);
+
+  // INV-1 — Participants tab: single invite form + roster
+  const [invName, setInvName] = useState("");
+  const [invEmail, setInvEmail] = useState("");
+  const [invBusy, setInvBusy] = useState(false);
+  const [invError, setInvError] = useState<string | null>(null);
+  const [invResult, setInvResult] = useState<{ text: string; fallbackUrl?: string } | null>(null);
+  const [roster, setRoster] = useState<ParticipantRow[] | null>(null);
+  const [rosterFilter, setRosterFilter] = useState("");
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [rosterConfirm, setRosterConfirm] = useState<RosterAction | null>(null);
+  const [rosterBusy, setRosterBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
     const ev = await organizerFetch<EventDetail>("/event/", eventId);
     setEvent(ev);
-    const [t, r, s, sess, links, feats, registered] = await Promise.all([
+    const [t, r, s, sess, links, feats, attendeeRows] = await Promise.all([
       organizerFetch<Track[]>("/tracks/", eventId),
       organizerFetch<Room[]>("/rooms/", eventId),
       organizerFetch<Speaker[]>("/speakers/", eventId),
       organizerFetch<ProgramSession[]>("/sessions/", eventId),
-      organizerFetch<{ slugUrl?: string; joinUrl?: string }>("/event/invite-links", eventId).catch(() => null),
+      organizerFetch<{ slugUrl?: string; joinUrl?: string | null }>("/event/invite-links", eventId).catch(() => null),
       organizerFetch<{ overrides: FeatureOverridesMap }>("/event/features", eventId).catch(() => ({ overrides: {} })),
-      // F2 stat row: roster size from the existing attendees endpoint.
-      apiFetchAll<{ id: string }>("/attendees/", eventHeaders(eventId))
-        .then((rows) => rows.length)
-        .catch(() => null),
+      // F2 stat row + INV-1 roster: one fetch feeds both.
+      apiFetchAll<ParticipantRow>("/attendees/", eventHeaders(eventId)).catch(() => null),
     ]);
     setTracks(t);
     setRooms(r);
@@ -260,7 +316,16 @@ export default function OrganizerEventPage() {
     setInviteLinks(links);
     setFeatureOverrides(feats.overrides || {});
     setFeaturesDirty(false);
-    setRegisteredCount(registered);
+    setRegisteredCount(attendeeRows ? attendeeRows.length : null);
+    setRoster(attendeeRows);
+  }, [eventId]);
+
+  /** INV-1 — refetch just the roster (after invites / kebab actions). */
+  const refreshRoster = useCallback(async () => {
+    if (!eventId) return;
+    const rows = await apiFetchAll<ParticipantRow>("/attendees/", eventHeaders(eventId));
+    setRoster(rows);
+    setRegisteredCount(rows.length);
   }, [eventId]);
 
   useEffect(() => {
@@ -327,6 +392,40 @@ export default function OrganizerEventPage() {
     }
   }
 
+  /** INV-1 a) — invite one person; falls back to a copyable link when email isn't set up. */
+  async function sendSingleInvite(e: FormEvent) {
+    e.preventDefault();
+    if (!eventId || !invName.trim() || !invEmail.trim()) return;
+    setInvBusy(true);
+    setInvError(null);
+    setInvResult(null);
+    try {
+      const res = await organizerFetch<{
+        inviteUrl: string;
+        emailDelivered: boolean;
+        emailFallbackMessage?: string;
+      }>("/attendees/invite", eventId, {
+        method: "POST",
+        body: JSON.stringify({ email: invEmail.trim(), name: invName.trim() }),
+      });
+      setInvResult(
+        res.emailDelivered
+          ? { text: "Invited — setup email sent." }
+          : {
+              text: `Invited. ${res.emailFallbackMessage || "Email isn't set up — share this invite link instead."}`,
+              fallbackUrl: res.inviteUrl,
+            },
+      );
+      setInvName("");
+      setInvEmail("");
+      await refreshRoster().catch(() => undefined);
+    } catch (err) {
+      setInvError(err instanceof Error ? err.message : "Invite failed");
+    } finally {
+      setInvBusy(false);
+    }
+  }
+
   async function onCsvFile(file: File) {
     const text = await file.text();
     const parsed = parseCsvToTable(text);
@@ -382,6 +481,8 @@ export default function OrganizerEventPage() {
       );
       setDryRun(null);
       setCsvRows([]);
+      // INV-1 — the roster now lives on the same tab; keep it current.
+      await refreshRoster().catch(() => undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invite failed");
     } finally {
@@ -566,7 +667,7 @@ export default function OrganizerEventPage() {
               ["overview", "Overview"],
               ["program", "Program"],
               ["people", "Speakers"],
-              ["invites", "Invites"],
+              ["invites", "Participants"],
               ["maps", "Maps"],
               ["announcements", "Announcements"],
               ["ops", "Ops Inbox"],
@@ -613,12 +714,14 @@ export default function OrganizerEventPage() {
                 iconTone="success"
               />
               {registeredCount != null ? (
+                // INV-1 — the count answers "who?"; clicking goes to the roster.
                 <StatCard
                   label={overviewCopy.stats.registered}
                   value={registeredCount}
                   countUp
                   icon={overviewIcons.ticket}
                   iconTone="live"
+                  href={`/organizer/events/${eventId}?tab=participants`}
                 />
               ) : null}
               <StatCard
@@ -659,6 +762,14 @@ export default function OrganizerEventPage() {
                 </span>
                 <span className="kit-action-card-title">{overviewCopy.quickActions.editProgram.title}</span>
                 <span className="kit-action-card-body">{overviewCopy.quickActions.editProgram.body}</span>
+              </Link>
+              {/* INV-1 — deep link to the Participants tab. */}
+              <Link className="kit-action-card" href={`/organizer/events/${eventId}?tab=participants`}>
+                <span className="kit-icon-tile kit-icon-tile--primary" aria-hidden>
+                  {overviewIcons.people}
+                </span>
+                <span className="kit-action-card-title">{overviewCopy.quickActions.manageParticipants.title}</span>
+                <span className="kit-action-card-body">{overviewCopy.quickActions.manageParticipants.body}</span>
               </Link>
               {event.status === "ACTIVE" ? (
                 <a className="kit-action-card" href={publicEventUrl(event.slug)}>
@@ -825,42 +936,232 @@ export default function OrganizerEventPage() {
         ) : null}
 
         {tab === "invites" ? (
-          <section className="console-panel">
-            <p className="console-panel-label">CSV bulk invite</p>
-            <p className="help-text" style={{ marginTop: 0 }}>
-              Upload a CSV, review the dry-run (errors per row), then confirm. If email isn&apos;t set up, you&apos;ll get
-              copyable invite links instead.
-            </p>
-            <input
-              className="input"
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void onCsvFile(f).catch((err) => setError(err instanceof Error ? err.message : "CSV failed"));
-              }}
-            />
-            {dryRun ? (
-              <ReviewChangeset
-                title="Review invite changeset"
-                headers={csvHeaders}
-                mapping={csvMapping}
-                onMappingChange={(m) => void reDryRun(m)}
-                mappingOptions={MAPPING_OPTIONS}
-                rows={dryRun.rows as never}
-                summary={dryRun.summary}
-                confirmLabel={`Invite ${dryRun.summary.creates} people`}
-                busy={busy}
-                onConfirm={confirmInvites}
-                onCancel={() => {
-                  setDryRun(null);
-                  setCsvRows([]);
+          <section style={{ display: "grid", gap: 16 }}>
+            {/* INV-1 a) — invite one person */}
+            <div className="console-panel">
+              <p className="console-panel-label">Invite one person</p>
+              <p className="help-text" style={{ marginTop: 0 }}>
+                They get a setup email with a personal link. If email isn&apos;t set up, you&apos;ll get a copyable link
+                instead.
+              </p>
+              <form
+                onSubmit={sendSingleInvite}
+                className="console-form"
+                style={{ gridTemplateColumns: "1fr 1fr auto", alignItems: "end" }}
+              >
+                <label style={{ margin: 0 }}>
+                  Name
+                  <input
+                    className="input"
+                    required
+                    placeholder="Full name"
+                    value={invName}
+                    onChange={(e) => setInvName(e.target.value)}
+                  />
+                </label>
+                <label style={{ margin: 0 }}>
+                  Email
+                  <input
+                    className="input"
+                    type="email"
+                    required
+                    placeholder="name@example.edu"
+                    value={invEmail}
+                    onChange={(e) => setInvEmail(e.target.value)}
+                  />
+                </label>
+                <button className="button" type="submit" disabled={invBusy}>
+                  {invBusy ? "Sending…" : "Send invite"}
+                </button>
+              </form>
+              {invError ? (
+                <p style={{ color: "var(--danger)", margin: "10px 0 0" }}>{invError}</p>
+              ) : null}
+              {invResult ? (
+                <div role="status" style={{ marginTop: 10 }}>
+                  <p style={{ color: "var(--success)", margin: 0 }}>{invResult.text}</p>
+                  {invResult.fallbackUrl ? (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+                      <code style={{ overflowWrap: "anywhere" }}>{invResult.fallbackUrl}</code>
+                      <CopyButton value={invResult.fallbackUrl} label="Copy invite link" />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
+            {/* INV-1 b) — invite links (display + copy only; managing them is later work) */}
+            <div className="console-panel">
+              <p className="console-panel-label">Invite links</p>
+              <p className="help-text" style={{ marginTop: 0 }}>
+                Anyone with these links can join. The join link is permanent; the public page link follows the event
+                address.
+              </p>
+              {inviteLinks?.joinUrl || inviteLinks?.slugUrl ? (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {inviteLinks.joinUrl ? (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <span className="text-meta" style={{ minWidth: 110 }}>
+                        Permanent join link
+                      </span>
+                      <code style={{ overflowWrap: "anywhere" }}>{inviteLinks.joinUrl}</code>
+                      <CopyButton value={inviteLinks.joinUrl} />
+                    </div>
+                  ) : null}
+                  {inviteLinks.slugUrl ? (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <span className="text-meta" style={{ minWidth: 110 }}>
+                        Public page link
+                      </span>
+                      <code style={{ overflowWrap: "anywhere" }}>{inviteLinks.slugUrl}</code>
+                      <CopyButton value={inviteLinks.slugUrl} />
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="help-text" style={{ margin: 0 }}>
+                  Invite links aren&apos;t available yet — reload to try again.
+                </p>
+              )}
+            </div>
+
+            {/* INV-1 c) — the existing CSV bulk invite card, unchanged */}
+            <div className="console-panel">
+              <p className="console-panel-label">CSV bulk invite</p>
+              <p className="help-text" style={{ marginTop: 0 }}>
+                Upload a CSV, review the dry-run (errors per row), then confirm. If email isn&apos;t set up, you&apos;ll get
+                copyable invite links instead.
+              </p>
+              <input
+                className="input"
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onCsvFile(f).catch((err) => setError(err instanceof Error ? err.message : "CSV failed"));
                 }}
-                renderCreateSummary={(row) =>
-                  row.kind === "create" ? `${row.name || ""} <${row.email || ""}>` : ""
-                }
               />
-            ) : null}
+              {dryRun ? (
+                <ReviewChangeset
+                  title="Review invite changeset"
+                  headers={csvHeaders}
+                  mapping={csvMapping}
+                  onMappingChange={(m) => void reDryRun(m)}
+                  mappingOptions={MAPPING_OPTIONS}
+                  rows={dryRun.rows as never}
+                  summary={dryRun.summary}
+                  confirmLabel={`Invite ${dryRun.summary.creates} people`}
+                  busy={busy}
+                  onConfirm={confirmInvites}
+                  onCancel={() => {
+                    setDryRun(null);
+                    setCsvRows([]);
+                  }}
+                  renderCreateSummary={(row) =>
+                    row.kind === "create" ? `${row.name || ""} <${row.email || ""}>` : ""
+                  }
+                />
+              ) : null}
+            </div>
+
+            {/* INV-1 d) — roster */}
+            <div className="console-panel">
+              <p className="console-panel-label">Roster</p>
+              {rosterError ? (
+                <p role="alert" style={{ color: "var(--danger)", marginTop: 0 }}>
+                  {rosterError}
+                </p>
+              ) : null}
+              {roster === null ? (
+                <ListSkeleton rows={4} />
+              ) : roster.length === 0 ? (
+                <ListEmpty
+                  title="No participants yet"
+                  body="Invite people above — they'll appear here with their invite status."
+                />
+              ) : (
+                <>
+                  {roster.length > 10 ? (
+                    <input
+                      className="input"
+                      type="search"
+                      placeholder="Filter by name or email"
+                      aria-label="Filter participants by name or email"
+                      value={rosterFilter}
+                      onChange={(e) => setRosterFilter(e.target.value)}
+                      style={{ marginBottom: 12, maxWidth: 360 }}
+                    />
+                  ) : null}
+                  {(() => {
+                    const visible = filterParticipants(roster, rosterFilter);
+                    if (visible.length === 0) {
+                      return (
+                        <p className="help-text" style={{ marginTop: 0 }}>
+                          No participants match &ldquo;{rosterFilter.trim()}&rdquo;.
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="console-table-wrap">
+                        <table className="console-table">
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th>Email</th>
+                              <th>Status</th>
+                              <th aria-label="Actions" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {visible.map((p) => (
+                              <tr key={p.id}>
+                                <td>
+                                  {p.name}
+                                  {p.eventRole === "ADMIN" ? (
+                                    <span className="text-meta"> — admin</span>
+                                  ) : null}
+                                </td>
+                                <td>{p.email}</td>
+                                <td>
+                                  <StatusChip
+                                    status={inviteStatusChipStatus(p.inviteStatus)}
+                                    label={inviteStatusLabel(p.inviteStatus)}
+                                  />
+                                </td>
+                                <td style={{ textAlign: "right" }}>
+                                  <KebabMenu
+                                    label={`Actions for ${p.name}`}
+                                    items={[
+                                      p.eventRole === "ADMIN"
+                                        ? {
+                                            id: "remove-admin",
+                                            label: "Remove admin",
+                                            onSelect: () => setRosterConfirm({ kind: "remove-admin", row: p }),
+                                          }
+                                        : {
+                                            id: "make-admin",
+                                            label: "Make admin",
+                                            onSelect: () => setRosterConfirm({ kind: "make-admin", row: p }),
+                                          },
+                                      {
+                                        id: "remove",
+                                        label: "Remove participant",
+                                        tone: "danger",
+                                        onSelect: () => setRosterConfirm({ kind: "remove", row: p }),
+                                      },
+                                    ]}
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
           </section>
         ) : null}
 
@@ -961,6 +1262,60 @@ export default function OrganizerEventPage() {
             onSaved={refresh}
           />
         ) : null}
+
+        {/* INV-1 — roster actions all confirm first; server rejections
+            (owner-only rules, self-removal) surface as the inline roster
+            error line, never alert(). */}
+        <ConfirmDialog
+          open={rosterConfirm != null}
+          title={
+            rosterConfirm?.kind === "remove"
+              ? `Remove ${rosterConfirm.row.name}?`
+              : rosterConfirm?.kind === "make-admin"
+                ? `Make ${rosterConfirm.row.name} an admin?`
+                : "Remove admin access?"
+          }
+          body={
+            rosterConfirm?.kind === "remove"
+              ? `${rosterConfirm.row.name} (${rosterConfirm.row.email}) will be taken off the roster and lose access to this event. Removing keeps their data for 30 days.`
+              : rosterConfirm?.kind === "make-admin"
+                ? `${rosterConfirm.row.name} (${rosterConfirm.row.email}) will be able to manage this event — program, invites, and roster.`
+                : `${rosterConfirm?.row.name ?? ""} will become a regular participant.`
+          }
+          confirmLabel={
+            rosterConfirm?.kind === "remove"
+              ? "Remove participant"
+              : rosterConfirm?.kind === "make-admin"
+                ? "Make admin"
+                : "Remove admin"
+          }
+          tone={rosterConfirm?.kind === "remove" ? "danger" : "default"}
+          busy={rosterBusy}
+          onCancel={() => setRosterConfirm(null)}
+          onConfirm={async () => {
+            if (!rosterConfirm) return;
+            setRosterBusy(true);
+            setRosterError(null);
+            try {
+              const { kind, row } = rosterConfirm;
+              if (kind === "remove") {
+                await organizerFetch(`/attendees/${row.id}`, eventId, { method: "DELETE" });
+              } else {
+                await organizerFetch(`/attendees/${row.id}/${kind}`, eventId, {
+                  method: "POST",
+                  body: "{}",
+                });
+              }
+              setRosterConfirm(null);
+              await refreshRoster();
+            } catch (err) {
+              setRosterConfirm(null);
+              setRosterError(err instanceof Error ? err.message : "Roster update failed");
+            } finally {
+              setRosterBusy(false);
+            }
+          }}
+        />
 
         <ConfirmDialog
           open={publishConfirm}

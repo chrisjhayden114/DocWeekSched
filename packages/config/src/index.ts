@@ -411,6 +411,11 @@ export const overviewCopy = {
       title: "Open attendee app",
       body: "Agenda, messages, and community — exactly what a participant sees.",
     },
+    /** INV-1 — deep link to the Participants tab. */
+    manageParticipants: {
+      title: "Manage participants",
+      body: "Invite people one at a time or by CSV, and manage the roster.",
+    },
   },
   advanced: {
     label: "Publishing & advanced",

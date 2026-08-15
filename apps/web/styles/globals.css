@@ -7446,6 +7446,25 @@ button.schedule-meta-chip:hover {
   background: var(--surface-card);
 }
 
+/* INV-1 — a stat card that deep-links (Registered → Participants tab)
+   gets the same affordances as action cards. */
+a.kit-stat-card--link {
+  text-decoration: none;
+  color: inherit;
+  transition: var(--transition);
+}
+
+a.kit-stat-card--link:hover {
+  border-color: var(--event-accent);
+  box-shadow: var(--shadow-1);
+  text-decoration: none;
+}
+
+a.kit-stat-card--link:focus-visible {
+  outline: 2px solid var(--event-accent);
+  outline-offset: 2px;
+}
+
 .kit-stat-card .kit-icon-tile {
   width: 32px;
   height: 32px;
