@@ -48,7 +48,12 @@ import { prisma } from "./lib/db";
 import { log } from "./lib/log";
 import { getRequestId, requestIdMiddleware } from "./lib/requestId";
 import { captureException, initSentry } from "./lib/sentry";
-import { flushQueuedPushes, notifySessionStartingSoon, sweepUnreadMessageEmails } from "./lib/notifications";
+import {
+  flushQueuedPushes,
+  notifySessionStartingSoon,
+  sweepDailyDigests,
+  sweepUnreadMessageEmails,
+} from "./lib/notifications";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
 import { warnIfAnthropicModelUnavailable } from "./lib/ai/providers/anthropic";
 import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
@@ -277,6 +282,16 @@ app.listen(env.apiPort, () => {
       captureException(err, { tags: { area: "notifications" } });
     });
   }, msgMailMs);
+
+  const digestMs = Number(process.env.DIGEST_SWEEP_INTERVAL_MS || 15 * 60_000);
+  setInterval(() => {
+    void sweepDailyDigests().catch((err) => {
+      log("error", "sweepDailyDigests failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      captureException(err, { tags: { area: "notifications" } });
+    });
+  }, digestMs);
 
   // Periodic ops detector sweep (enqueue per-event jobs; never auto-applies cards).
   const opsSweepMs = Number(process.env.OPS_DETECT_SWEEP_INTERVAL_MS || 5 * 60_000);
