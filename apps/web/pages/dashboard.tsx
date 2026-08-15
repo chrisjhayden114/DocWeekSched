@@ -30,6 +30,7 @@ import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../comp
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/ScheduleViewSwitcher";
 import { SegmentedToggle } from "../components/SegmentedToggle";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
+import { SessionPeekSheet } from "../components/SessionPeekSheet";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { Composer, EmptyState, FeedCard, FilterPills, Lightbox, PageHeader } from "../components/kit";
 import { galleryPreview } from "../lib/gallery";
@@ -345,6 +346,9 @@ export default function Dashboard() {
   const [agendaFilterDay, setAgendaFilterDay] = useState<string>("");
   const [agendaSearch, setAgendaSearch] = useState("");
   const [agendaFiltersOpen, setAgendaFiltersOpen] = useState(false);
+  /** H4 — session peek sheet over the Grid / By-room timetables. */
+  const [peekSessionId, setPeekSessionId] = useState<string | null>(null);
+  const [peekJoinBusy, setPeekJoinBusy] = useState(false);
   const [adminEvents, setAdminEvents] = useState<EventItem[]>([]);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
@@ -898,8 +902,10 @@ export default function Dashboard() {
   const patchSessionAttendance = async (
     sessionId: string,
     body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode },
-  ) => {
-    if (!token) return;
+    /** quiet: no window.alert — the peek sheet surfaces failures inline (H4). */
+    opts?: { quiet?: boolean },
+  ): Promise<boolean> => {
+    if (!token) return false;
     const prevAttendance = myAttendance;
     setMyAttendance((rows) => {
       const rest = rows.filter((r) => r.sessionId !== sessionId);
@@ -925,15 +931,17 @@ export default function Dashboard() {
         void refreshUser();
         void offerPushAfterFirstAgendaSave(token);
       }
+      return true;
     } catch (err) {
       setMyAttendance(prevAttendance);
       const msg = err instanceof Error ? err.message : "Could not update attendance";
       if (/waitlist|full/i.test(msg)) {
-        window.alert(msg);
+        if (!opts?.quiet) window.alert(msg);
         setSessions(await apiFetch<Session[]>("/sessions", withEventHeaders(), token).catch(() => sessions));
         const meta = await apiFetch<MySessionMeta>("/sessions/me", {}, token).catch(() => null);
         if (meta) setMyAttendance(meta.attendance);
       }
+      return false;
     }
   };
 
@@ -1424,20 +1432,20 @@ export default function Dashboard() {
                 {scheduleLayout === "grid" ? (
                   <div className="schedule-desktop-views">
                     <ScheduleGridView
-                      sessions={toTimetableSessions(filteredSessions)}
+                      sessions={toTimetableSessions(filteredSessions, joiningSessionIds, bookmarkedSessionIds)}
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
-                      onSelectSession={goToSessionPage}
+                      onSelectSession={setPeekSessionId}
                     />
                   </div>
                 ) : null}
                 {scheduleLayout === "room" ? (
                   <div className="schedule-desktop-views">
                     <ScheduleByRoomView
-                      sessions={toTimetableSessions(filteredSessions)}
+                      sessions={toTimetableSessions(filteredSessions, joiningSessionIds, bookmarkedSessionIds)}
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
-                      onSelectSession={goToSessionPage}
+                      onSelectSession={setPeekSessionId}
                     />
                   </div>
                 ) : null}
@@ -1474,25 +1482,81 @@ export default function Dashboard() {
                 {scheduleLayout === "grid" ? (
                   <div className="schedule-desktop-views">
                     <ScheduleGridView
-                      sessions={toTimetableSessions(myScheduledSessions)}
+                      sessions={toTimetableSessions(myScheduledSessions, joiningSessionIds, bookmarkedSessionIds)}
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
-                      onSelectSession={goToSessionPage}
+                      onSelectSession={setPeekSessionId}
                     />
                   </div>
                 ) : null}
                 {scheduleLayout === "room" ? (
                   <div className="schedule-desktop-views">
                     <ScheduleByRoomView
-                      sessions={toTimetableSessions(myScheduledSessions)}
+                      sessions={toTimetableSessions(myScheduledSessions, joiningSessionIds, bookmarkedSessionIds)}
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
-                      onSelectSession={goToSessionPage}
+                      onSelectSession={setPeekSessionId}
                     />
                   </div>
                 ) : null}
               </>
             )}
+            <SessionPeekSheet
+              session={sessions.find((s) => s.id === peekSessionId) || null}
+              timeZone={agendaDisplayTimezone}
+              joined={peekSessionId ? joiningSessionIds.includes(peekSessionId) : false}
+              joinMode={
+                peekSessionId
+                  ? myAttendance.find((r) => r.sessionId === peekSessionId)?.joinMode ?? null
+                  : null
+              }
+              starred={peekSessionId ? bookmarkedSessionIds.includes(peekSessionId) : false}
+              joinBusy={peekJoinBusy}
+              onClose={() => setPeekSessionId(null)}
+              onJoin={async () => {
+                if (!peekSessionId) return;
+                setPeekJoinBusy(true);
+                try {
+                  // Single-step join (H4): straight to IN_PERSON, no mode modal —
+                  // the mode switch appears inside the sheet once joined.
+                  return await patchSessionAttendance(
+                    peekSessionId,
+                    { status: "JOINING", joinMode: "IN_PERSON" },
+                    { quiet: true },
+                  );
+                } finally {
+                  setPeekJoinBusy(false);
+                }
+              }}
+              onLeave={async () => {
+                if (!peekSessionId) return;
+                setPeekJoinBusy(true);
+                try {
+                  return await patchSessionAttendance(peekSessionId, { status: "NOT_JOINING" }, { quiet: true });
+                } finally {
+                  setPeekJoinBusy(false);
+                }
+              }}
+              onChangeMode={async (mode) => {
+                if (!peekSessionId) return;
+                setPeekJoinBusy(true);
+                try {
+                  return await patchSessionAttendance(
+                    peekSessionId,
+                    { status: "JOINING", joinMode: mode },
+                    { quiet: true },
+                  );
+                } finally {
+                  setPeekJoinBusy(false);
+                }
+              }}
+              onToggleStar={() => {
+                if (peekSessionId) void toggleSessionBookmark(peekSessionId);
+              }}
+              onOpenDetails={() => {
+                if (peekSessionId) goToSessionPage(peekSessionId);
+              }}
+            />
           </div>
           <aside className="agenda-rail" aria-label="Agenda filters">
             <div className="agenda-rail-panel">{agendaFilterControls}</div>
@@ -2083,7 +2147,7 @@ function ScheduleBoard({
   onPatchAttendance: (
     sessionId: string,
     body: { status: "JOINING" | "NOT_JOINING"; joinMode?: AgendaJoinMode },
-  ) => void | Promise<void>;
+  ) => void | Promise<boolean | void>;
   onToggleLike?: (sessionId: string) => void;
   onToggleBookmark?: (sessionId: string) => void;
   likesEnabled?: boolean;
@@ -2447,7 +2511,7 @@ function ScheduleBoard({
                   if (id) await joinSessionAndOpenCalendar(id, "ASYNC");
                 }}
               >
-                Asynchronous- Time Zone Issues!
+                Asynchronous — join across time zones
               </button>
               <button type="button" className="button secondary" onClick={() => setAgendaModalSessionId(null)}>
                 Cancel
@@ -3898,7 +3962,11 @@ function notificationKindIcon(kind: UserNotificationRow["kind"] | string) {
   }
 }
 
-function toTimetableSessions(sessions: Session[]): TimetableSession[] {
+function toTimetableSessions(
+  sessions: Session[],
+  joinedIds?: string[],
+  starredIds?: string[],
+): TimetableSession[] {
   return sessions.map((s) => ({
     id: s.id,
     title: s.title,
@@ -3909,6 +3977,8 @@ function toTimetableSessions(sessions: Session[]): TimetableSession[] {
     trackId: s.trackId ?? null,
     trackName: s.track?.name || null,
     trackExplicitColor: s.track?.color || null,
+    joined: joinedIds ? joinedIds.includes(s.id) : undefined,
+    starred: starredIds ? starredIds.includes(s.id) : undefined,
   }));
 }
 

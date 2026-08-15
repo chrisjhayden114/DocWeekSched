@@ -755,7 +755,7 @@ export default function SessionPage() {
                       type="button"
                       className={myMode === "ASYNC" ? "is-active" : ""}
                       onClick={() => patchAttendance({ status: "JOINING", joinMode: "ASYNC" })}
-                      title="Asynchronous – Time Zone Issues!"
+                      title="Asynchronous — join across time zones"
                     >
                       Async
                     </button>

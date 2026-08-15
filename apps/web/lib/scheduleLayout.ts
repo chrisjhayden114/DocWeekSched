@@ -16,6 +16,13 @@ export type TimetableSession = {
   trackId: string | null;
   trackName: string | null;
   trackExplicitColor?: string | null;
+  /**
+   * H4 — personal state markers. Only surfaces with a signed-in viewer
+   * (dashboard) populate these; the public page leaves them undefined,
+   * which renders no markers at all.
+   */
+  joined?: boolean;
+  starred?: boolean;
 };
 
 export const PX_PER_HOUR = 72;

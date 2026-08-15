@@ -79,17 +79,35 @@ function TimetableBlock({
     width: `calc(${widthPct}% - ${GUTTER}px)`,
     ["--track-color" as string]: color,
   };
+  // H4 — quiet state markers, top-right: state only, never controls.
+  // The public page threads no joined/starred, so nothing renders there.
+  const marked = Boolean(session.joined || session.starred);
   const content = (
     <>
+      {marked ? (
+        <span className="schedule-grid-block-markers">
+          {session.joined ? (
+            <span className="schedule-grid-block-marker--joined" role="img" aria-label="On your schedule">
+              ✓
+            </span>
+          ) : null}
+          {session.starred ? (
+            <span className="schedule-grid-block-marker--starred" role="img" aria-label="Starred">
+              ★
+            </span>
+          ) : null}
+        </span>
+      ) : null}
       <span className="schedule-grid-block-title">{session.title}</span>
       {session.roomLabel ? <span className="schedule-grid-block-room">{session.roomLabel}</span> : null}
     </>
   );
+  const blockClass = `schedule-grid-block${marked ? " schedule-grid-block--marked" : ""}`;
   // Where a block cannot be opened (public page), never announce a control:
   // no button role, no pointer cursor, no focus stop.
   if (!interactive) {
     return (
-      <div className="schedule-grid-block schedule-grid-block--static" style={style} title={session.title}>
+      <div className={`${blockClass} schedule-grid-block--static`} style={style} title={session.title}>
         {content}
       </div>
     );
@@ -97,7 +115,7 @@ function TimetableBlock({
   return (
     <button
       type="button"
-      className="schedule-grid-block"
+      className={blockClass}
       style={style}
       onClick={() => onSelect?.(session.id)}
       title={session.title}

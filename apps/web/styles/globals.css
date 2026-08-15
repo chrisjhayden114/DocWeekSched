@@ -6387,6 +6387,216 @@ button.schedule-meta-chip:hover {
   max-width: 100%;
 }
 
+/* H4 — quiet personal-state markers on timetable cells: state only, no
+   buttons. Only rendered when the caller threads joined/starred state in
+   (dashboard); the public page passes nothing and shows nothing. */
+.schedule-grid-block-markers {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  display: inline-flex;
+  gap: 2px;
+  font: 400 11px/14px var(--font-body);
+  pointer-events: none;
+}
+
+.schedule-grid-block-marker--joined {
+  color: var(--success);
+}
+
+.schedule-grid-block-marker--starred {
+  color: var(--warning);
+}
+
+/* Keep the clamped title clear of the marker corner. */
+.schedule-grid-block--marked .schedule-grid-block-title {
+  padding-right: 26px;
+}
+
+/*
+ * —— H4: session peek sheet (D6) ——
+ * Bottom sheet over the Grid / By-room timetables: essentials + real actions
+ * without navigating away. Tokens only; the slide-up rides the E28 motion
+ * tokens, so prefers-reduced-motion collapses it automatically (plus the
+ * explicit gate below, matching the lightbox).
+ */
+@keyframes session-peek-up {
+  from {
+    opacity: 0.6;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.session-peek-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: motion-fade-in var(--motion) var(--ease-out) both;
+}
+
+.session-peek-sheet {
+  width: 100%;
+  max-height: min(85vh, 640px);
+  overflow-y: auto;
+  background: var(--surface-card);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-3);
+  padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  animation: session-peek-up var(--motion-slow) var(--ease-out) both;
+}
+
+/* ≥768px: still bottom-anchored, but centered and capped at 520px. */
+@media (min-width: 768px) {
+  .session-peek-sheet {
+    max-width: 520px;
+    padding: var(--space-5) var(--space-5) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-peek-backdrop,
+  .session-peek-sheet {
+    animation: none;
+  }
+}
+
+.session-peek-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.session-peek-title {
+  margin: 0;
+  font: var(--text-h3);
+  color: var(--title-color);
+}
+
+.session-peek-close {
+  flex-shrink: 0;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  margin: -8px -8px 0 0;
+  border: none;
+  background: transparent;
+  color: var(--gray-500);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.session-peek-close:hover {
+  color: var(--gray-700);
+  background: var(--gray-100);
+}
+
+.session-peek-meta {
+  margin: var(--space-1) 0 0;
+  font: var(--text-meta);
+  color: var(--meta-color);
+}
+
+.session-peek-speakers {
+  margin: var(--space-2) 0 0;
+  font: var(--text-label);
+  color: var(--text-color);
+}
+
+.session-peek-desc {
+  margin: var(--space-2) 0 0;
+  font: var(--text-body);
+  color: var(--text-color);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.session-peek-error {
+  margin: var(--space-3) 0 0;
+  font: var(--text-label);
+  color: var(--danger);
+}
+
+.session-peek-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* Comfortable targets: every action in the sheet is at least 44px tall. */
+.session-peek-actions .button,
+.session-peek-leave,
+.session-peek-details,
+.session-peek-mode button {
+  min-height: var(--tap-target);
+}
+
+.session-peek-joined-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--success-50);
+  color: var(--success);
+  font: var(--text-label);
+  font-weight: 600;
+}
+
+.session-peek-leave {
+  border: none;
+  background: transparent;
+  padding: 0 var(--space-2);
+  color: var(--gray-500);
+  font: var(--text-label);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.session-peek-leave:hover {
+  color: var(--danger);
+}
+
+.session-peek-star.is-active {
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
+}
+
+.session-peek-mode {
+  margin-top: var(--space-3);
+}
+
+.session-peek-details {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--space-3);
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--event-accent);
+  font: var(--text-label);
+  cursor: pointer;
+}
+
+.session-peek-details:hover {
+  color: var(--event-accent-hover);
+  text-decoration: underline;
+}
+
 .schedule-print-program {
   display: none;
 }
