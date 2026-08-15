@@ -8,14 +8,14 @@ import {
 } from "@event-app/shared";
 
 describe("Phase 5 entitlements & registry", () => {
-  it("exposes polls, feedback, sponsors, checkin; leaderboard visible and default off", () => {
+  it("exposes polls, feedback, sponsors, checkin; leaderboard hidden (unbuilt) and default off", () => {
     expect(FEATURE_BY_KEY.session_polls).toBeTruthy();
     expect(FEATURE_BY_KEY.session_feedback).toBeTruthy();
     expect(FEATURE_BY_KEY.sponsors).toBeTruthy();
     expect(FEATURE_BY_KEY.checkin).toBeTruthy();
-    expect(FEATURE_BY_KEY.public_leaderboard.plannedPhase).toBeUndefined();
+    expect(FEATURE_BY_KEY.public_leaderboard.plannedPhase).toBe("later");
     expect(FEATURE_BY_KEY.public_leaderboard.defaultOn).toBe(false);
-    expect(getOrganizerVisibleFeatures().some((f) => f.key === "public_leaderboard")).toBe(true);
+    expect(getOrganizerVisibleFeatures().some((f) => f.key === "public_leaderboard")).toBe(false);
     expect(resolveFeatureEnabled("public_leaderboard", {})).toBe(false);
   });
 

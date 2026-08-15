@@ -5,9 +5,13 @@
 Live at **[ukedl.com](https://ukedl.com)** · API at `api.ukedl.com` · public demo event at
 [`/e/demo`](https://ukedl.com/e/demo)
 
-An organiser pastes an existing conference programme; an AI ingest agent extracts
-sessions, papers, authors, rooms and tracks into a reviewable changeset; the organiser
-approves it; attendees get a fast installable web app with no app-store download.
+License: proprietary — source-visible, not open source. See [LICENSE](LICENSE).
+
+An organiser brings an existing conference programme; an AI ingest agent extracts
+sessions, papers, authors, rooms and tracks from pasted programmes, PDFs and Word
+documents into a reviewable changeset, while spreadsheets import through a structured
+column-mapping flow; the organiser approves it; attendees get a fast installable web
+app with no app-store download.
 Built for the 50–2,000 attendee band — annual departmental conferences, scholarly
 societies, education programmes.
 

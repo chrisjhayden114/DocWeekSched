@@ -17,8 +17,10 @@ conferences, scholarly societies, education programmes, meetups.
 
 The pitch in one line: *paste your programme, your event is live.* An organiser
 pastes or uploads an existing conference programme; an AI ingest agent extracts
-sessions, papers, authors, rooms and tracks into a reviewable changeset; the
-organiser approves it; attendees get a fast web app with no app-store download.
+sessions, papers, authors, rooms and tracks from pasted text, PDFs and Word
+documents into a reviewable changeset (spreadsheets deliberately bypass AI and
+import through a structured column-mapping flow — E21); the organiser approves
+it; attendees get a fast web app with no app-store download.
 
 **Competitors:** Whova (feature-maximal, notification-heavy, quote-priced),
 Sched (simple but rigid), EventPilot (deep but dated, 75-day app-store lead time).

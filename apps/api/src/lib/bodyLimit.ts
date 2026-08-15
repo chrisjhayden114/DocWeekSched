@@ -48,7 +48,7 @@ export function jsonLimitForPath(method: string, path: string): string {
   if (/^\/cfp\/public\/[^/]+\/submit\/?$/.test(path)) return "12mb";
   // Attendee invite / profile photo data-URLs (schema allows up to ~12MB)
   if (path === "/attendees" || path === "/attendees/" || path === "/attendees/invite-bulk") return "16mb";
-  if (path === "/attendees/me" || path === "/auth/me") return "16mb";
+  if (path === "/attendees/me" || path === "/auth/me" || path === "/auth/me/profile") return "16mb";
 
   return DEFAULT_JSON_LIMIT;
 }

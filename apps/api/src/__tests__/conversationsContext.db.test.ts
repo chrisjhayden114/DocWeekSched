@@ -240,7 +240,16 @@ describe("conversation context session chip (DB) — M8", () => {
     async () => {
       const res = await createDirect(ids.userA!, ids.userB!, ids.session1Id!);
       expect(res.status).toBe(200);
-      const created = (await res.json()) as { id: string };
+      const created = (await res.json()) as {
+        id: string;
+        contextSession?: { id: string; title: string } | null;
+      };
+
+      // The POST response itself carries the hydrated chip (no list poll needed).
+      expect(created.contextSession).toEqual({
+        id: ids.session1Id,
+        title: "Opening Keynote",
+      });
 
       const list = await listAs(ids.userA!);
       const row = list.find((c) => c.id === created.id);
@@ -258,9 +267,14 @@ describe("conversation context session chip (DB) — M8", () => {
     async () => {
       const res = await createDirect(ids.userA!, ids.userC!, ids.otherEventSessionId!);
       expect(res.status).toBe(200);
-      const created = (await res.json()) as { id: string; contextSessionId?: string | null };
+      const created = (await res.json()) as {
+        id: string;
+        contextSessionId?: string | null;
+        contextSession?: { id: string; title: string } | null;
+      };
 
       expect(created.contextSessionId ?? null).toBeNull();
+      expect(created.contextSession).toBeNull();
 
       const list = await listAs(ids.userA!);
       const row = list.find((c) => c.id === created.id);
@@ -276,8 +290,18 @@ describe("conversation context session chip (DB) — M8", () => {
       // A↔B already exists from the first test with session1; refresh to session2.
       const res = await createDirect(ids.userA!, ids.userB!, ids.session2Id!);
       expect(res.status).toBe(200);
-      const updated = (await res.json()) as { id: string; contextSessionId?: string | null };
+      const updated = (await res.json()) as {
+        id: string;
+        contextSessionId?: string | null;
+        contextSession?: { id: string; title: string } | null;
+      };
       expect(updated.contextSessionId).toBe(ids.session2Id);
+
+      // Existing-conversation branch also hydrates the chip in the POST response.
+      expect(updated.contextSession).toEqual({
+        id: ids.session2Id,
+        title: "Closing Plenary",
+      });
 
       const list = await listAs(ids.userA!);
       const row = list.find((c) => c.id === updated.id);

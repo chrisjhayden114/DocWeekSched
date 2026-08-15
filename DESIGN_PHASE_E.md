@@ -184,5 +184,3 @@ consumer toy. Named here only so the trade-off is explicit.
   response *rendering* (its grounding logic is unchanged).
 - The anti-goals hold: no engagement theatre, no dark patterns, no manufactured
   urgency.
-EOF
-echo "written $(wc -l < DESIGN_PHASE_E.md) lines"

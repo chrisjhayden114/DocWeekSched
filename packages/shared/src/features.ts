@@ -163,12 +163,15 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     defaultOn: true,
   },
   {
+    // No leaderboard surface is built yet — plannedPhase hides the toggle
+    // from the organizer Features tab until enforcement exists.
     key: "public_leaderboard",
     name: "Public leaderboard",
     plainDescription: "Show a ranked list of attendees by engagement points.",
     category: "engagement",
     defaultOn: false,
     dependsOn: ["engagement_points"],
+    plannedPhase: "later",
   },
   {
     key: "timezone_toggle",
@@ -320,7 +323,6 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       messaging_dms: true,
       messaging_requests: true,
       messaging_groups: true,
-      messaging_event_chat: true,
       session_qa: true,
       session_likes: true,
       engagement_points: true,
@@ -354,7 +356,6 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       messaging_dms: false,
       messaging_requests: false,
       messaging_groups: false,
-      messaging_event_chat: false,
       session_qa: true,
       session_likes: false,
       engagement_points: false,
@@ -390,7 +391,6 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       messaging_dms: true,
       messaging_requests: true,
       messaging_groups: true,
-      messaging_event_chat: true,
       session_qa: true,
       session_likes: true,
       engagement_points: true,

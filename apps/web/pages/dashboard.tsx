@@ -390,11 +390,14 @@ export default function Dashboard() {
     [featureOverrides],
   );
 
-  const withEventHeaders = (extra: RequestInit = {}): RequestInit => {
-    if (!activeEventId) return extra;
-    const h = (extra.headers as Record<string, string> | undefined) || {};
-    return { ...extra, headers: { ...h, "x-event-id": activeEventId } };
-  };
+  const withEventHeaders = useCallback(
+    (extra: RequestInit = {}): RequestInit => {
+      if (!activeEventId) return extra;
+      const h = (extra.headers as Record<string, string> | undefined) || {};
+      return { ...extra, headers: { ...h, "x-event-id": activeEventId } };
+    },
+    [activeEventId],
+  );
 
   const refreshUser = async () => {
     if (!token) return;

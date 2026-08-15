@@ -260,7 +260,14 @@ conversationsRouter.post(
         where: { id: existing.id },
         include: memberInclude,
       });
-      return res.json(full);
+      // M8 parity with GET "/": hydrate the context chip immediately.
+      const contextSession = full?.contextSessionId
+        ? await prisma.session.findUnique({
+            where: { id: full.contextSessionId },
+            select: { id: true, title: true },
+          })
+        : null;
+      return res.json({ ...full, contextSession });
     }
 
     // M4b request gate: a stranger's first DM lands as a silent REQUEST.
@@ -311,7 +318,14 @@ conversationsRouter.post(
       include: memberInclude,
     });
 
-    return res.json(conversation);
+    // M8 parity with GET "/": hydrate the context chip immediately.
+    const contextSession = conversation.contextSessionId
+      ? await prisma.session.findUnique({
+          where: { id: conversation.contextSessionId },
+          select: { id: true, title: true },
+        })
+      : null;
+    return res.json({ ...conversation, contextSession });
   }),
 );
 

@@ -55,6 +55,8 @@ describe("jsonLimitForPath", () => {
     const ingestMb = Number(jsonLimitForPath("POST", "/ai/ingest").replace("mb", ""));
     expect(ingestMb).toBeGreaterThanOrEqual(Math.ceil(AGENDA_INGEST_MAX_BYTES / (1024 * 1024)));
     expect(jsonLimitForPath("POST", "/certificates/event/e1/templates")).toBe("2mb");
+    expect(jsonLimitForPath("PUT", "/auth/me")).toBe("16mb");
+    expect(jsonLimitForPath("PUT", "/auth/me/profile")).toBe("16mb");
   });
 
   it("keeps GET at the default (no body)", () => {

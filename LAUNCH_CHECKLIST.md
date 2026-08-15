@@ -70,7 +70,7 @@ Status legend: `todo` · `in-progress` · `blocked` · `done (YYYY-MM-DD)`.
 
 - [ ] **Final product name decided** — replaces the interim UKEDL launch name; one-line change in `packages/config`. Blocked on trademark clearance for "Colloquium." *Owner: Chris + attorney · Status: blocked*
 - [ ] **Post-rename domain purchased + redirects planned**. *Owner: Chris · Status: todo*
-- [ ] **ToS + Privacy legal sign-off** — including the subprocessor list (Neon, Render, Netlify, Resend, Lemon Squeezy, Anthropic, Sentry, storage). The security page currently carries a visible DRAFT chip. *Owner: Chris + attorney · Status: todo*
+- [ ] **ToS + Privacy legal sign-off** — including the subprocessor list (Neon, Render, Netlify, Resend, Stripe, Anthropic, Sentry, storage). The /terms and /privacy pages currently carry visible DRAFT banners (/security has none). *Owner: Chris + attorney · Status: todo*
 - [ ] **FERPA alignment statement** on /security — cheap credibility with education buyers; pursue SOC 2 only when an enterprise deal demands it. *Owner: Chris · Status: todo*
 - [ ] **Support commitment reviewed** — `supportHours` in `packages/config` matches what one person can actually deliver. *Owner: Chris · Status: todo*
 
