@@ -19,7 +19,12 @@ import {
 } from "../../../../lib/spreadsheetImport";
 import { CountUp } from "../../../../components/CountUp";
 import { describeIngestSource, ingestReviewHeading, ingestSourceName } from "../../../../lib/ingestSource";
-import { rowsToApiChangeset, toggleRemoval } from "../../../../lib/ingestReview";
+import {
+  applyImportScope,
+  rowsToApiChangeset,
+  toggleRemoval,
+  type ImportScope,
+} from "../../../../lib/ingestReview";
 import {
   INGEST_POLL_HARD_STOP_MS,
   INGEST_POLL_OVERTIME_MS,
@@ -206,6 +211,9 @@ export default function AgendaIngestPage() {
   // chooses between the AI extractor and the exact-control column mapper.
   const [pendingXlsxFile, setPendingXlsxFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ReviewChangeRow[]>([]);
+  // H3 (D1): default PART so re-import delete proposals are discarded until
+  // the organiser explicitly says the file was the full program.
+  const [importScope, setImportScope] = useState<ImportScope>("part");
   const [assumptions, setAssumptions] = useState<ReviewAssumption[]>([]);
   const [history, setHistory] = useState<HistoryResponse | null>(null);
   const reviewRef = useRef<HTMLDivElement | null>(null);
@@ -258,14 +266,19 @@ export default function AgendaIngestPage() {
     void loadHistory().catch(() => undefined);
   }, [loadHistory]);
 
+  const proposedDeleteCount = useMemo(
+    () => rows.filter((r) => r.kind === "delete").length,
+    [rows],
+  );
+  const scopedRows = useMemo(() => applyImportScope(rows, importScope), [rows, importScope]);
   const summary = useMemo(
     () => ({
-      creates: rows.filter((r) => r.kind === "create").length,
-      updates: rows.filter((r) => r.kind === "update").length,
-      deletes: rows.filter((r) => r.kind === "delete").length,
-      errors: rows.filter((r) => r.kind === "error").length,
+      creates: scopedRows.filter((r) => r.kind === "create").length,
+      updates: scopedRows.filter((r) => r.kind === "update").length,
+      deletes: scopedRows.filter((r) => r.kind === "delete").length,
+      errors: scopedRows.filter((r) => r.kind === "error").length,
     }),
-    [rows],
+    [scopedRows],
   );
 
   // E11.1: file-sourced runs show real metadata in the Source panel — never
@@ -335,6 +348,7 @@ export default function AgendaIngestPage() {
       setRun(current);
       const nextRows = stripUniformConfidence(changesetToRows(current.changeset));
       setRows(nextRows);
+      setImportScope("part");
       if (current.status === "READY_FOR_REVIEW" && nextRows.length === 0) {
         setEmptyResult(true);
       }
@@ -407,7 +421,8 @@ export default function AgendaIngestPage() {
     try {
       // E13.2: assumptions are read-only display now — only the changeset
       // (with accept ticks and removal ticks) is persisted before confirm.
-      const changeset = rowsToApiChangeset(rows, run.changeset);
+      // H3: scope filters delete rows client-side so they never reach PATCH.
+      const changeset = rowsToApiChangeset(scopedRows, run.changeset);
       await organizerFetch(`/ai/ingest/${run.id}`, eventId, {
         method: "PATCH",
         body: JSON.stringify({ changeset }),
@@ -724,6 +739,48 @@ export default function AgendaIngestPage() {
 
         {reviewVisible && run && sourceDisplay ? (
           <div ref={reviewRef}>
+          {proposedDeleteCount > 0 ? (
+            // H3 (D1): question-first — ask full vs part before delete quarantine.
+            <section
+              className="console-panel"
+              style={{ marginTop: 16, marginBottom: 12 }}
+              role="group"
+              aria-labelledby="import-scope-question"
+            >
+              <p id="import-scope-question" style={{ margin: "0 0 10px", fontWeight: 600 }}>
+                Was this file your full program, or part of it?
+              </p>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
+                <input
+                  type="radio"
+                  name="import-scope"
+                  checked={importScope === "part"}
+                  onChange={() => setImportScope("part")}
+                  disabled={run.status === "CONFIRMED" || busy}
+                />
+                <span>
+                  Part of the program — keep existing sessions that aren&apos;t in this file (default)
+                </span>
+              </label>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <input
+                  type="radio"
+                  name="import-scope"
+                  checked={importScope === "full"}
+                  onChange={() => setImportScope("full")}
+                  disabled={run.status === "CONFIRMED" || busy}
+                />
+                <span>
+                  The full program — propose removing the {proposedDeleteCount} existing session
+                  {proposedDeleteCount === 1 ? "" : "s"} not found in it
+                </span>
+              </label>
+              <p className="help-text" style={{ margin: "10px 0 0" }}>
+                Import files are often partial — a rooming sheet or one day&apos;s schedule. Nothing is
+                deleted either way without your review.
+              </p>
+            </section>
+          ) : null}
           <ReviewChangeset
             title={
               // E30.4: same wording as ingestReviewHeading, with the found
@@ -778,7 +835,7 @@ export default function AgendaIngestPage() {
                 </div>
               ) : undefined
             }
-            rows={rows}
+            rows={scopedRows}
             summary={summary}
             assumptions={assumptions}
             // H2 (D2): the agenda review groups creates by day + timeslot.
@@ -822,6 +879,7 @@ export default function AgendaIngestPage() {
                     setRun(full);
                     const nextRows = stripUniformConfidence(changesetToRows(full.changeset));
                     setRows(nextRows);
+                    setImportScope("part");
                     setError(full.status === "FAILED" || full.error ? friendlyIngestError(full.error) : null);
                     setEmptyResult(full.status === "READY_FOR_REVIEW" && nextRows.length === 0);
                     setAssumptions(Array.isArray(full.assumptions) ? (full.assumptions as ReviewAssumption[]) : []);

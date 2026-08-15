@@ -113,6 +113,17 @@ export function groupCreateRows<T extends CreateRowLike>(rows: T[]): CreateRowGr
 }
 
 /**
+ * H3 (D1): when a re-import proposes deletes, the organiser first answers
+ * whether the file was the full program or part of it. "part" (default)
+ * drops delete proposals entirely so they never reach review or confirm.
+ */
+export type ImportScope = "part" | "full";
+
+export function applyImportScope<T extends { kind?: string }>(rows: T[], scope: ImportScope): T[] {
+  return scope === "part" ? rows.filter((r) => r.kind !== "delete") : rows;
+}
+
+/**
  * Rebuild the API changeset from edited review rows, merging each row over
  * its original (so fields the UI does not track survive the round-trip).
  * Removal arrays come from the edited row when present — they carry the

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { groupCreateRows, removalsOf, rowsToApiChangeset, toggleRemoval } from "../lib/ingestReview";
+import {
+  applyImportScope,
+  groupCreateRows,
+  removalsOf,
+  rowsToApiChangeset,
+  toggleRemoval,
+} from "../lib/ingestReview";
 
 /**
  * E13.3: the review screen offers explicit, unchecked-by-default removal
@@ -126,5 +132,36 @@ describe("groupCreateRows (H2/D2)", () => {
     const groups = groupCreateRows(rows);
     expect(groups).toHaveLength(1);
     expect(groups[0].rows).toHaveLength(2);
+  });
+});
+
+/**
+ * H3 (D1): re-import delete proposals are discarded when the organiser says
+ * the file was only part of the program (the default).
+ */
+describe("applyImportScope (H3/D1)", () => {
+  const mixed = [
+    { kind: "create", rowIndex: 0 },
+    { kind: "update", rowIndex: 1 },
+    { kind: "delete", rowIndex: 2 },
+    { kind: "error", rowIndex: 3 },
+    { kind: "delete", rowIndex: 4 },
+  ];
+
+  it("part removes delete rows only", () => {
+    expect(applyImportScope(mixed, "part").map((r) => r.kind)).toEqual([
+      "create",
+      "update",
+      "error",
+    ]);
+  });
+
+  it("full is identity", () => {
+    expect(applyImportScope(mixed, "full")).toEqual(mixed);
+  });
+
+  it("empty input is safe", () => {
+    expect(applyImportScope([], "part")).toEqual([]);
+    expect(applyImportScope([], "full")).toEqual([]);
   });
 });
