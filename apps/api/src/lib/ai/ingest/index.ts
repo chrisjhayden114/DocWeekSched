@@ -25,12 +25,12 @@ export {
   htmlToText,
   textFromDataUrl,
   sourceTextFromUpload,
-  XLSX_USE_SPREADSHEET_IMPORT_MESSAGE,
   fetchUrlText,
   previewText,
   attachmentFromDataUrl,
   type IngestAttachment,
 } from "./sourceText";
+export { sheetsToSourceText } from "./spreadsheetText";
 export {
   OfficeParseError,
   LEGACY_OFFICE_MESSAGE,

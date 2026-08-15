@@ -40,6 +40,12 @@ export async function runAgendaExtract(input: {
   jobId?: string | null;
   sourceText: string;
   eventTimezone: string;
+  /**
+   * E31: the event's calendar span (YYYY-MM-DD). Spreadsheet sources often
+   * carry times with no dates (timeslots in sheet names) — these anchor the
+   * inference instead of the model guessing a year.
+   */
+  eventDates?: { start: string; end: string };
   existingSessions: ExistingSessionLite[];
   skipCap?: boolean;
   skipMetering?: boolean;
@@ -53,7 +59,10 @@ export async function runAgendaExtract(input: {
 
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = chunks[i];
-    let userContent = `Event timezone hint: ${input.eventTimezone}\nChunk ${i + 1}/${chunks.length}\n\nSOURCE:\n${chunk}`;
+    const eventDatesHint = input.eventDates
+      ? `Event dates: ${input.eventDates.start} to ${input.eventDates.end}. When the source gives times but no dates (e.g. timeslots in sheet names), infer the date from these event dates and record an assumption.\n`
+      : "";
+    let userContent = `Event timezone hint: ${input.eventTimezone}\n${eventDatesHint}Chunk ${i + 1}/${chunks.length}\n\nSOURCE:\n${chunk}`;
 
     if (resolveAiProviderName() === "mock") {
       if (fixtureId) {

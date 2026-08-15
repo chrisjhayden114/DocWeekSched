@@ -237,11 +237,11 @@ agendaIngestRouter.post(
       // address with no read API, while the browser posts the bytes as a
       // data: URL in fileUrl. Storage remains the audit trail only.
       //
-      // E21: extraction runs BEFORE storage so a DOCX that can't be read
-      // (password-protected, legacy .doc, corrupt) is rejected with its real
-      // cause and nothing half-processed is stored. XLSX is refused here by
-      // design — spreadsheets go through the non-AI spreadsheet import, never
-      // the model.
+      // E21: extraction runs BEFORE storage so an Office file that can't be
+      // read (password-protected, legacy format, corrupt) is rejected with
+      // its real cause and nothing half-processed is stored. E31: XLSX is
+      // serialized sheet-by-sheet (names as headings) for the AI extractor;
+      // the non-AI spreadsheet import remains the exact-control option.
       if (parsed.data.fileUrl.startsWith("data:")) {
         try {
           sourceText = await sourceTextFromUpload(parsed.data.fileUrl);

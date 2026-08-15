@@ -19,8 +19,8 @@ import { runAgendaExtract } from "../lib/ai/ingest/extract";
 import { MockAiProvider, resetAiProviderForTests } from "../lib/ai";
 
 describe("Agenda ingest (unit)", () => {
-  it("loads all 5 fixtures including injection phrase", () => {
-    expect(FIXTURES).toHaveLength(5);
+  it("loads all 6 fixtures including injection phrase", () => {
+    expect(FIXTURES).toHaveLength(6);
     const pdf = loadFixtureSource("multi-day-pdf");
     expect(pdf.toLowerCase()).toContain(INJECTION_PHRASE);
     for (const f of FIXTURES) {
@@ -260,6 +260,54 @@ describe("Agenda ingest (unit)", () => {
     expect(() => attachmentFromDataUrl(`data:application/pdf;base64,${overCap}`)).toThrow(
       /exceeds max size/,
     );
+  });
+
+  it("E31: sheet-name timeslot reaches the changeset (xlsx-rooming fixture)", async () => {
+    process.env.AI_PROVIDER = "mock";
+    resetAiProviderForTests(new MockAiProvider());
+
+    const source = loadFixtureSource("xlsx-rooming");
+    // The serialized workbook carries times ONLY in its sheet-name headings.
+    expect(source).toContain("## Sheet: Breakout Session 1 (10.00-11.00)");
+    expect(source).toContain("## Sheet: Breakout Session 2 (11.15-12.15)");
+
+    const expected = loadFixtureExpected("xlsx-rooming");
+    const result = await runAgendaExtract({
+      organizationId: "org_test",
+      eventId: "evt_test",
+      sourceText: source,
+      eventTimezone: "UTC",
+      eventDates: { start: "2027-03-15", end: "2027-03-15" },
+      existingSessions: [],
+      skipCap: true,
+      skipMetering: true,
+      skipAudit: true,
+    });
+
+    expect(result.fixtureId).toBe("xlsx-rooming");
+    const creates = result.changeset.filter((r) => r.kind === "create");
+    expect(creates).toHaveLength(expected.sessions.length);
+
+    // Times inferred from the sheet names land on the changeset rows.
+    const first = creates.find(
+      (r) => r.kind === "create" && r.session.title === "Community Rooming Coordination",
+    );
+    if (first?.kind !== "create") throw new Error("expected create row");
+    expect(first.session.startTime).toBe("10:00");
+    expect(first.session.endTime).toBe("11:00");
+    expect(first.session.date).toBe("2027-03-15");
+
+    const second = creates.find(
+      (r) => r.kind === "create" && r.session.title === "Guest Services Walkthrough",
+    );
+    if (second?.kind !== "create") throw new Error("expected create row");
+    expect(second.session.startTime).toBe("11:15");
+    expect(second.session.endTime).toBe("12:15");
+
+    // The inference is recorded as an assumption, not silently applied.
+    expect(
+      result.assumptions.some((a) => /sheet name/i.test(a.question) || a.id === "sheet-name-times"),
+    ).toBe(true);
   });
 
   it("mock extract hits ≥90% of unambiguous fixture fields + keeps author order; injection inert", async () => {

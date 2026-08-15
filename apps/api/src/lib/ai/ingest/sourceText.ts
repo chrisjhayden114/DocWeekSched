@@ -7,7 +7,9 @@ import {
   OfficeParseError,
   XLSX_MIME,
   docxToText,
+  xlsxToSheets,
 } from "./office";
+import { sheetsToSourceText } from "./spreadsheetText";
 
 /** Strip tags / collapse whitespace for HTML sources. */
 export function htmlToText(html: string): string {
@@ -50,18 +52,16 @@ export function textFromDataUrl(dataUrl: string): string {
   return asText;
 }
 
-export const XLSX_USE_SPREADSHEET_IMPORT_MESSAGE =
-  "Spreadsheets are imported directly, without AI — upload this file under “Import spreadsheet” so you can review every row before anything is created.";
-
 /**
- * E21: async, mime-aware source-text extraction for uploaded files.
+ * E21/E31: async, mime-aware source-text extraction for uploaded files.
  * - DOCX → mammoth plain text (prose has no reliable structure; the model is
  *   the right tool).
- * - XLSX → refused here by design: a spreadsheet already has rows and columns
- *   and belongs in the non-AI CSV/spreadsheet review path, never the model.
+ * - XLSX → sheets serialized with their names as headings (E31 "Let AI read
+ *   it"); the non-AI spreadsheet import remains the exact-control option.
  * - Legacy .doc/.xls → refused with conversion guidance.
  * - Everything else → the existing sync textFromDataUrl behavior.
- * Neither Office format can reach the "[Binary …]" stub.
+ * Neither Office format can reach the "[Binary …]" stub; honest
+ * OfficeParseErrors (encrypted/legacy/corrupt/empty) flow through unchanged.
  */
 export async function sourceTextFromUpload(dataUrl: string): Promise<string> {
   const m = /^data:([^;,]+)?(?:;charset=[^;,]+)?;base64,(.+)$/i.exec(dataUrl.trim());
@@ -71,7 +71,11 @@ export async function sourceTextFromUpload(dataUrl: string): Promise<string> {
     throw new OfficeParseError(LEGACY_OFFICE_MESSAGE);
   }
   if (mime === XLSX_MIME) {
-    throw new OfficeParseError(XLSX_USE_SPREADSHEET_IMPORT_MESSAGE);
+    const buf = Buffer.from(m[2], "base64");
+    if (buf.length > AGENDA_INGEST_MAX_BYTES) {
+      throw new Error(`File exceeds max size of ${AGENDA_INGEST_MAX_BYTES} bytes`);
+    }
+    return sheetsToSourceText(await xlsxToSheets(buf));
   }
   if (mime === DOCX_MIME) {
     const buf = Buffer.from(m[2], "base64");

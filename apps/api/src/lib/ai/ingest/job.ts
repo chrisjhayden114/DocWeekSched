@@ -56,7 +56,7 @@ const handler: JobHandler = async (job) => {
 
   const event = await prisma.event.findUniqueOrThrow({
     where: { id: job.eventId },
-    select: { timezone: true },
+    select: { timezone: true, startDate: true, endDate: true },
   });
 
   const existing = await prisma.session.findMany({
@@ -92,6 +92,12 @@ const handler: JobHandler = async (job) => {
       jobId: job.id,
       sourceText,
       eventTimezone: event.timezone,
+      // E31: anchor date inference for sources that carry times but no dates
+      // (e.g. timeslots in spreadsheet sheet names).
+      eventDates: {
+        start: event.startDate.toISOString().slice(0, 10),
+        end: event.endDate.toISOString().slice(0, 10),
+      },
       existingSessions: existing.map((s) => ({
         id: s.id,
         title: s.title,

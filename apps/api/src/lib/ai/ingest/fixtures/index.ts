@@ -40,6 +40,14 @@ export const FIXTURES: FixtureMeta[] = [
     fingerprint: "Grid Computing for Clinics",
   },
   {
+    id: "xlsx-rooming",
+    kind: "XLSX",
+    label: "XLSX rooming grid — timeslots live in sheet names (E31)",
+    sourceFile: "xlsx-rooming/source.txt",
+    expectedFile: "xlsx-rooming/expected.json",
+    fingerprint: "Overflow Rooming Strategy",
+  },
+  {
     id: "printed-onepager",
     kind: "IMAGE",
     label: "Printed one-pager photo (mock stub)",

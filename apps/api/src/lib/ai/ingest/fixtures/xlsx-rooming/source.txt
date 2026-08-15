@@ -1,0 +1,9 @@
+## Sheet: Breakout Session 1 (10.00-11.00)
+Sessions | No | Topic | Room | Facilitator
+Breakout | 1 | Community Rooming Coordination | Maple Room | Dr. Elena Vasquez; Head of Housing
+Breakout | 2 | Overflow Rooming Strategy | Cedar Room | Prof. Marcus Webb
+
+## Sheet: Breakout Session 2 (11.15-12.15)
+Sessions | No | Topic | Room | Facilitator
+Breakout | 1 | Guest Services Walkthrough | Maple Room | Dana Osei
+Breakout | 2 | Late Arrivals Playbook | Cedar Room | Dr. Elena Vasquez

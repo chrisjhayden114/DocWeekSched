@@ -1,0 +1,59 @@
+{
+  "event": {
+    "name": "Rooming Coordination Day",
+    "timezone": "UTC",
+    "startDate": "2027-03-15",
+    "endDate": "2027-03-15"
+  },
+  "sessions": [
+    {
+      "title": "Community Rooming Coordination",
+      "date": "2027-03-15",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "room": "Maple Room",
+      "speakers": ["Dr. Elena Vasquez"],
+      "confidence": { "title": 0.97, "startTime": 0.85, "endTime": 0.85 }
+    },
+    {
+      "title": "Overflow Rooming Strategy",
+      "date": "2027-03-15",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "room": "Cedar Room",
+      "speakers": ["Prof. Marcus Webb"],
+      "confidence": { "title": 0.97, "startTime": 0.85, "endTime": 0.85 }
+    },
+    {
+      "title": "Guest Services Walkthrough",
+      "date": "2027-03-15",
+      "startTime": "11:15",
+      "endTime": "12:15",
+      "room": "Maple Room",
+      "speakers": ["Dana Osei"],
+      "confidence": { "title": 0.96, "startTime": 0.85, "endTime": 0.85 }
+    },
+    {
+      "title": "Late Arrivals Playbook",
+      "date": "2027-03-15",
+      "startTime": "11:15",
+      "endTime": "12:15",
+      "room": "Cedar Room",
+      "speakers": ["Dr. Elena Vasquez"],
+      "confidence": { "title": 0.96, "startTime": 0.85, "endTime": 0.85 }
+    }
+  ],
+  "speakers": [
+    { "name": "Dr. Elena Vasquez" },
+    { "name": "Prof. Marcus Webb" },
+    { "name": "Dana Osei" }
+  ],
+  "assumptions": [
+    {
+      "id": "sheet-name-times",
+      "question": "The workbook has no time or date columns — start/end times were inferred from the sheet names (\"Breakout Session 1 (10.00-11.00)\", \"Breakout Session 2 (11.15-12.15)\") and the date from the event dates. Confirm 10.00-11.00 means 10:00–11:00 on 2027-03-15.",
+      "defaultAnswer": "Sheet-name timeslots are the session times; all sessions fall on the event day.",
+      "appliesTo": "sessions"
+    }
+  ]
+}

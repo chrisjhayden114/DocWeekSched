@@ -75,6 +75,7 @@ function kindFromFile(file: File): string {
   const name = file.name.toLowerCase();
   if (name.endsWith(".pdf") || file.type === "application/pdf") return "PDF";
   if (name.endsWith(".docx") || file.type.includes("wordprocessingml")) return "DOCX";
+  if (name.endsWith(".xlsx") || file.type.includes("spreadsheetml")) return "XLSX";
   if (name.endsWith(".csv") || file.type === "text/csv") return "CSV";
   if (file.type.startsWith("image/")) return "IMAGE";
   return "PDF";
@@ -198,9 +199,11 @@ export default function AgendaIngestPage() {
   const [emptyResult, setEmptyResult] = useState(false);
   const [lastRequest, setLastRequest] = useState<Record<string, unknown> | null>(null);
   const [run, setRun] = useState<IngestRun | null>(null);
-  // E21: an .xlsx dropped on the Upload tab is handed to the spreadsheet
-  // importer (no AI) instead of being posted to the model.
+  // E21: an .xlsx routed to the spreadsheet importer (no AI) rides here.
   const [spreadsheetFile, setSpreadsheetFile] = useState<File | null>(null);
+  // E31: an .xlsx dropped on the Upload tab waits here while the organizer
+  // chooses between the AI extractor and the exact-control column mapper.
+  const [pendingXlsxFile, setPendingXlsxFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ReviewChangeRow[]>([]);
   const [assumptions, setAssumptions] = useState<ReviewAssumption[]>([]);
   const [history, setHistory] = useState<HistoryResponse | null>(null);
@@ -368,7 +371,8 @@ export default function AgendaIngestPage() {
       return;
     }
     // E21: honest handling per format — legacy Office formats get conversion
-    // guidance; spreadsheets go to the non-AI import, never the model.
+    // guidance. E31: modern spreadsheets offer a choice: AI extraction (sheet
+    // names carry timeslot context) or the non-AI column mapper.
     if (isLegacyWordFile(file.name, file.type)) {
       setError(LEGACY_DOC_MESSAGE);
       return;
@@ -379,10 +383,10 @@ export default function AgendaIngestPage() {
     }
     if (isXlsxFile(file.name, file.type)) {
       setError(null);
-      setSpreadsheetFile(file);
-      setInputMode("csv");
+      setPendingXlsxFile(file);
       return;
     }
+    setPendingXlsxFile(null);
     const dataUrl = await fileToDataUrl(file);
     await startIngest({
       sourceKind: kindFromFile(file),
@@ -567,6 +571,7 @@ export default function AgendaIngestPage() {
                     // A handed-over workbook only applies to the visit that
                     // triggered it — leaving the tab drops it.
                     if (m.id !== "csv") setSpreadsheetFile(null);
+                    setPendingXlsxFile(null);
                   }}
                 >
                   {m.label}
@@ -618,10 +623,66 @@ export default function AgendaIngestPage() {
                   />
                 </label>
                 <p className="help-text" style={{ margin: 0 }}>
-                  Excel files (.xlsx) are imported directly with no AI — uploading one switches to the
-                  spreadsheet importer, where you review every row. Legacy .doc/.xls aren’t supported:
+                  Excel files (.xlsx) offer two routes: “Let AI read it” for messy sheets, or column
+                  mapping with no AI where you review every row. Legacy .doc/.xls aren’t supported:
                   save as .docx or .xlsx first.
                 </p>
+                {pendingXlsxFile ? (
+                  // E31: the workbook waits while the organizer picks a route —
+                  // AI extraction (reads sheet names for timeslot context) or
+                  // the exact-control column mapper.
+                  <div
+                    role="group"
+                    aria-label="How should this workbook be imported?"
+                    style={{
+                      padding: 12,
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--gray-200)",
+                    }}
+                  >
+                    <p style={{ margin: 0 }}>
+                      <strong style={{ overflowWrap: "anywhere" }}>{pendingXlsxFile.name}</strong> — how should
+                      this workbook be imported?
+                    </p>
+                    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          const file = pendingXlsxFile;
+                          setPendingXlsxFile(null);
+                          const dataUrl = await fileToDataUrl(file);
+                          await startIngest({
+                            sourceKind: "XLSX",
+                            fileUrl: dataUrl,
+                            fileName: file.name,
+                            mime: file.type || undefined,
+                          });
+                        }}
+                      >
+                        Let AI read it
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          setSpreadsheetFile(pendingXlsxFile);
+                          setPendingXlsxFile(null);
+                          setInputMode("csv");
+                        }}
+                      >
+                        Map columns myself (no AI)
+                      </button>
+                    </div>
+                    <p className="help-text" style={{ margin: "8px 0 0" }}>
+                      “Let AI read it” is recommended for messy sheets — it reads every sheet, including
+                      timeslots in sheet names, and you still review the changeset before anything is
+                      created. Column mapping gives exact control with no AI.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

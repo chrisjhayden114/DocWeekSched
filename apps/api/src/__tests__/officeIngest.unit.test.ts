@@ -10,9 +10,9 @@ import {
   OfficeParseError,
   PASSWORD_PROTECTED_MESSAGE,
   XLSX_MIME,
-  XLSX_USE_SPREADSHEET_IMPORT_MESSAGE,
   docxToText,
   sheetToTable,
+  sheetsToSourceText,
   sourceTextFromUpload,
   xlsxToSheets,
 } from "../lib/ai/ingest";
@@ -51,15 +51,26 @@ describe("E21 office ingest (unit)", () => {
     expect(text).not.toContain("[Binary");
   });
 
-  it("sourceTextFromUpload refuses XLSX — spreadsheets never go to the model", async () => {
+  it("sourceTextFromUpload serializes XLSX with sheet names as headings (E31)", async () => {
+    // Excel caps worksheet names at 31 chars — these timeslot names fit.
     const buf = await buildXlsx((wb) => {
-      const ws = wb.addWorksheet("Programme");
-      ws.addRow(["title", "start"]);
-      ws.addRow(["Welcome", "2027-06-14 09:00"]);
+      const s1 = wb.addWorksheet("Breakout Sess 1 (10.00-11.00)");
+      s1.addRow(["Sessions", "No", "Topic", "Room", "Facilitator"]);
+      s1.addRow(["Breakout", 1, "Rooming Basics", "Maple Room", "Dr. Elena Vasquez\nHead of Housing"]);
+      s1.addRow(["Breakout", 2, "Allocation Workshop", "Cedar Room", "Prof. Marcus Webb"]);
+      const s2 = wb.addWorksheet("Breakout Sess 2 (11.15-12.15)");
+      s2.addRow(["Sessions", "No", "Topic", "Room", "Facilitator"]);
+      s2.addRow(["Breakout", 1, "Guest Services Walkthrough", "Maple Room", "Dana Osei"]);
     });
-    await expect(
-      sourceTextFromUpload(`data:${XLSX_MIME};base64,${buf.toString("base64")}`),
-    ).rejects.toThrow(XLSX_USE_SPREADSHEET_IMPORT_MESSAGE);
+    const text = await sourceTextFromUpload(`data:${XLSX_MIME};base64,${buf.toString("base64")}`);
+    expect(text).toContain("## Sheet: Breakout Sess 1 (10.00-11.00)");
+    expect(text).toContain("## Sheet: Breakout Sess 2 (11.15-12.15)");
+    expect(text).toContain("Rooming Basics");
+    expect(text).toContain("Allocation Workshop");
+    expect(text).toContain("Guest Services Walkthrough");
+    // The multi-line Facilitator cell collapses onto its data row.
+    const roomingLine = text.split("\n").find((l) => l.includes("Rooming Basics"));
+    expect(roomingLine).toContain("Dr. Elena Vasquez; Head of Housing");
   });
 
   it("legacy .doc/.xls mimes get conversion guidance, not a generic rejection", async () => {
@@ -165,6 +176,26 @@ describe("E21 office ingest (unit)", () => {
       /header row but no data rows/,
     );
     expect(() => sheetToTable({ name: "S", rows: [["", ""]] })).toThrow(/no readable rows/);
+  });
+
+  it("sheetsToSourceText skips empty rows, collapses cell newlines, stays deterministic (E31)", () => {
+    const sheets = [
+      {
+        name: "Day 1",
+        rows: [
+          ["Topic", "Room"],
+          ["", ""], // fully-empty row — skipped
+          ["Welcome\nRemarks", "Hall A", ""], // trailing empty cell trimmed
+        ],
+      },
+      { name: "Day 2", rows: [["Topic"], ["Closing"]] },
+    ];
+    const text = sheetsToSourceText(sheets);
+    expect(text).toBe(
+      "## Sheet: Day 1\nTopic | Room\nWelcome; Remarks | Hall A\n\n## Sheet: Day 2\nTopic\nClosing",
+    );
+    // Deterministic: the same input serializes identically every time.
+    expect(sheetsToSourceText(sheets)).toBe(text);
   });
 
   it("empty .docx (no readable text) names emptiness as the cause", async () => {
