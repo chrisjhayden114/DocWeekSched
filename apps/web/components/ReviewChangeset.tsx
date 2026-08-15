@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { removalsOf, type RemovalKind } from "../lib/ingestReview";
+import { createRowSession, groupCreateRows, removalsOf, type RemovalKind } from "../lib/ingestReview";
 import { Select } from "./Select";
 
 export type ReviewChangeRow =
@@ -96,12 +96,32 @@ export type ReviewChangesetProps = {
    * hundreds of pixels of empty space.
    */
   sourceLayout?: "column" | "band";
+  /**
+   * H2 (D2): group create rows by day + timeslot with per-group counts, and
+   * offer select all/none. Opt-in — only the agenda ingest page passes true;
+   * the CSV/invite/CFP callers keep the flat list.
+   */
+  groupCreates?: boolean;
 };
 
 function rowAccepted(row: ReviewChangeRow): boolean {
   if (row.kind === "delete") return row.accepted === true;
   if (row.kind === "create" || row.kind === "update") return row.accepted !== false;
   return false;
+}
+
+/**
+ * H2 (D2): the grouped view's row line — everything an organizer needs to
+ * verify a session against the source at a glance.
+ */
+function enrichedCreateLine(row: Extract<ReviewChangeRow, { kind: "create" }>): string {
+  const session = createRowSession(row);
+  const time = session?.startTime
+    ? `${session.startTime}${session.endTime ? `–${session.endTime}` : ""}`
+    : null;
+  return [time, session?.title || row.title || `Row ${row.rowIndex + 1}`, session?.room, session?.speakers?.[0]]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /**
@@ -128,6 +148,7 @@ export function ReviewChangeset({
   sourcePreview,
   sourceInfo,
   sourceLayout = "column",
+  groupCreates = false,
 }: ReviewChangesetProps) {
   const creates = useMemo(
     () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "create" }> => r.kind === "create"),
@@ -147,6 +168,80 @@ export function ReviewChangeset({
   );
   const acceptedCount = useMemo(() => rows.filter(rowAccepted).length, [rows]);
   const canConfirm = acceptedCount > 0 && !busy && Boolean(onConfirm);
+  // H2 (D2): group creates by day + timeslot. Only when the caller opts in
+  // AND grouping actually splits the list — a single slot stays flat.
+  const createGroups = useMemo(
+    () => (groupCreates ? groupCreateRows(creates) : []),
+    [groupCreates, creates],
+  );
+  const useGroupedCreates = groupCreates && createGroups.length > 1;
+  // ≤12 rows: everything visible at once. More: closed groups keep the page scannable.
+  const groupsDefaultOpen = creates.length <= 12;
+
+  /** Select all / none for a section — opt-in with grouping (agenda ingest only). */
+  const selectAllControls = (sectionRows: { rowIndex: number }[]) =>
+    groupCreates && onAcceptChange && sectionRows.length > 1 ? (
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <button
+          type="button"
+          className="button secondary"
+          style={{ fontSize: 13, padding: "2px 10px" }}
+          onClick={() => sectionRows.forEach((r) => onAcceptChange(r.rowIndex, true))}
+        >
+          Select all
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          style={{ fontSize: 13, padding: "2px 10px" }}
+          onClick={() => sectionRows.forEach((r) => onAcceptChange(r.rowIndex, false))}
+        >
+          Select none
+        </button>
+      </div>
+    ) : null;
+
+  const createRowItem = (row: Extract<ReviewChangeRow, { kind: "create" }>, enriched: boolean) => {
+    const low = typeof row.confidence === "number" && row.confidence < lowConfidence;
+    const line = (
+      <>
+        {enriched
+          ? enrichedCreateLine(row)
+          : renderCreateSummary
+            ? renderCreateSummary(row)
+            : row.email
+              ? `${row.name || ""} <${row.email}>`.trim()
+              : row.title || `Row ${row.rowIndex + 1}`}
+        {low ? ` (confidence ${row.confidence!.toFixed(2)})` : null}
+      </>
+    );
+    return (
+      <li
+        key={`create-${row.rowIndex}`}
+        style={{
+          ...(enriched ? { fontSize: 15 } : null),
+          ...(low ? { color: "var(--warning)", background: "var(--warning-50)", padding: "2px 4px" } : null),
+        }}
+      >
+        {onAcceptChange ? (
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <input
+              type="checkbox"
+              checked={row.accepted !== false}
+              onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
+            />
+            <span>
+              {/* Grouped rows live under a day/time header — no per-row day prefix. */}
+              {!enriched && row.day ? <span className="help-text">{row.day} · </span> : null}
+              {line}
+            </span>
+          </label>
+        ) : (
+          line
+        )}
+      </li>
+    );
+  };
   // A run that creates nothing but proposes deletions reads as data loss if
   // the deletions lead. Lead with the empty-state explanation instead and
   // tuck the delete list behind a disclosure.
@@ -184,7 +279,7 @@ export function ReviewChangeset({
             padding: 12,
             marginBottom: 12,
             borderRadius: "var(--radius-sm)",
-            background: "var(--warning-50, #fffaeb)",
+            background: "var(--warning-50)",
             border: "1px solid var(--gray-200)",
           }}
         >
@@ -217,7 +312,7 @@ export function ReviewChangeset({
           {summary.errors != null ? (
             <>
               {(summary.creates != null || summary.updates != null) ? " · " : null}
-              <strong style={{ color: "#b42318" }}>{summary.errors}</strong> errors
+              <strong style={{ color: "var(--danger)" }}>{summary.errors}</strong> errors
             </>
           ) : null}
           {summary.skipped != null && summary.skipped > 0 ? (
@@ -237,7 +332,7 @@ export function ReviewChangeset({
           <div style={{ display: "grid", gap: 8 }}>
             {headers.map((h) => (
               <label key={h} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
-                <span style={{ minWidth: 120, color: "var(--text-secondary, #41506D)" }}>{h}</span>
+                <span style={{ minWidth: 120, color: "var(--text-color)" }}>{h}</span>
                 <Select
                   value={mapping[h] || "skip"}
                   onChange={(v) => onMappingChange({ ...mapping, [h]: v })}
@@ -273,7 +368,7 @@ export function ReviewChangeset({
 
       {errors.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
-          <p style={{ margin: "0 0 6px", fontWeight: 600, color: "#b42318" }}>Validation errors</p>
+          <p style={{ margin: "0 0 6px", fontWeight: 600, color: "var(--danger)" }}>Validation errors</p>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
             {errors.map((row) => (
               <li key={`err-${row.rowIndex}-${row.message}`}>
@@ -288,53 +383,40 @@ export function ReviewChangeset({
       {creates.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
           <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Will create</p>
-          <ol className="motion-stagger" style={{ margin: 0, paddingLeft: 18, fontSize: 14, maxHeight: 280, overflow: "auto" }}>
-            {creates.map((row) => {
-              const low =
-                typeof row.confidence === "number" && row.confidence < lowConfidence;
-              return (
-                <li
-                  key={`create-${row.rowIndex}`}
-                  style={low ? { color: "#b54708", background: "#fffaeb", padding: "2px 4px" } : undefined}
-                >
-                  {onAcceptChange ? (
-                    <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                      <input
-                        type="checkbox"
-                        checked={row.accepted !== false}
-                        onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
-                      />
-                      <span>
-                        {row.day ? <span className="help-text">{row.day} · </span> : null}
-                        {renderCreateSummary
-                          ? renderCreateSummary(row)
-                          : row.email
-                            ? `${row.name || ""} <${row.email}>`.trim()
-                            : row.title || `Row ${row.rowIndex + 1}`}
-                        {low ? ` (confidence ${row.confidence!.toFixed(2)})` : null}
-                      </span>
-                    </label>
-                  ) : (
-                    <>
-                      {renderCreateSummary
-                        ? renderCreateSummary(row)
-                        : row.email
-                          ? `${row.name || ""} <${row.email}>`.trim()
-                          : row.title || `Row ${row.rowIndex + 1}`}
-                      {low ? ` (confidence ${row.confidence!.toFixed(2)})` : null}
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
+          {selectAllControls(creates)}
+          {useGroupedCreates ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {createGroups.map((group) => {
+                const slot = [group.day, group.startTime].filter(Boolean).join(" · ") || "Other";
+                const counts = [`${group.rows.length} session${group.rows.length === 1 ? "" : "s"}`];
+                if (group.roomCount > 0) {
+                  counts.push(`${group.roomCount} room${group.roomCount === 1 ? "" : "s"}`);
+                }
+                return (
+                  <details key={group.key} className="review-group" open={groupsDefaultOpen}>
+                    <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
+                      {slot} — {counts.join(" · ")}
+                    </summary>
+                    <ol className="motion-stagger" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                      {group.rows.map((row) => createRowItem(row, true))}
+                    </ol>
+                  </details>
+                );
+              })}
+            </div>
+          ) : (
+            <ol className="motion-stagger" style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
+              {creates.map((row) => createRowItem(row, false))}
+            </ol>
+          )}
         </div>
       ) : null}
 
       {updates.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
           <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Will update</p>
-          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14, maxHeight: 200, overflow: "auto" }}>
+          {selectAllControls(updates)}
+          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14 }}>
             {updates.map((row) => {
               const itemRemovals = removalsOf(row, "item");
               const speakerRemovals = removalsOf(row, "speaker");
@@ -402,24 +484,19 @@ export function ReviewChangeset({
         </div>
       ) : null}
 
+      {/* H2 (D3): deletions are ALWAYS quarantined behind a disclosure — a
+          partial import proposing deletes must never read as pending data loss. */}
       {deletes.length > 0 ? (
-        zeroCreateWithDeletes ? (
-          <details style={{ marginBottom: 12 }}>
-            <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
-              {deletes.length} existing session{deletes.length === 1 ? "" : "s"} not found in this import — review
-              deletions
-            </summary>
-            <p className="help-text" style={{ margin: "6px 0" }}>
-              Unchecked by default. Only ticked sessions are deleted when you confirm.
-            </p>
-            {deletesList}
-          </details>
-        ) : (
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Propose delete (unchecked by default)</p>
-            {deletesList}
-          </div>
-        )
+        <details style={{ marginBottom: 12 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
+            {deletes.length} existing session{deletes.length === 1 ? " wasn’t" : "s weren’t"} in this import —
+            review proposed deletions
+          </summary>
+          <p className="help-text" style={{ margin: "6px 0" }}>
+            Import files are often partial. These sessions stay unless you check them.
+          </p>
+          {deletesList}
+        </details>
       ) : null}
 
       {creates.length === 0 && updates.length === 0 && deletes.length === 0 ? (
@@ -469,7 +546,7 @@ export function ReviewChangeset({
                   overflow: "auto",
                   fontSize: 12,
                   whiteSpace: "pre-wrap",
-                  background: "var(--surface-muted, #f4f6f9)",
+                  background: "var(--surface-inner)",
                   borderRadius: 8,
                 }}
               >
@@ -506,7 +583,7 @@ export function ReviewChangeset({
                   overflow: "auto",
                   fontSize: 12,
                   whiteSpace: "pre-wrap",
-                  background: "var(--surface-muted, #f4f6f9)",
+                  background: "var(--surface-inner)",
                   borderRadius: 8,
                 }}
               >

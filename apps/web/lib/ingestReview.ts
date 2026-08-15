@@ -45,6 +45,73 @@ export function toggleRemoval<T extends LooseRow>(
   });
 }
 
+/** The session payload a create row carries (subset the review UI reads). */
+export type CreateRowSession = {
+  title?: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  room?: string;
+  speakers?: string[];
+  [key: string]: unknown;
+};
+
+type CreateRowLike = {
+  day?: string | null;
+  [key: string]: unknown;
+};
+
+/** Narrow a review row's untyped `session` payload (rows carry it via an index signature). */
+export function createRowSession(row: CreateRowLike): CreateRowSession | undefined {
+  const s = row.session;
+  return s && typeof s === "object" ? (s as CreateRowSession) : undefined;
+}
+
+export type CreateRowGroup<T extends CreateRowLike = CreateRowLike> = {
+  key: string;
+  day: string | null;
+  startTime: string | null;
+  rows: T[];
+  roomCount: number;
+};
+
+/**
+ * H2 (D2): group create rows by day + start time so a 60-row import reads as
+ * a handful of verifiable timeslots. Rows with neither a day nor a start time
+ * fall into a trailing "other" group. Row order within a group is preserved.
+ */
+export function groupCreateRows<T extends CreateRowLike>(rows: T[]): CreateRowGroup<T>[] {
+  const groups = new Map<string, CreateRowGroup<T>>();
+  for (const row of rows) {
+    const session = createRowSession(row);
+    const day = row.day ?? session?.date ?? null;
+    const startTime = session?.startTime ?? null;
+    const key = day == null && startTime == null ? "other" : `${day ?? ""}|${startTime ?? ""}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = { key, day, startTime, rows: [], roomCount: 0 };
+      groups.set(key, group);
+    }
+    group.rows.push(row);
+  }
+  for (const group of groups.values()) {
+    const rooms = new Set<string>();
+    for (const row of group.rows) {
+      const room = createRowSession(row)?.room;
+      const trimmed = typeof room === "string" ? room.trim() : "";
+      if (trimmed) rooms.add(trimmed);
+    }
+    group.roomCount = rooms.size;
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (a.key === "other") return b.key === "other" ? 0 : 1;
+    if (b.key === "other") return -1;
+    const byDay = (a.day ?? "").localeCompare(b.day ?? "");
+    if (byDay !== 0) return byDay;
+    return (a.startTime ?? "").localeCompare(b.startTime ?? "");
+  });
+}
+
 /**
  * Rebuild the API changeset from edited review rows, merging each row over
  * its original (so fields the UI does not track survive the round-trip).

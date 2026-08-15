@@ -631,9 +631,9 @@ export default function AgendaIngestPage() {
                   />
                 </label>
                 <p className="help-text" style={{ margin: 0 }}>
-                  Excel files (.xlsx) offer two routes: “Let AI read it” for messy sheets, or column
-                  mapping with no AI where you review every row. Legacy .doc/.xls aren’t supported:
-                  save as .docx or .xlsx first.
+                  Excel, PDF, Word, pasted text, or an image — AI reads any of these and drafts
+                  sessions for your review. Excel also offers a no-AI column-mapping route. Legacy
+                  .doc/.xls aren’t supported: save as .docx or .xlsx first.
                 </p>
                 {pendingXlsxFile ? (
                   // E31: the workbook waits while the organizer picks a route —
@@ -781,6 +781,8 @@ export default function AgendaIngestPage() {
             rows={rows}
             summary={summary}
             assumptions={assumptions}
+            // H2 (D2): the agenda review groups creates by day + timeslot.
+            groupCreates
             onAcceptChange={(rowIndex, accepted) =>
               setRows((prev) => prev.map((r) => (r.rowIndex === rowIndex ? { ...r, accepted } : r)))
             }

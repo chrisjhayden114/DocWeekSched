@@ -117,6 +117,30 @@ H3 removes the destructive-review hazard before any pilot organizer imports a pa
 file; H4 builds the one interaction component H5 depends on; H5 is the flagship attendee
 experience for exactly the pilot demo shape (PD days / breakout conferences).
 
+## H-GEN — describe your event, get a suggested agenda (added 2026-08-15)
+
+Founder request: organizer provides parameters (days — prefilled from event dates; day
+start/end; lunch/break windows; rooms by name or count; number of parallel sessions per
+slot or total session count; breakout yes/no) → AI generates a draft agenda skeleton
+(timeslots, placeholder sessions, breaks) for review.
+
+Recon findings: the existing Setup assistant is a deterministic mock (fixed 4-block
+skeleton, no rooms, no breakouts, no real AI) — H-GEN is its real successor for the
+agenda part. The ingest pipeline is the delivery vehicle: extractToCreateChangeset is
+source-agnostic, ReviewChangeset is already reused by 4 importers, and
+confirmAgendaChangeset creates Session+Track+Room+Speaker from plain strings. The
+demo-event generator (lib/demoEvent) has the parameter-driven write shape as precedent.
+
+Design: structured form (not free-text chat) → generator emits ExtractedSession[] →
+lands in the SAME grouped review screen (H2) with its choices as assumptions (including
+a breakout-flag suggestion per D5) → confirm creates DRAFT sessions. Provenance: new
+additive AgendaIngestSourceKind value GENERATED. Metering: reuse AGENDA_INGEST /
+aiIngestPerEvent (FREE = 1/event; no schema change beyond the enum value). Breaks/lunch
+render as sessions in a "Breaks" track (or isMinimal rows) — no new models.
+
+Sequencing: after H3 (so generated output is born into the fixed review), before H4/H5.
+Revised order: H1 → H2 → H3 → H-GEN → H4 → H5 → outreach.
+
 ## Settled ground honored (do not re-litigate)
 
 - E19.1 concurrent card wrapping (designed for ≤5 tracks — H5/H7 supersede for breakout

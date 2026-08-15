@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { removalsOf, rowsToApiChangeset, toggleRemoval } from "../lib/ingestReview";
+import { groupCreateRows, removalsOf, rowsToApiChangeset, toggleRemoval } from "../lib/ingestReview";
 
 /**
  * E13.3: the review screen offers explicit, unchecked-by-default removal
@@ -59,5 +59,72 @@ describe("ingest review helpers (E13.3)", () => {
     expect(removals.find((r) => r.speakerId === "sp2")?.accepted).toBe(false);
     // Fields the UI does not track survive the round-trip.
     expect(payload[0].existingTitle).toBe("Original Title");
+  });
+});
+
+/**
+ * H2 (D2): the review screen groups create rows by day + start time so a
+ * 60-row import reads as a handful of verifiable timeslots.
+ */
+describe("groupCreateRows (H2/D2)", () => {
+  const row = (
+    rowIndex: number,
+    session?: { date?: string; startTime?: string; room?: string },
+    day?: string,
+  ) => ({ kind: "create", rowIndex, day, session });
+
+  it("groups by day + startTime and counts distinct non-empty rooms", () => {
+    const groups = groupCreateRows([
+      row(0, { date: "2026-09-01", startTime: "09:00", room: "Room A" }),
+      row(1, { date: "2026-09-01", startTime: "09:00", room: "Room B" }),
+      row(2, { date: "2026-09-01", startTime: "09:00", room: "Room A" }),
+      row(3, { date: "2026-09-01", startTime: "09:00", room: "  " }),
+      row(4, { date: "2026-09-01", startTime: "11:00" }),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].day).toBe("2026-09-01");
+    expect(groups[0].startTime).toBe("09:00");
+    expect(groups[0].rows.map((r) => r.rowIndex)).toEqual([0, 1, 2, 3]);
+    expect(groups[0].roomCount).toBe(2);
+    expect(groups[1].roomCount).toBe(0);
+  });
+
+  it("prefers row.day over session.date and orders by day then startTime", () => {
+    const groups = groupCreateRows([
+      row(0, { date: "2026-09-02", startTime: "14:00" }),
+      row(1, { date: "2026-09-01", startTime: "13:00" }),
+      row(2, { startTime: "09:00" }, "2026-09-02"),
+      row(3, { date: "2026-09-01", startTime: "09:00" }),
+    ]);
+    expect(groups.map((g) => [g.day, g.startTime])).toEqual([
+      ["2026-09-01", "09:00"],
+      ["2026-09-01", "13:00"],
+      ["2026-09-02", "09:00"],
+      ["2026-09-02", "14:00"],
+    ]);
+  });
+
+  it("sends rows lacking both day and startTime to a trailing 'other' group", () => {
+    const groups = groupCreateRows([
+      row(0, { room: "Hall" }),
+      row(1, { date: "2026-09-01", startTime: "09:00" }),
+      row(2, undefined),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].startTime).toBe("09:00");
+    expect(groups[1].key).toBe("other");
+    expect(groups[1].day).toBeNull();
+    expect(groups[1].startTime).toBeNull();
+    expect(groups[1].rows.map((r) => r.rowIndex)).toEqual([0, 2]);
+  });
+
+  it("passes a single slot through as one group", () => {
+    const rows = [
+      row(0, { date: "2026-09-01", startTime: "09:00" }),
+      row(1, { date: "2026-09-01", startTime: "09:00" }),
+    ];
+    const groups = groupCreateRows(rows);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].rows).toHaveLength(2);
   });
 });
