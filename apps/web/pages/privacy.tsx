@@ -118,6 +118,10 @@ export default function PrivacyPage() {
               limited period afterward for backups, dispute resolution, and legal obligations. Organizers
               control how long they keep event content they are responsible for.
             </p>
+            <p>
+              Messages, profiles, and event participation data are retained for the life of your account and
+              are removed when you delete your account.
+            </p>
 
             <h2 id="rights">8. Your rights (including GDPR)</h2>
             <p>

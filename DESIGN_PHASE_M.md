@@ -140,18 +140,19 @@ M4a (invisible migration) → M4b (gated behavior) → M5/M6/M7/M8 → M9.
 3. **Does the gate relax "both must be in the directory"?** Today both must opt in
    even to start. The gate model is "anyone in the directory can send a first
    message → Requests." Confirm intended model (decides M4b semantics).
-4. **Block scope — per-event (current) vs per-account.** Per-account is friendlier
-   for repeat harassment but a non-additive change; recommend deciding before data grows.
+4. **Block scope — per-event (current) vs per-account.** RESOLVED: **account-wide —
+   BLOCK-W** (UserBlock.eventId kept as provenance of where the block was created;
+   enforcement no longer filters by it).
 5. **Rate-limit values** (≈10 new/day, 25/event, 1,000-char first message) — defaults
    vs per-event configurable.
 6. **Messaging digest default** on vs opt-in (`digestEmail` defaults false today;
    off-by-default means most 3-day-a-year users never get notified).
 7. **Organizer reach into DMs** — badge yes, reading only via a report? Confirm it
    satisfies institutional buyers.
-8. **Event-ended behavior** — stays open (year-round network) vs read-only after
-   event+N days (firmly an event tool). Positioning call.
-9. **Retention/deletion** — how long transcripts/report snapshots live; snapshots
-   should survive account deletion; needs a privacy-policy line before M5.
+8. **Event-ended behavior** — RESOLVED: messaging stays open post-event; revisit with
+   pilot feedback.
+9. **Retention/deletion** — RESOLVED: retained until account deletion; removed by the
+   existing deletion flow.
 10. **Speaker "listed but unmessageable"** opt-out — recommend yes (small).
 11. **"Share my email" composer affordance** — lean yes (honest act made easy).
 

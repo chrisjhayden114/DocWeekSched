@@ -111,7 +111,7 @@ conversationsRouter.get(
     setPageHeaders(res, page);
 
     const blocks = await prisma.userBlock.findMany({
-      where: { eventId: event.id, OR: [{ blockerId: userId }, { blockedId: userId }] },
+      where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
       select: { blockerId: true, blockedId: true },
     });
     const blockedOthers = new Set(blocks.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));

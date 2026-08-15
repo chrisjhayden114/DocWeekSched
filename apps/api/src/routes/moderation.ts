@@ -42,7 +42,7 @@ moderationRouter.delete(
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id);
     await prisma.userBlock.deleteMany({
-      where: { eventId: event.id, blockerId: req.user!.id, blockedId: req.params.userId },
+      where: { blockerId: req.user!.id, blockedId: req.params.userId },
     });
     return res.json({ ok: true });
   }),

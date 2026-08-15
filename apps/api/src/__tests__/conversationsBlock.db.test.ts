@@ -2,6 +2,7 @@
  * M3 — block hardening on the send path: a UserBlock between DIRECT members
  * rejects POST /:id/messages with a neutral 403, GET /conversations exposes
  * `blocked` for the viewer, unblocking restores sending, GROUP is unaffected.
+ * BLOCK-W — blocks are account-wide; a block under event 1 enforces in event 2.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -42,9 +43,11 @@ describe("conversation block enforcement (DB)", () => {
   const ids: {
     orgId?: string;
     eventId?: string;
+    event2Id?: string;
     userA?: string;
     userB?: string;
     directId?: string;
+    direct2Id?: string;
     groupId?: string;
   } = {};
 
@@ -133,6 +136,43 @@ describe("conversation block enforcement (DB)", () => {
     });
     ids.groupId = group.id;
 
+    // Second event for BLOCK-W cross-event enforcement.
+    const event2 = await prisma.event.create({
+      data: {
+        name: `Block Event 2 ${stamp}`,
+        slug: `cblk-evt2-${stamp}`,
+        timezone: "UTC",
+        startDate: new Date("2027-10-01T14:00:00Z"),
+        endDate: new Date("2027-10-03T22:00:00Z"),
+        status: EventStatus.ACTIVE,
+        organizationId: org.id,
+        createdById: userA.id,
+        memberships: {
+          create: [
+            { userId: userA.id, role: EventMemberRole.ATTENDEE, directoryOptIn: true },
+            { userId: userB.id, role: EventMemberRole.ATTENDEE, directoryOptIn: true },
+          ],
+        },
+      },
+    });
+    ids.event2Id = event2.id;
+
+    await upsertFeatureOverrides(event2.id, {
+      messaging_dms: true,
+      messaging_groups: true,
+    });
+
+    const direct2 = await prisma.conversation.create({
+      data: {
+        eventId: event2.id,
+        type: ConversationType.DIRECT,
+        members: {
+          create: [{ userId: userA.id }, { userId: userB.id }],
+        },
+      },
+    });
+    ids.direct2Id = direct2.id;
+
     const app = express();
     app.use(express.json());
     app.use("/conversations", conversationsRouter);
@@ -153,10 +193,21 @@ describe("conversation block enforcement (DB)", () => {
   }, 60_000);
 
   afterAll(async () => {
-    const eventId = ids.eventId;
-    if (eventId) {
+    const eventIds = [ids.eventId, ids.event2Id].filter((id): id is string => Boolean(id));
+    if (ids.userA && ids.userB) {
+      await prisma.userBlock
+        .deleteMany({
+          where: {
+            OR: [
+              { blockerId: ids.userA, blockedId: ids.userB },
+              { blockerId: ids.userB, blockedId: ids.userA },
+            ],
+          },
+        })
+        .catch(() => null);
+    }
+    for (const eventId of eventIds) {
       await prisma.userNotification.deleteMany({ where: { eventId } }).catch(() => null);
-      await prisma.userBlock.deleteMany({ where: { eventId } }).catch(() => null);
       await prisma.conversationMessage.deleteMany({ where: { conversation: { eventId } } }).catch(() => null);
       await prisma.conversationMember.deleteMany({ where: { conversation: { eventId } } }).catch(() => null);
       await prisma.conversation.deleteMany({ where: { eventId } }).catch(() => null);
@@ -178,19 +229,19 @@ describe("conversation block enforcement (DB)", () => {
     }
   });
 
-  function authHeaders(userId: string) {
+  function authHeaders(userId: string, eventId = ids.eventId!) {
     const token = signToken({ userId, role: "ATTENDEE" });
     return {
       authorization: `Bearer ${token}`,
-      "x-event-id": ids.eventId!,
+      "x-event-id": eventId,
       "content-type": "application/json",
     };
   }
 
-  async function sendAs(userId: string, conversationId: string, body: string) {
+  async function sendAs(userId: string, conversationId: string, body: string, eventId = ids.eventId!) {
     return fetch(`${base}/conversations/${conversationId}/messages`, {
       method: "POST",
-      headers: authHeaders(userId),
+      headers: authHeaders(userId, eventId),
       body: JSON.stringify({ body }),
     });
   }
@@ -246,5 +297,41 @@ describe("conversation block enforcement (DB)", () => {
 
     const asAAfter = await listAs(ids.userA!);
     expect(asAAfter.find((c) => c.id === ids.directId)!.blocked).toBe(false);
+  }, 60_000);
+
+  it("BLOCK-W: block under event 1 enforces in event 2; unblock clears everywhere", async () => {
+    const event2 = ids.event2Id!;
+
+    // A blocks B under event 1 (eventId is provenance only).
+    const blockRes = await fetch(`${base}/moderation/block`, {
+      method: "POST",
+      headers: authHeaders(ids.userA!, ids.eventId!),
+      body: JSON.stringify({ userId: ids.userB! }),
+    });
+    expect(blockRes.status).toBe(201);
+
+    // (a) POST /conversations/direct in event 2 is refused.
+    const directCreate = await fetch(`${base}/conversations/direct`, {
+      method: "POST",
+      headers: authHeaders(ids.userA!, event2),
+      body: JSON.stringify({ userId: ids.userB! }),
+    });
+    expect(directCreate.status).toBe(403);
+
+    // (b) Existing event-2 thread POST message returns the neutral 403.
+    const blockedSend = await sendAs(ids.userB!, ids.direct2Id!, "cross-event while blocked", event2);
+    expect(blockedSend.status).toBe(403);
+    expect(await blockedSend.json()).toEqual({ error: "You can't send messages to this person." });
+
+    // Unblock via moderation (any event context); removes the pair everywhere.
+    const unblockRes = await fetch(`${base}/moderation/block/${ids.userB}`, {
+      method: "DELETE",
+      headers: authHeaders(ids.userA!, event2),
+    });
+    expect(unblockRes.status).toBe(200);
+
+    // Event-2 messaging works again.
+    const afterUnblock = await sendAs(ids.userB!, ids.direct2Id!, "cross-event after unblock", event2);
+    expect(afterUnblock.status).toBe(200);
   }, 60_000);
 });
