@@ -63,6 +63,16 @@ export const FIXTURES: FixtureMeta[] = [
     expectedFile: "html-page/expected.json",
     fingerprint: "Harbor Health Day",
   },
+  {
+    id: "generated-pd-day",
+    // H-GEN: cast bridges until `prisma generate` picks up the new enum value
+    // from migration 20260816120000_generated_source_kind.
+    kind: "GENERATED" as AgendaIngestSourceKind,
+    label: "Generated PD-day skeleton from form parameters (H-GEN)",
+    sourceFile: "generated-pd-day/source.txt",
+    expectedFile: "generated-pd-day/expected.json",
+    fingerprint: "GENERATED-PD-DAY-FIXTURE-7Q4",
+  },
 ];
 
 const root = __dirname;

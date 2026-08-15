@@ -18,7 +18,12 @@ import {
   isXlsxFile,
 } from "../../../../lib/spreadsheetImport";
 import { CountUp } from "../../../../components/CountUp";
-import { describeIngestSource, ingestReviewHeading, ingestSourceName } from "../../../../lib/ingestSource";
+import {
+  describeIngestSource,
+  ingestReviewHeading,
+  ingestSourceKindLabel,
+  ingestSourceName,
+} from "../../../../lib/ingestSource";
 import {
   applyImportScope,
   rowsToApiChangeset,
@@ -123,7 +128,7 @@ function friendlyIngestError(raw: string | null | undefined): string {
   return text;
 }
 
-type InputMode = "paste" | "upload" | "url" | "csv";
+type InputMode = "paste" | "upload" | "url" | "csv" | "describe";
 
 /** E15.3: one input at a time behind a chooser; Upload file is the default. */
 const INPUT_MODES: { id: InputMode; label: string }[] = [
@@ -131,7 +136,25 @@ const INPUT_MODES: { id: InputMode; label: string }[] = [
   { id: "upload", label: "Upload file" },
   { id: "url", label: "Fetch URL" },
   { id: "csv", label: "Import spreadsheet" },
+  // H-GEN: no source document at all — describe the event, get a skeleton.
+  { id: "describe", label: "Describe it" },
 ];
+
+type EventLite = { name: string; startDate: string; endDate: string; timezone: string };
+
+type BreakWindow = { start: string; end: string };
+
+/** Inclusive YYYY-MM-DD day list from the event's calendar span. */
+function eventDayList(startDate: string, endDate: string): string[] {
+  const start = Date.parse(`${startDate.slice(0, 10)}T00:00:00Z`);
+  const end = Date.parse(`${endDate.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return [startDate.slice(0, 10)];
+  const days: string[] = [];
+  for (let t = start; t <= end && days.length < 31; t += 86_400_000) {
+    days.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return days;
+}
 
 function changesetToRows(raw: unknown): ReviewChangeRow[] {
   if (!Array.isArray(raw)) return [];
@@ -203,7 +226,10 @@ export default function AgendaIngestPage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const aliveRef = useRef(true);
   const [emptyResult, setEmptyResult] = useState(false);
-  const [lastRequest, setLastRequest] = useState<Record<string, unknown> | null>(null);
+  const [lastRequest, setLastRequest] = useState<{
+    path: string;
+    body: Record<string, unknown>;
+  } | null>(null);
   const [run, setRun] = useState<IngestRun | null>(null);
   // E21: an .xlsx routed to the spreadsheet importer (no AI) rides here.
   const [spreadsheetFile, setSpreadsheetFile] = useState<File | null>(null);
@@ -218,6 +244,53 @@ export default function AgendaIngestPage() {
   const [history, setHistory] = useState<HistoryResponse | null>(null);
   const reviewRef = useRef<HTMLDivElement | null>(null);
   const messageRef = useRef<HTMLDivElement | null>(null);
+
+  // H-GEN: "Describe it" form state. The day list is read-only from the
+  // event dates; everything else mirrors AgendaGenParams on the API.
+  const [eventLite, setEventLite] = useState<EventLite | null>(null);
+  const [genDayStart, setGenDayStart] = useState("09:00");
+  const [genDayEnd, setGenDayEnd] = useState("17:00");
+  const [genLunchOn, setGenLunchOn] = useState(true);
+  const [genLunchStart, setGenLunchStart] = useState("12:30");
+  const [genLunchEnd, setGenLunchEnd] = useState("13:30");
+  const [genBreaks, setGenBreaks] = useState<BreakWindow[]>([]);
+  const [genRoomsText, setGenRoomsText] = useState("");
+  const [genRoomCount, setGenRoomCount] = useState("");
+  const [genParallel, setGenParallel] = useState("1");
+  const [genParallelTouched, setGenParallelTouched] = useState(false);
+  const [genSessionMinutes, setGenSessionMinutes] = useState("60");
+  const [genGapMinutes, setGenGapMinutes] = useState("15");
+  const [genWelcome, setGenWelcome] = useState(true);
+  const [genBreakout, setGenBreakout] = useState(false);
+  const [genNotes, setGenNotes] = useState("");
+
+  const genRooms = useMemo(
+    () =>
+      genRoomsText
+        .split("\n")
+        .map((r) => r.trim())
+        .filter(Boolean),
+    [genRoomsText],
+  );
+
+  // Default parallel sessions per slot = room count, until edited by hand.
+  useEffect(() => {
+    if (genParallelTouched) return;
+    const count = genRooms.length || Number(genRoomCount) || 1;
+    setGenParallel(String(Math.min(Math.max(count, 1), 40)));
+  }, [genRooms, genRoomCount, genParallelTouched]);
+
+  useEffect(() => {
+    if (!eventId) return;
+    organizerFetch<EventLite>("/event/", eventId)
+      .then(setEventLite)
+      .catch(() => undefined);
+  }, [eventId]);
+
+  const genDays = useMemo(
+    () => (eventLite ? eventDayList(eventLite.startDate, eventLite.endDate) : []),
+    [eventLite],
+  );
 
   // E11.2: after a multi-minute extraction the result must not sit invisibly
   // below the upload widgets — bring the review panel into view.
@@ -294,19 +367,19 @@ export default function AgendaIngestPage() {
       (run.status === "READY_FOR_REVIEW" || run.status === "CONFIRMED"),
   );
 
-  async function startIngest(body: Record<string, unknown>) {
+  async function startIngest(body: Record<string, unknown>, path = "/ai/ingest") {
     setBusy(true);
     setError(null);
     setUpgrade(null);
     setEmptyResult(false);
     setMessageSafe(null);
-    setLastRequest(body);
+    setLastRequest({ path, body });
     setExtracting(true);
     setStage("PENDING");
     const startedAtMs = Date.now();
     setStartedAt(startedAtMs);
     try {
-      const res = await organizerFetch<{ run: IngestRun; jobId: string }>("/ai/ingest", eventId, {
+      const res = await organizerFetch<{ run: IngestRun; jobId: string }>(path, eventId, {
         method: "POST",
         body: JSON.stringify({ ...body, processInline: true }),
       });
@@ -414,6 +487,28 @@ export default function AgendaIngestPage() {
     });
   }
 
+  async function onGenerate(e: FormEvent) {
+    e.preventDefault();
+    const roomCount = Number(genRoomCount);
+    await startIngest(
+      {
+        dayStart: genDayStart,
+        dayEnd: genDayEnd,
+        lunch: genLunchOn ? { start: genLunchStart, end: genLunchEnd } : null,
+        breaks: genBreaks,
+        rooms: genRooms,
+        roomCount: genRooms.length === 0 && roomCount > 0 ? roomCount : null,
+        parallelPerSlot: Math.min(Math.max(Number(genParallel) || 1, 1), 40),
+        sessionMinutes: Math.min(Math.max(Number(genSessionMinutes) || 60, 15), 240),
+        gapMinutes: Math.min(Math.max(Number(genGapMinutes) || 0, 0), 60),
+        includeWelcome: genWelcome,
+        breakoutStyle: genBreakout,
+        ...(genNotes.trim() ? { notes: genNotes.trim().slice(0, 2000) } : {}),
+      },
+      "/ai/ingest/generate",
+    );
+  }
+
   async function onConfirm() {
     if (!run) return;
     setBusy(true);
@@ -493,7 +588,7 @@ export default function AgendaIngestPage() {
                   type="button"
                   className="button secondary"
                   style={{ fontSize: 13, padding: "4px 10px", marginLeft: 8 }}
-                  onClick={() => void startIngest(lastRequest)}
+                  onClick={() => void startIngest(lastRequest.body, lastRequest.path)}
                 >
                   Retry
                 </button>
@@ -520,7 +615,7 @@ export default function AgendaIngestPage() {
                 type="button"
                 className="button secondary"
                 style={{ marginTop: 8 }}
-                onClick={() => void startIngest(lastRequest)}
+                onClick={() => void startIngest(lastRequest.body, lastRequest.path)}
               >
                 Try again
               </button>
@@ -602,7 +697,7 @@ export default function AgendaIngestPage() {
               ))}
             </div>
 
-            {inputMode !== "csv" ? (
+            {inputMode !== "csv" && inputMode !== "describe" ? (
               // E15.2: set the honest expectation before the wait begins.
               <p className="help-text" style={{ marginTop: 0 }}>
                 Large programs can take 2–3 minutes. You can leave this page — the run keeps going and appears
@@ -734,6 +829,242 @@ export default function AgendaIngestPage() {
             {inputMode === "csv" && eventId ? (
               <SessionCsvImport eventId={eventId} bare initialFile={spreadsheetFile} />
             ) : null}
+
+            {inputMode === "describe" ? (
+              // H-GEN: structured form → AI drafts an agenda skeleton that
+              // lands in the same review as every other ingest source.
+              <form onSubmit={onGenerate} className="console-form">
+                <p className="help-text" style={{ marginTop: 0 }}>
+                  Describe the shape of your event and AI drafts a skeleton agenda — timeslots,
+                  placeholder sessions per room, lunch and breaks. You review everything before any
+                  draft is created.
+                </p>
+
+                <div>
+                  <span style={{ fontWeight: 600 }}>Days</span>
+                  <p className="help-text" style={{ margin: "4px 0 0" }}>
+                    {genDays.length
+                      ? `${genDays.length} day${genDays.length === 1 ? "" : "s"} from your event dates: ${genDays.join(", ")}`
+                      : "Loading event dates…"}
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                  <label>
+                    Day start
+                    <input
+                      className="input"
+                      type="time"
+                      value={genDayStart}
+                      onChange={(e) => setGenDayStart(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Day end
+                    <input
+                      className="input"
+                      type="time"
+                      value={genDayEnd}
+                      onChange={(e) => setGenDayEnd(e.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={genLunchOn}
+                    onChange={(e) => setGenLunchOn(e.target.checked)}
+                  />
+                  <span>Include a lunch window</span>
+                </label>
+                {genLunchOn ? (
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                    <label>
+                      Lunch start
+                      <input
+                        className="input"
+                        type="time"
+                        value={genLunchStart}
+                        onChange={(e) => setGenLunchStart(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Lunch end
+                      <input
+                        className="input"
+                        type="time"
+                        value={genLunchEnd}
+                        onChange={(e) => setGenLunchEnd(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+
+                <div>
+                  <span style={{ fontWeight: 600 }}>Breaks</span>
+                  {genBreaks.map((b, i) => (
+                    <div key={i} style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 8 }}>
+                      <label>
+                        Break {i + 1} start
+                        <input
+                          className="input"
+                          type="time"
+                          value={b.start}
+                          onChange={(e) =>
+                            setGenBreaks((prev) =>
+                              prev.map((w, j) => (j === i ? { ...w, start: e.target.value } : w)),
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        Break {i + 1} end
+                        <input
+                          className="input"
+                          type="time"
+                          value={b.end}
+                          onChange={(e) =>
+                            setGenBreaks((prev) =>
+                              prev.map((w, j) => (j === i ? { ...w, end: e.target.value } : w)),
+                            )
+                          }
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        style={{ alignSelf: "end" }}
+                        onClick={() => setGenBreaks((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  {genBreaks.length < 2 ? (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      style={{ marginTop: 8 }}
+                      onClick={() =>
+                        setGenBreaks((prev) => [
+                          ...prev,
+                          prev.length === 0
+                            ? { start: "10:30", end: "10:45" }
+                            : { start: "15:00", end: "15:15" },
+                        ])
+                      }
+                    >
+                      Add a break
+                    </button>
+                  ) : null}
+                </div>
+
+                <label>
+                  Rooms (one name per line)
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={genRoomsText}
+                    onChange={(e) => setGenRoomsText(e.target.value)}
+                    placeholder={"Main Hall\nRoom 2\nRoom 3"}
+                  />
+                </label>
+                {genRooms.length === 0 ? (
+                  <label>
+                    …or just a count of rooms
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      max={40}
+                      value={genRoomCount}
+                      onChange={(e) => setGenRoomCount(e.target.value)}
+                      placeholder="e.g. 4"
+                    />
+                  </label>
+                ) : null}
+
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                  <label>
+                    Parallel sessions per slot
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      max={40}
+                      value={genParallel}
+                      onChange={(e) => {
+                        setGenParallelTouched(true);
+                        setGenParallel(e.target.value);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Session length (minutes)
+                    <input
+                      className="input"
+                      type="number"
+                      min={15}
+                      max={240}
+                      value={genSessionMinutes}
+                      onChange={(e) => setGenSessionMinutes(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Gap between sessions (minutes)
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={genGapMinutes}
+                      onChange={(e) => setGenGapMinutes(e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={genWelcome}
+                    onChange={(e) => setGenWelcome(e.target.checked)}
+                  />
+                  <span>Include a welcome block</span>
+                </label>
+                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={genBreakout}
+                    onChange={(e) => setGenBreakout(e.target.checked)}
+                  />
+                  <span>Attendees pick one session per timeslot (breakout style)</span>
+                </label>
+
+                <label>
+                  Anything else the draft should honor? (optional)
+                  <textarea
+                    className="input"
+                    rows={3}
+                    maxLength={2000}
+                    value={genNotes}
+                    onChange={(e) => setGenNotes(e.target.value)}
+                    placeholder="e.g. keep the first slot plenary, no sessions after 16:00 on the last day…"
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={busy || !eventLite}
+                  style={{ justifySelf: "start" }}
+                >
+                  {busy ? "Working…" : "Draft my agenda"}
+                </button>
+              </form>
+            ) : null}
           </section>
         ) : null}
 
@@ -788,8 +1119,10 @@ export default function AgendaIngestPage() {
               run.status !== "CONFIRMED" && summary.creates + summary.updates > 0 ? (
                 <>
                   Review <CountUp value={summary.creates + summary.updates} /> session
-                  {summary.creates + summary.updates === 1 ? "" : "s"} found in{" "}
-                  {ingestSourceName(run.sourceKind, run.sourceFileName)}
+                  {summary.creates + summary.updates === 1 ? "" : "s"}{" "}
+                  {run.sourceKind === "GENERATED"
+                    ? "drafted from your description"
+                    : `found in ${ingestSourceName(run.sourceKind, run.sourceFileName)}`}
                 </>
               ) : (
                 ingestReviewHeading({
@@ -885,7 +1218,7 @@ export default function AgendaIngestPage() {
                     setAssumptions(Array.isArray(full.assumptions) ? (full.assumptions as ReviewAssumption[]) : []);
                   }}
                 >
-                  {new Date(r.createdAt).toLocaleString()} · {r.sourceKind} · {r.status}
+                  {new Date(r.createdAt).toLocaleString()} · {ingestSourceKindLabel(r.sourceKind)} · {r.status}
                 </button>
                 {r.confirmedAt
                   ? ` · +${r.createdCount} / ~${r.updatedCount} / −${r.deletedCount}`

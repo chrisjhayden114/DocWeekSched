@@ -21,6 +21,7 @@ import {
   type IngestAttachment,
 } from "../lib/ai/ingest";
 import { extractedSessionSchema } from "../lib/ai/ingest/schema";
+import { agendaGenParamsSchema, paramsToSourceText } from "../lib/ai/ingest/generateParams";
 import { prisma } from "../lib/db";
 import { enqueueJob, processDueJobs } from "../lib/jobs";
 import type { AuthedRequest } from "../lib/middleware";
@@ -30,6 +31,10 @@ import { getStorageProvider } from "../lib/storage";
 import { validationErrorBody } from "../lib/errors";
 
 export const agendaIngestRouter = Router();
+
+// H-GEN: the enum value ships in migration 20260816120000_generated_source_kind;
+// the typed constant bridges until `prisma generate` picks it up.
+const GENERATED_SOURCE_KIND = "GENERATED" as AgendaIngestSourceKind;
 
 const startSchema = z.object({
   sourceKind: z.nativeEnum(AgendaIngestSourceKind),
@@ -331,6 +336,88 @@ agendaIngestRouter.post(
     });
 
     if (parsed.data.processInline || process.env.AGENDA_INGEST_INLINE === "1") {
+      await processDueJobs(10);
+    }
+
+    const fresh = await prisma.agendaIngestRun.findUniqueOrThrow({ where: { id: run.id } });
+    return res.status(201).json({
+      run: fresh,
+      jobId: job.id,
+      organizationId: access.event.organizationId,
+    });
+  }),
+);
+
+// H-GEN: structured "describe your event" form → generated agenda skeleton.
+// Same middleware/cap/pipeline as POST "/": the serialized parameters are the
+// run's source text and the SAME ingest job processes it in generate mode.
+const generateBodySchema = agendaGenParamsSchema.extend({
+  processInline: z.boolean().optional(),
+});
+
+agendaIngestRouter.post(
+  "/generate",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = generateBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
+
+    const event = await resolveEventFromRequest(req);
+    const access = await requireEventAccess(req.user!.id, event.id, { manage: true });
+
+    await assertAiCap(event.organizationId, event.id, "AGENDA_INGEST");
+
+    const { processInline, ...params } = parsed.data;
+    const sourceText = paramsToSourceText(params, {
+      name: event.name,
+      startDate: event.startDate.toISOString().slice(0, 10),
+      endDate: event.endDate.toISOString().slice(0, 10),
+      timezone: event.timezone,
+    });
+
+    const run = await prisma.agendaIngestRun.create({
+      data: {
+        organizationId: event.organizationId,
+        eventId: event.id,
+        createdById: req.user!.id,
+        sourceKind: GENERATED_SOURCE_KIND,
+        sourceFileName: null,
+        sourceBytes: Buffer.byteLength(sourceText, "utf8"),
+        sourceTextPreview: previewText(sourceText),
+        status: AgendaIngestRunStatus.PENDING,
+        aiGenerated: true,
+      },
+    });
+
+    const job = await enqueueJob({
+      type: AGENDA_INGEST_JOB_TYPE,
+      organizationId: event.organizationId,
+      eventId: event.id,
+      createdById: req.user!.id,
+      payload: { runId: run.id, sourceText, mode: "generate" },
+      maxAttempts: 1,
+    });
+
+    await prisma.agendaIngestRun.update({
+      where: { id: run.id },
+      data: { jobId: job.id },
+    });
+
+    await writeAuditLog({
+      organizationId: event.organizationId,
+      eventId: event.id,
+      actorUserId: req.user!.id,
+      action: "JOB_ENQUEUE",
+      entityType: "agenda_ingest_run",
+      entityId: run.id,
+      aiGenerated: true,
+      payload: { jobId: job.id, sourceKind: GENERATED_SOURCE_KIND, mode: "generate" },
+    });
+
+    if (processInline || process.env.AGENDA_INGEST_INLINE === "1") {
       await processDueJobs(10);
     }
 

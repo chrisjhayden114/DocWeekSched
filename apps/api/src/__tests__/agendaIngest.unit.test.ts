@@ -19,8 +19,8 @@ import { runAgendaExtract } from "../lib/ai/ingest/extract";
 import { MockAiProvider, resetAiProviderForTests } from "../lib/ai";
 
 describe("Agenda ingest (unit)", () => {
-  it("loads all 6 fixtures including injection phrase", () => {
-    expect(FIXTURES).toHaveLength(6);
+  it("loads all 7 fixtures including injection phrase", () => {
+    expect(FIXTURES).toHaveLength(7);
     const pdf = loadFixtureSource("multi-day-pdf");
     expect(pdf.toLowerCase()).toContain(INJECTION_PHRASE);
     for (const f of FIXTURES) {

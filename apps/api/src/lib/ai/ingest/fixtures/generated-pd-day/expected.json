@@ -1,0 +1,133 @@
+{
+  "event": {
+    "name": "Pinewood PD Day",
+    "timezone": "Europe/London",
+    "startDate": "2027-05-20",
+    "endDate": "2027-05-20"
+  },
+  "sessions": [
+    {
+      "title": "Welcome",
+      "date": "2027-05-20",
+      "startTime": "09:00",
+      "endTime": "09:15",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Session A1 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "09:15",
+      "endTime": "10:30",
+      "room": "Alder Hall",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Session A2 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "09:15",
+      "endTime": "10:30",
+      "room": "Birch Room",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Session A3 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "09:15",
+      "endTime": "10:30",
+      "room": "Cedar Room",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Session B1 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "10:45",
+      "endTime": "12:00",
+      "room": "Alder Hall",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Session B2 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "10:45",
+      "endTime": "12:00",
+      "room": "Birch Room",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Session B3 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "10:45",
+      "endTime": "12:00",
+      "room": "Cedar Room",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Lunch",
+      "date": "2027-05-20",
+      "startTime": "12:00",
+      "endTime": "13:00",
+      "track": "Breaks",
+      "speakers": []
+    },
+    {
+      "title": "Session C1 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "13:00",
+      "endTime": "14:15",
+      "room": "Alder Hall",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Session C2 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "13:00",
+      "endTime": "14:15",
+      "room": "Birch Room",
+      "track": "Programme",
+      "speakers": []
+    },
+    {
+      "title": "Session C3 — title TBC",
+      "date": "2027-05-20",
+      "startTime": "13:00",
+      "endTime": "14:15",
+      "room": "Cedar Room",
+      "track": "Programme",
+      "speakers": []
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "welcome-length",
+      "question": "No welcome length was given — a 15-minute Welcome block was placed at 09:00, flowing straight into Slot A with no gap. Adjust?",
+      "defaultAnswer": "Welcome runs 09:00–09:15 and Slot A starts at 09:15.",
+      "appliesTo": "sessions"
+    },
+    {
+      "id": "slot-layout",
+      "question": "Three 75-minute timeslots fit between the welcome and 15:00 around lunch: A 09:15–10:30, B 10:45–12:00, C 13:00–14:15, with 15-minute gaps. 14:30–15:00 was left unscheduled because another full 75-minute slot did not fit before the day end. Confirm?",
+      "defaultAnswer": "Slots A–C as listed; the trailing 30 minutes stay free.",
+      "appliesTo": "sessions"
+    },
+    {
+      "id": "room-cycle",
+      "question": "Each timeslot holds 3 parallel placeholder sessions, one per room, cycling the room names in the order given (Alder Hall, Birch Room, Cedar Room). Confirm?",
+      "defaultAnswer": "Rooms cycle in the order provided on the form.",
+      "appliesTo": "sessions"
+    },
+    {
+      "id": "breakout-style",
+      "question": "Breakout style was requested — the parallel sessions in each timeslot are alternatives attendees pick between, so titles are placeholders (\"title TBC\") and no speakers were invented. Confirm?",
+      "defaultAnswer": "Parallel sessions per slot are breakout alternatives, not plenaries.",
+      "appliesTo": "sessions"
+    }
+  ]
+}

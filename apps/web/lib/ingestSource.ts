@@ -79,10 +79,19 @@ export function describeIngestSource(run: IngestSourceRun): IngestSourceDisplay 
 
 /** Human name for where a run's content came from (E11.2 / E30.4). */
 export function ingestSourceName(sourceKind: string, fileName?: string | null): string {
+  if (sourceKind === "GENERATED") return "your description";
   return (
     fileName ||
     (sourceKind === "PASTE" ? "pasted text" : sourceKind === "URL" ? "the fetched URL" : "your upload")
   );
+}
+
+/**
+ * H-GEN: history/labels for a run's source kind. GENERATED runs came from the
+ * structured "describe your event" form — no file metadata to show.
+ */
+export function ingestSourceKindLabel(sourceKind: string): string {
+  return sourceKind === "GENERATED" ? "Described event" : sourceKind;
 }
 
 /**
@@ -99,6 +108,11 @@ export function ingestReviewHeading(input: {
   if (input.confirmed) return "Confirmed drafts";
   const found = input.creates + input.updates;
   const source = ingestSourceName(input.sourceKind, input.fileName);
+  // H-GEN: generated skeletons were drafted, not found — the heading says so.
+  if (input.sourceKind === "GENERATED") {
+    if (found === 0) return "No sessions drafted from your description";
+    return `Review ${found} session${found === 1 ? "" : "s"} drafted from your description`;
+  }
   if (found === 0) return `No sessions found in ${source}`;
   return `Review ${found} session${found === 1 ? "" : "s"} found in ${source}`;
 }

@@ -214,6 +214,8 @@ enum AgendaIngestSourceKind {
   CSV
   IMAGE
   URL
+  /// H-GEN: agenda skeleton generated from a structured "describe your event" form.
+  GENERATED
 }
 
 enum AgendaIngestRunStatus {

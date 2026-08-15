@@ -15,6 +15,8 @@ type JobPayload = {
    * URL may be an opaque object-store address with no read API.
    */
   attachment?: IngestAttachment;
+  /** H-GEN: "generate" drafts a skeleton from serialized form parameters. */
+  mode?: "extract" | "generate";
 };
 
 const handler: JobHandler = async (job) => {
@@ -110,6 +112,7 @@ const handler: JobHandler = async (job) => {
         items: s.items.map((it) => ({ itemId: it.id, title: it.title })),
       })),
       attachment,
+      mode: payload.mode,
     });
 
     // E9.2: a zero-session extract is evidence the parse failed, never

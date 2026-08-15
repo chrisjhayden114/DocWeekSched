@@ -32,6 +32,11 @@ export {
 } from "./sourceText";
 export { sheetsToSourceText } from "./spreadsheetText";
 export {
+  agendaGenParamsSchema,
+  paramsToSourceText,
+  type AgendaGenParams,
+} from "./generateParams";
+export {
   OfficeParseError,
   LEGACY_OFFICE_MESSAGE,
   PASSWORD_PROTECTED_MESSAGE,

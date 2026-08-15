@@ -1,0 +1,15 @@
+EVENT PARAMETERS
+Event: Pinewood PD Day
+Timezone: Europe/London
+Days: 2027-05-20
+Day start: 09:00
+Day end: 15:00
+Lunch: 12:00-13:00
+Breaks: none
+Rooms: Alder Hall; Birch Room; Cedar Room
+Parallel sessions per slot: 3
+Session length minutes: 75
+Gap minutes: 15
+Include welcome block: yes
+Breakout style (attendees pick one session per timeslot): yes
+Notes: Professional development day. Fingerprint: GENERATED-PD-DAY-FIXTURE-7Q4.
