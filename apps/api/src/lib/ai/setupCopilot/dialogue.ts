@@ -1,6 +1,9 @@
 /**
- * Deterministic setup dialogue (mock provider path).
- * One plain question at a time; every answer fills form state.
+ * Deterministic FIELD LAYER of the Setup assistant (AGENT-2).
+ * Parsers fill form state from every answer; the reply strings here are
+ * FALLBACKS only — the route replaces them with model text from the reply
+ * layer (turn.ts) unless a turn is marked deterministicReply. The model
+ * never writes and its output is never parsed for field values.
  */
 
 import {
@@ -42,8 +45,12 @@ export type TurnResult = {
   handoff: SetupHandoffA1 | null;
   skeletonPreview: SkeletonBundle | null;
   aiGenerated: true;
-  /** Prompt text sent through the A0 gateway for metering (mock returns canned). */
-  gatewayUserPrompt: string;
+  /**
+   * True when the reply is load-bearing and the model must NOT replace it —
+   * the "ready" gate's confirmation strings are matched by the frontend to
+   * trigger /complete, so they stay byte-identical.
+   */
+  deterministicReply: boolean;
 };
 
 const OPENING_CREATE =
@@ -70,6 +77,16 @@ function assistant(text: string): SetupCopilotMessage {
   return { role: "assistant", content: text, aiGenerated: true };
 }
 
+/**
+ * AGENT-2 sharp-edge fix: "what does networking mean?" typed at step 1 must
+ * not become the event name. A message that reads as a question is a question
+ * for the model, not a field value.
+ */
+export function looksLikeQuestion(text: string): boolean {
+  const t = text.trim();
+  return t.endsWith("?") || /^(what|how|why|can|do|is|where)\b/i.test(t);
+}
+
 function applyTypePreset(form: SetupCopilotFormState): SetupCopilotFormState {
   if (!form.eventType) return form;
   const preset = EVENT_TYPE_PRESET[form.eventType];
@@ -91,6 +108,7 @@ export function runCreateTurn(state: DialogueState, userText: string): TurnResul
   let handoff: SetupHandoffA1 | null = null;
   let skeletonPreview: SkeletonBundle | null = null;
   let reply = "";
+  let deterministicReply = false;
 
   // Custom feature requests can arrive at networking step (or anytime after type)
   const featureReq = parseFeatureRequests(text);
@@ -98,7 +116,12 @@ export function runCreateTurn(state: DialogueState, userText: string): TurnResul
   switch (step) {
     case "name": {
       const name = text.slice(0, 200);
-      if (!name) {
+      // Sharp-edge fix: don't capture the name when the message reads as a
+      // question or another parser recognized it (dates, feature requests) —
+      // stay on this step and let the model answer + ask again.
+      const otherParserMatched =
+        parseDatesAndTimezone(text, form.timezone) !== null || featureReq.isCustomRequest;
+      if (!name || looksLikeQuestion(text) || otherParserMatched) {
         reply = "What should we call the event?";
         break;
       }
@@ -236,6 +259,9 @@ export function runCreateTurn(state: DialogueState, userText: string): TurnResul
     }
     case "ready": {
       if (/^(y|yes|create|go|ready|do it)\b/i.test(text)) {
+        // Deterministic gate: the frontend matches these exact strings to
+        // trigger /complete — the model must never replace this reply.
+        deterministicReply = true;
         const iceOn = resolveFeatureEnabled("community_icebreakers", form.featureOverrides);
         skeletonPreview = form.hasProgramDocument ? null : buildSkeleton(form, iceOn);
         reply = form.hasProgramDocument
@@ -270,7 +296,7 @@ export function runCreateTurn(state: DialogueState, userText: string): TurnResul
     handoff,
     skeletonPreview,
     aiGenerated: true,
-    gatewayUserPrompt: `__MOCK_CHAT__ setup_copilot step=${step} :: ${reply}`,
+    deterministicReply,
   };
 }
 
@@ -345,6 +371,8 @@ export function runSettingsTurn(
     handoff: null,
     skeletonPreview: null,
     aiGenerated: true,
-    gatewayUserPrompt: `__MOCK_CHAT__ setup_copilot_settings :: ${reply}`,
+    // Model text may accompany the diff card, never replace it — the card is
+    // a separate response field, so the reply itself is safe to swap.
+    deterministicReply: false,
   };
 }

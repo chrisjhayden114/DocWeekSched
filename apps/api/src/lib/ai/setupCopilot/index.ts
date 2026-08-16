@@ -1,5 +1,23 @@
-/** Pure / dialogue surface — safe for unit tests (no Prisma on import). */
-export { initialDialogue, runCreateTurn, runSettingsTurn, type DialogueState, type TurnResult } from "./dialogue";
+/** Pure / dialogue surface — safe for unit tests (no Prisma on import).
+ * The gateway-calling reply layer lives in ./turn (import directly). */
+export {
+  initialDialogue,
+  looksLikeQuestion,
+  runCreateTurn,
+  runSettingsTurn,
+  type DialogueState,
+  type TurnResult,
+} from "./dialogue";
+export {
+  SETUP_SYSTEM,
+  SETTINGS_SYSTEM,
+  buildStatePrompt,
+  buildFeatureRegistryPrompt,
+  buildCreateSystemPrompt,
+  buildSettingsSystemPrompt,
+  composeSetupTurnMessages,
+  SETUP_HISTORY_TURNS,
+} from "./prompt";
 export { buildConfigDiffCard } from "./diffCard";
 export { buildSkeleton } from "./skeleton";
 export { assertRegistryKeys, UnknownFeatureKeyError } from "./keys";

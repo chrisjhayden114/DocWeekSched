@@ -19,11 +19,10 @@ import { gatewayChat } from "../lib/ai";
 import {
   assertRegistryKeys,
   initialDialogue,
-  runCreateTurn,
-  runSettingsTurn,
   UnknownFeatureKeyError,
   buildConfigDiffCard,
 } from "../lib/ai/setupCopilot";
+import { runSetupCopilotTurn } from "../lib/ai/setupCopilot/turn";
 import { applyConfigureFeatures, readFeatureConfig } from "../lib/ai/setupCopilot/features";
 import { completeSetupCopilot } from "../lib/ai/setupCopilot/complete";
 import { prisma } from "../lib/db";
@@ -142,21 +141,25 @@ setupCopilotRouter.post(
       await requireOrgRole(req.user!.id, organizationId, OrgRole.STAFF);
     }
 
+    // AGENT-2 — field layer parses deterministically; the assistant message
+    // comes from the model through the A0 gateway (metering unchanged), with
+    // the canned strings as fallback. Writes still happen ONLY in /complete
+    // and /confirm-features.
     const state = { step, form, messages };
-    const result =
-      mode === "settings"
-        ? runSettingsTurn(state, userMessage, liveEvent)
-        : runCreateTurn(state, userMessage);
-
-    // Route assistant output through A0 gateway (mock → canned; meters + audits).
-    if (organizationId) {
-      await gatewayChat([{ role: "user", content: result.gatewayUserPrompt }], {
-        organizationId,
-        eventId: parsed.data.eventId || null,
-        userId: req.user!.id,
-        feature: "SETUP_COPILOT",
-      });
-    }
+    const result = await runSetupCopilotTurn({
+      mode,
+      state,
+      userMessage,
+      liveEvent,
+      gatewayCtx: organizationId
+        ? {
+            organizationId,
+            eventId: parsed.data.eventId || null,
+            userId: req.user!.id,
+            feature: "SETUP_COPILOT",
+          }
+        : null,
+    });
 
     return res.json({
       step: result.step,
