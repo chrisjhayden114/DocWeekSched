@@ -23,6 +23,33 @@ export function parseEventType(text: string): SetupEventType | null {
   return null;
 }
 
+const MONTH_NAMES =
+  "january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec";
+
+const ORDINAL = "(?:st|nd|rd|th)";
+
+/**
+ * Strip conversational lead-ins and prefer a quoted title when present.
+ * "OK, sure its \"Time to Fly\"" → "Time to Fly"
+ */
+export function parseEventName(text: string): string | null {
+  const raw = text.trim();
+  if (!raw) return null;
+
+  const quoted = raw.match(/["“”']([^"“”']+)["“”']/);
+  if (quoted?.[1]?.trim()) return quoted[1].trim().slice(0, 200);
+
+  let t = raw;
+  t = t.replace(/^(?:ok(?:ay)?|sure|yes|yeah|yep)[,.]?\s+/gi, "").trim();
+  t = t.replace(
+    /^(?:it'?s|its|it is|call it|let'?s say|lets say|the name is|we(?:'re| are) calling it|name(?:'s| is))\s+/i,
+    "",
+  ).trim();
+  t = t.replace(/^["“”']+|["“”']+$/g, "").trim();
+  if (!t) return null;
+  return t.slice(0, 200);
+}
+
 /** Extract YYYY-MM-DD range and optional timezone from free text. */
 export function parseDatesAndTimezone(
   text: string,
@@ -37,22 +64,36 @@ export function parseDatesAndTimezone(
     startDate = isoRange[1];
     endDate = isoRange[2] || isoRange[1];
   } else {
-    // e.g. July 20-22, 2027 or Jul 20 – Jul 22 2027
-    const monthNames =
-      "january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec";
-    const m = text.match(
+    // Day-first ordinal range: "1st - 5th December 2026"
+    const dayFirst = text.match(
       new RegExp(
-        `\\b(${monthNames})\\s+(\\d{1,2})(?:\\s*[-–—]\\s*(\\d{1,2}))?(?:,?\\s*(\\d{4}))?`,
+        `\\b(\\d{1,2})${ORDINAL}?(?:\\s*[-–—]\\s*(\\d{1,2})${ORDINAL}?)?\\s+(${MONTH_NAMES})(?:\\s*,?\\s*(\\d{4}))?`,
         "i",
       ),
     );
+    // Month-first: "July 20-22, 2027". `(?!\\d)` so "December 2026" is not day 20.
+    const monthFirst = text.match(
+      new RegExp(
+        `\\b(${MONTH_NAMES})\\s+(\\d{1,2})(?!\\d)(?:\\s*[-–—]\\s*(\\d{1,2})(?!\\d))?(?:,?\\s*(\\d{4}))?`,
+        "i",
+      ),
+    );
+    const m = dayFirst || monthFirst;
     if (!m) return null;
     const year = Number(m[4] || new Date().getFullYear() + 1);
-    const month = monthToNum(m[1]);
-    const d1 = Number(m[2]);
-    const d2 = m[3] ? Number(m[3]) : d1;
-    startDate = ymd(year, month, d1);
-    endDate = ymd(year, month, d2);
+    if (dayFirst && m === dayFirst) {
+      const month = monthToNum(m[3]);
+      const d1 = Number(m[1]);
+      const d2 = m[2] ? Number(m[2]) : d1;
+      startDate = ymd(year, month, d1);
+      endDate = ymd(year, month, d2);
+    } else {
+      const month = monthToNum(m[1]);
+      const d1 = Number(m[2]);
+      const d2 = m[3] ? Number(m[3]) : d1;
+      startDate = ymd(year, month, d1);
+      endDate = ymd(year, month, d2);
+    }
   }
 
   let timezone = fallbackTz;

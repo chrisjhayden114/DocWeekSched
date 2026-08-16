@@ -52,6 +52,9 @@ describe("jsonLimitForPath", () => {
     expect(jsonLimitForPath("POST", "/event/maps")).toBe("10mb");
     expect(jsonLimitForPath("PUT", "/event")).toBe("16mb");
     expect(jsonLimitForPath("POST", "/ai/ingest")).toMatch(/^\d+mb$/);
+    expect(jsonLimitForPath("POST", "/ai/setup-copilot/document")).toBe(
+      jsonLimitForPath("POST", "/ai/ingest"),
+    );
     const ingestMb = Number(jsonLimitForPath("POST", "/ai/ingest").replace("mb", ""));
     expect(ingestMb).toBeGreaterThanOrEqual(Math.ceil(AGENDA_INGEST_MAX_BYTES / (1024 * 1024)));
     expect(jsonLimitForPath("POST", "/certificates/event/e1/templates")).toBe("2mb");

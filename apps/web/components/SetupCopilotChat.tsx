@@ -63,6 +63,8 @@ export function SetupCopilotChat({
   const [error, setError] = useState<string | null>(null);
   const [pendingDiff, setPendingDiff] = useState<ConfigDiffCard | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const started = useRef(false);
 
@@ -130,10 +132,57 @@ export function SetupCopilotChat({
         /Creating your draft event|Opening Agenda Ingest/i.test(res.assistantMessage)
       ) {
         onCompleteReady?.(res.form);
-      }    } catch (err) {
+      }
+    } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function uploadDocument(file: File | null) {
+    if (!file || busy || uploading || mode !== "create") return;
+    if (file.size > 20_000_000) {
+      setError("File exceeds 20 MB limit");
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const fileUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+      });
+      const res = await apiFetch<TurnResponse>("/ai/setup-copilot/document", {
+        method: "POST",
+        body: JSON.stringify({
+          fileUrl,
+          fileName: file.name,
+          mime: file.type || "application/octet-stream",
+          organizationId,
+          step,
+          form,
+          messages,
+        }),
+      });
+      setStep(res.step);
+      setMessages(res.messages);
+      syncForm(res.form);
+      setPendingDiff(res.pendingDiff);
+      if (res.handoff) onHandoff?.(res.handoff, res.form);
+      if (
+        res.step === "ready" &&
+        /Creating your draft event|Opening Agenda Ingest/i.test(res.assistantMessage)
+      ) {
+        onCompleteReady?.(res.form);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not read that file");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -241,17 +290,39 @@ export function SetupCopilotChat({
           void send();
         }}
       >
+        {mode === "create" && organizationId ? (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.docx,.xlsx,application/pdf,image/*"
+              hidden
+              onChange={(e) => void uploadDocument(e.target.files?.[0] || null)}
+            />
+            <button
+              className="button"
+              type="button"
+              disabled={busy || uploading}
+              aria-label="Upload a program document"
+              title="Upload a program document"
+              onClick={() => fileRef.current?.click()}
+              style={{ padding: "0 10px" }}
+            >
+              {uploading ? "…" : "📎"}
+            </button>
+          </>
+        ) : null}
         <input
           className="input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a short answer…"
-          disabled={busy}
+          placeholder={uploading ? "Reading document…" : "Type a short answer…"}
+          disabled={busy || uploading}
           aria-label={`Message ${ASSISTANT_COPY.organizer.name}`}
           style={{ flex: 1 }}
         />
-        <button className="button" type="submit" disabled={busy || !input.trim()}>
-          {busy ? "…" : "Send"}
+        <button className="button" type="submit" disabled={busy || uploading || !input.trim()}>
+          {busy || uploading ? "…" : "Send"}
         </button>
       </form>
     </div>

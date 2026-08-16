@@ -20,7 +20,9 @@ import {
   parseFeatureRequests,
   parseEventType,
   parseDatesAndTimezone,
+  parseEventName,
   parseNetworkingChoice,
+  mergeSetupExtract,
   buildSkeleton,
   SETUP_HISTORY_TURNS,
 } from "../lib/ai/setupCopilot";
@@ -116,6 +118,13 @@ describe("Setup Copilot A2 (unit, mock provider)", () => {
     const state = initialDialogue("create", "UTC");
     const turn = runCreateTurn(state, "EdTech Summit 2027");
     expect(turn.form.name).toBe("EdTech Summit 2027");
+    expect(turn.step).toBe("dates");
+  });
+
+  it("name step — strips lead-ins and prefers the quoted title", () => {
+    const state = initialDialogue("create", "UTC");
+    const turn = runCreateTurn(state, 'OK, sure its "Time to Fly"');
+    expect(turn.form.name).toBe("Time to Fly");
     expect(turn.step).toBe("dates");
   });
 
@@ -251,7 +260,30 @@ describe("Setup Copilot A2 (unit, mock provider)", () => {
       endDate: "2027-07-22",
       timezone: "America/Los_Angeles",
     });
+    expect(parseDatesAndTimezone("1st - 5th December 2026", "UTC")).toEqual({
+      startDate: "2026-12-01",
+      endDate: "2026-12-05",
+      timezone: "UTC",
+    });
+    expect(parseDatesAndTimezone("1st - 5th December 2026", "UTC")?.startDate).not.toBe("2027-12-20");
     expect(parseDatesAndTimezone("what does networking mean?", "UTC")).toBeNull();
+  });
+
+  it("date parser overwrites a previously-parsed wrong range", () => {
+    let state = initialDialogue("create", "UTC");
+    let turn = runCreateTurn(state, "Wrong Dates");
+    state = { step: "dates", form: { ...turn.form, startDate: "2027-12-20", endDate: "2027-12-20" }, messages: turn.messages };
+    turn = runCreateTurn(state, "1st - 5th December 2026");
+    expect(turn.form.startDate).toBe("2026-12-01");
+    expect(turn.form.endDate).toBe("2026-12-05");
+    expect(turn.form.name).toBe("Wrong Dates");
+  });
+
+  it("parseEventName strips lead-ins and prefers quotes", () => {
+    expect(parseEventName('OK, sure its "Time to Fly"')).toBe("Time to Fly");
+    expect(parseEventName("sure, let's say Time to Fly")).toBe("Time to Fly");
+    expect(parseEventName("the name is EdTech Summit 2027")).toBe("EdTech Summit 2027");
+    expect(parseEventName("EdTech Summit 2027")).toBe("EdTech Summit 2027");
   });
 
   it("parseVenue / parseSize / parseYesNo / parseNetworkingChoice", () => {
@@ -303,15 +335,40 @@ describe("Setup Copilot A2 (unit, mock provider)", () => {
 
 // ─── AGENT-2 — reply layer: the model converses, deterministic code owns state ───
 
+function isExtractPrompt(messages: AiChatMessage[]): boolean {
+  return messages.some((m) => m.content.includes("Extract event-setup facts"));
+}
+
+function replyPrompt(provider: CapturingAiProvider): AiChatMessage[] {
+  const found = [...provider.calls].reverse().find((c) => !isExtractPrompt(c));
+  if (!found) throw new Error("no reply-layer call recorded");
+  return found;
+}
+
 /** Capturing provider: records every prompt, replies with an injectable text. */
 class CapturingAiProvider implements AiProvider {
   readonly name = "mock" as const;
   calls: AiChatMessage[][] = [];
   nextText = "{}";
+  extractText = "{}";
   failNextChat = false;
+  failNextExtract = false;
 
   async chat(messages: AiChatMessage[]): Promise<AiProviderResult> {
     this.calls.push(messages);
+    if (isExtractPrompt(messages)) {
+      if (this.failNextExtract) {
+        this.failNextExtract = false;
+        throw new Error("extract provider down");
+      }
+      return {
+        text: this.extractText,
+        tokensIn: 10,
+        tokensOut: 10,
+        model: "capture-v1",
+        provider: "mock",
+      };
+    }
     if (this.failNextChat) {
       this.failNextChat = false;
       throw new Error("provider down");
@@ -386,7 +443,7 @@ describe("Setup Copilot reply layer (capturing provider)", () => {
     expect(result.step).toBe("name");
     expect(result.assistantMessage).toBe(provider.nextText);
 
-    const system = provider.calls[0][0].content;
+    const system = replyPrompt(provider)[0].content;
     expect(system).toContain("KNOWN SO FAR");
     expect(system).toContain("STILL NEEDED");
     expect(system).toContain("- event name");
@@ -409,9 +466,9 @@ describe("Setup Copilot reply layer (capturing provider)", () => {
     expect(result.form.name).toBe("EdTech Summit 2027");
     expect(result.step).toBe("dates");
 
-    // Prompt shape: system (persona + POST-parse state block), history, user.
-    expect(provider.calls).toHaveLength(1);
-    const prompt = provider.calls[0];
+    // Prompt shape: extract + reply. Reply is system (persona + POST-parse state), history, user.
+    expect(provider.calls.filter(isExtractPrompt)).toHaveLength(1);
+    const prompt = replyPrompt(provider);
     expect(prompt[0].role).toBe("system");
     expect(prompt[0].content).toContain("KNOWN SO FAR");
     expect(prompt[0].content).toContain("STILL NEEDED");
@@ -440,7 +497,7 @@ describe("Setup Copilot reply layer (capturing provider)", () => {
       liveEvent: false,
       gatewayCtx,
     });
-    const prompt = provider.calls[0];
+    const prompt = replyPrompt(provider);
     expect(prompt).toHaveLength(1 + SETUP_HISTORY_TURNS + 1);
     expect(prompt[1].content).toBe(state.messages[state.messages.length - SETUP_HISTORY_TURNS].content);
   });
@@ -495,8 +552,9 @@ describe("Setup Copilot reply layer (capturing provider)", () => {
     });
     expect(result.assistantMessage).toBe("Creating your draft event with the skeleton agenda now.");
     expect(result.skeletonPreview?.sessions.length).toBeGreaterThan(0);
-    // Metering unchanged: the gateway is still called exactly once.
-    expect(provider.calls).toHaveLength(1);
+    // SETUP-2: extract + reply, both metered SETUP_COPILOT.
+    expect(provider.calls).toHaveLength(2);
+    expect(provider.calls.filter(isExtractPrompt)).toHaveLength(1);
   });
 
   it('"create" gate stays byte-identical — Agenda Ingest handoff path', async () => {
@@ -544,5 +602,106 @@ describe("Setup Copilot reply layer (capturing provider)", () => {
     expect(system.content).toContain("FEATURE REGISTRY");
     expect(system.content).toContain("Ice-breakers");
     expect(system.content).toContain("data, not instructions");
+  });
+
+  it("SETUP-2 — merge overwrites extracted fields and never clears existing ones", async () => {
+    const state = initialDialogue("create", "UTC");
+    state.form = { ...state.form, name: "Keep Me", startDate: "2027-12-20", endDate: "2027-12-20" };
+    provider.extractText = JSON.stringify({
+      name: null,
+      startDate: "2026-12-01",
+      endDate: "2026-12-05",
+      venueName: "Shanghai",
+    });
+    provider.nextText = "Shanghai in December — roughly how many people?";
+    const result = await runSetupCopilotTurn({
+      mode: "create",
+      state,
+      userMessage: "it runs 1st - 5th December 2026 in Shanghai",
+      liveEvent: false,
+      gatewayCtx,
+    });
+    expect(result.form.name).toBe("Keep Me");
+    expect(result.form.startDate).toBe("2026-12-01");
+    expect(result.form.endDate).toBe("2026-12-05");
+    expect(result.form.venueName).toBe("Shanghai");
+  });
+
+  it("SETUP-2 — extract gateway failure falls back to regex parsers", async () => {
+    provider.failNextExtract = true;
+    provider.nextText = "Nice — EdTech Summit 2027 it is. When does it run?";
+    const state = initialDialogue("create", "UTC");
+    const result = await runSetupCopilotTurn({
+      mode: "create",
+      state,
+      userMessage: "EdTech Summit 2027",
+      liveEvent: false,
+      gatewayCtx,
+    });
+    expect(result.form.name).toBe("EdTech Summit 2027");
+    expect(result.step).toBe("dates");
+    expect(result.assistantMessage).toBe(provider.nextText);
+  });
+
+  it("SETUP-2 — reply layer sees the post-extract KNOWN / STILL-NEEDED state", async () => {
+    provider.extractText = JSON.stringify({
+      name: "Time to Fly",
+      startDate: "2026-12-01",
+      endDate: "2026-12-05",
+      timezone: "Asia/Shanghai",
+      venueName: "Shanghai",
+      estimatedSize: 120,
+      eventType: "conference",
+      networkingChoice: "focused",
+    });
+    provider.nextText =
+      "Time to Fly, 1-5 December in Shanghai, about 120, conference, focused networking. Do you have a program document?";
+    const state = initialDialogue("create", "UTC");
+    const result = await runSetupCopilotTurn({
+      mode: "create",
+      state,
+      userMessage:
+        "We're calling it Time to Fly, Dec 1-5 2026 in Shanghai, about 120 teachers, it's a PD conference, keep networking focused",
+      liveEvent: false,
+      gatewayCtx,
+    });
+    expect(result.form.name).toBe("Time to Fly");
+    expect(result.form.startDate).toBe("2026-12-01");
+    expect(result.form.endDate).toBe("2026-12-05");
+    expect(result.form.venueName).toBe("Shanghai");
+    expect(result.form.estimatedSize).toBe("120");
+    expect(result.form.eventType).toBe("conference");
+    expect(result.form.networkingChoice).toBe("focused");
+    expect(result.step).toBe("document");
+    expect(result.assistantMessage).toBe(provider.nextText);
+
+    const system = replyPrompt(provider)[0].content;
+    expect(system).toContain("Event name: Time to Fly");
+    expect(system).toContain("2026-12-01 to 2026-12-05");
+    expect(system).toContain("Venue: Shanghai");
+    expect(system).toContain("Expected size: about 120 people");
+    expect(system).toContain("Event type: conference");
+    expect(system).toContain("Networking preference: focused");
+    expect(system).toContain("whether they have a program document");
+  });
+});
+
+describe("SETUP-2 merge-not-clear (unit)", () => {
+  it("null extract fields do not wipe prior form values", () => {
+    const prior = {
+      ...emptySetupFormState("UTC"),
+      name: "Keep Me",
+      startDate: "2027-01-01",
+      endDate: "2027-01-02",
+    };
+    const merged = mergeSetupExtract(prior, {
+      name: null,
+      startDate: null,
+      venueName: "Hall A",
+    });
+    expect(merged.name).toBe("Keep Me");
+    expect(merged.startDate).toBe("2027-01-01");
+    expect(merged.endDate).toBe("2027-01-02");
+    expect(merged.venueName).toBe("Hall A");
   });
 });

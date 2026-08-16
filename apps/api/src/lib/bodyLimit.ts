@@ -26,6 +26,8 @@ export function jsonLimitForPath(method: string, path: string): string {
   if (
     path === "/ai/ingest" ||
     path === "/ai/ingest/" ||
+    path === "/ai/setup-copilot/document" ||
+    path === "/ai/setup-copilot/document/" ||
     path === "/import/spreadsheet/parse" ||
     path === "/import/spreadsheet/parse/"
   ) {

@@ -23,8 +23,27 @@ import {
   buildConfigDiffCard,
 } from "../lib/ai/setupCopilot";
 import { runSetupCopilotTurn } from "../lib/ai/setupCopilot/turn";
+import {
+  hasExtractedFields,
+  looksLikeProgramDocument,
+  type SetupExtract,
+} from "../lib/ai/setupCopilot/extractTypes";
+import { runSetupExtract } from "../lib/ai/setupCopilot/extract";
+import {
+  parseDatesAndTimezone,
+  parseEventType,
+  parseNetworkingChoice,
+  parseSize,
+} from "../lib/ai/setupCopilot/parse";
 import { applyConfigureFeatures, readFeatureConfig } from "../lib/ai/setupCopilot/features";
 import { completeSetupCopilot } from "../lib/ai/setupCopilot/complete";
+import {
+  AGENDA_INGEST_MAX_BYTES,
+  INGEST_ALLOWED_MIME,
+  OfficeParseError,
+  attachmentFromDataUrl,
+  sourceTextFromUpload,
+} from "../lib/ai/ingest";
 import { prisma } from "../lib/db";
 import { env } from "../lib/env";
 import type { AuthedRequest } from "../lib/middleware";
@@ -171,6 +190,133 @@ setupCopilotRouter.post(
       skeletonPreview: result.skeletonPreview,
       aiGenerated: true as const,
       liveEvent,
+    });
+  }),
+);
+
+const documentSchema = z.object({
+  fileUrl: z.string().min(1),
+  fileName: z.string().min(1).max(260),
+  mime: z.string().max(120),
+  organizationId: z.string().min(1),
+  step: z.string(),
+  form: formStateSchema,
+  messages: z.array(messageSchema),
+});
+
+function dataUrlBytes(dataUrl: string): number {
+  const b64 = dataUrl.includes(",") ? dataUrl.slice(dataUrl.indexOf(",") + 1) : dataUrl;
+  return Buffer.from(b64, "base64").length;
+}
+
+function mimeAllowed(mime: string, fileName: string, dataUrl: string): boolean {
+  const declared = mime.toLowerCase();
+  const fromUrl = /^data:([^;,]+)/i.exec(dataUrl)?.[1]?.toLowerCase() || "";
+  if (INGEST_ALLOWED_MIME.includes(declared) || INGEST_ALLOWED_MIME.includes(fromUrl)) return true;
+  if (declared.startsWith("image/") || fromUrl.startsWith("image/")) return true;
+  return /\.(pdf|docx|xlsx|csv|png|jpe?g|gif|webp|html?|txt)$/i.test(fileName);
+}
+
+function regexExtractFromDocument(text: string, fallbackTz: string): SetupExtract {
+  const dates = parseDatesAndTimezone(text, fallbackTz);
+  const size = parseSize(text);
+  return {
+    startDate: dates?.startDate ?? null,
+    endDate: dates?.endDate ?? null,
+    timezone: dates?.timezone ?? null,
+    eventType: parseEventType(text),
+    estimatedSize: size ? Number(size) : null,
+    networkingChoice: parseNetworkingChoice(text),
+    hasProgramDocument: looksLikeProgramDocument(text) ? true : null,
+  };
+}
+
+setupCopilotRouter.post(
+  "/document",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = documentSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+
+    const { fileUrl, fileName, mime, organizationId } = parsed.data;
+    await requireOrgRole(req.user!.id, organizationId, OrgRole.STAFF);
+
+    if (!fileUrl.startsWith("data:")) {
+      throw new HttpError(400, { error: "fileUrl must be a data URL" });
+    }
+    if (!mimeAllowed(mime, fileName, fileUrl)) {
+      throw new HttpError(400, { error: "Unsupported file type. Upload a PDF, Word, spreadsheet, or image." });
+    }
+    if (dataUrlBytes(fileUrl) > AGENDA_INGEST_MAX_BYTES) {
+      throw new HttpError(400, { error: `File exceeds max size of ${AGENDA_INGEST_MAX_BYTES} bytes` });
+    }
+
+    let sourceText = "";
+    try {
+      sourceText = await sourceTextFromUpload(fileUrl);
+    } catch (err) {
+      if (err instanceof OfficeParseError) {
+        throw new HttpError(400, { error: err.message });
+      }
+      if (err instanceof Error && /exceeds max size/i.test(err.message)) {
+        throw new HttpError(400, { error: err.message });
+      }
+      throw err;
+    }
+
+    let attachment: ReturnType<typeof attachmentFromDataUrl> = null;
+    try {
+      attachment = attachmentFromDataUrl(fileUrl);
+    } catch (err) {
+      if (err instanceof Error && /exceeds max size/i.test(err.message)) {
+        throw new HttpError(400, { error: err.message });
+      }
+      throw err;
+    }
+
+    const form = parsed.data.form as SetupCopilotFormState;
+    const messages = parsed.data.messages as SetupCopilotMessage[];
+    const step = parsed.data.step as SetupCopilotStep;
+    const userMessage = `Uploaded ${fileName}`;
+
+    const gw = await runSetupExtract({
+      organizationId,
+      userId: req.user!.id,
+      sourceText,
+      attachment: attachment ?? undefined,
+    });
+
+    let extracted: SetupExtract | null =
+      gw.ok && hasExtractedFields(gw.data) ? { ...gw.data } : regexExtractFromDocument(sourceText, form.timezone);
+
+    if (looksLikeProgramDocument(sourceText)) {
+      extracted = { ...(extracted || {}), hasProgramDocument: true };
+    }
+    if (!hasExtractedFields(extracted)) extracted = null;
+
+    const result = await runSetupCopilotTurn({
+      mode: "create",
+      state: { step, form, messages },
+      userMessage,
+      liveEvent: false,
+      extracted,
+      gatewayCtx: {
+        organizationId,
+        userId: req.user!.id,
+        feature: "SETUP_COPILOT",
+      },
+    });
+
+    return res.json({
+      step: result.step,
+      form: result.form,
+      messages: result.messages,
+      assistantMessage: result.assistantMessage,
+      pendingDiff: result.pendingDiff,
+      handoff: result.handoff,
+      skeletonPreview: result.skeletonPreview,
+      aiGenerated: true as const,
     });
   }),
 );

@@ -11,6 +11,7 @@ import {
   applyPreset,
   emptySetupFormState,
   type ConfigDiffCard,
+  type FeatureKey,
   type SetupCopilotFormState,
   type SetupCopilotMessage,
   type SetupCopilotMode,
@@ -21,6 +22,7 @@ import { resolveFeatureEnabled } from "../../features/registry";
 import { buildConfigDiffCard } from "./diffCard";
 import {
   parseDatesAndTimezone,
+  parseEventName,
   parseEventType,
   parseFeatureRequests,
   parseNetworkingChoice,
@@ -29,6 +31,12 @@ import {
   parseYesNo,
 } from "./parse";
 import { buildSkeleton, type SkeletonBundle } from "./skeleton";
+import {
+  hasExtractedFields,
+  mergeSetupExtract,
+  stepFromForm,
+  type SetupExtract,
+} from "./extractTypes";
 
 export type DialogueState = {
   step: SetupCopilotStep;
@@ -97,7 +105,75 @@ function applyTypePreset(form: SetupCopilotFormState): SetupCopilotFormState {
   };
 }
 
-export function runCreateTurn(state: DialogueState, userText: string): TurnResult {
+const AGENDA_INGEST_NOTE =
+  "After you create the event, upload this same file in Agenda ingest and the AI will draft the full agenda.";
+
+function readyBitsForForm(form: SetupCopilotFormState): {
+  handoff: SetupHandoffA1 | null;
+  skeletonPreview: SkeletonBundle | null;
+} {
+  if (form.hasProgramDocument === null) return { handoff: null, skeletonPreview: null };
+  if (form.hasProgramDocument) {
+    return {
+      handoff: {
+        kind: "agenda_ingest",
+        message:
+          "Great — I'll hand you to Agenda Ingest to extract sessions from your document. Your event details are saved; nothing is lost.",
+        ingestPath: "/organizer/events/new?mode=ai&handoff=ingest",
+      },
+      skeletonPreview: null,
+    };
+  }
+  const iceOn = resolveFeatureEnabled("community_icebreakers", form.featureOverrides);
+  return { handoff: null, skeletonPreview: buildSkeleton(form, iceOn) };
+}
+
+function cannedReplyForStep(
+  step: SetupCopilotStep,
+  form: SetupCopilotFormState,
+  opts: { fromUpload: boolean },
+): string {
+  const ingestNote =
+    opts.fromUpload && form.hasProgramDocument ? `\n\n${AGENDA_INGEST_NOTE}` : "";
+  switch (step) {
+    case "name":
+      return `What should we call the event?${ingestNote}`;
+    case "dates":
+      return form.name
+        ? `Got it — “${form.name}.” When does it run, and what timezone? (Example: 2027-07-20 to 2027-07-22, America/Los_Angeles)${ingestNote}`
+        : `When does it run, and what timezone? (Example: 2027-07-20 to 2027-07-22, America/Los_Angeles)${ingestNote}`;
+    case "venue":
+      return `Where is it — a venue name, online, or hybrid?${ingestNote}`;
+    case "size":
+      return `Roughly how many people? (A number is fine.)${ingestNote}`;
+    case "type":
+      return `What kind of event is this?\n1) Conference\n2) Academic program\n3) Meetup\n4) Internal${ingestNote}`;
+    case "networking":
+      return `Want the full networking experience — community spaces, ice-breakers, photo sharing — or keep it focused on the schedule? You can also say something specific like “no ice-breakers, and everyone's local so don't show timezone conversion.”${ingestNote}`;
+    case "document":
+      return `Do you already have a program document (PDF, Word, spreadsheet, or photo of the schedule)?${ingestNote}`;
+    case "ready": {
+      if (form.hasProgramDocument) {
+        const base =
+          "Great — I'll hand you to Agenda Ingest to extract sessions from your document. Your event details are saved; nothing is lost.";
+        return opts.fromUpload ? `${base}\n\n${AGENDA_INGEST_NOTE}` : base;
+      }
+      const iceOn = resolveFeatureEnabled("community_icebreakers", form.featureOverrides);
+      const skeleton = buildSkeleton(form, iceOn);
+      return `I'll create a draft event with a skeleton agenda (${skeleton.sessions.length} blocks), suggested tracks, a draft invite email${
+        iceOn ? ", and 2 ice-breaker draft posts" : ""
+      }. Everything stays labeled as AI-generated until you publish. Ready to create it?`;
+    }
+    default:
+      return "Let's keep going — what's next on your mind?";
+  }
+}
+
+export function runCreateTurn(
+  state: DialogueState,
+  userText: string,
+  extracted?: SetupExtract | null,
+): TurnResult {
   const text = userText.trim();
   let { step, form } = state;
   const messages: SetupCopilotMessage[] = [
@@ -112,10 +188,53 @@ export function runCreateTurn(state: DialogueState, userText: string): TurnResul
 
   // Custom feature requests can arrive at networking step (or anytime after type)
   const featureReq = parseFeatureRequests(text);
+  const fromUpload = /^Uploaded /i.test(text);
+
+  // Ready-gate first — "create" is a command, never a field extract.
+  if (step !== "ready" && hasExtractedFields(extracted)) {
+    form = mergeSetupExtract(form, extracted!);
+    const noteReq = extracted?.networkingNote
+      ? parseFeatureRequests(extracted.networkingNote)
+      : { isCustomRequest: false, patch: {}, requestedKeys: [] as FeatureKey[] };
+    const customReq = featureReq.isCustomRequest ? featureReq : noteReq;
+    if (customReq.isCustomRequest) {
+      pendingDiff = buildConfigDiffCard({
+        current: form.featureOverrides,
+        patch: customReq.patch,
+        requestedKeys: customReq.requestedKeys,
+        liveEvent: false,
+        summary: "Based on what you asked for — confirm to apply these settings.",
+      });
+      form = { ...form, networkingChoice: "custom" };
+    }
+    if (form.hasProgramDocument === null) {
+      const yn = parseYesNo(text);
+      if (yn !== null) form = { ...form, hasProgramDocument: yn };
+    }
+    step = stepFromForm(form, step);
+    if (step === "ready") {
+      const readyBits = readyBitsForForm(form);
+      handoff = readyBits.handoff;
+      skeletonPreview = readyBits.skeletonPreview;
+    }
+    reply = cannedReplyForStep(step, form, { fromUpload });
+    messages.push(assistant(reply));
+    return {
+      step,
+      form,
+      messages,
+      assistantMessage: reply,
+      pendingDiff,
+      handoff,
+      skeletonPreview,
+      aiGenerated: true,
+      deterministicReply: false,
+    };
+  }
 
   switch (step) {
     case "name": {
-      const name = text.slice(0, 200);
+      const name = parseEventName(text);
       // Sharp-edge fix: don't capture the name when the message reads as a
       // question or another parser recognized it (dates, feature requests) —
       // stay on this step and let the model answer + ask again.
