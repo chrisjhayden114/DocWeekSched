@@ -3,11 +3,13 @@
  * Uses success/danger/warning/live tokens — never the track palette.
  */
 
-type StatusTone = "published" | "draft" | "past" | "archived" | "pending" | "default";
+type StatusTone = "published" | "draft" | "past" | "archived" | "pending" | "default" | "progress";
 
 function toneFor(status: string): StatusTone {
   const s = status.trim().toLowerCase();
   if (s === "published" || s === "active" || s === "live") return "published";
+  // ER3a — readiness "in progress" (the accent-tinted chip).
+  if (s === "progress") return "progress";
   if (s === "draft") return "draft";
   if (s === "past") return "past";
   if (s === "archived") return "archived";

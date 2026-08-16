@@ -5978,6 +5978,13 @@ button.schedule-meta-chip:hover {
   color: var(--gray-600);
 }
 
+/* ER3a — readiness "in progress": active-but-unfinished work reads as the
+   accent tint (F1.5 runtime accent), distinct from settled green/amber. */
+.status-chip--progress {
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
+}
+
 .onboarding-panel {
   background: #ffffff;
   border: 1px solid var(--gray-200);

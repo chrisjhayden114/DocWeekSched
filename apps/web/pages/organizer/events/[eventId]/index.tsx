@@ -20,6 +20,7 @@ import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListS
 import { StatusChip } from "../../../../components/StatusChip";
 import { PageHeader, StatCard } from "../../../../components/kit";
 import { EventSettingsSlideOver } from "../../../../components/organizer/EventSettingsSlideOver";
+import { ReadinessTab } from "../../../../components/organizer/ReadinessTab";
 import {
   ProgramTab,
   type ProgramSession,
@@ -87,6 +88,7 @@ type EventTab =
   | "announcements"
   | "features"
   | "ops"
+  | "readiness"
   | "recap";
 
 const EVENT_TABS: readonly EventTab[] = [
@@ -98,6 +100,7 @@ const EVENT_TABS: readonly EventTab[] = [
   "announcements",
   "features",
   "ops",
+  "readiness",
   "recap",
 ];
 
@@ -254,6 +257,10 @@ export default function OrganizerEventPage() {
   );
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
+  /** ER3a — resolved (plan AND override) readiness flag from /event/features.
+      The key stays plannedPhase-hidden from the Features toggles; an
+      eventFeatureConfig override enables it per event for pilots. */
+  const [readinessEnabled, setReadinessEnabled] = useState(false);
   const [featuresDirty, setFeaturesDirty] = useState(false);
   const [featuresSaving, setFeaturesSaving] = useState(false);
   const [askAssistant, setAskAssistant] = useState(false);
@@ -305,7 +312,10 @@ export default function OrganizerEventPage() {
       organizerFetch<Speaker[]>("/speakers/", eventId),
       organizerFetch<ProgramSession[]>("/sessions/", eventId),
       organizerFetch<{ slugUrl?: string; joinUrl?: string | null }>("/event/invite-links", eventId).catch(() => null),
-      organizerFetch<{ overrides: FeatureOverridesMap }>("/event/features", eventId).catch(() => ({ overrides: {} })),
+      organizerFetch<{
+        overrides: FeatureOverridesMap;
+        features?: { key: string; enabled: boolean }[];
+      }>("/event/features", eventId).catch(() => ({ overrides: {}, features: [] })),
       // F2 stat row + INV-1 roster: one fetch feeds both.
       apiFetchAll<ParticipantRow>("/attendees/", eventHeaders(eventId)).catch(() => null),
     ]);
@@ -315,6 +325,11 @@ export default function OrganizerEventPage() {
     setSessions(sess);
     setInviteLinks(links);
     setFeatureOverrides(feats.overrides || {});
+    // ER3a — `features` rows are plan-resolved server-side; overrides alone
+    // aren't enough (readiness needs the entitlement AND the override).
+    setReadinessEnabled(
+      Boolean(feats.features?.find((f) => f.key === "readiness")?.enabled),
+    );
     setFeaturesDirty(false);
     setRegisteredCount(attendeeRows ? attendeeRows.length : null);
     setRoster(attendeeRows);
@@ -672,9 +687,12 @@ export default function OrganizerEventPage() {
               ["maps", "Maps"],
               ["announcements", "Announcements"],
               ["ops", "Ops Inbox"],
+              // ER3a — pilot surface: only when the event's RESOLVED features
+              // include readiness (plan entitlement + per-event override).
+              ...(readinessEnabled ? ([["readiness", "Readiness"]] as const) : []),
               ["recap", "Recap"],
               ["features", "Features"],
-            ] as const
+            ] as readonly (readonly [EventTab, string])[]
           ).map(([id, label]) => (
             <button
               key={id}
@@ -1174,6 +1192,20 @@ export default function OrganizerEventPage() {
 
         {tab === "ops" && eventId ? <OpsInboxPanel eventId={eventId} /> : null}
         {tab === "recap" && eventId ? <RecapPanel eventId={eventId} /> : null}
+
+        {/* ER3a — deep links (?tab=readiness) land here even when the pilot
+            feature is off; say so honestly instead of rendering nothing. */}
+        {tab === "readiness" && event ? (
+          readinessEnabled ? (
+            <ReadinessTab
+              eventId={eventId}
+              speakers={speakers}
+              sessions={sessions.map((s) => ({ id: s.id, title: s.title }))}
+            />
+          ) : (
+            <p className="help-text">Readiness isn&apos;t enabled for this event.</p>
+          )
+        ) : null}
 
         {tab === "features" ? (
           <section>
