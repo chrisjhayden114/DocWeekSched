@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { initialsFor } from "./kit/kitHelpers";
 
 /**
  * Phase D app shell (DESIGN_PHASE_D.md Part 2 "Layout architecture").
@@ -215,7 +216,7 @@ function AvatarMenu({
   const wrapRef = useRef<HTMLDivElement>(null);
   useMenuDismiss(open, wrapRef, setOpen);
 
-  const initial = (userName || "?").trim().charAt(0).toUpperCase() || "?";
+  const initials = userName?.trim() ? initialsFor(userName) || "?" : "?";
 
   return (
     <div className="shell-avatar-menu" ref={wrapRef}>
@@ -227,7 +228,7 @@ function AvatarMenu({
         aria-label="Account menu"
         onClick={() => setOpen((v) => !v)}
       >
-        {userPhotoUrl ? <img src={userPhotoUrl} alt="" /> : initial}
+        {userPhotoUrl ? <img src={userPhotoUrl} alt="" /> : initials}
       </button>
       {open ? (
         <ul className="shell-avatar-panel" role="menu">

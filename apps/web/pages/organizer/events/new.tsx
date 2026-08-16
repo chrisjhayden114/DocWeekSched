@@ -3,7 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { SetupCopilotFormState } from "@event-app/shared";
+import type { SetupCopilotFormState, SetupCopilotMessage, SetupCopilotStep } from "@event-app/shared";
 import { ASSISTANT_COPY, emptySetupFormState, setupTimezoneFieldLabel } from "@event-app/shared";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../components/FeatureConfigPanel";
 import { OrganizerShell } from "../../../components/OrganizerShell";
@@ -15,14 +15,21 @@ import { TimezoneSelect } from "../../../components/TimezoneSelect";
 import { apiFetch } from "../../../lib/api";
 import { OrgSummary } from "../../../lib/organizerApi";
 import {
+  clearSetupCopilotDraft,
+  copilotFormToWizardFields,
+  copilotStepFromForm,
+  loadSetupCopilotDraft,
+  saveSetupCopilotDraft,
+  wizardFieldsToCopilotForm,
+} from "../../../lib/setupCopilotDraft";
+import {
   WIZARD_DRAFT_STORAGE_KEY,
+  clearWizardDraft,
   isEmptyWizardDraft,
   parseWizardDraft,
   serializeWizardDraft,
   type WizardDraft,
 } from "../../../lib/wizardDraft";
-
-const MANUAL_STORAGE_KEY = "setupCopilot.manualForm";
 
 function slugify(name: string) {
   return name
@@ -31,27 +38,6 @@ function slugify(name: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 48);
-}
-
-function formToWizardFields(form: SetupCopilotFormState) {
-  return {
-    name: form.name,
-    timezone: form.timezone,
-    startDate: form.startDate ? form.startDate.slice(0, 16).replace("T", "T") : "",
-    endDate: form.endDate ? form.endDate.slice(0, 16).replace("T", "T") : "",
-    venueName: form.venueName,
-    venueAddress: form.venueAddress,
-    onlineUrl: form.onlineUrl,
-    featureOverrides: form.featureOverrides as FeatureOverridesMap,
-  };
-}
-
-/** datetime-local needs YYYY-MM-DDTHH:mm — dates-only get noon. */
-function toDatetimeLocal(value: string): string {
-  if (!value) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T09:00`;
-  if (value.includes("T")) return value.slice(0, 16);
-  return value;
 }
 
 export default function NewEventWizard() {
@@ -80,6 +66,10 @@ export default function NewEventWizard() {
   const [brandColor, setBrandColor] = useState("#0033A0");
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [copilotForm, setCopilotForm] = useState<SetupCopilotFormState>(() => emptySetupFormState(timezone));
+  const [copilotHistory, setCopilotHistory] = useState<SetupCopilotMessage[]>([]);
+  const [copilotStep, setCopilotStep] = useState<SetupCopilotStep>("name");
+  const [chatEpoch, setChatEpoch] = useState(0);
+  const [draftsReady, setDraftsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{
@@ -140,19 +130,30 @@ export default function NewEventWizard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Restore form when switching from AI → manual
+  // AI draft restore (wins over wizard) or seed the copilot form from the
+  // wizard so Manual → AI greets with known fields instead of starting over.
+  // Re-runs when mode flips so a same-page query change still hydrates chat.
   useEffect(() => {
-    if (modeAi || typeof window === "undefined") return;
-    try {
-      const raw = window.sessionStorage.getItem(MANUAL_STORAGE_KEY);
-      if (!raw) return;
-      const form = JSON.parse(raw) as SetupCopilotFormState;
-      window.sessionStorage.removeItem(MANUAL_STORAGE_KEY);
-      applyCopilotForm(form);
-    } catch {
-      /* ignore */
+    if (!router.isReady) return;
+    const wizard = parseWizardDraft(window.sessionStorage.getItem(WIZARD_DRAFT_STORAGE_KEY));
+    const ai = loadSetupCopilotDraft();
+    if (ai) {
+      setCopilotForm(ai.form);
+      setCopilotHistory(ai.history);
+      setCopilotStep(ai.step ?? copilotStepFromForm(ai.form));
+      // Only fold AI fields into the wizard preview when we're in AI mode.
+      // In manual mode the wizard draft is the source of truth (user may have
+      // edited it after switching).
+      if (modeAi) applyCopilotForm(ai.form);
+    } else if (modeAi && wizard) {
+      const seeded = wizardFieldsToCopilotForm(wizard, emptySetupFormState(wizard.timezone || timezone));
+      setCopilotForm(seeded);
+      setCopilotHistory([]);
+      setCopilotStep(copilotStepFromForm(seeded));
     }
-  }, [modeAi]);
+    setDraftsReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, modeAi]);
 
   useEffect(() => {
     if (!slugTouched && name) setSlug(slugify(name));
@@ -203,28 +204,64 @@ export default function NewEventWizard() {
     featureOverrides,
   ]);
 
-  function clearWizardDraft() {
-    try {
-      window.sessionStorage.removeItem(WIZARD_DRAFT_STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-  }
+  // Persist the AI conversation + form. Empty drafts (opening greeting only)
+  // are never written, so a later Manual → AI seed is not blocked.
+  useEffect(() => {
+    if (created) return;
+    saveSetupCopilotDraft({
+      form: copilotForm,
+      history: copilotHistory,
+      savedAt: Date.now(),
+      step: copilotStep,
+    });
+  }, [created, copilotForm, copilotHistory, copilotStep]);
 
   function applyCopilotForm(form: SetupCopilotFormState) {
     setCopilotForm(form);
-    const fields = formToWizardFields(form);
+    const fields = copilotFormToWizardFields(form, { description });
     setName(fields.name);
     setTimezone(fields.timezone);
-    setStartDate(toDatetimeLocal(form.startDate));
-    setEndDate(toDatetimeLocal(form.endDate.includes("T") ? form.endDate : form.endDate ? `${form.endDate}T17:00` : ""));
+    setStartDate(fields.startDate);
+    setEndDate(fields.endDate);
     setVenueName(fields.venueName);
     setVenueAddress(fields.venueAddress);
     setOnlineUrl(fields.onlineUrl);
-    setFeatureOverrides(fields.featureOverrides);
-    if (form.estimatedSize) {
-      setDescription((d) => d || `Estimated size: ~${form.estimatedSize}`);
+    setFeatureOverrides(fields.featureOverrides as FeatureOverridesMap);
+    if (fields.description) {
+      setDescription((d) => d || fields.description);
     }
+  }
+
+  function clearAllDrafts() {
+    clearWizardDraft();
+    clearSetupCopilotDraft();
+  }
+
+  function resetAllEntryState() {
+    const tz = initialTimezoneRef.current;
+    setStep(0);
+    setName("");
+    setSlug("");
+    setSlugTouched(false);
+    setDescription("");
+    setTimezone(tz);
+    setStartDate("");
+    setEndDate("");
+    setVenueName("");
+    setVenueAddress("");
+    setOnlineUrl("");
+    setBrandColor("#0033A0");
+    setFeatureOverrides({});
+    setCopilotForm(emptySetupFormState(tz));
+    setCopilotHistory([]);
+    setCopilotStep("name");
+    setError(null);
+  }
+
+  function startOver() {
+    clearAllDrafts();
+    resetAllEntryState();
+    setChatEpoch((n) => n + 1);
   }
 
   const startIso = useMemo(() => (startDate ? new Date(startDate).toISOString() : ""), [startDate]);
@@ -233,19 +270,50 @@ export default function NewEventWizard() {
   function switchToManual() {
     const form: SetupCopilotFormState = {
       ...copilotForm,
-      name,
+      name: name || copilotForm.name,
       timezone,
       startDate: startDate || copilotForm.startDate,
       endDate: endDate || copilotForm.endDate,
-      venueName,
-      venueAddress,
-      onlineUrl,
+      venueName: venueName || copilotForm.venueName,
+      venueAddress: venueAddress || copilotForm.venueAddress,
+      onlineUrl: onlineUrl || copilotForm.onlineUrl,
       featureOverrides,
     };
-    window.sessionStorage.setItem(MANUAL_STORAGE_KEY, JSON.stringify(form));
+    applyCopilotForm(form);
+    const mapped = copilotFormToWizardFields(form, { description });
+    const draft: WizardDraft = {
+      step,
+      organizationId,
+      name: mapped.name,
+      slug,
+      slugTouched,
+      description: mapped.description,
+      timezone: mapped.timezone,
+      startDate: mapped.startDate,
+      endDate: mapped.endDate,
+      venueName: mapped.venueName,
+      venueAddress: mapped.venueAddress,
+      onlineUrl: mapped.onlineUrl,
+      brandColor,
+      featureOverrides: mapped.featureOverrides as WizardDraft["featureOverrides"],
+    };
+    if (!isEmptyWizardDraft(draft)) {
+      try {
+        window.sessionStorage.setItem(WIZARD_DRAFT_STORAGE_KEY, serializeWizardDraft(draft));
+      } catch {
+        /* ignore */
+      }
+    }
+    // AI draft stays saved so returning to the assistant restores the chat.
+    saveSetupCopilotDraft({
+      form,
+      history: copilotHistory,
+      savedAt: Date.now(),
+      step: copilotStep,
+    });
     void router.push({
       pathname: "/organizer/events/new",
-      query: { org: organizationId, from: "ai" },
+      query: { org: organizationId },
     });
   }
 
@@ -279,7 +347,7 @@ export default function NewEventWizard() {
         body: JSON.stringify({ organizationId, form }),
       });
       window.localStorage.setItem("activeEventId", result.eventId);
-      clearWizardDraft();
+      clearAllDrafts();
       setCreated({
         id: result.eventId,
         slug: result.slug,
@@ -329,7 +397,7 @@ export default function NewEventWizard() {
         }),
       });
       window.localStorage.setItem("activeEventId", ev.id);
-      clearWizardDraft();
+      clearAllDrafts();
       if (Object.keys(featureOverrides).length > 0) {
         await apiFetch("/event/features", {
           method: "PUT",
@@ -393,10 +461,21 @@ export default function NewEventWizard() {
                 aria-label="Organization"
                 options={orgs.map((o) => ({ value: o.id, label: o.name }))}
               />
+              {draftsReady ? (
               <SetupCopilotChat
+                key={chatEpoch}
                 mode="create"
                 organizationId={organizationId}
+                initialForm={copilotForm}
+                initialHistory={copilotHistory}
+                initialStep={copilotStep}
+                initialDescription={description}
                 onFormChange={applyCopilotForm}
+                onConversationChange={({ messages, step: nextStep }) => {
+                  setCopilotHistory(messages);
+                  setCopilotStep(nextStep);
+                }}
+                onStartOver={startOver}
                 onHandoff={(_h, form) => {
                   applyCopilotForm({ ...form, hasProgramDocument: true });
                 }}
@@ -419,7 +498,7 @@ export default function NewEventWizard() {
                           body: JSON.stringify({ organizationId, form }),
                         });
                         window.localStorage.setItem("activeEventId", result.eventId);
-                        clearWizardDraft();
+                        clearAllDrafts();
                         setCreated({
                           id: result.eventId,
                           slug: result.slug,
@@ -436,6 +515,7 @@ export default function NewEventWizard() {
                   }
                 }}
               />
+              ) : null}
               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                 <button
                   type="button"

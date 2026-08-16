@@ -150,6 +150,15 @@ describe("F1 — small kit helpers", () => {
     expect(initialsFor("  jane   van der Berg ")).toBe("JV");
   });
 
+  it("the shell account button uses initialsFor when there is no photo", () => {
+    const appShell = readFileSync(join(__dirname, "..", "components", "AppShell.tsx"), "utf8");
+    const organizerShell = readFileSync(join(__dirname, "..", "components", "OrganizerShell.tsx"), "utf8");
+    expect(appShell).toContain("initialsFor");
+    expect(appShell).toMatch(/userPhotoUrl \? <img[^>]+> : initials/);
+    expect(organizerShell).toContain('/auth/me');
+    expect(organizerShell).toContain("userPhotoUrl");
+  });
+
   it("nextPillIndex wraps in both directions", () => {
     expect(nextPillIndex(3, 2, 1)).toBe(0);
     expect(nextPillIndex(3, 0, -1)).toBe(2);

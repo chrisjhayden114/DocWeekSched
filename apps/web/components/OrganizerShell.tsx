@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode, type SVGProps } from "react";
-import { apiFetch } from "../lib/api";
+import { apiFetch, type AuthResponse } from "../lib/api";
 import { eventAccentStyle } from "../lib/eventAccent";
 import { AppShell, type ShellEventOption, type ShellNavGroup } from "./AppShell";
 
@@ -102,14 +102,16 @@ type OrganizerShellProps = {
   eventId?: string | null;
   eventName?: string | null;
   userName?: string | null;
+  userPhotoUrl?: string | null;
   children: ReactNode;
 };
 
-export function OrganizerShell({ active, eventId, eventName, userName, children }: OrganizerShellProps) {
+export function OrganizerShell({ active, eventId, eventName, userName, userPhotoUrl, children }: OrganizerShellProps) {
   const router = useRouter();
   const isActive = (id: string) => active === id;
   const [events, setEvents] = useState<ShellEventOption[]>([]);
   const [brandColors, setBrandColors] = useState<Record<string, string | null>>({});
+  const [me, setMe] = useState<Pick<AuthResponse["user"], "name" | "photoUrl"> | null>(null);
 
   const loadEvents = useCallback(async () => {
     try {
@@ -131,6 +133,14 @@ export function OrganizerShell({ active, eventId, eventName, userName, children 
   useEffect(() => {
     void loadEvents();
   }, [loadEvents]);
+
+  useEffect(() => {
+    void apiFetch<AuthResponse["user"]>("/auth/me")
+      .then((user) => setMe({ name: user.name, photoUrl: user.photoUrl }))
+      .catch(() => {
+        /* avatar falls back to initials / "?" */
+      });
+  }, []);
 
   /* F1.5.3 — inside an event's console, the accent variables come from that
      event's brandColor (contrast-safe; neutral blue-gray when unset). Outside
@@ -191,7 +201,8 @@ export function OrganizerShell({ active, eventId, eventName, userName, children 
       title={eventName || "Organizer"}
       nav={nav}
       mobilePrimaryIds={organizeItems.slice(0, 3).map((i) => i.id)}
-      userName={userName}
+      userName={userName || me?.name}
+      userPhotoUrl={userPhotoUrl ?? me?.photoUrl}
       events={events}
       activeEventId={eventId || null}
       onSelectEvent={switchEvent}

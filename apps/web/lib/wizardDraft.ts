@@ -42,6 +42,15 @@ export function isEmptyWizardDraft(draft: WizardDraft): boolean {
   );
 }
 
+export function clearWizardDraft(): void {
+  try {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.removeItem(WIZARD_DRAFT_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function serializeWizardDraft(draft: WizardDraft): string {
   return JSON.stringify({ ...draft, step: clampStep(draft.step) });
 }
