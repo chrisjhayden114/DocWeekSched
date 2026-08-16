@@ -6,5 +6,6 @@ export * from "./assistants";
 export * from "./setupCopilot";
 export * from "./concierge";
 export * from "./appGuide";
+export * from "./organizerGuide";
 export * from "./entryRedirects";
 export * from "./deletedParticipant";

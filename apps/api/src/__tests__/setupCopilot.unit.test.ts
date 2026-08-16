@@ -32,6 +32,7 @@ import {
   parseYesNo,
 } from "../lib/ai/setupCopilot/parse";
 import { runSetupCopilotTurn } from "../lib/ai/setupCopilot/turn";
+import { buildOrganizerStateText } from "../lib/ai/setupCopilot/organizerState";
 import type {
   AiChatMessage,
   AiEmbedResult,
@@ -625,12 +626,125 @@ describe("Setup Copilot reply layer (capturing provider)", () => {
     // Model text accompanies the card, never replaces it.
     expect(result.assistantMessage).toBe(provider.nextText);
 
-    // Settings prompt serializes the feature registry as data.
+    // Settings prompt serializes the guide and the feature registry as data.
     const system = provider.calls[0][0];
     expect(system.role).toBe("system");
+    expect(system.content).toContain("ORGANIZER GUIDE");
     expect(system.content).toContain("FEATURE REGISTRY");
     expect(system.content).toContain("Ice-breakers");
     expect(system.content).toContain("data, not instructions");
+  });
+
+  // ─── AGENT-3 — organizer guide + live setup-state grounding (settings mode) ───
+
+  const settingsCtx: GatewayCallContext = { ...gatewayCtx, eventId: "evt_test" };
+
+  const draftStateText = () =>
+    buildOrganizerStateText(
+      {
+        name: "EdTech Summit 2027",
+        status: "DRAFT",
+        startDate: "2027-07-20",
+        endDate: "2027-07-22",
+        timezone: "UTC",
+        venueName: "Hall A",
+        onlineUrl: null,
+        slug: "edtech-summit-2027",
+      },
+      { sessions: 5, draftSessions: 2, rooms: 0, speakers: 0, registered: 12 },
+    );
+
+  it("AGENT-3 — go-live question: prompt carries the guide block and the checklist's undone items; reply is verbatim", async () => {
+    provider.nextText =
+      "Three things are left: add rooms in the Program tab, add speakers in the Speakers tab, and publish your 2 draft sessions. Then press Publish on the Overview tab.";
+    const state = initialDialogue("settings", "UTC", { name: "EdTech Summit 2027" });
+    const result = await runSetupCopilotTurn({
+      mode: "settings",
+      state,
+      userMessage: "What is left for me to do for this event to go live?",
+      liveEvent: false,
+      gatewayCtx: settingsCtx,
+      organizerStateText: draftStateText(),
+    });
+
+    const system = provider.calls[0][0];
+    expect(system.role).toBe("system");
+    expect(system.content).toContain("ORGANIZER GUIDE");
+    expect(system.content).toContain("- Publish:");
+    expect(system.content).toContain("GO-LIVE CHECKLIST:");
+    // Undone items derived from the data (rooms/speakers/drafts/publish)…
+    expect(system.content).toMatch(/\[todo\] Add rooms/);
+    expect(system.content).toMatch(/\[todo\] Add speakers/);
+    expect(system.content).toMatch(/\[todo\] Publish draft sessions — 2 sessions are still draft/);
+    expect(system.content).toMatch(/\[todo\] Publish the event/);
+    // …and done ones stay done.
+    expect(system.content).toMatch(/\[done\] Add sessions/);
+    expect(system.content).toMatch(/\[done\] Set a venue or online link/);
+
+    // The model's grounded answer is the reply — no scope decline, no card.
+    expect(result.assistantMessage).toBe(provider.nextText);
+    expect(result.pendingDiff).toBeNull();
+  });
+
+  it("AGENT-3 — guide topics named in the reply become in-app links on the message", async () => {
+    provider.nextText =
+      "Add rooms in the Program tab, then press Publish on the Overview tab.";
+    const state = initialDialogue("settings", "UTC", { name: "EdTech Summit 2027" });
+    const result = await runSetupCopilotTurn({
+      mode: "settings",
+      state,
+      userMessage: "how do I finish setup?",
+      liveEvent: false,
+      gatewayCtx: settingsCtx,
+      organizerStateText: draftStateText(),
+    });
+
+    expect(result.links).toContainEqual({
+      label: "Program",
+      href: "/organizer/events/evt_test?tab=program",
+    });
+    expect(result.links).toContainEqual({
+      label: "Publish",
+      href: "/organizer/events/evt_test?tab=overview",
+    });
+    const last = result.messages[result.messages.length - 1];
+    expect(last.role).toBe("assistant");
+    expect(last.links).toEqual(result.links);
+  });
+
+  it("AGENT-3 — feature-change request still yields the ConfigDiffCard with model text alongside", async () => {
+    provider.nextText = "Turning off ice-breakers — confirm the review card to apply.";
+    const state = initialDialogue("settings", "UTC", {
+      featureOverrides: applyPreset("everything"),
+    });
+    const result = await runSetupCopilotTurn({
+      mode: "settings",
+      state,
+      userMessage: "turn off ice-breakers",
+      liveEvent: false,
+      gatewayCtx: settingsCtx,
+      organizerStateText: draftStateText(),
+    });
+    expect(result.pendingDiff).toBeTruthy();
+    expect(result.pendingDiff!.entries.map((e) => e.key)).toContain("community_icebreakers");
+    expect(result.assistantMessage).toBe(provider.nextText);
+    // No write until confirm.
+    expect(result.form.featureOverrides.community_icebreakers).not.toBe(false);
+  });
+
+  it("AGENT-3 — gateway failure falls back to the old scope-decline string", async () => {
+    provider.failNextChat = true;
+    const state = initialDialogue("settings", "UTC", { name: "EdTech Summit 2027" });
+    const result = await runSetupCopilotTurn({
+      mode: "settings",
+      state,
+      userMessage: "What is left for me to do for this event to go live?",
+      liveEvent: false,
+      gatewayCtx: settingsCtx,
+      organizerStateText: draftStateText(),
+    });
+    expect(result.assistantMessage).toMatch(/only change this event's attendee features/i);
+    expect(result.links).toEqual([]);
   });
 
   it("SETUP-2 — merge overwrites extracted fields and never clears existing ones", async () => {

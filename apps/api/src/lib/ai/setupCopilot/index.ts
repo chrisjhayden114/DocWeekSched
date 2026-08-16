@@ -10,14 +10,24 @@ export {
 } from "./dialogue";
 export {
   SETUP_SYSTEM,
-  SETTINGS_SYSTEM,
+  ORGANIZER_SYSTEM,
   buildStatePrompt,
   buildFeatureRegistryPrompt,
+  buildOrganizerGuidePrompt,
   buildCreateSystemPrompt,
   buildSettingsSystemPrompt,
   composeSetupTurnMessages,
   SETUP_HISTORY_TURNS,
 } from "./prompt";
+export {
+  buildOrganizerChecklist,
+  buildOrganizerStateText,
+  EVENT_STATE_OPEN,
+  EVENT_STATE_CLOSE,
+  type OrganizerStateCounts,
+  type OrganizerStateEvent,
+} from "./organizerState";
+export { buildOrganizerGuideAnchors, linkifyOrganizerReply } from "./links";
 export { buildConfigDiffCard } from "./diffCard";
 export { buildSkeleton } from "./skeleton";
 export { assertRegistryKeys, UnknownFeatureKeyError } from "./keys";

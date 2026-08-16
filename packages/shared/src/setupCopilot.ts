@@ -3,6 +3,7 @@
  * Conversation state is client-held; server is stateless per turn.
  */
 
+import type { ConciergeLink } from "./concierge";
 import type { FeatureKey, FeatureOverrideValue, FeaturePresetId } from "./features";
 
 export type SetupEventType = "conference" | "academic_program" | "meetup" | "internal";
@@ -44,6 +45,11 @@ export type SetupCopilotMessage = {
   role: "assistant" | "user";
   content: string;
   aiGenerated?: boolean;
+  /**
+   * AGENT-3 — deterministic in-app navigation offers attached server-side
+   * (Organizer Guide anchors matched in the reply). Never model output.
+   */
+  links?: ConciergeLink[];
 };
 
 export type ConfigDiffEntry = {

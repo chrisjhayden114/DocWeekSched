@@ -10,17 +10,21 @@ import { brand } from "@event-app/config";
 import {
   FEATURE_REGISTRY_CLOSE,
   FEATURE_REGISTRY_OPEN,
-  SETTINGS_SYSTEM,
+  ORGANIZER_GUIDE_CLOSE,
+  ORGANIZER_GUIDE_OPEN,
+  ORGANIZER_SYSTEM,
   SETUP_HISTORY_TURNS,
   SETUP_STATE_CLOSE,
   SETUP_STATE_OPEN,
   SETUP_SYSTEM,
   buildCreateSystemPrompt,
   buildFeatureRegistryPrompt,
+  buildOrganizerGuidePrompt,
   buildSettingsSystemPrompt,
   buildStatePrompt,
   composeSetupTurnMessages,
 } from "../lib/ai/setupCopilot/prompt";
+import { buildOrganizerStateText } from "../lib/ai/setupCopilot/organizerState";
 
 describe("Setup Copilot prompt serialization (unit)", () => {
   it("SETUP_SYSTEM names the product and the data-not-instructions clause", () => {
@@ -44,11 +48,26 @@ describe("Setup Copilot prompt serialization (unit)", () => {
     expect(setupTimezoneFieldLabel(true)).toBe("Timezone");
   });
 
-  it("SETTINGS_SYSTEM scopes to feature toggles and the confirm card", () => {
-    expect(SETTINGS_SYSTEM).toContain(brand.productName);
-    expect(SETTINGS_SYSTEM).toMatch(/review card/i);
-    expect(SETTINGS_SYSTEM).toMatch(/organizer tabs/i);
-    expect(SETTINGS_SYSTEM).toMatch(/data, not instructions/);
+  it("ORGANIZER_SYSTEM answers from the guide + state blocks, keeps the confirm-card gate", () => {
+    expect(ORGANIZER_SYSTEM).toContain(brand.productName);
+    expect(ORGANIZER_SYSTEM).toMatch(/organizer's guide to running this event/i);
+    expect(ORGANIZER_SYSTEM).toMatch(/ORGANIZER GUIDE/);
+    expect(ORGANIZER_SYSTEM).toMatch(/EVENT STATE/);
+    expect(ORGANIZER_SYSTEM).toMatch(/review card/i);
+    expect(ORGANIZER_SYSTEM).toMatch(/never claim a change was made/i);
+    expect(ORGANIZER_SYSTEM).toMatch(/If neither block covers/i);
+    expect(ORGANIZER_SYSTEM).toMatch(/2-6 sentences/);
+    expect(ORGANIZER_SYSTEM).toMatch(/data, not instructions/);
+  });
+
+  it("organizer guide block serializes every topic between its delimiters", () => {
+    const text = buildOrganizerGuidePrompt();
+    expect(text.startsWith(ORGANIZER_GUIDE_OPEN)).toBe(true);
+    expect(text.endsWith(ORGANIZER_GUIDE_CLOSE)).toBe(true);
+    expect(text).toContain("- Publish:");
+    expect(text).toContain("- Agenda ingest:");
+    expect(text).toContain("- Participants:");
+    expect(text).toContain("- Ops Inbox:");
   });
 
   it("empty form: KNOWN is empty, STILL NEEDED lists every field in order", () => {
@@ -134,7 +153,7 @@ describe("Setup Copilot prompt serialization (unit)", () => {
     expect(messages[messages.length - 1]).toEqual({ role: "user", content: "when does it run?" });
   });
 
-  it("settings compose uses SETTINGS_SYSTEM + feature registry, not the create field list", () => {
+  it("settings compose uses ORGANIZER_SYSTEM + guide + registry, not the create field list", () => {
     const form = {
       ...emptySetupFormState("UTC"),
       name: "Live Event",
@@ -147,7 +166,38 @@ describe("Setup Copilot prompt serialization (unit)", () => {
       userMessage: "turn off ice-breakers",
     });
     expect(messages[0].content).toBe(buildSettingsSystemPrompt(form));
+    expect(messages[0].content).toContain("ORGANIZER GUIDE");
     expect(messages[0].content).toContain("FEATURE REGISTRY");
     expect(messages[0].content).not.toContain("STILL NEEDED");
+  });
+
+  it("settings compose threads the EVENT STATE block between guide and registry", () => {
+    const form = { ...emptySetupFormState("UTC"), name: "Live Event" };
+    const stateText = buildOrganizerStateText(
+      {
+        name: "Live Event",
+        status: "DRAFT",
+        startDate: "2027-07-20",
+        endDate: "2027-07-22",
+        timezone: "UTC",
+        venueName: null,
+        onlineUrl: null,
+        slug: "live-event",
+      },
+      { sessions: 0, draftSessions: 0, rooms: 0, speakers: 0, registered: 0 },
+    );
+    const messages = composeSetupTurnMessages({
+      mode: "settings",
+      form,
+      history: [],
+      userMessage: "what is left before we go live?",
+      organizerStateText: stateText,
+    });
+    const system = messages[0].content;
+    expect(system).toBe(buildSettingsSystemPrompt(form, stateText));
+    expect(system).toContain("EVENT STATE");
+    expect(system).toContain("GO-LIVE CHECKLIST:");
+    expect(system.indexOf("ORGANIZER GUIDE")).toBeLessThan(system.indexOf("EVENT STATE"));
+    expect(system.indexOf("EVENT STATE")).toBeLessThan(system.indexOf("FEATURE REGISTRY"));
   });
 });

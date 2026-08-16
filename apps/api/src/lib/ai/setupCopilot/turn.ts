@@ -22,6 +22,7 @@ import {
 } from "./dialogue";
 import { hasExtractedFields, type SetupExtract } from "./extractTypes";
 import { runSetupExtract } from "./extract";
+import { linkifyOrganizerReply } from "./links";
 import { composeSetupTurnMessages } from "./prompt";
 
 export async function runSetupCopilotTurn(params: {
@@ -36,6 +37,11 @@ export async function runSetupCopilotTurn(params: {
    * call is skipped. `null` means "already tried, use regex fallback".
    */
   extracted?: SetupExtract | null;
+  /**
+   * AGENT-3 — EVENT STATE block (settings mode): the route resolves the
+   * event and counts and serializes them via buildOrganizerStateText.
+   */
+  organizerStateText?: string | null;
 }): Promise<TurnResult> {
   const { mode, state, userMessage, liveEvent, gatewayCtx } = params;
 
@@ -68,17 +74,30 @@ export async function runSetupCopilotTurn(params: {
       form: result.form,
       history: state.messages,
       userMessage,
+      organizerStateText: params.organizerStateText,
     }),
     gatewayCtx,
   );
 
   // The mock provider answers "{}" when no reply was injected — that is "no
   // answer", not an answer; treat it like an empty reply and keep the canned
-  // fallback for this step.
+  // fallback for this step (settings mode: the old scope-decline string).
   const modelText = gw.ok ? gw.text.trim() : "";
   if (result.deterministicReply || !modelText || modelText === "{}") return result;
 
+  // AGENT-3 — deterministic linkify (CHAT-2 pattern): Organizer Guide topics
+  // that appear verbatim in the reply become in-app navigation offers.
+  const links =
+    mode === "settings" && gatewayCtx.eventId
+      ? linkifyOrganizerReply(modelText, gatewayCtx.eventId)
+      : [];
+
   const messages = [...result.messages];
-  messages[messages.length - 1] = { role: "assistant", content: modelText, aiGenerated: true };
-  return { ...result, assistantMessage: modelText, messages };
+  messages[messages.length - 1] = {
+    role: "assistant",
+    content: modelText,
+    aiGenerated: true,
+    ...(links.length ? { links } : {}),
+  };
+  return { ...result, assistantMessage: modelText, messages, links };
 }

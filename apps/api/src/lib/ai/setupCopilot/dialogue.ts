@@ -10,6 +10,7 @@ import {
   EVENT_TYPE_PRESET,
   applyPreset,
   emptySetupFormState,
+  type ConciergeLink,
   type ConfigDiffCard,
   type FeatureKey,
   type SetupCopilotFormState,
@@ -60,13 +61,19 @@ export type TurnResult = {
    * trigger /complete, so they stay byte-identical.
    */
   deterministicReply: boolean;
+  /**
+   * AGENT-3 — in-app navigation offers attached by the reply layer (settings
+   * mode, Organizer Guide anchors matched in model text). Deterministic
+   * turns carry none.
+   */
+  links: ConciergeLink[];
 };
 
 const OPENING_CREATE =
   "I'll help you set up your event — a few short questions, under two minutes of typing. What's the event called?";
 
 const OPENING_SETTINGS =
-  "Tell me what you'd like to change about attendee features. For example: “turn off ice-breakers” or “everyone's local — hide timezone conversion.” I'll show a review card before anything changes.";
+  "Ask me anything about running this event — setup steps, what's left before you go live, features, participants, publishing. Feature changes show a review card before anything is applied.";
 
 export function initialDialogue(
   mode: SetupCopilotMode,
@@ -238,6 +245,7 @@ export function runCreateTurn(
       skeletonPreview,
       aiGenerated: true,
       deterministicReply: false,
+      links: [],
     };
   }
 
@@ -426,6 +434,7 @@ export function runCreateTurn(
     skeletonPreview,
     aiGenerated: true,
     deterministicReply,
+    links: [],
   };
 }
 
@@ -484,8 +493,10 @@ export function runSettingsTurn(
     form = { ...form, networkingChoice: "focused" };
     reply = "Proposed the focused preset — review the card and confirm to apply.";
   } else {
-    // E19.3 — explicit scope decline: this assistant only changes this event's
-    // setup; it never improvises answers to general questions.
+    // E19.3 → AGENT-3: this canned decline is now only the fallback when the
+    // gateway fails or returns nothing — informational turns are answered by
+    // the model from the ORGANIZER GUIDE + EVENT STATE blocks (turn.ts) and
+    // replace this string. It never improvises without those blocks.
     reply =
       "I can only change this event's attendee features — I can't answer questions outside its setup. Try “turn off ice-breakers and timezone conversion,” “full networking,” or “keep it focused on the schedule.”";
   }
@@ -503,5 +514,6 @@ export function runSettingsTurn(
     // Model text may accompany the diff card, never replace it — the card is
     // a separate response field, so the reply itself is safe to swap.
     deterministicReply: false,
+    links: [],
   };
 }

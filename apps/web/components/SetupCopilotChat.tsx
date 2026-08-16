@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type {
+  ConciergeLink,
   ConfigDiffCard,
   SetupCopilotFormState,
   SetupCopilotMessage,
@@ -9,6 +11,7 @@ import type {
 } from "@event-app/shared";
 import { ASSISTANT_COPY, emptySetupFormState } from "@event-app/shared";
 import { apiFetch } from "../lib/api";
+import { splitByLinks } from "../lib/chatLinks";
 import {
   copilotStepFromForm,
   hasKnownHandoffFields,
@@ -53,9 +56,32 @@ type TurnResponse = {
   pendingDiff: ConfigDiffCard | null;
   handoff: SetupHandoffA1 | null;
   skeletonPreview: unknown;
+  links?: ConciergeLink[];
   aiGenerated: true;
   liveEvent?: boolean;
 };
+
+/**
+ * AGENT-3 (CHAT-2 pattern) — assistant body with the server's deterministic
+ * links rendered inline where their labels appear. splitByLinks only inlines
+ * internal ("/…") hrefs; anything else stays plain text.
+ */
+function AssistantBody({ content, links }: { content: string; links?: ConciergeLink[] }) {
+  const segments = splitByLinks(content, links ?? []);
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "link" ? (
+          <Link key={`${seg.href}-${i}`} href={seg.href} style={{ textDecoration: "underline" }}>
+            {seg.text}
+          </Link>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 function defaultTimezone() {
   return typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC";
@@ -340,7 +366,7 @@ export function SetupCopilotChat({
               lineHeight: 1.45,
             }}
           >
-            {m.content}
+            {m.role === "assistant" ? <AssistantBody content={m.content} links={m.links} /> : m.content}
           </div>
         ))}
         {pendingDiff ? (

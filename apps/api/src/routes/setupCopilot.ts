@@ -3,7 +3,7 @@
  */
 
 import { Router } from "express";
-import { EventStatus } from "@prisma/client";
+import { EventStatus, SessionPublishStatus } from "@prisma/client";
 import { z } from "zod";
 import {
   emptySetupFormState,
@@ -23,6 +23,7 @@ import {
   buildConfigDiffCard,
 } from "../lib/ai/setupCopilot";
 import { runSetupCopilotTurn } from "../lib/ai/setupCopilot/turn";
+import { buildOrganizerStateText } from "../lib/ai/setupCopilot/organizerState";
 import {
   hasExtractedFields,
   looksLikeProgramDocument,
@@ -80,6 +81,9 @@ const messageSchema = z.object({
   role: z.enum(["assistant", "user"]),
   content: z.string(),
   aiGenerated: z.boolean().optional(),
+  // AGENT-3 — server-minted navigation offers round-trip with the
+  // client-held transcript; they are never fed back to the model.
+  links: z.array(z.object({ label: z.string(), href: z.string() })).optional(),
 });
 
 setupCopilotRouter.get(
@@ -147,16 +151,48 @@ setupCopilotRouter.post(
 
     let organizationId = parsed.data.organizationId || null;
     let liveEvent = false;
+    let organizerStateText: string | null = null;
 
     if (mode === "settings") {
       if (!parsed.data.eventId) throw new HttpError(400, { error: "eventId required for settings mode" });
       await requireEventAccess(req.user!.id, parsed.data.eventId, { manage: true });
+      const eventId = parsed.data.eventId;
       const event = await prisma.event.findUniqueOrThrow({
-        where: { id: parsed.data.eventId },
-        select: { organizationId: true, status: true },
+        where: { id: eventId },
+        select: {
+          organizationId: true,
+          status: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+          timezone: true,
+          venueName: true,
+          onlineUrl: true,
+          slug: true,
+        },
       });
       organizationId = event.organizationId;
       liveEvent = event.status === EventStatus.ACTIVE;
+
+      // AGENT-3 — live setup-state grounding: cheap counts, one place. The
+      // EVENT STATE block mirrors the web setup checklist so "what's left?"
+      // answers agree with the panel rendered above the chat.
+      const [sessions, draftSessions, rooms, speakers, registered] = await Promise.all([
+        prisma.session.count({ where: { eventId } }),
+        prisma.session.count({
+          where: { eventId, publishStatus: SessionPublishStatus.DRAFT },
+        }),
+        prisma.room.count({ where: { eventId } }),
+        prisma.speaker.count({ where: { eventId } }),
+        prisma.eventMembership.count({ where: { eventId, deletedAt: null } }),
+      ]);
+      organizerStateText = buildOrganizerStateText(event, {
+        sessions,
+        draftSessions,
+        rooms,
+        speakers,
+        registered,
+      });
     } else if (organizationId) {
       await requireOrgRole(req.user!.id, organizationId, OrgRole.STAFF);
     }
@@ -171,6 +207,7 @@ setupCopilotRouter.post(
       state,
       userMessage,
       liveEvent,
+      organizerStateText,
       gatewayCtx: organizationId
         ? {
             organizationId,
@@ -189,6 +226,7 @@ setupCopilotRouter.post(
       pendingDiff: result.pendingDiff,
       handoff: result.handoff,
       skeletonPreview: result.skeletonPreview,
+      links: result.links,
       aiGenerated: true as const,
       liveEvent,
     });
