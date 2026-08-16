@@ -19,6 +19,18 @@ import {
 export const SETUP_COPILOT_DRAFT_STORAGE_KEY = "setupCopilot.draft.v1";
 export const SETUP_COPILOT_DRAFT_VERSION = 1 as const;
 
+/**
+ * AGENT-3.1 — settings-mode transcript key. Create-mode keeps the fixed
+ * SETUP_COPILOT_DRAFT_STORAGE_KEY; settings history is scoped per event so
+ * soft-nav between consoles cannot leak another event's conversation.
+ * Session storage is already browser-user scoped; eventId completes the key.
+ */
+export const SETUP_COPILOT_SETTINGS_STORAGE_PREFIX = "setupCopilot.settings.v1:";
+
+export function settingsSetupCopilotStorageKey(eventId: string): string {
+  return `${SETUP_COPILOT_SETTINGS_STORAGE_PREFIX}${eventId}`;
+}
+
 export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export type SetupCopilotDraft = {
@@ -209,6 +221,55 @@ export function clearSetupCopilotDraft(storage?: StorageLike): void {
   if (!store) return;
   try {
     store.removeItem(SETUP_COPILOT_DRAFT_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Settings-mode: persist only when the organizer has sent at least one turn. */
+export function isEmptySettingsSetupCopilotDraft(draft: {
+  history: SetupCopilotMessage[];
+}): boolean {
+  return !draft.history.some((m) => m.role === "user");
+}
+
+export function saveSettingsSetupCopilotDraft(
+  eventId: string,
+  draft: Omit<SetupCopilotDraft, "v"> & { v?: number },
+  storage?: StorageLike,
+): void {
+  if (!eventId || isEmptySettingsSetupCopilotDraft(draft)) return;
+  const store = resolveStore(storage);
+  if (!store) return;
+  try {
+    store.setItem(settingsSetupCopilotStorageKey(eventId), serializeSetupCopilotDraft(draft));
+  } catch {
+    /* storage unavailable — degrade to in-memory state only */
+  }
+}
+
+export function loadSettingsSetupCopilotDraft(
+  eventId: string,
+  storage?: StorageLike,
+): SetupCopilotDraft | null {
+  if (!eventId) return null;
+  const store = resolveStore(storage);
+  if (!store) return null;
+  try {
+    const parsed = parseSetupCopilotDraft(store.getItem(settingsSetupCopilotStorageKey(eventId)));
+    if (!parsed || isEmptySettingsSetupCopilotDraft(parsed)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearSettingsSetupCopilotDraft(eventId: string, storage?: StorageLike): void {
+  if (!eventId) return;
+  const store = resolveStore(storage);
+  if (!store) return;
+  try {
+    store.removeItem(settingsSetupCopilotStorageKey(eventId));
   } catch {
     /* ignore */
   }

@@ -747,6 +747,93 @@ describe("Setup Copilot reply layer (capturing provider)", () => {
     expect(result.links).toEqual([]);
   });
 
+  it("AGENT-3.1 — settings history is scoped per event: A's turn does not appear in B's go-live prompt", async () => {
+    // Event A recorded a go-live answer that names its public slug. Event B
+    // must start from its own (empty) transcript + its own EVENT STATE —
+    // never A's messages — so open checklist items on B still ground the reply.
+    const eventAHistory = [
+      { role: "assistant" as const, content: "How can I help with Test60Second?", aiGenerated: true as const },
+      { role: "user" as const, content: "What is left to go live?" },
+      {
+        role: "assistant" as const,
+        content:
+          "Test60Second is ready — share /e/test60second with attendees after you publish.",
+        aiGenerated: true as const,
+      },
+    ];
+    const stateA = {
+      ...initialDialogue("settings", "UTC", { name: "Test60Second" }),
+      messages: eventAHistory,
+    };
+    provider.nextText = "Test60Second looks ready.";
+    await runSetupCopilotTurn({
+      mode: "settings",
+      state: stateA,
+      userMessage: "anything else?",
+      liveEvent: false,
+      gatewayCtx: { ...gatewayCtx, eventId: "evt_test60", userId: "user_same" },
+      organizerStateText: buildOrganizerStateText(
+        {
+          name: "Test60Second",
+          status: "DRAFT",
+          startDate: "2026-08-01",
+          endDate: "2026-08-01",
+          timezone: "UTC",
+          venueName: "Hall",
+          onlineUrl: null,
+          slug: "test60second",
+        },
+        { sessions: 3, draftSessions: 0, rooms: 1, speakers: 1, registered: 0 },
+      ),
+    });
+    const promptA = provider.calls[provider.calls.length - 1];
+    expect(promptA.some((m) => m.content.includes("/e/test60second"))).toBe(true);
+
+    // Same user, event B: fresh settings opening only — A's transcript must
+    // not be in the history window; B's two open checklist items must be.
+    provider.nextText =
+      "Two things left for DocWeek 2026: add rooms in Program, and add speakers. Then publish.";
+    const stateB = initialDialogue("settings", "UTC", { name: "EDL DocWeek 2026" });
+    const resultB = await runSetupCopilotTurn({
+      mode: "settings",
+      state: stateB,
+      userMessage: "What is left for me to do for this event to go live?",
+      liveEvent: false,
+      gatewayCtx: { ...gatewayCtx, eventId: "evt_docweek", userId: "user_same" },
+      organizerStateText: buildOrganizerStateText(
+        {
+          name: "EDL DocWeek 2026",
+          status: "DRAFT",
+          startDate: "2026-10-12",
+          endDate: "2026-10-16",
+          timezone: "America/New_York",
+          venueName: "Campus",
+          onlineUrl: null,
+          slug: "edl-docweek-2026",
+        },
+        { sessions: 4, draftSessions: 0, rooms: 0, speakers: 0, registered: 8 },
+      ),
+    });
+
+    const promptB = provider.calls[provider.calls.length - 1];
+    const historyContents = promptB.filter((m) => m.role !== "system").map((m) => m.content);
+    expect(historyContents.join("\n")).not.toMatch(/test60second/i);
+    expect(historyContents.join("\n")).not.toMatch(/Test60Second/);
+
+    const systemB = promptB[0];
+    expect(systemB.role).toBe("system");
+    expect(systemB.content).toContain("EDL DocWeek 2026");
+    expect(systemB.content).toContain("/e/edl-docweek-2026");
+    expect(systemB.content).not.toMatch(/test60second/i);
+    expect(systemB.content).toMatch(/\[todo\] Add rooms/);
+    expect(systemB.content).toMatch(/\[todo\] Add speakers/);
+    // Opening greeting only in history — no prior go-live answer from A.
+    expect(stateB.messages).toHaveLength(1);
+    expect(stateB.messages[0].role).toBe("assistant");
+    expect(resultB.assistantMessage).toBe(provider.nextText);
+    expect(resultB.messages.some((m) => /test60second/i.test(m.content))).toBe(false);
+  });
+
   it("SETUP-2 — merge overwrites extracted fields and never clears existing ones", async () => {
     const state = initialDialogue("create", "UTC");
     state.form = { ...state.form, name: "Keep Me", startDate: "2027-12-20", endDate: "2027-12-20" };

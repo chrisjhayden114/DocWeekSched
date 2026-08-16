@@ -330,6 +330,7 @@ export default function OrganizerEventPage() {
 
   useEffect(() => {
     if (!eventId) return;
+    setAskAssistant(false);
     void refresh().catch((err) => {
       setError(err instanceof Error ? err.message : "Failed to load event");
     });
@@ -1192,6 +1193,7 @@ export default function OrganizerEventPage() {
             {askAssistant && eventId ? (
               <div style={{ marginBottom: 20 }}>
                 <SetupCopilotChat
+                  key={eventId}
                   mode="settings"
                   eventId={eventId}
                   organizationId={event?.organizationId}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { overviewCopy } from "@event-app/config";
 import { ASSISTANT_COPY, type SetupCopilotFormState } from "@event-app/shared";
 import { buildSetupChecklist, nextSetupStep, type SetupChecklistInput } from "../lib/setupChecklist";
@@ -23,6 +23,12 @@ export function SetupAssistantPanel({ input, organizationId, onFeaturesApplied }
   const [chatOpen, setChatOpen] = useState(false);
   const items = useMemo(() => buildSetupChecklist(input), [input]);
   const next = nextSetupStep(items);
+
+  // AGENT-3.1 — close chat on event soft-nav so a prior event's open panel
+  // does not briefly show another console's transcript.
+  useEffect(() => {
+    setChatOpen(false);
+  }, [input.eventId]);
 
   return (
     <div className="console-panel setup-assistant-panel">
@@ -79,6 +85,7 @@ export function SetupAssistantPanel({ input, organizationId, onFeaturesApplied }
       {chatOpen ? (
         <div style={{ marginTop: 12 }}>
           <SetupCopilotChat
+            key={input.eventId}
             mode="settings"
             eventId={input.eventId}
             organizationId={organizationId}

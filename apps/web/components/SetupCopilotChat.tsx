@@ -15,6 +15,8 @@ import { splitByLinks } from "../lib/chatLinks";
 import {
   copilotStepFromForm,
   hasKnownHandoffFields,
+  loadSettingsSetupCopilotDraft,
+  saveSettingsSetupCopilotDraft,
   seededOpeningMessage,
 } from "../lib/setupCopilotDraft";
 import { AiGeneratedChip } from "./AiGeneratedChip";
@@ -140,7 +142,9 @@ export function SetupCopilotChat({
   const [startOverOpen, setStartOverOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  /** Create-mode: start once. Settings-mode re-inits whenever eventId changes. */
   const started = useRef(false);
+  const settingsEventIdRef = useRef<string | undefined>(undefined);
 
   const syncForm = useCallback(
     (next: SetupCopilotFormState) => {
@@ -160,6 +164,49 @@ export function SetupCopilotChat({
   );
 
   useEffect(() => {
+    // AGENT-3.1 — settings transcript is scoped per event. Soft-nav between
+    // consoles must not keep another event's messages (started.current alone
+    // previously blocked /start when eventId changed).
+    if (mode === "settings") {
+      if (!eventId) return;
+      if (settingsEventIdRef.current === eventId && started.current) return;
+      settingsEventIdRef.current = eventId;
+      started.current = true;
+      setInput("");
+      setError(null);
+      setPendingDiff(null);
+      setBusy(false);
+
+      const restored = loadSettingsSetupCopilotDraft(eventId);
+      if (restored) {
+        syncConversation(restored.history, restored.step ?? "settings_chat");
+        syncForm({ ...restored.form, ...initialForm });
+        return;
+      }
+
+      setMessages([]);
+      let cancelled = false;
+      void (async () => {
+        try {
+          const tz = defaultTimezone();
+          const q = new URLSearchParams({ mode: "settings", timezone: tz, eventId });
+          const res = await apiFetch<{
+            step: SetupCopilotStep;
+            form: SetupCopilotFormState;
+            messages: SetupCopilotMessage[];
+          }>(`/ai/setup-copilot/start?${q}`);
+          if (cancelled) return;
+          syncConversation(res.messages, res.step);
+          syncForm({ ...res.form, ...initialForm });
+        } catch (err) {
+          if (!cancelled) setError(err instanceof Error ? err.message : "Could not start assistant");
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     if (started.current) return;
     started.current = true;
     if (restoreHistory || seedFromKnown) {
@@ -183,9 +230,21 @@ export function SetupCopilotChat({
         setError(err instanceof Error ? err.message : "Could not start assistant");
       }
     })();
-    // Restore / seed paths are decided once from the initial props.
+    // Restore / seed paths are decided once from the initial props (create).
+    // Settings re-runs when eventId changes — see branch above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, eventId]);
+
+  // AGENT-3.1 — persist settings history under this event only (create draft untouched).
+  useEffect(() => {
+    if (mode !== "settings" || !eventId) return;
+    saveSettingsSetupCopilotDraft(eventId, {
+      form,
+      history: messages,
+      step,
+      savedAt: Date.now(),
+    });
+  }, [mode, eventId, form, messages, step]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

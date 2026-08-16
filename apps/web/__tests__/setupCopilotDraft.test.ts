@@ -4,15 +4,19 @@ import {
   SETUP_COPILOT_DRAFT_STORAGE_KEY,
   SETUP_COPILOT_DRAFT_VERSION,
   clearSetupCopilotDraft,
+  clearSettingsSetupCopilotDraft,
   copilotFormToWizardFields,
   copilotStepFromForm,
   hasKnownHandoffFields,
   isEmptySetupCopilotDraft,
   loadSetupCopilotDraft,
+  loadSettingsSetupCopilotDraft,
   parseSetupCopilotDraft,
   saveSetupCopilotDraft,
+  saveSettingsSetupCopilotDraft,
   seededOpeningMessage,
   serializeSetupCopilotDraft,
+  settingsSetupCopilotStorageKey,
   toDatetimeLocal,
   wizardFieldsToCopilotForm,
   type SetupCopilotDraft,
@@ -269,5 +273,82 @@ describe("history typing", () => {
     ];
     const restored = parseSetupCopilotDraft(serializeSetupCopilotDraft(draft({ history })));
     expect(restored?.history).toEqual(history);
+  });
+});
+
+describe("AGENT-3.1 settings transcript keyed by eventId", () => {
+  it("stores event A and event B under distinct keys; A is invisible when loading B", () => {
+    const store = memoryStorage();
+    const historyA: SetupCopilotMessage[] = [
+      { role: "assistant", content: "How can I help with Test60Second?", aiGenerated: true },
+      { role: "user", content: "What is left to go live?" },
+      {
+        role: "assistant",
+        content: "Share /e/test60second once you publish.",
+        aiGenerated: true,
+      },
+    ];
+    const historyB: SetupCopilotMessage[] = [
+      { role: "assistant", content: "How can I help with DocWeek?", aiGenerated: true },
+      { role: "user", content: "What is left?" },
+    ];
+    saveSettingsSetupCopilotDraft(
+      "evt_a",
+      { form: form({ name: "Test60Second" }), history: historyA, savedAt: 1, step: "settings_chat" },
+      store,
+    );
+    saveSettingsSetupCopilotDraft(
+      "evt_b",
+      { form: form({ name: "EDL DocWeek 2026" }), history: historyB, savedAt: 2, step: "settings_chat" },
+      store,
+    );
+
+    expect(store.getItem(settingsSetupCopilotStorageKey("evt_a"))).toBeTruthy();
+    expect(store.getItem(settingsSetupCopilotStorageKey("evt_b"))).toBeTruthy();
+    expect(store.getItem(SETUP_COPILOT_DRAFT_STORAGE_KEY)).toBeNull();
+
+    const loadedB = loadSettingsSetupCopilotDraft("evt_b", store);
+    expect(loadedB?.history).toEqual(historyB);
+    expect(loadedB?.history.some((m) => /test60second/i.test(m.content))).toBe(false);
+
+    const loadedA = loadSettingsSetupCopilotDraft("evt_a", store);
+    expect(loadedA?.history.some((m) => /test60second/i.test(m.content))).toBe(true);
+  });
+
+  it("does not touch the create-mode draft key", () => {
+    const store = memoryStorage();
+    saveSetupCopilotDraft(draft(), store);
+    saveSettingsSetupCopilotDraft(
+      "evt_x",
+      {
+        form: form({ name: "Settings Only" }),
+        history: [
+          { role: "assistant", content: "Hi", aiGenerated: true },
+          { role: "user", content: "go live?" },
+        ],
+        savedAt: 1,
+        step: "settings_chat",
+      },
+      store,
+    );
+    expect(loadSetupCopilotDraft(store)?.form.name).toBe("Coastal Ecology Symposium");
+    clearSettingsSetupCopilotDraft("evt_x", store);
+    expect(loadSetupCopilotDraft(store)?.form.name).toBe("Coastal Ecology Symposium");
+    expect(loadSettingsSetupCopilotDraft("evt_x", store)).toBeNull();
+  });
+
+  it("skips persisting an opening-only settings transcript", () => {
+    const store = memoryStorage();
+    saveSettingsSetupCopilotDraft(
+      "evt_empty",
+      {
+        form: form({ name: "DocWeek" }),
+        history: [{ role: "assistant", content: "How can I help?", aiGenerated: true }],
+        savedAt: 1,
+        step: "settings_chat",
+      },
+      store,
+    );
+    expect(store.getItem(settingsSetupCopilotStorageKey("evt_empty"))).toBeNull();
   });
 });
