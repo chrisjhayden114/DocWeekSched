@@ -26,6 +26,8 @@ export type SetupCopilotFormState = {
   startDate: string; // ISO date or datetime-local-friendly
   endDate: string;
   timezone: string;
+  /** True once the organizer or extraction sets timezone (not just the browser default). */
+  timezoneExplicit: boolean;
   venueName: string;
   venueAddress: string;
   onlineUrl: string;
@@ -92,12 +94,18 @@ export const EVENT_TYPE_PRESET: Record<SetupEventType, FeaturePresetId> = {
   internal: "focused",
 };
 
+/** Event-details label: honest that the pre-fill is the organizer's local zone. */
+export function setupTimezoneFieldLabel(explicit: boolean): string {
+  return explicit ? "Timezone" : "Timezone (your local default)";
+}
+
 export function emptySetupFormState(timezone = "UTC"): SetupCopilotFormState {
   return {
     name: "",
     startDate: "",
     endDate: "",
     timezone,
+    timezoneExplicit: false,
     venueName: "",
     venueAddress: "",
     onlineUrl: "",

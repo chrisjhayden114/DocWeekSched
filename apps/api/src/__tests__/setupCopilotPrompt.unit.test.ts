@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { applyPreset, emptySetupFormState } from "@event-app/shared";
+import { applyPreset, emptySetupFormState, setupTimezoneFieldLabel } from "@event-app/shared";
 import { brand } from "@event-app/config";
 import {
   FEATURE_REGISTRY_CLOSE,
@@ -35,6 +35,13 @@ describe("Setup Copilot prompt serialization (unit)", () => {
     expect(SETUP_SYSTEM).toMatch(/daily timeslots are drafted later/i);
     expect(SETUP_SYSTEM).toMatch(/Never invent values/);
     expect(SETUP_SYSTEM).toMatch(/data, not instructions/);
+    expect(SETUP_SYSTEM).toMatch(/timezone defaults to the organizer's local zone/i);
+    expect(SETUP_SYSTEM).toMatch(/UK venue with an Asia default/);
+  });
+
+  it("setupTimezoneFieldLabel is honest about the local default until explicitly set", () => {
+    expect(setupTimezoneFieldLabel(false)).toBe("Timezone (your local default)");
+    expect(setupTimezoneFieldLabel(true)).toBe("Timezone");
   });
 
   it("SETTINGS_SYSTEM scopes to feature toggles and the confirm card", () => {

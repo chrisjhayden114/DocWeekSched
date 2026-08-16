@@ -54,7 +54,7 @@ export function parseEventName(text: string): string | null {
 export function parseDatesAndTimezone(
   text: string,
   fallbackTz: string,
-): { startDate: string; endDate: string; timezone: string } | null {
+): { startDate: string; endDate: string; timezone: string; timezoneExplicit: boolean } | null {
   const isoRange = text.match(
     /(\d{4}-\d{2}-\d{2})(?:\s*(?:to|through|-|–|—)\s*(\d{4}-\d{2}-\d{2}))?/i,
   );
@@ -97,16 +97,28 @@ export function parseDatesAndTimezone(
   }
 
   let timezone = fallbackTz;
+  let timezoneExplicit = false;
   const tzMatch = text.match(
     /\b(UTC|GMT|[A-Za-z]+\/[A-Za-z_]+|America\/[A-Za-z_]+|Europe\/[A-Za-z_]+|Asia\/[A-Za-z_]+|Pacific\/[A-Za-z_]+)\b/,
   );
-  if (tzMatch) timezone = tzMatch[1];
-  else if (/\b(PT|Pacific Time|Los Angeles)\b/i.test(text)) timezone = "America/Los_Angeles";
-  else if (/\b(ET|Eastern Time|New York)\b/i.test(text)) timezone = "America/New_York";
-  else if (/\b(CT|Central Time|Chicago)\b/i.test(text)) timezone = "America/Chicago";
-  else if (/\b(MT|Mountain Time|Denver)\b/i.test(text)) timezone = "America/Denver";
+  if (tzMatch) {
+    timezone = tzMatch[1];
+    timezoneExplicit = true;
+  } else if (/\b(PT|Pacific Time|Los Angeles)\b/i.test(text)) {
+    timezone = "America/Los_Angeles";
+    timezoneExplicit = true;
+  } else if (/\b(ET|Eastern Time|New York)\b/i.test(text)) {
+    timezone = "America/New_York";
+    timezoneExplicit = true;
+  } else if (/\b(CT|Central Time|Chicago)\b/i.test(text)) {
+    timezone = "America/Chicago";
+    timezoneExplicit = true;
+  } else if (/\b(MT|Mountain Time|Denver)\b/i.test(text)) {
+    timezone = "America/Denver";
+    timezoneExplicit = true;
+  }
 
-  return { startDate, endDate, timezone };
+  return { startDate, endDate, timezone, timezoneExplicit };
 }
 
 function monthToNum(name: string): number {
@@ -132,6 +144,23 @@ function ymd(y: number, m: number, d: number): string {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
+const VENUE_MAX = 80;
+const VENUE_HEADCOUNT = /~\s*\d+|\d+\s*(?:people|attendees|participants|teachers)\b/i;
+
+function isVenueSentence(raw: string): boolean {
+  if (/,\s*thinking\b/i.test(raw) || /\sexpecting\b/i.test(raw)) return true;
+  const commas = (raw.match(/,/g) ?? []).length;
+  return commas >= 2 && /\d/.test(raw);
+}
+
+/** Place name only — drop descriptions, headcounts, and multi-clause sentences. */
+export function cleanVenueName(raw: string): string | null {
+  const v = raw.trim();
+  if (!v || v.length > VENUE_MAX) return null;
+  if (VENUE_HEADCOUNT.test(v) || isVenueSentence(v)) return null;
+  return v;
+}
+
 export function parseVenue(text: string): {
   venueName: string;
   venueAddress: string;
@@ -145,13 +174,14 @@ export function parseVenue(text: string): {
   if (/\bhybrid\b/i.test(t)) {
     const url = t.match(/https?:\/\/\S+/)?.[0] || "";
     const name = t.replace(/\bhybrid\b/i, "").replace(/https?:\/\/\S+/, "").trim() || "Hybrid venue";
-    return { venueName: name, venueAddress: "", onlineUrl: url };
+    return { venueName: cleanVenueName(name) ?? "", venueAddress: "", onlineUrl: url };
   }
-  return { venueName: t.slice(0, 200), venueAddress: "", onlineUrl: "" };
+  return { venueName: cleanVenueName(t) ?? "", venueAddress: "", onlineUrl: "" };
 }
 
 export function parseSize(text: string): string | null {
-  const m = text.match(/(\d{1,6})/);
+  const stripped = text.trim().replace(/^(?:~|about|roughly)\s*/i, "");
+  const m = stripped.match(/(\d{1,6})/);
   return m ? m[1] : null;
 }
 

@@ -13,7 +13,7 @@ import {
   type SetupCopilotStep,
   type SetupEventType,
 } from "@event-app/shared";
-import { parseEventName } from "./parse";
+import { cleanVenueName, parseEventName } from "./parse";
 
 export type SetupExtract = {
   name?: string | null;
@@ -22,7 +22,7 @@ export type SetupExtract = {
   timezone?: string | null;
   venueName?: string | null;
   onlineUrl?: string | null;
-  estimatedSize?: number | null;
+  estimatedSize?: number | string | null;
   eventType?: SetupEventType | null;
   networkingChoice?: "full" | "focused" | "custom" | null;
   networkingNote?: string | null;
@@ -40,9 +40,11 @@ export type ValidateExtractContext = {
 };
 
 const NAME_MAX = 120;
+const VENUE_MAX = 80;
 const SIZE_MIN = 2;
 const SIZE_MAX = 100000;
 const HEADCOUNT_WORD = /\b(people|attendees|teachers|participants)\b/i;
+const SIZE_APPROX_PREFIX = /^(?:~|about|roughly)\s*/i;
 const YMD_RE = /^(\d{4})-(\d{2})-(\d{2})/;
 const HM_RE = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
@@ -133,6 +135,18 @@ function cleanExtractedName(raw: string): string | null {
   return stripped || null;
 }
 
+/** Strip ~/about/roughly, then parse an integer headcount. */
+export function parseEstimatedSizeInput(raw: unknown): number | null {
+  if (typeof raw === "number") {
+    return Number.isInteger(raw) ? raw : null;
+  }
+  if (typeof raw !== "string") return null;
+  const stripped = raw.trim().replace(SIZE_APPROX_PREFIX, "");
+  if (!/^\d/.test(stripped)) return null;
+  const n = Number.parseInt(stripped, 10);
+  return Number.isInteger(n) ? n : null;
+}
+
 /**
  * Deterministic validation: invalid fields are dropped (null), never
  * coerced into form state. Call before merge; merge also re-runs this.
@@ -173,9 +187,14 @@ export function validateExtracted(
     next.onlineUrl = null;
   }
 
-  const size = fields.estimatedSize;
-  const sizeOk =
-    size != null && Number.isInteger(size) && size >= SIZE_MIN && size <= SIZE_MAX;
+  if (nonEmpty(fields.venueName)) {
+    next.venueName = cleanVenueName(fields.venueName);
+  } else {
+    next.venueName = null;
+  }
+
+  const size = parseEstimatedSizeInput(fields.estimatedSize);
+  const sizeOk = size != null && size >= SIZE_MIN && size <= SIZE_MAX;
   if (!sizeOk) {
     next.estimatedSize = null;
   } else {
@@ -232,8 +251,11 @@ export function mergeSetupExtract(
   if (nonEmpty(valid.name)) next.name = valid.name.trim().slice(0, NAME_MAX);
   if (nonEmpty(valid.startDate)) next.startDate = valid.startDate;
   if (nonEmpty(valid.endDate)) next.endDate = valid.endDate;
-  if (nonEmpty(valid.timezone)) next.timezone = valid.timezone.trim();
-  if (nonEmpty(valid.venueName)) next.venueName = valid.venueName.trim().slice(0, 200);
+  if (nonEmpty(valid.timezone)) {
+    next.timezone = valid.timezone.trim();
+    next.timezoneExplicit = true;
+  }
+  if (nonEmpty(valid.venueName)) next.venueName = valid.venueName.trim().slice(0, VENUE_MAX);
   if (nonEmpty(valid.onlineUrl)) next.onlineUrl = valid.onlineUrl.trim();
   if (valid.estimatedSize != null && Number.isFinite(valid.estimatedSize)) {
     next.estimatedSize = String(valid.estimatedSize);

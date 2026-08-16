@@ -270,6 +270,7 @@ export function runCreateTurn(
         startDate: parsed.startDate,
         endDate: parsed.endDate,
         timezone: parsed.timezone,
+        timezoneExplicit: form.timezoneExplicit || parsed.timezoneExplicit,
       };
       step = "venue";
       reply = "Where is it — a venue name, online, or hybrid?";

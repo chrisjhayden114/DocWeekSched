@@ -254,19 +254,44 @@ describe("Setup Copilot A2 (unit, mock provider)", () => {
       startDate: "2027-07-20",
       endDate: "2027-07-22",
       timezone: "America/New_York",
+      timezoneExplicit: true,
     });
     expect(parseDatesAndTimezone("July 20–22 2027 PT", "UTC")).toEqual({
       startDate: "2027-07-20",
       endDate: "2027-07-22",
       timezone: "America/Los_Angeles",
+      timezoneExplicit: true,
     });
     expect(parseDatesAndTimezone("1st - 5th December 2026", "UTC")).toEqual({
       startDate: "2026-12-01",
       endDate: "2026-12-05",
       timezone: "UTC",
+      timezoneExplicit: false,
     });
     expect(parseDatesAndTimezone("1st - 5th December 2026", "UTC")?.startDate).not.toBe("2027-12-20");
     expect(parseDatesAndTimezone("what does networking mean?", "UTC")).toBeNull();
+  });
+
+  it("dates step marks timezoneExplicit when the organizer states a zone", () => {
+    let state = initialDialogue("create", "Asia/Shanghai");
+    let turn = runCreateTurn(state, "DocWeek 2027");
+    expect(turn.form.timezoneExplicit).toBe(false);
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "2027-07-20 to 2027-07-22, Europe/London");
+    expect(turn.form.timezone).toBe("Europe/London");
+    expect(turn.form.timezoneExplicit).toBe(true);
+  });
+
+  it("SETUP-2.2 — live-bug extract never merges the full UK-mix sentence as venueName", () => {
+    const source = "UK in person and online (a mix), thinking ~30 people";
+    const state = initialDialogue("create", "Asia/Shanghai");
+    const turn = runCreateTurn(state, source, {
+      venueName: source,
+      estimatedSize: "~30 people",
+    });
+    expect(turn.form.venueName).not.toBe(source);
+    expect(turn.form.venueName === "UK" || turn.form.venueName === "").toBe(true);
+    expect(turn.form.estimatedSize).toBe("30");
   });
 
   it("date parser overwrites a previously-parsed wrong range", () => {
@@ -293,7 +318,11 @@ describe("Setup Copilot A2 (unit, mock provider)", () => {
       onlineUrl: "https://online.example",
     });
     expect(parseVenue("SF Convention Center").venueName).toBe("SF Convention Center");
+    expect(parseVenue("UK in person and online (a mix), thinking ~30 people").venueName).toBe("");
     expect(parseSize("about 200 people")).toBe("200");
+    expect(parseSize("~30 people")).toBe("30");
+    expect(parseSize("about 30")).toBe("30");
+    expect(parseSize("roughly 30 teachers")).toBe("30");
     expect(parseSize("what does networking mean?")).toBeNull();
     expect(parseYesNo("yes I have a PDF")).toBe(true);
     expect(parseYesNo("no")).toBe(false);

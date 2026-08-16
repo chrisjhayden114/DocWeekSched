@@ -58,6 +58,7 @@ const formStateSchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
   timezone: z.string(),
+  timezoneExplicit: z.boolean().optional(),
   venueName: z.string(),
   venueAddress: z.string(),
   onlineUrl: z.string(),
@@ -223,7 +224,7 @@ function regexExtractFromDocument(text: string, fallbackTz: string): SetupExtrac
   return {
     startDate: dates?.startDate ?? null,
     endDate: dates?.endDate ?? null,
-    timezone: dates?.timezone ?? null,
+    timezone: dates?.timezoneExplicit ? dates.timezone : null,
     eventType: parseEventType(text),
     estimatedSize: size ? Number(size) : null,
     networkingChoice: parseNetworkingChoice(text),

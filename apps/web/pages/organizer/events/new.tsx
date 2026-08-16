@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { SetupCopilotFormState } from "@event-app/shared";
-import { ASSISTANT_COPY, emptySetupFormState } from "@event-app/shared";
+import { ASSISTANT_COPY, emptySetupFormState, setupTimezoneFieldLabel } from "@event-app/shared";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../components/FeatureConfigPanel";
 import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
@@ -71,6 +71,7 @@ export default function NewEventWizard() {
   const [timezone, setTimezone] = useState(
     typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC",
   );
+  const initialTimezoneRef = useRef(timezone);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [venueName, setVenueName] = useState("");
@@ -477,7 +478,11 @@ export default function NewEventWizard() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="help-text">Timezone</dt>
+                  <dt className="help-text">
+                    {setupTimezoneFieldLabel(
+                      Boolean(copilotForm.timezoneExplicit) || timezone !== initialTimezoneRef.current,
+                    )}
+                  </dt>
                   <dd style={{ margin: 0 }}>{timezone}</dd>
                 </div>
                 <div>
