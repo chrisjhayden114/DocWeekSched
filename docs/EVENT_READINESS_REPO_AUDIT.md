@@ -772,3 +772,21 @@ Q19→none exist §6, Q20→CFP/tenancy/features fixtures §13). Genuinely open:
 
 *End of ER0. No application code, schema, environment, or data was changed. The next step,
 after human review of this audit (plan §19.4 checklist), is ER1.*
+
+---
+
+## §15 (addendum) — O1–O10 RESOLVED by founder, 2026-08-16
+
+- O1 RESOLVED: portal tokens expire 30 days; remint on demand; auto-revoke on event archive.
+- O2 RESOLVED: presenter email lives on nullable `Speaker.contactEmail` (additive column; also serves ER6 reminders).
+- O3 RESOLVED: sensitive-field visibility is manage-level for MVP; no per-organizer allowlist.
+- O4 RESOLVED: first 3–5 pilots run as comped INTERNAL-plan orgs (zero entitlement code).
+- O5 RESOLVED: private files are API-proxied (auth-checked streaming); no signed URLs. Unblocks ER4.
+- O6 RESOLVED: exceptions are derived, not stored; WAIVERS are persisted (join the ER2 models).
+- O7 RESOLVED: readiness files retained for the life of the event, removed on event deletion; privacy-draft sentence to be added; tiered retention revisited at ER9.
+- O8 RESOLVED: image dimension rules dropped from MVP.
+- O9 RESOLVED: at ER8, remove `plannedPhase` from the readiness key; rely on plan-lock blockedReason UX for non-entitled orgs.
+- O10 RESOLVED: default file rules = CFP allowlist (PDF/DOCX/images, 10 MB); deck-type requirements up to the 20 MB storage cap; configured per requirement type.
+
+Sequencing (founder, 2026-08-16): full pre-pilot build — ER2 → ER3 → ER4 (then reassess
+ER5–ER7) after AGENT-1/AGENT-2 (real conversational concierge + setup copilot).

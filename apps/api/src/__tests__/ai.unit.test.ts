@@ -191,6 +191,9 @@ describe("AI gateway (mock provider, no DB)", () => {
       sessions: [],
       faq: [],
       maps: [],
+      announcements: [],
+      rooms: [],
+      tracks: [],
       myAgendaSessionIds: new Set(),
       textBlob: "",
     };

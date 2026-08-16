@@ -56,8 +56,192 @@ function topicFromBuildRequest(text: string): string {
 }
 
 /**
+ * AGENT-1 — deterministic ACTION detection, separable from canned Q&A.
+ *
+ * Detects ONLY the intents that must stay out of the model's hands:
+ * add/remove from agenda, waitlist, export ICS, the propose-meeting redirect,
+ * and the Matchmaker (A4) handoff. Derived from **userText only** — corpus
+ * text is never scanned for tool instructions (prompt-injection safety).
+ * Returns null for everything else (informational turns → grounded model).
+ */
+export type ConciergeAction = {
+  assistantMessage: string;
+  mutationProposals: DialogueProposal[];
+  readResults: DialogueTurnResult["readResults"];
+  handoff: ConciergeHandoffStub | null;
+  links: ConciergeLink[];
+};
+
+export async function detectAction(params: {
+  userText: string;
+  grounding: GroundingContext;
+  userId: string;
+  /** Injectable for tests; defaults to the real clock. */
+  now?: Date;
+}): Promise<ConciergeAction | null> {
+  const userText = params.userText.trim();
+  const { grounding, userId } = params;
+  const now = params.now ?? new Date();
+
+  if (!userText) {
+    return {
+      assistantMessage:
+        "Ask me about the schedule, your agenda, rooms, or the FAQ — or tap a starter chip.",
+      mutationProposals: [],
+      readResults: [],
+      handoff: null,
+      links: [],
+    };
+  }
+
+  // A4 handoff — Matchmaker is live; point attendees to the Meet tab
+  if (/who should i meet|people (to|i should) meet|match me/i.test(userText)) {
+    return {
+      assistantMessage:
+        "Open the Meet tab for interest-based suggestions. Draft intros open your DM composer pre-filled — nothing sends until you press Send.",
+      mutationProposals: [],
+      readResults: [],
+      handoff: { agent: "A4", message: "Matchmaker (A4) — Meet tab" },
+      links: [],
+    };
+  }
+
+  const mutationProposals: DialogueProposal[] = [];
+  const readResults: DialogueTurnResult["readResults"] = [];
+  const replies: string[] = [];
+  const links: ConciergeLink[] = [];
+  const linkToSession = (id: string, label: string) => {
+    if (!grounding.sessionIds.has(id)) return;
+    if (links.some((l) => l.href === `/session/${id}`)) return;
+    links.push({ label, href: `/session/${id}` });
+  };
+
+  // Export ICS
+  if (/\b(export|ics|calendar feed|subscribe.*(calendar|agenda))\b/i.test(userText)) {
+    mutationProposals.push({ tool: "exportICS", args: {} });
+    replies.push("I can create a private calendar feed for your agenda — confirm below.");
+  }
+
+  // Remove from agenda (clarify deterministically when the title is unclear —
+  // a write-adjacent intent never routes to the model)
+  if (/\b(remove|drop|leave)\b/i.test(userText) && /\b(agenda|schedule|session)\b/i.test(userText)) {
+    const session = findSessionByTitleHint(grounding, userText);
+    if (session) {
+      mutationProposals.push({ tool: "removeFromMyAgenda", args: { sessionId: session.id } });
+      replies.push(`I can remove “${session.title}” from your agenda — confirm below.`);
+    } else {
+      replies.push("Tell me which session to remove (use the exact title from the schedule).");
+    }
+  }
+
+  // Waitlist
+  if (/\bwaitlist\b/i.test(userText)) {
+    const session = findSessionByTitleHint(grounding, userText);
+    if (session) {
+      const mode = /\bvirtual\b/i.test(userText) ? "VIRTUAL" : "IN_PERSON";
+      mutationProposals.push({ tool: "joinWaitlist", args: { sessionId: session.id, mode } });
+      replies.push(`I can put you on the waitlist for “${session.title}” — confirm below.`);
+    } else {
+      replies.push("Which session should I waitlist you for? Include the session title.");
+    }
+  }
+
+  // Add to agenda (title named explicitly)
+  const wantsAdd =
+    /\b(add|join|put me on|sign me up)\b/i.test(userText) &&
+    !/\bwaitlist\b/i.test(userText) &&
+    !/\b(remove|drop|leave)\b/i.test(userText);
+  let addedByTitle = false;
+  if (wantsAdd) {
+    const session = findSessionByTitleHint(grounding, userText);
+    if (session) {
+      const mode = /\bvirtual\b/i.test(userText)
+        ? "VIRTUAL"
+        : /\basync\b/i.test(userText)
+          ? "ASYNC"
+          : "IN_PERSON";
+      mutationProposals.push({ tool: "addToMyAgenda", args: { sessionId: session.id, mode } });
+      replies.push(`I can add “${session.title}” to your agenda — confirm the card below.`);
+      addedByTitle = true;
+    }
+  }
+
+  // "Build me a schedule around X" / "add a session about X" — topic search,
+  // then propose the first grounded hit (same behavior as the canned path).
+  const wantsTopicAdd =
+    !addedByTitle &&
+    (/\bbuild me a schedule\b/i.test(userText) ||
+      (wantsAdd && /\b(sessions? (about|on)|around )\b/i.test(userText)));
+  if (wantsTopicAdd) {
+    const query = topicFromBuildRequest(userText);
+    const q =
+      query.length > 2 &&
+      !/^(what|this|morning|afternoon|lunch|schedule|build|me|a|around)$/i.test(query)
+        ? query
+        : "";
+    if (q) {
+      const result = await runReadOnlyTool({
+        tool: "searchSessions",
+        args: { query: q },
+        grounding,
+        userId,
+        now,
+      });
+      readResults.push({ tool: "searchSessions", summary: result.summary, data: result.data });
+      const foundIds = Array.isArray(result.data?.sessionIds)
+        ? (result.data!.sessionIds as string[])
+        : [];
+      if (foundIds.length) {
+        replies.push(result.summary);
+        for (const id of foundIds.slice(0, 3)) {
+          const title = grounding.sessions.find((s) => s.id === id)?.title;
+          if (title) linkToSession(id, `Open “${title}”`);
+        }
+        const firstId = foundIds[0];
+        mutationProposals.push({
+          tool: "addToMyAgenda",
+          args: { sessionId: firstId, mode: "IN_PERSON" },
+        });
+        const title = grounding.sessions.find((s) => s.id === firstId)?.title;
+        if (title) replies.push(`Want me to add “${title}”? Confirm below.`);
+      }
+    }
+  }
+
+  // Propose-meeting redirect
+  if (/\b(propose|request)\b.*\bmeet/i.test(userText) || /\bmeet with\b/i.test(userText)) {
+    replies.push(
+      "To propose a meeting, open someone’s directory profile and use Request meeting — or tell me their name once Matchmaker (A4) is live.",
+    );
+  }
+
+  if (!replies.length && !mutationProposals.length) return null;
+
+  // Deduplicate + keep only genuinely mutating proposals
+  const seen = new Set<string>();
+  const uniqueMutations = mutationProposals.filter((p) => {
+    const key = `${p.tool}:${JSON.stringify(p.args)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return isConciergeMutatingTool(p.tool);
+  });
+
+  return {
+    assistantMessage: replies.join("\n\n"),
+    mutationProposals: uniqueMutations,
+    readResults,
+    handoff: null,
+    links,
+  };
+}
+
+/**
  * Run one concierge turn from **userText only** (+ grounding for lookups).
  * Never parses grounding.textBlob / session descriptions for tools.
+ *
+ * AGENT-1: no longer the primary answer path — turn.ts routes informational
+ * turns to the grounded model and only uses this canned Q&A as the fallback
+ * when the gateway errors or returns nothing.
  */
 export async function runConciergeDialogue(params: {
   userText: string;

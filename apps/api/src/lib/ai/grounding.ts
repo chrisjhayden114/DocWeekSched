@@ -158,6 +158,10 @@ export async function buildEventGroundingContext(
       };
     }),
     faq: event.eventFaqs,
+    // Query is ordered publishedAt desc — kept newest-first for the prompt.
+    announcements: event.announcements,
+    rooms: event.rooms,
+    tracks: event.tracks,
     maps: event.venueMaps.map((m) => ({
       id: m.id,
       name: m.name,

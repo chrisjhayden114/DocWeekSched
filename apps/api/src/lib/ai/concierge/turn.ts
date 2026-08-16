@@ -3,7 +3,9 @@ import type { ConciergeActionCard, ConciergeLink } from "@event-app/shared";
 import { prisma } from "../../db";
 import { gatewayChat } from "../gateway";
 import { buildEventGroundingContext } from "../grounding";
-import { runConciergeDialogue } from "./dialogue";
+import type { AiChatMessage } from "../types";
+import { detectAction, runConciergeDialogue, type DialogueProposal } from "./dialogue";
+import { buildConciergeSystemPrompt } from "./prompt";
 import { proposeMutation } from "./propose";
 
 export async function getOrCreateConversation(eventId: string, userId: string) {
@@ -22,6 +24,9 @@ export async function listConversationMessages(conversationId: string, take = 50
   });
 }
 
+/** History window sent to the model on informational turns. */
+const HISTORY_TURNS = 6;
+
 export type ConciergeTurnResponse = {
   conversationId: string;
   assistantMessage: string;
@@ -37,7 +42,14 @@ export type ConciergeTurnResponse = {
 };
 
 /**
- * One attendee turn: ground → dialogue (user text only) → meter via A0 → mint pending → persist.
+ * One attendee turn (AGENT-1 routing):
+ * - ACTION intents (add/remove/waitlist/export/meeting/matchmaker) stay 100%
+ *   deterministic — regex detection, pending confirm cards, no model text.
+ * - Everything else goes to the model with the full grounded EVENT CONTEXT,
+ *   and the model's reply IS the assistant message.
+ * Both paths meter through A0 (caps enforced exactly as before); gateway
+ * errors and empty replies fall back to the old deterministic canned answers.
+ * Writes NEVER come from model output.
  */
 export async function runConciergeTurn(params: {
   eventId: string;
@@ -48,6 +60,18 @@ export async function runConciergeTurn(params: {
   const { eventId, organizationId, userId, userMessage } = params;
   const conversation = await getOrCreateConversation(eventId, userId);
   const grounding = await buildEventGroundingContext(eventId, { userId });
+  const now = new Date();
+
+  // History window BEFORE persisting this turn's user message.
+  const historyRows = await prisma.conciergeMessage.findMany({
+    where: { conversationId: conversation.id },
+    orderBy: { createdAt: "desc" },
+    take: HISTORY_TURNS,
+  });
+  const history: AiChatMessage[] = historyRows.reverse().map((m) => ({
+    role: m.role === ConciergeMessageRole.USER ? ("user" as const) : ("assistant" as const),
+    content: m.body,
+  }));
 
   await prisma.conciergeMessage.create({
     data: {
@@ -58,19 +82,32 @@ export async function runConciergeTurn(params: {
     },
   });
 
-  const dialogue = await runConciergeDialogue({
-    userText: userMessage,
-    grounding,
-    userId,
-  });
+  const action = await detectAction({ userText: userMessage, grounding, userId, now });
 
-  // Meter through A0 before minting pending actions (mock returns canned; enforces CONCIERGE caps)
-  const gw = await gatewayChat([{ role: "user", content: dialogue.gatewayUserPrompt }], {
-    organizationId,
-    eventId,
-    userId,
-    feature: "CONCIERGE",
-  });
+  // Meter through A0 on every turn (CONCIERGE caps unchanged). Action turns
+  // send a minimal metering prompt and never use the model's text; grounded
+  // informational turns send system context + history + the user message.
+  const gw = action
+    ? await gatewayChat(
+        [
+          {
+            role: "user",
+            content: `Concierge turn for event ${grounding.eventId}: ${userMessage.slice(0, 500)}`,
+          },
+        ],
+        { organizationId, eventId, userId, feature: "CONCIERGE" },
+      )
+    : await gatewayChat(
+        [
+          {
+            role: "system",
+            content: buildConciergeSystemPrompt(grounding, grounding.myAgendaSessionIds, now),
+          },
+          ...history,
+          { role: "user", content: userMessage.slice(0, 4000) },
+        ],
+        { organizationId, eventId, userId, feature: "CONCIERGE" },
+      );
 
   if (!gw.ok && gw.code === "CAP_EXCEEDED") {
     const teaserMessage =
@@ -97,8 +134,39 @@ export async function runConciergeTurn(params: {
     };
   }
 
+  let assistantMessage: string;
+  let mutationProposals: DialogueProposal[] = [];
+  let mapHint: ConciergeTurnResponse["mapHint"] = null;
+  let handoff: ConciergeTurnResponse["handoff"] = null;
+  let links: ConciergeLink[] = [];
+  let refused = false;
+
+  if (action) {
+    assistantMessage = action.assistantMessage;
+    mutationProposals = action.mutationProposals;
+    handoff = action.handoff;
+    links = action.links;
+  } else {
+    // The mock provider answers "{}" when no reply was injected — that is
+    // "no answer", not an answer; treat it like an empty reply.
+    const modelText = gw.ok ? gw.text.trim() : "";
+    if (modelText && modelText !== "{}") {
+      assistantMessage = modelText;
+    } else {
+      // Honest fallback, never blank: the old deterministic canned answer /
+      // decline for this input. Read-only — action intents were already
+      // handled above, so fallback proposals are intentionally dropped.
+      const dialogue = await runConciergeDialogue({ userText: userMessage, grounding, userId, now });
+      assistantMessage = dialogue.assistantMessage;
+      mapHint = dialogue.mapHint;
+      handoff = dialogue.handoff;
+      links = dialogue.links;
+      refused = dialogue.refused;
+    }
+  }
+
   const actionCards: ConciergeActionCard[] = [];
-  for (const proposal of dialogue.mutationProposals) {
+  for (const proposal of mutationProposals) {
     const card = await proposeMutation({
       eventId,
       userId,
@@ -110,7 +178,6 @@ export async function runConciergeTurn(params: {
     actionCards.push(card);
   }
 
-  const assistantMessage = dialogue.assistantMessage;
   const pendingIds = actionCards.map((c) => c.pendingActionId);
 
   await prisma.conciergeMessage.create({
@@ -119,8 +186,8 @@ export async function runConciergeTurn(params: {
       role: ConciergeMessageRole.ASSISTANT,
       body: assistantMessage,
       aiGenerated: true,
-      toolProposals: dialogue.mutationProposals.length
-        ? (dialogue.mutationProposals as unknown as Prisma.InputJsonValue)
+      toolProposals: mutationProposals.length
+        ? (mutationProposals as unknown as Prisma.InputJsonValue)
         : Prisma.JsonNull,
       pendingActionIds: pendingIds.length
         ? (pendingIds as unknown as Prisma.InputJsonValue)
@@ -139,10 +206,10 @@ export async function runConciergeTurn(params: {
     assistantMessage,
     aiGenerated: true,
     actionCards,
-    mapHint: dialogue.mapHint,
-    handoff: dialogue.handoff,
-    links: dialogue.links,
-    refused: dialogue.refused,
+    mapHint,
+    handoff,
+    links,
+    refused,
     usageId: gw.ok ? gw.usageId : undefined,
     teaser: null,
   };

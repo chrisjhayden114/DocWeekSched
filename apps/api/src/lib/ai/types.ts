@@ -129,6 +129,10 @@ export type GroundingContext = {
   }>;
   faq: Array<{ id: string; question: string; answer: string }>;
   maps: Array<{ id: string; name: string; roomIds: string[] }>;
+  /** AGENT-1 — structured corpus for prompt serialization (newest first). */
+  announcements: Array<{ id: string; title: string; body: string }>;
+  rooms: Array<{ id: string; name: string }>;
+  tracks: Array<{ id: string; name: string }>;
   /** Attendee agenda session ids when userId was provided. */
   myAgendaSessionIds: Set<string>;
   textBlob: string;
