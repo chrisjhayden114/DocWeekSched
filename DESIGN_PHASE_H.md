@@ -141,6 +141,32 @@ render as sessions in a "Breaks" track (or isMinimal rows) — no new models.
 Sequencing: after H3 (so generated output is born into the fixed review), before H4/H5.
 Revised order: H1 → H2 → H3 → H-GEN → H4 → H5 → outreach.
 
+## BRAND series — make event branding visible (added 2026-08-16)
+
+Founder ask: banner + prominent event name in the attendee app; survey of organizer
+branding needs. Recon: brandColor/bannerUrl/logoUrl exist and are settable (Settings
+SlideOver), the accent system (eventAccent.ts, contrast-enforced) shipped in F1.5.3 —
+but the banner renders NOWHERE (dead .hero-banner/.app-shell--with-banner CSS), the
+logo is a 28px icon, the event name is 13px + truncated, /e/[slug] shows zero event
+branding (audit: major), session pages miss accentStyle, wizard defaults to UKEDL blue,
+PUT /event nulls missing branding fields, brandColor lacks server hex validation,
+certificates use platform colors and badge showLogo draws text.
+
+Constraints honored: neutral chrome + scoped accent (F decision), no full theming,
+marketing site stays UKEDL, contrast held, calm (banner is identity, not a billboard).
+
+- BRAND-1 (now): render what's stored — attendee-app banner band + prominent event
+  name (fix 13px/truncation), /e/[slug] banner hero + logo beside the title,
+  session-page accentStyle bug fix.
+- BRAND-2: input hygiene — partial-save-safe PUT /event branding fields, server hex
+  validation, wizard branding step folds color+logo+banner with neutral default (not
+  UKEDL blue).
+- BRAND-3: branded documents — certificates wear event accent + optional logo; badge
+  showLogo draws the actual logo image.
+- BRAND-4 (post-pilot, white_label tier): email header branding, "powered by UKEDL"
+  footer control — first real use of the white_label entitlement. Custom domains out
+  of scope.
+
 ## Settled ground honored (do not re-litigate)
 
 - E19.1 concurrent card wrapping (designed for ≤5 tracks — H5/H7 supersede for breakout

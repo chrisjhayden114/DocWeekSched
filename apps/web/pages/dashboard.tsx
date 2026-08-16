@@ -36,7 +36,8 @@ import { SessionPeekSheet } from "../components/SessionPeekSheet";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { Composer, EmptyState, FeedCard, FilterPills, Lightbox, PageHeader } from "../components/kit";
 import { galleryPreview } from "../lib/gallery";
-import { formatEventTimeRange, formatEventDateTime, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
+import { formatEventTimeRange, formatEventDateTime, formatEventDateRange, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
+import { EventHero } from "../components/EventHero";
 import { offerPushAfterFirstAgendaSave } from "../lib/push";
 import { AutolinkText } from "../components/AutolinkText";
 import { BreakTheIceCarousel } from "../components/BreakTheIceCarousel";
@@ -1335,6 +1336,17 @@ export default function Dashboard() {
       <div className="motion-enter" key={active}>
       {active === "Agenda" && (
         <>
+          {/* BRAND-1 — the Agenda tab is the app's home, so it carries the
+              event's identity: banner hero when one is set, quiet name+logo
+              header otherwise. Agenda only — calm, not on every tab. */}
+          {event ? (
+            <EventHero
+              name={event.name}
+              dateRange={formatEventDateRange(event.startDate, event.endDate, event.timezone)}
+              bannerUrl={event.bannerUrl}
+              logoUrl={event.logoUrl}
+            />
+          ) : null}
           {token && activeEventId ? (
             <SponsorsStrip token={token} eventId={activeEventId} enabled={featureOn("sponsors")} />
           ) : null}

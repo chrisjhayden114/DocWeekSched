@@ -5,6 +5,7 @@ import type { GetServerSideProps } from "next";
 import { useEffect, useMemo, useState } from "react";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../../components/AgendaFilterPanel";
 import { BrandLogo } from "../../components/BrandLogo";
+import { EventHero } from "../../components/EventHero";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../../components/ScheduleViewSwitcher";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../../components/ScheduleTimetable";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
@@ -672,12 +673,45 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
         <main className="mkt-section" style={{ background: "var(--gray-50)" }}>
           <div className="mkt-section-inner" style={{ maxWidth: 1040 }}>
             <div className="no-print">
-              <p className="text-meta" style={{ marginBottom: 8 }}>
-                {formatRange(event.startDate, event.endDate, event.timezone)}
-              </p>
-              <h1 className="text-h1" style={{ marginTop: 0, marginBottom: 8 }}>
-                {event.name}
-              </h1>
+              {/* BRAND-1 — the organizer's banner is the page's identity:
+                  hero with name + dates overlaid (the h1 lives inside the
+                  hero). Without a banner, the plain title block keeps the
+                  event logo beside the h1 when one exists. */}
+              {event.bannerUrl ? (
+                <EventHero
+                  name={event.name}
+                  dateRange={formatRange(event.startDate, event.endDate, event.timezone)}
+                  bannerUrl={event.bannerUrl}
+                  logoUrl={event.logoUrl}
+                />
+              ) : (
+                <>
+                  <p className="text-meta" style={{ marginBottom: 8 }}>
+                    {formatRange(event.startDate, event.endDate, event.timezone)}
+                  </p>
+                  <h1
+                    className="text-h1"
+                    style={{ marginTop: 0, marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}
+                  >
+                    {event.logoUrl ? (
+                      <img
+                        src={event.logoUrl}
+                        alt=""
+                        style={{
+                          width: 44,
+                          height: 44,
+                          objectFit: "contain",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid var(--gray-200)",
+                          background: "#ffffff",
+                          flexShrink: 0,
+                        }}
+                      />
+                    ) : null}
+                    <span>{event.name}</span>
+                  </h1>
+                </>
+              )}
               {event.organizationName ? (
                 <p className="text-meta" style={{ margin: "0 0 8px" }}>
                   Hosted by {event.organizationName}

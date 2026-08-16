@@ -629,19 +629,6 @@ a:hover {
   color: var(--meta-color);
 }
 
-.app-shell--with-banner {
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-.app-shell--with-banner,
-.app-shell--with-banner h1,
-.app-shell--with-banner p,
-.app-shell--with-banner .help-text {
-  color: #ffffff;
-}
-
 .event-settings-wrap {
   position: relative;
 }
@@ -2036,17 +2023,90 @@ button.schedule-meta-chip:hover {
   height: 96px;
 }
 
-.hero-banner {
+/* ==========================================================================
+   BRAND-1 — EventHero (components/EventHero.tsx): the event's identity band
+   on the dashboard Agenda tab and /e/[slug]. Static by design: no animation,
+   no parallax, so it is reduced-motion safe with no media query needed.
+   ========================================================================== */
+
+.event-hero {
+  margin-bottom: var(--space-4);
+}
+
+/* Banner mode — mobile-first: 120px band, 180px from 768px up. The scrim
+   holds AA for the white name/date text regardless of the image behind it. */
+.event-hero--banner {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
   width: 100%;
-  min-height: 190px;
-  margin-bottom: 18px;
+  height: 120px;
+  overflow: hidden;
   background-color: var(--gray-100);
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
+  border-radius: var(--radius-card);
+}
+
+@media (min-width: 768px) {
+  .event-hero--banner {
+    height: 180px;
+  }
+}
+
+.event-hero-scrim {
+  width: 100%;
+  padding: var(--space-6) var(--space-4) var(--space-3);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.55));
+}
+
+.event-hero--banner .event-hero-name {
+  margin: 0;
+  font: var(--text-h1);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.event-hero--banner .event-hero-dates {
+  margin: 2px 0 0;
+  font: var(--text-label);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* Quiet mode — no banner: display-size name with the 28px logo beside it. */
+.event-hero--quiet {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.event-hero-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--gray-200);
-  box-shadow: none;
-  border-radius: var(--radius-lg);
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.event-hero-quiet-text {
+  min-width: 0;
+}
+
+.event-hero--quiet .event-hero-name {
+  margin: 0;
+  font: var(--text-h1);
+  color: var(--title-color);
+  overflow-wrap: anywhere;
+}
+
+.event-hero--quiet .event-hero-dates {
+  margin: 2px 0 0;
+  font: var(--text-label);
+  color: var(--gray-600);
 }
 
 .modal-backdrop {
@@ -3390,10 +3450,6 @@ button.schedule-meta-chip:hover {
     cursor: pointer;
   }
 
-  .hero-banner {
-    min-height: 120px;
-  }
-
   .session-page-image {
     max-height: 180px;
   }
@@ -4067,18 +4123,6 @@ button.schedule-meta-chip:hover {
   color: #ffffff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
   background-color: var(--gray-800);
-}
-
-.hero-banner:not([style*="background-image"]) {
-  display: none;
-}
-
-.hero-banner.is-empty {
-  display: none;
-  min-height: 0;
-  margin: 0;
-  border: 0;
-  box-shadow: none;
 }
 
 .schedule-meta-my-mode {
@@ -5610,7 +5654,7 @@ button.schedule-meta-chip:hover {
 .shell-event-switcher {
   position: relative;
   min-width: 0;
-  max-width: min(360px, 46vw);
+  max-width: min(520px, 60vw);
 }
 
 .shell-event-switcher-btn {
@@ -5963,6 +6007,14 @@ button.schedule-meta-chip:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* BRAND-1 — the event name is the app's identity, not a 13px label. Scoped
+   to the top bar so the sidebar brand slot keeps its label type. */
+.shell-topbar .shell-topbar-title-text {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
 }
 
 .shell-topbar-logo {

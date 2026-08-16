@@ -13,6 +13,7 @@ import { ConciergeChat } from "../../components/ConciergeChat";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
 import { downloadSessionIcs } from "../../lib/calendarIcs";
 import { formatEventTimeRange } from "../../lib/dateFormat";
+import { eventAccentStyle } from "../../lib/eventAccent";
 import { offerPushAfterFirstAgendaSave } from "../../lib/push";
 
 const RESOURCE_DATA_URL_MAX_CHARS = 4_500_000;
@@ -34,6 +35,8 @@ type Event = {
   name: string;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  /** Organizer's chosen event color; drives --event-accent (F1.5.3). */
+  brandColor?: string | null;
   timezone: string;
   startDate: string;
   endDate: string;
@@ -606,6 +609,9 @@ export default function SessionPage() {
     <AppShell
       title={event?.name || "Event"}
       logoUrl={event?.logoUrl}
+      /* BRAND-1 — session pages are the event's surface too: without this,
+         they rendered in default blue beside an accented dashboard. */
+      accentStyle={event ? eventAccentStyle(event.brandColor) : undefined}
       nav={shellNav}
       mobilePrimaryIds={["Agenda", "Attendees", communityOn ? "Community" : "Messages"]}
       userName={user.name}
