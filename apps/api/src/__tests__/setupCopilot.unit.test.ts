@@ -684,6 +684,32 @@ describe("Setup Copilot reply layer (capturing provider)", () => {
     expect(system).toContain("Networking preference: focused");
     expect(system).toContain("whether they have a program document");
   });
+
+  it("SETUP-2.1 — quoted name in a multi-fact turn lands in form state after merge", async () => {
+    // Observed: date/time changes extracted, quoted name missed by the model
+    // (fallback parseEventName would have caught it — merge must too).
+    provider.extractText = JSON.stringify({
+      name: null,
+      startDate: "2026-12-01",
+      endDate: "2026-12-05",
+      dayStartTime: "09:00",
+      dayEndTime: "17:00",
+    });
+    provider.nextText =
+      "Doc Day, 1–5 December 2026, 09:00 on the first day through 17:00 on the last. Daily timeslots are drafted later in Agenda ingest.";
+    const state = initialDialogue("create", "UTC");
+    const result = await runSetupCopilotTurn({
+      mode: "create",
+      state,
+      userMessage:
+        'Please move it to 1-5 December 2026, 9 to 5, and I want for it to be called "Doc Day"',
+      liveEvent: false,
+      gatewayCtx,
+    });
+    expect(result.form.name).toBe("Doc Day");
+    expect(result.form.startDate).toBe("2026-12-01T09:00");
+    expect(result.form.endDate).toBe("2026-12-05T17:00");
+  });
 });
 
 describe("SETUP-2 merge-not-clear (unit)", () => {

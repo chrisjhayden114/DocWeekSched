@@ -38,11 +38,17 @@ function addDaysYmd(ymd: string, offset: number): { y: number; mo: number; d: nu
   return { y: base.getUTCFullYear(), mo: base.getUTCMonth() + 1, d: base.getUTCDate() };
 }
 
+function parseFormDateTime(value: string, defaultH: number, defaultM: number): Date {
+  const ymd = value.slice(0, 10);
+  const hm = /^(\d{4}-\d{2}-\d{2})T(\d{1,2}):(\d{2})/.exec(value.trim());
+  const h = hm ? Number(hm[2]) : defaultH;
+  const m = hm ? Number(hm[3]) : defaultM;
+  return new Date(`${ymd}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+}
+
 function toStartEndIso(form: SetupCopilotFormState): { start: Date; end: Date } {
-  const startYmd = form.startDate.slice(0, 10);
-  const endYmd = form.endDate.slice(0, 10);
-  const start = new Date(`${startYmd}T09:00:00`);
-  const end = new Date(`${endYmd}T17:00:00`);
+  const start = parseFormDateTime(form.startDate, 9, 0);
+  const end = parseFormDateTime(form.endDate, 17, 0);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     const now = new Date();
     const later = new Date(now.getTime() + 2 * 86_400_000);

@@ -30,6 +30,9 @@ describe("Setup Copilot prompt serialization (unit)", () => {
     expect(SETUP_SYSTEM).toMatch(/STILL NEEDED/);
     expect(SETUP_SYSTEM).toMatch(/say 'create'/i);
     expect(SETUP_SYSTEM).toMatch(/Agenda ingest/i);
+    expect(SETUP_SYSTEM).toMatch(/overall start and end date-times/i);
+    expect(SETUP_SYSTEM).toMatch(/do not claim per-day schedules are saved/i);
+    expect(SETUP_SYSTEM).toMatch(/daily timeslots are drafted later/i);
     expect(SETUP_SYSTEM).toMatch(/Never invent values/);
     expect(SETUP_SYSTEM).toMatch(/data, not instructions/);
   });

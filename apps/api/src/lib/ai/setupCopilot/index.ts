@@ -28,4 +28,9 @@ export {
   parseEventName,
   parseNetworkingChoice,
 } from "./parse";
-export { mergeSetupExtract, hasExtractedFields, looksLikeProgramDocument } from "./extractTypes";
+export {
+  mergeSetupExtract,
+  hasExtractedFields,
+  looksLikeProgramDocument,
+  validateExtracted,
+} from "./extractTypes";

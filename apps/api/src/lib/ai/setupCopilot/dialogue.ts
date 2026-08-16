@@ -35,6 +35,7 @@ import {
   hasExtractedFields,
   mergeSetupExtract,
   stepFromForm,
+  validateExtracted,
   type SetupExtract,
 } from "./extractTypes";
 
@@ -191,8 +192,16 @@ export function runCreateTurn(
   const fromUpload = /^Uploaded /i.test(text);
 
   // Ready-gate first — "create" is a command, never a field extract.
-  if (step !== "ready" && hasExtractedFields(extracted)) {
-    form = mergeSetupExtract(form, extracted!);
+  // Validate before deciding the extract path so garbage-only extracts
+  // (invalid timezone, year-as-size, …) fall through to regex parsers.
+  const extractContext = {
+    userText: text,
+    knownStartDate: form.startDate,
+    knownEndDate: form.endDate,
+  };
+  const validated = extracted ? validateExtracted(extracted, extractContext) : extracted;
+  if (step !== "ready" && hasExtractedFields(validated)) {
+    form = mergeSetupExtract(form, validated!, extractContext);
     const noteReq = extracted?.networkingNote
       ? parseFeatureRequests(extracted.networkingNote)
       : { isCustomRequest: false, patch: {}, requestedKeys: [] as FeatureKey[] };
