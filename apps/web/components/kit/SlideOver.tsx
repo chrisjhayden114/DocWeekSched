@@ -23,9 +23,17 @@ export function SlideOver({ open, title, onClose, footer, wide, children }: Slid
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  /* Focus the close button ONLY when the panel transitions to open. This effect
+   * must not depend on `onClose`: consumers often pass inline handlers whose
+   * identity changes every render, and re-running this effect on each keystroke
+   * steals focus from form fields (live-observed in the Readiness template
+   * editor — one character per click). */
+  useEffect(() => {
+    if (open) closeRef.current?.focus();
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
