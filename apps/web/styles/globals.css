@@ -4521,8 +4521,9 @@ button.schedule-meta-chip:hover {
 .concierge-fab:hover {
   background: var(--event-accent-hover);
 }
+/* B1 — the AssistantMark shows beside the label (icon-only below 1024px). */
 .concierge-fab-icon {
-  display: none;
+  display: inline-flex;
   line-height: 0;
 }
 .concierge-fab-label {
@@ -4570,32 +4571,29 @@ button.schedule-meta-chip:hover {
   padding: 16px 16px 8px;
   border-bottom: 1px solid var(--gray-200);
 }
+/* B2 — compact, quiet starters: one wrapping row, only over an empty thread. */
 .concierge-chip-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 16px 0;
+  flex-flow: row wrap;
+  gap: 6px;
+  padding: 10px 16px 0;
 }
 .concierge-chip {
   border: 1px solid var(--gray-300);
-  background: #fff;
+  background: var(--surface);
+  color: var(--gray-600);
   border-radius: var(--radius-md);
-  padding: 8px 12px;
-  font-size: 0.85rem;
+  padding: 4px 10px;
+  font-size: 13px;
+  line-height: 18px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
 }
 .concierge-chip:hover:not(:disabled) {
   border-color: var(--gray-400);
   background: var(--gray-50);
-}
-.concierge-chip-meta {
-  font-size: 0.7rem;
-  opacity: 0.65;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--gray-700);
 }
 .concierge-messages {
   flex: 1;
@@ -4639,7 +4637,9 @@ button.schedule-meta-chip:hover {
   flex: 1;
 }
 
-/* Desktop docked panel (CHAT-1): agenda stays interactive beside the assistant. */
+/* Desktop docked panel (CHAT-1): agenda stays interactive beside the assistant.
+   CHAT-2 (B4): distinct-but-calm — sheet/modal elevation + a subtly accented
+   header band; the body stays var(--surface). */
 .concierge-panel {
   position: fixed;
   right: 0;
@@ -4651,8 +4651,33 @@ button.schedule-meta-chip:hover {
   flex-direction: column;
   background: var(--surface);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Header band: accent-tinted at low opacity + 2px accent top edge (tokens only). */
+.concierge-panel .concierge-sheet-header {
+  border-top: 2px solid var(--event-accent);
+  background: var(--event-accent-tint);
+}
+
+.concierge-header-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--event-accent);
+  line-height: 0;
+}
+
+/* A4 — inline navigation inside assistant answers: a quiet accent underline. */
+.concierge-inline-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--event-accent);
+  text-underline-offset: 2px;
+}
+.concierge-inline-link:hover {
+  color: var(--event-accent);
+  text-decoration: underline;
 }
 
 @media (min-width: 1024px) {
@@ -4666,6 +4691,30 @@ button.schedule-meta-chip:hover {
 
   body.concierge-docked .concierge-fab {
     display: none;
+  }
+
+  /* B4 — the peek dialog centers in the space the panel leaves free. */
+  body.concierge-docked .session-peek-backdrop {
+    right: 384px;
+  }
+}
+
+/* B4 — never render under the panel: the ≥1280px filter rail sizes off the
+   viewport, so with 384px docked the layout would overflow beneath the
+   panel. While docked, fall back to the collapsed-filters behavior narrower
+   viewports already use (button + sheet); the list/grid scrollers simply get
+   the narrower .shell-content width. */
+@media (min-width: 1280px) {
+  body.concierge-docked .schedule-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body.concierge-docked .agenda-rail {
+    display: none;
+  }
+
+  body.concierge-docked .agenda-filters-btn {
+    display: inline-flex;
   }
 }
 

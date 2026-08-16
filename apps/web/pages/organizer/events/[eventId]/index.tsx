@@ -11,7 +11,7 @@ import { SetupAssistantPanel } from "../../../../components/SetupAssistantPanel"
 import { SetupCopilotChat } from "../../../../components/SetupCopilotChat";
 import { VenueMapEditor } from "../../../../components/VenueMapEditor";
 import { AnnouncementComposer } from "../../../../components/AnnouncementComposer";
-import { EventFaqEditor } from "../../../../components/EventFaqEditor";
+import { AssistantStartersEditor, EventFaqEditor } from "../../../../components/EventFaqEditor";
 import { OpsInboxPanel } from "../../../../components/OpsInboxPanel";
 import { RecapPanel } from "../../../../components/RecapPanel";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
@@ -1245,6 +1245,7 @@ export default function OrganizerEventPage() {
               {featuresDirty ? <span className="help-text">Unsaved changes</span> : null}
             </div>
             {eventId ? <EventFaqEditor eventId={eventId} /> : null}
+            {eventId ? <AssistantStartersEditor eventId={eventId} /> : null}
           </section>
         ) : null}
         </div>

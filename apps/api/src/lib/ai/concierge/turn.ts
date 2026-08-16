@@ -5,6 +5,7 @@ import { gatewayChat } from "../gateway";
 import { buildEventGroundingContext } from "../grounding";
 import type { AiChatMessage } from "../types";
 import { detectAction, runConciergeDialogue, type DialogueProposal } from "./dialogue";
+import { buildLinkifyAnchors, linkifyReply } from "./linkify";
 import { buildConciergeSystemPrompt } from "./prompt";
 import { proposeMutation } from "./propose";
 
@@ -152,6 +153,10 @@ export async function runConciergeTurn(params: {
     const modelText = gw.ok ? gw.text.trim() : "";
     if (modelText && modelText !== "{}") {
       assistantMessage = modelText;
+      // CHAT-2 — deterministic linkify: navigation offers come from anchors
+      // WE minted (grounded session ids + App Guide hrefs), matched against
+      // the reply text. Attached via the existing links shape.
+      links = linkifyReply(modelText, buildLinkifyAnchors(grounding));
     } else {
       // Honest fallback, never blank: the old deterministic canned answer /
       // decline for this input. Read-only — action intents were already

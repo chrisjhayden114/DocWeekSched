@@ -11,10 +11,15 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { requireFeature, featureEnabled } from "../lib/features";
 import {
+  ASSISTANT_STARTER_MAX_CHARS,
+  ASSISTANT_STARTER_MIN_CHARS,
+  ASSISTANT_STARTERS_MAX_ITEMS,
   confirmPendingAction,
   getOrCreateConversation,
   listConversationMessages,
+  parseAssistantStarters,
   runConciergeTurn,
+  saveAssistantStarters,
 } from "../lib/ai/concierge";
 import { validationErrorBody } from "../lib/errors";
 
@@ -30,8 +35,37 @@ conciergeRouter.get(
     return res.json({
       enabled,
       starterChips: CONCIERGE_STARTER_CHIPS,
+      // B3 — organizer override (null column = the defaults, "Soon"-free).
+      starters: parseAssistantStarters(
+        (event as { assistantStartersJson?: string | null }).assistantStartersJson,
+      ),
       eventId: event.id,
     });
+  }),
+);
+
+/** B3 — organizer-configured starter questions (manage-only). */
+const startersSchema = z.object({
+  starters: z
+    .array(z.string().min(ASSISTANT_STARTER_MIN_CHARS).max(ASSISTANT_STARTER_MAX_CHARS))
+    .max(ASSISTANT_STARTERS_MAX_ITEMS),
+});
+
+conciergeRouter.put(
+  "/starters",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = startersSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await resolveEventFromRequest(req);
+    // saveAssistantStarters enforces manage access + item validation.
+    const starters = await saveAssistantStarters({
+      eventId: event.id,
+      userId: req.user!.id,
+      starters: parsed.data.starters,
+    });
+    return res.json({ ok: true, starters });
   }),
 );
 

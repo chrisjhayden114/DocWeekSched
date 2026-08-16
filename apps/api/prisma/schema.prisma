@@ -650,6 +650,8 @@ model Event {
   slugInviteUseCount   Int                  @default(0)
   /// Keyword list for ops moderation detector (Phase A5). Empty = off.
   communityBlocklist   Json                 @default("[]")
+  /// CHAT-2 — organizer-configured Event assistant starter questions (JSON string[], max 3 × 80 chars). null = defaults.
+  assistantStartersJson String?
   sessions             Session[]
   tracks               Track[]
   rooms                Room[]

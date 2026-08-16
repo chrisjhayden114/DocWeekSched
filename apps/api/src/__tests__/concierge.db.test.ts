@@ -9,11 +9,14 @@ import {
 import { hashPassword } from "../lib/auth";
 import { MockAiProvider, resetAiProviderForTests } from "../lib/ai";
 import {
+  DEFAULT_ASSISTANT_STARTERS,
   confirmPendingAction,
   mintPendingAction,
+  parseAssistantStarters,
   proposeMutation,
   runConciergeDialogue,
   runConciergeTurn,
+  saveAssistantStarters,
 } from "../lib/ai/concierge";
 import { buildEventGroundingContext } from "../lib/ai/grounding";
 import { applyPlanSkuToOrg } from "../lib/billing/entitlements";
@@ -224,5 +227,54 @@ describe("Concierge (DB)", () => {
     });
     expect(msgs.some((m) => m.role === "USER")).toBe(true);
     expect(msgs.some((m) => m.role === "ASSISTANT")).toBe(true);
+  });
+
+  // CHAT-2 (B3) — organizer-configurable starter questions.
+  it("assistant starters: organizer PUT persists and the meta parse returns them", async () => {
+    const custom = ["Where do I register?", "What's on after lunch?"];
+    const saved = await saveAssistantStarters({
+      eventId: ids.eventId!,
+      userId: ids.userId!,
+      starters: custom,
+    });
+    expect(saved).toEqual(custom);
+
+    // Persisted on the Event row; /ai/concierge/meta parses this same column.
+    const row = await prisma.event.findUniqueOrThrow({ where: { id: ids.eventId! } });
+    const stored = (row as { assistantStartersJson?: string | null }).assistantStartersJson;
+    expect(stored).toBe(JSON.stringify(custom));
+    expect(parseAssistantStarters(stored)).toEqual(custom);
+
+    // Clearing the override returns attendees to the defaults.
+    const cleared = await saveAssistantStarters({
+      eventId: ids.eventId!,
+      userId: ids.userId!,
+      starters: [],
+    });
+    expect(cleared).toEqual(DEFAULT_ASSISTANT_STARTERS);
+    const rowAfter = await prisma.event.findUniqueOrThrow({ where: { id: ids.eventId! } });
+    expect((rowAfter as { assistantStartersJson?: string | null }).assistantStartersJson).toBeNull();
+  });
+
+  it("assistant starters: attendee PUT rejected (403) and >3 items rejected (400)", async () => {
+    await expect(
+      saveAssistantStarters({
+        eventId: ids.eventId!,
+        userId: ids.userBId!, // ATTENDEE membership — no manage access
+        starters: ["May I change these?"],
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+
+    await expect(
+      saveAssistantStarters({
+        eventId: ids.eventId!,
+        userId: ids.userId!,
+        starters: ["One question", "Two questions", "Three questions", "Four questions"],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    // Neither rejection may have written an override.
+    const row = await prisma.event.findUniqueOrThrow({ where: { id: ids.eventId! } });
+    expect((row as { assistantStartersJson?: string | null }).assistantStartersJson ?? null).toBeNull();
   });
 });
