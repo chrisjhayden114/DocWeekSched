@@ -201,6 +201,19 @@ enum AccountDeletionStatus {
   CANCELLED
 }
 
+enum ReadinessAssignmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  NEEDS_REVIEW
+  READY
+  WAIVED
+  NOT_APPLICABLE
+}
+
+// LATE and BLOCKED are derived (dueAt < now, unresolved checks) — never stored,
+// per plan §6.1.D "do not manually store a single authoritative percentage".
+
 enum SessionPublishStatus {
   DRAFT
   PUBLISHED
@@ -371,6 +384,7 @@ model Organization {
   certificateTemplates      CertificateTemplate[]
   issuedCertificates        IssuedCertificate[]
   eventRecaps               EventRecap[]
+  readinessTemplates        ReadinessTemplate[]
 }
 
 model OrgMembership {
@@ -691,6 +705,9 @@ model Event {
   certificateTemplates CertificateTemplate[]
   issuedCertificates   IssuedCertificate[]
   eventRecap           EventRecap?
+  readinessTemplates   ReadinessTemplate[]
+  readinessAssignments ReadinessAssignment[]
+  readinessPortalAccess ReadinessPortalAccess[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -784,6 +801,8 @@ model Speaker {
   itemAuthors  SessionItemAuthor[]
   discussantOn SessionItem[]       @relation("SessionItemDiscussant")
   cfpConversions CfpSubmission[]   @relation("CfpConvertedSpeaker")
+  readinessAssignments ReadinessAssignment[]
+  readinessPortalAccess ReadinessPortalAccess[]
 
   @@index([eventId])
 }
@@ -834,6 +853,7 @@ model Session {
   polls             SessionPoll[]
   feedback          SessionFeedback[]
   scheduleChanges   SessionScheduleChange[]
+  readinessAssignments ReadinessAssignment[]
 
   @@index([trackId])
   @@index([roomId])
@@ -865,6 +885,7 @@ model SessionItem {
   createdAt           DateTime            @default(now())
   authors             SessionItemAuthor[]
   cfpConversions      CfpSubmission[]     @relation("CfpConvertedSessionItem")
+  readinessAssignments ReadinessAssignment[]
 
   @@index([sessionId, sortOrder])
 }
@@ -2044,4 +2065,124 @@ model EventRecapEmail {
   @@index([recapId, kind])
   @@index([recapId, status, createdAt])
   @@index([sentAt])
+}
+
+/// ── Event Readiness (ER2, audit doc §10.1) ─────────────────────────────────
+/// Five additive tables; zero changes to existing columns. Assignment LATE /
+/// BLOCKED states are derived at read time (lib/readiness/status.ts), never
+/// stored.
+
+model ReadinessTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId        String       // event-scoped for MVP; org-level template sharing = later copy operation
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name           String       // "Keynote speaker", "Paper presenter", …
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  requirements   ReadinessRequirement[]
+
+  @@unique([eventId, name])
+  @@index([organizationId])
+}
+
+model ReadinessRequirement {
+  id           String  @id @default(cuid())
+  templateId   String
+  template     ReadinessTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  eventId      String            // denormalized for tenant-scoped queries (OpsInboxCard pattern)
+  label        String
+  helpText     String?
+  kind         String            // short_text | long_text | confirm | select | multi_select |
+                                 // date | url | file | agreement | internal_checklist
+  config       Json    @default("{}")  // options, char limits, allowed MIME, max bytes,
+                                       // organizerOnly, approvalRequired, aiSuggestAllowed
+  required     Boolean @default(true)
+  dueAt        DateTime?
+  sortOrder    Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  assignments  ReadinessAssignment[]
+
+  @@index([templateId, sortOrder])
+  @@index([eventId])
+}
+
+model ReadinessAssignment {
+  id             String  @id @default(cuid())
+  organizationId String
+  eventId        String
+  event          Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  requirementId  String
+  requirement    ReadinessRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  // Subject: exactly one of speakerId | sessionId set; sessionItemId optional refinement.
+  speakerId      String?
+  speaker        Speaker?     @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  sessionId      String?
+  session        Session?     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionItemId  String?
+  sessionItem    SessionItem? @relation(fields: [sessionItemId], references: [id], onDelete: Cascade)
+  status         ReadinessAssignmentStatus @default(NOT_STARTED)
+  dueAtOverride  DateTime?
+  waivedAt       DateTime?
+  waivedById     String?      // User id, SetNull semantics via app layer + AuditLog
+  ownerUserId    String?      // organizer owner (table column, plan §6.1.F)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  submissions    ReadinessSubmission[]
+
+  @@unique([requirementId, speakerId, sessionId, sessionItemId])
+  @@index([eventId, status])
+  @@index([eventId, dueAtOverride])
+  @@index([speakerId])
+  @@index([sessionId])
+}
+
+model ReadinessSubmission {
+  id            String  @id @default(cuid())
+  assignmentId  String
+  assignment    ReadinessAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  eventId       String
+  // Presenter- or organizer- or AI-entered value. Original preserved by supersede-chain.
+  valueText     String?
+  valueJson     Json?
+  fileName      String?
+  fileMime      String?
+  fileSizeBytes Int?
+  fileUrl       String?      // storage URL (see audit §11.4 privacy decision)
+  fileStorageKey String?
+  aiGenerated   Boolean @default(false)
+  submittedVia  String       // portal | organizer | ai
+  supersededAt  DateTime?    // EventRecapSection pattern: resubmission supersedes, never deletes
+  approvedAt    DateTime?
+  approvedById  String?
+  rejectedAt    DateTime?
+  rejectedById  String?
+  reviewNote    String?
+  createdAt     DateTime @default(now())
+
+  @@index([assignmentId, createdAt])
+  @@index([eventId, approvedAt])
+}
+
+model ReadinessPortalAccess {
+  id           String  @id @default(cuid())
+  organizationId String
+  eventId      String
+  event        Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  speakerId    String
+  speaker      Speaker @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  email        String       // contact email — lives here, NOT on Speaker (audit §2.2, O2 as amended at ER2)
+  tokenHash    String  @unique   // sha-256 of opaque token (lib/auth.ts hashToken)
+  expiresAt    DateTime          // REQUIRED — closes the CFP-token gap (conflict C9)
+  revokedAt    DateTime?
+  lastSentAt   DateTime?
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@unique([eventId, speakerId])
+  @@index([eventId])
+  @@index([speakerId])
 }

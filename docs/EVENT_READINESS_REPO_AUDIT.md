@@ -778,7 +778,7 @@ after human review of this audit (plan §19.4 checklist), is ER1.*
 ## §15 (addendum) — O1–O10 RESOLVED by founder, 2026-08-16
 
 - O1 RESOLVED: portal tokens expire 30 days; remint on demand; auto-revoke on event archive.
-- O2 RESOLVED: presenter email lives on nullable `Speaker.contactEmail` (additive column; also serves ER6 reminders).
+- O2 RESOLVED (amended at ER2): presenter email lives on `ReadinessPortalAccess.email`, NOT `Speaker.contactEmail` — Speaker rows are member-readable via GET /speakers and must not leak contact emails.
 - O3 RESOLVED: sensitive-field visibility is manage-level for MVP; no per-organizer allowlist.
 - O4 RESOLVED: first 3–5 pilots run as comped INTERNAL-plan orgs (zero entitlement code).
 - O5 RESOLVED: private files are API-proxied (auth-checked streaming); no signed URLs. Unblocks ER4.
