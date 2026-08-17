@@ -4,7 +4,10 @@ import {
   chipForStatus,
   filterRows,
   isLate,
+  isOpenStatus,
+  needsAttention,
   subjectKey,
+  summaryCounts,
   type OverviewAssignment,
   type OverviewSubjectRef,
   type ReadinessOverview,
@@ -248,6 +251,162 @@ describe("isLate", () => {
     ).toBe(false);
     expect(isLate({ late: true })).toBe(true);
     expect(isLate({ late: false })).toBe(false);
+  });
+});
+
+describe("isOpenStatus", () => {
+  it("treats exactly READY/WAIVED/NOT_APPLICABLE as settled", () => {
+    expect(isOpenStatus("READY")).toBe(false);
+    expect(isOpenStatus("WAIVED")).toBe(false);
+    expect(isOpenStatus("NOT_APPLICABLE")).toBe(false);
+    expect(isOpenStatus("NOT_STARTED")).toBe(true);
+    expect(isOpenStatus("IN_PROGRESS")).toBe(true);
+    expect(isOpenStatus("SUBMITTED")).toBe(true);
+    expect(isOpenStatus("NEEDS_REVIEW")).toBe(true);
+  });
+});
+
+describe("summaryCounts", () => {
+  it("counts subjects, complete subjects, and summed open/late assignments", () => {
+    // Fixture rollups: keynote 1 open · Ada 2 open 1 late · Grace complete.
+    expect(summaryCounts(buildSubjectRows(overview))).toEqual({
+      subjects: 3,
+      complete: 1,
+      open: 3,
+      late: 1,
+    });
+  });
+
+  it("is all zeros for no rows", () => {
+    expect(summaryCounts([])).toEqual({ subjects: 0, complete: 0, open: 0, late: 0 });
+  });
+});
+
+describe("needsAttention", () => {
+  /** Dedicated fixture: mixed late / needs-review / settled assignments. */
+  const attentionOverview: ReadinessOverview = {
+    templates: [],
+    assignments: [
+      // No deadline, NEEDS_REVIEW — included, sorts after every dated item.
+      assignment({
+        id: "n-review-undated",
+        requirementId: "r1",
+        requirementLabel: "Bio",
+        subject: speakerGrace,
+        status: "NEEDS_REVIEW",
+      }),
+      // Late, due latest of the dated items.
+      assignment({
+        id: "n-late-sep",
+        requirementId: "r2",
+        requirementLabel: "Slides",
+        subject: speakerAda,
+        status: "NOT_STARTED",
+        late: true,
+        effectiveDueAt: "2026-09-15T12:00:00.000Z",
+      }),
+      // Late, due earliest — must come first.
+      assignment({
+        id: "n-late-aug",
+        requirementId: "r3",
+        requirementLabel: "Headshot",
+        subject: sessionKeynote,
+        status: "IN_PROGRESS",
+        late: true,
+        effectiveDueAt: "2026-08-01T12:00:00.000Z",
+      }),
+      // NEEDS_REVIEW with a mid deadline (not late) — included, sorted by date.
+      assignment({
+        id: "n-review-dated",
+        requirementId: "r4",
+        requirementLabel: "AV needs",
+        subject: speakerAda,
+        status: "NEEDS_REVIEW",
+        effectiveDueAt: "2026-09-01T12:00:00.000Z",
+      }),
+      // READY past its date — server says not late; excluded either way.
+      assignment({
+        id: "n-ready",
+        requirementId: "r5",
+        requirementLabel: "Agreement",
+        subject: speakerAda,
+        status: "READY",
+        effectiveDueAt: "2020-01-01T00:00:00.000Z",
+      }),
+      // WAIVED with a defensively-stale late flag — settled statuses stay out.
+      assignment({
+        id: "n-waived",
+        requirementId: "r6",
+        requirementLabel: "Consent",
+        subject: speakerGrace,
+        status: "WAIVED",
+        late: true,
+        effectiveDueAt: "2020-01-01T00:00:00.000Z",
+      }),
+      // Open but neither late nor needs-review — not an exception.
+      assignment({
+        id: "n-calm",
+        requirementId: "r7",
+        requirementLabel: "Travel",
+        subject: speakerGrace,
+        status: "IN_PROGRESS",
+      }),
+    ],
+    subjects: [
+      { ...sessionKeynote, rollup: rollup({ total: 1, open: 1, late: 1 }) },
+      { ...speakerAda, rollup: rollup({ total: 3, ready: 1, open: 2, late: 1 }) },
+      { ...speakerGrace, rollup: rollup({ total: 3, waived: 1, open: 2 }) },
+    ],
+  };
+  const attentionRows = buildSubjectRows(attentionOverview);
+
+  it("includes late and NEEDS_REVIEW, excludes ready/waived and calm open work", () => {
+    const ids = needsAttention(attentionRows).map((a) => a.id);
+    expect(ids).toContain("n-late-sep");
+    expect(ids).toContain("n-late-aug");
+    expect(ids).toContain("n-review-undated");
+    expect(ids).toContain("n-review-dated");
+    expect(ids).not.toContain("n-ready");
+    expect(ids).not.toContain("n-waived");
+    expect(ids).not.toContain("n-calm");
+  });
+
+  it("sorts by effective due date ascending, undated last", () => {
+    expect(needsAttention(attentionRows).map((a) => a.id)).toEqual([
+      "n-late-aug",
+      "n-review-dated",
+      "n-late-sep",
+      "n-review-undated",
+    ]);
+  });
+
+  it("caps the list at the given limit, keeping the earliest-due items", () => {
+    expect(needsAttention(attentionRows, 2).map((a) => a.id)).toEqual([
+      "n-late-aug",
+      "n-review-dated",
+    ]);
+    expect(needsAttention(attentionRows, 0)).toEqual([]);
+  });
+
+  it("returns everything when no limit is passed", () => {
+    expect(needsAttention(attentionRows)).toHaveLength(4);
+  });
+
+  it("is empty when nothing needs attention", () => {
+    const calm = buildSubjectRows({
+      templates: [],
+      assignments: [
+        assignment({
+          id: "c1",
+          requirementId: "r1",
+          requirementLabel: "Bio",
+          subject: speakerAda,
+          status: "READY",
+        }),
+      ],
+      subjects: [{ ...speakerAda, rollup: rollup({ total: 1, ready: 1, complete: true }) }],
+    });
+    expect(needsAttention(calm)).toEqual([]);
   });
 });
 

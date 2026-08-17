@@ -8,6 +8,7 @@ import {
   createRequirement,
   createTemplate,
   deleteTemplate,
+  getReadinessActivity,
   getReadinessOverview,
   updateAssignment,
   updateRequirement,
@@ -25,6 +26,7 @@ describe("readiness data layer (DB, ER2)", () => {
   const prisma = new PrismaClient();
   const ids: {
     adminA?: string;
+    attendeeA?: string;
     managerB?: string;
     orgA?: string;
     orgB?: string;
@@ -69,7 +71,13 @@ describe("readiness data layer (DB, ER2)", () => {
     const managerB = await prisma.user.create({
       data: { email: `rdy-mgr-b-${stamp}@example.com`, name: "Readiness Manager B", passwordHash, role: "ADMIN" },
     });
+    // ER3b — plain event ATTENDEE on event A: must never reach manage-gated
+    // readiness surfaces (incl. GET /activity).
+    const attendeeA = await prisma.user.create({
+      data: { email: `rdy-att-a-${stamp}@example.com`, name: "Readiness Attendee A", passwordHash, role: "ATTENDEE" },
+    });
     ids.adminA = adminA.id;
+    ids.attendeeA = attendeeA.id;
     ids.managerB = managerB.id;
 
     // INTERNAL plan = the manual pilot gate; the feature still needs the
@@ -102,7 +110,12 @@ describe("readiness data layer (DB, ER2)", () => {
         endDate: new Date("2027-03-03T12:00:00Z"),
         organizationId: orgA.id,
         createdById: adminA.id,
-        memberships: { create: { userId: adminA.id, role: EventMemberRole.ADMIN } },
+        memberships: {
+          create: [
+            { userId: adminA.id, role: EventMemberRole.ADMIN },
+            { userId: attendeeA.id, role: EventMemberRole.ATTENDEE },
+          ],
+        },
       },
     });
     const eventB = await prisma.event.create({
@@ -166,7 +179,7 @@ describe("readiness data layer (DB, ER2)", () => {
       await prisma.orgMembership.deleteMany({ where: { organizationId: orgId } });
       await prisma.organization.deleteMany({ where: { id: orgId } });
     }
-    for (const userId of [ids.adminA, ids.managerB]) {
+    for (const userId of [ids.adminA, ids.attendeeA, ids.managerB]) {
       if (userId) await prisma.user.deleteMany({ where: { id: userId } });
     }
     await prisma.$disconnect();
@@ -328,6 +341,33 @@ describe("readiness data layer (DB, ER2)", () => {
     });
     expect(auditAfterUnwaive).toHaveLength(2);
     expect(auditAfterUnwaive[1]!.payload).toMatchObject({ action: "unwaive", fromStatus: "WAIVED" });
+  }, 60_000);
+
+  it("activity: waive + un-waive read back as two newest-first plain-English entries", async () => {
+    // The previous test waived then un-waived Grace's "Confirm attendance" —
+    // the only two AuditLog writes so far in event A.
+    const entries = await getReadinessActivity(ids.eventA!);
+    expect(entries).toHaveLength(2);
+    expect(entries.map((e) => e.summary)).toEqual([
+      "Un-waived “Confirm attendance” for Prof. Grace Panelist",
+      "Waived “Confirm attendance” for Prof. Grace Panelist",
+    ]);
+    for (const entry of entries) {
+      expect(entry.actorName).toBe("Readiness Admin A");
+      expect(entry.at).toBeInstanceOf(Date);
+    }
+    // Newest first.
+    expect(entries[0]!.at.getTime()).toBeGreaterThanOrEqual(entries[1]!.at.getTime());
+  }, 60_000);
+
+  it("activity: an event ATTENDEE fails the manage gate the /activity route uses", async () => {
+    await expect(
+      requireEventAccess(ids.attendeeA!, ids.eventA!, { manage: true }),
+    ).rejects.toMatchObject({ status: 403 } satisfies Partial<HttpError>);
+  }, 60_000);
+
+  it("activity: other-event isolation — event B sees none of event A's entries", async () => {
+    expect(await getReadinessActivity(ids.eventB!)).toEqual([]);
   }, 60_000);
 
   it("tenant isolation: event B's manager cannot touch event A by id", async () => {

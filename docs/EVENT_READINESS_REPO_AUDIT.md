@@ -790,3 +790,10 @@ after human review of this audit (plan §19.4 checklist), is ER1.*
 
 Sequencing (founder, 2026-08-16): full pre-pilot build — ER2 → ER3 → ER4 (then reassess
 ER5–ER7) after AGENT-1/AGENT-2 (real conversational concierge + setup copilot).
+
+### ER4 / ER6 — template evolution after portal invites (founder, 2026-08-17)
+
+Founder requirement (2026-08-17): when the presenter portal exists, requirement changes made
+after portal invites must surface to presenters (calm 'your checklist changed' notice via
+the ER6 reminder machinery — no immediate push).
+

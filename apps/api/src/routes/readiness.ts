@@ -10,6 +10,7 @@ import {
   createTemplate,
   deleteRequirement,
   deleteTemplate,
+  getReadinessActivity,
   getReadinessOverview,
   READINESS_REQUIREMENT_KINDS,
   updateAssignment,
@@ -50,6 +51,21 @@ readinessRouter.get(
     const { event } = await requireReadinessManage(req);
     const overview = await getReadinessOverview(event.id);
     return res.json({ eventId: event.id, ...overview });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Activity — ER3b. Read-only view over AuditLog for this event's Readiness*
+// entities (the audit doc's §10 activity decision: reuse AuditLog, no table).
+// ---------------------------------------------------------------------------
+
+readinessRouter.get(
+  "/activity",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { event } = await requireReadinessManage(req);
+    const entries = await getReadinessActivity(event.id);
+    return res.json({ entries });
   }),
 );
 

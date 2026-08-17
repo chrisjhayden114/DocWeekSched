@@ -19,6 +19,7 @@ export function SearchableMultiSelect({
   placeholder = "Search people…",
   label,
   emptyLabel = "No matches",
+  selectAllNoun,
 }: {
   people: SelectablePerson[];
   selectedIds: string[];
@@ -27,6 +28,12 @@ export function SearchableMultiSelect({
   placeholder?: string;
   label?: string;
   emptyLabel?: string;
+  /**
+   * When set, quiet "Select all {noun} (N)" / "Clear" buttons render above
+   * the control. N is the current filtered list (the search box's matches),
+   * or the full list when the box is empty.
+   */
+  selectAllNoun?: string;
 }) {
   const [query, setQuery] = useState("");
   const exclude = useMemo(() => new Set(excludeIds), [excludeIds]);
@@ -51,9 +58,33 @@ export function SearchableMultiSelect({
 
   const selectedPeople = people.filter((p) => selectedSet.has(p.id));
 
+  const filteredIds = filtered.map((p) => p.id);
+
   return (
     <div className="searchable-multi">
       {label ? <div className="text-meta" style={{ marginBottom: 6 }}>{label}</div> : null}
+      {selectAllNoun ? (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+          <button
+            type="button"
+            className="button ghost"
+            style={{ minHeight: 44 }}
+            disabled={filteredIds.length === 0}
+            onClick={() => onChange(filteredIds)}
+          >
+            Select all {selectAllNoun} ({filteredIds.length})
+          </button>
+          <button
+            type="button"
+            className="button ghost"
+            style={{ minHeight: 44 }}
+            disabled={selectedIds.length === 0}
+            onClick={() => onChange([])}
+          >
+            Clear
+          </button>
+        </div>
+      ) : null}
       {selectedPeople.length > 0 ? (
         <div className="searchable-multi-chips" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
           {selectedPeople.map((p) => (

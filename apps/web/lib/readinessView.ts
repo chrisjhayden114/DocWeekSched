@@ -217,6 +217,80 @@ export function isLate(assignment: Pick<OverviewAssignment, "late">): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// isOpenStatus — the canonical "still requires action" predicate
+// ---------------------------------------------------------------------------
+
+/**
+ * Mirrors the server's SETTLED set (lib/readiness/status.ts): READY, WAIVED
+ * and NOT_APPLICABLE are settled; everything else is open work.
+ */
+export function isOpenStatus(status: ReadinessStatus): boolean {
+  return status !== "READY" && status !== "WAIVED" && status !== "NOT_APPLICABLE";
+}
+
+// ---------------------------------------------------------------------------
+// summaryCounts — the overview strip ("N subjects · X complete · Y open · Z late")
+// ---------------------------------------------------------------------------
+
+export type SummaryCounts = {
+  /** Subjects being tracked. */
+  subjects: number;
+  /** Subjects whose every assignment is settled (rollup.complete). */
+  complete: number;
+  /** Open ASSIGNMENTS across all subjects (rollup.open summed). */
+  open: number;
+  /** Late ASSIGNMENTS across all subjects (rollup.late summed). */
+  late: number;
+};
+
+/** Derived entirely from the server-computed rollups — nothing recomputed. */
+export function summaryCounts(rows: SubjectRow[]): SummaryCounts {
+  const counts: SummaryCounts = { subjects: rows.length, complete: 0, open: 0, late: 0 };
+  for (const row of rows) {
+    if (row.rollup.complete) counts.complete += 1;
+    counts.open += row.rollup.open;
+    counts.late += row.rollup.late;
+  }
+  return counts;
+}
+
+// ---------------------------------------------------------------------------
+// needsAttention — the exception-first list
+// ---------------------------------------------------------------------------
+
+/**
+ * Assignments an organizer should look at now: server-derived late, or
+ * NEEDS_REVIEW. Settled statuses (ready/waived/N-A) are excluded even if a
+ * response ever carried a stale late flag for one. Sorted by effective due
+ * date ascending with no-deadline items last; ties break by subject name,
+ * then requirement label, then id, so the order is stable. `limit` caps the
+ * returned list (the UI shows 8 with a "show all" expander).
+ */
+export function needsAttention(
+  rows: SubjectRow[],
+  limit: number = Number.POSITIVE_INFINITY,
+): OverviewAssignment[] {
+  const hits: OverviewAssignment[] = [];
+  for (const row of rows) {
+    for (const a of row.assignments) {
+      if (!isOpenStatus(a.status)) continue;
+      if (isLate(a) || a.status === "NEEDS_REVIEW") hits.push(a);
+    }
+  }
+  hits.sort((a, b) => {
+    const da = a.effectiveDueAt ? Date.parse(a.effectiveDueAt) : Number.MAX_SAFE_INTEGER;
+    const db = b.effectiveDueAt ? Date.parse(b.effectiveDueAt) : Number.MAX_SAFE_INTEGER;
+    if (da !== db) return da - db;
+    return (
+      a.subject.name.localeCompare(b.subject.name) ||
+      a.requirementLabel.localeCompare(b.requirementLabel) ||
+      a.id.localeCompare(b.id)
+    );
+  });
+  return hits.slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
 // filterRows — client-side subject filter
 // ---------------------------------------------------------------------------
 

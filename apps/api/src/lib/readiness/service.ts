@@ -113,6 +113,87 @@ export async function getReadinessOverview(eventId: string, now: Date = new Date
 }
 
 // ---------------------------------------------------------------------------
+// Activity — AuditLog rows for this event's readiness entities (ER3b)
+// ---------------------------------------------------------------------------
+
+export type ReadinessActivityEntry = {
+  at: Date;
+  actorName: string;
+  summary: string;
+};
+
+/** Plain-English line for a stored readiness audit row. */
+function summarizeReadinessAudit(
+  payload: unknown,
+  context: { label: string; subjectName: string } | undefined,
+): string {
+  const action =
+    payload != null && typeof payload === "object" && "action" in payload
+      ? String((payload as { action: unknown }).action)
+      : "";
+  const target = context ? `“${context.label}” for ${context.subjectName}` : "a requirement";
+  if (action === "waive") return `Waived ${target}`;
+  if (action === "unwaive") return `Un-waived ${target}`;
+  return context ? `Updated ${target}` : "Updated a readiness item";
+}
+
+/**
+ * Newest-first AuditLog rows for every Readiness* entity of this event,
+ * capped at 50, mapped to display shape. Assignment context (requirement
+ * label + subject name) is re-joined — and re-scoped by eventId — so the
+ * summary reads "Waived 'Slides' for Ade Pradana"; rows whose assignment
+ * has since been deleted fall back to a generic summary rather than vanish.
+ */
+export async function getReadinessActivity(
+  eventId: string,
+  take = 50,
+): Promise<ReadinessActivityEntry[]> {
+  const rows = await prisma.auditLog.findMany({
+    where: { eventId, entityType: { startsWith: "Readiness" } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take,
+    include: { actor: { select: { name: true } } },
+  });
+
+  const assignmentIds = [
+    ...new Set(
+      rows
+        .filter((r) => r.entityType === "ReadinessAssignment" && r.entityId)
+        .map((r) => r.entityId!),
+    ),
+  ];
+  const assignments =
+    assignmentIds.length > 0
+      ? await prisma.readinessAssignment.findMany({
+          where: { id: { in: assignmentIds }, eventId },
+          include: {
+            requirement: { select: { label: true } },
+            speaker: { select: { name: true } },
+            session: { select: { title: true } },
+          },
+        })
+      : [];
+  const contextById = new Map(
+    assignments.map((a) => [
+      a.id,
+      {
+        label: a.requirement.label,
+        subjectName: a.speaker?.name ?? a.session?.title ?? "an unnamed subject",
+      },
+    ]),
+  );
+
+  return rows.map((row) => ({
+    at: row.createdAt,
+    actorName: row.actor?.name ?? "Someone",
+    summary: summarizeReadinessAudit(
+      row.payload,
+      row.entityId ? contextById.get(row.entityId) : undefined,
+    ),
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Templates
 // ---------------------------------------------------------------------------
 

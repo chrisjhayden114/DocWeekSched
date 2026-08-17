@@ -6,13 +6,17 @@ import { SearchableMultiSelect } from "../SearchableMultiSelect";
 import { Select } from "../Select";
 import { StatusChip } from "../StatusChip";
 import { SlideOver } from "../kit";
+import { formatRelativeTime } from "../../lib/dateFormat";
 import { organizerFetch } from "../../lib/organizerApi";
 import {
   buildSubjectRows,
   chipForStatus,
   filterRows,
   isLate,
+  isOpenStatus,
+  needsAttention,
   subjectKey,
+  summaryCounts,
   READINESS_REQUIREMENT_KINDS,
   READINESS_STATUS_LABELS,
   REQUIREMENT_KIND_LABELS,
@@ -26,14 +30,16 @@ import {
 } from "../../lib/readinessView";
 
 /**
- * ER3a — the organizer Readiness tab (EVENT_READINESS_PLAN §15 ER3, first
- * half): templates + requirements CRUD, assignment to this event's speakers
- * and sessions, and the per-subject readiness table over the ER2 API.
- * Exception-first overview, activity tab, and bulk actions are ER3b.
+ * ER3a+b — the organizer Readiness tab (EVENT_READINESS_PLAN §15 ER3):
+ * templates + requirements CRUD, assignment to this event's speakers and
+ * sessions, the per-subject readiness table, the exception-first overview,
+ * safe sequential bulk actions, and the activity history over the ER2 API.
  *
- * All reads come from GET /readiness/overview; every write refetches it
- * (status changes update optimistically first). LATE is server-derived —
- * this component never recomputes deadlines.
+ * All reads come from GET /readiness/overview (plus GET /readiness/activity
+ * for the history disclosure); every write refetches (status changes update
+ * optimistically first). LATE is server-derived — this component never
+ * recomputes deadlines. Bulk actions deliberately loop the existing
+ * per-assignment PATCH so every change stays individually audited.
  */
 
 type Props = {
@@ -59,7 +65,13 @@ type ConfirmState =
   | { kind: "delete-template"; template: OverviewTemplate }
   | { kind: "delete-requirement"; requirement: OverviewRequirement }
   | { kind: "waive"; assignment: OverviewAssignment }
-  | { kind: "unwaive"; assignment: OverviewAssignment };
+  | { kind: "unwaive"; assignment: OverviewAssignment }
+  | { kind: "bulk-waive"; count: number };
+
+type ActivityEntry = { at: string; actorName: string; summary: string };
+
+/** The needs-attention card shows this many rows until "Show all". */
+const ATTENTION_PREVIEW = 8;
 
 /** ISO → datetime-local input value, in the organizer's local time. */
 function toLocalInput(iso: string | null | undefined): string {
@@ -176,6 +188,25 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ReadinessStatusFilter>("all");
 
+  // ER3b — exception-first overview
+  const [attentionExpanded, setAttentionExpanded] = useState(false);
+
+  // ER3b — bulk selection (subject keys) + sequential runner state
+  const [selectedKeys, setSelectedKeys] = useState<ReadonlySet<string>>(new Set());
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  // ER3b — activity disclosure (loaded on first open, refreshed on demand)
+  const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
+  const [activityBusy, setActivityBusy] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
+
+  // ER3b — template-evolution backfill hint (set after adding a requirement
+  // to a template that already has assigned subjects)
+  const [backfillForId, setBackfillForId] = useState<string | null>(null);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<number | null>(null);
+
   const load = useCallback(async () => {
     const data = await organizerFetch<ReadinessOverview>("/readiness/overview", eventId);
     setOverview(data);
@@ -204,6 +235,33 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
     [rows, query, statusFilter],
   );
 
+  // ER3b — everything below derives client-side from the overview payload.
+  const counts = useMemo(() => summaryCounts(rows), [rows]);
+  const attention = useMemo(() => needsAttention(rows), [rows]);
+  /** OPEN assignments of the selected subjects — ready/waived never touched. */
+  const selectedOpenAssignments = useMemo(() => {
+    const out: OverviewAssignment[] = [];
+    for (const row of rows) {
+      if (!selectedKeys.has(row.key)) continue;
+      for (const a of row.assignments) if (isOpenStatus(a.status)) out.push(a);
+    }
+    return out;
+  }, [rows, selectedKeys]);
+
+  // After a refetch, drop subjects that no longer have open work so a
+  // half-finished bulk run doesn't leave settled rows checked.
+  useEffect(() => {
+    setSelectedKeys((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set<string>();
+      for (const row of rows) {
+        if (prev.has(row.key) && row.rollup.open > 0) next.add(row.key);
+      }
+      if (next.size === prev.size && [...next].every((k) => prev.has(k))) return prev;
+      return next;
+    });
+  }, [rows]);
+
   /** templateId → distinct subjects assigned from it (for "Assigned" column). */
   const assignedCounts = useMemo(() => {
     const counts = new Map<string, Set<string>>();
@@ -222,6 +280,9 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         : null,
     [editor, overview],
   );
+  const editingAssignedCount = editingTemplate
+    ? (assignedCounts.get(editingTemplate.id)?.size ?? 0)
+    : 0;
 
   const detailRow = useMemo(
     () => (detailKey ? (rows.find((r) => r.key === detailKey) ?? null) : null),
@@ -238,12 +299,16 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
     setTplDescription(template?.description ?? "");
     setTplError(null);
     setReqDraft(null);
+    setBackfillForId(null);
+    setBackfillResult(null);
   }
 
   function closeTemplateEditor() {
     setEditor(null);
     setReqDraft(null);
     setTplError(null);
+    setBackfillForId(null);
+    setBackfillResult(null);
   }
 
   async function saveTemplate() {
@@ -319,6 +384,14 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
           method: "POST",
           body: JSON.stringify({ ...payload, sortOrder: (last?.sortOrder ?? -1) + 1 }),
         });
+        // ER3b — template-evolution safety: subjects assigned before this
+        // requirement existed have no tracked row for it yet. Offer the
+        // backfill (the assign endpoint's skip-existing semantics create
+        // exactly the missing rows).
+        if ((assignedCounts.get(editingTemplate.id)?.size ?? 0) > 0) {
+          setBackfillForId(editingTemplate.id);
+          setBackfillResult(null);
+        }
       }
       await load();
       setReqDraft(null);
@@ -397,6 +470,124 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
   }
 
   // -------------------------------------------------------------------------
+  // Backfill a new requirement to a template's already-assigned subjects
+  // (ER3b — template-evolution safety). POSTs the template's existing subject
+  // ids to /assign; skip-existing semantics create exactly the missing rows.
+  // -------------------------------------------------------------------------
+
+  async function backfillAssigned(template: OverviewTemplate) {
+    const speakerIds = new Set<string>();
+    const sessionIds = new Set<string>();
+    for (const a of overview?.assignments ?? []) {
+      if (a.templateId !== template.id) continue;
+      if (a.subject.type === "speaker") speakerIds.add(a.subject.id);
+      else sessionIds.add(a.subject.id);
+    }
+    if (speakerIds.size + sessionIds.size === 0) return;
+    setBackfillBusy(true);
+    setTplError(null);
+    try {
+      const result = await organizerFetch<{ created: number; skipped: number }>(
+        `/readiness/templates/${template.id}/assign`,
+        eventId,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            speakerIds: [...speakerIds],
+            sessionIds: [...sessionIds],
+          }),
+        },
+      );
+      setBackfillResult(result.created);
+      await refetch();
+    } catch (err) {
+      setTplError(
+        err instanceof Error ? err.message : "Could not add the requirement to assigned subjects",
+      );
+    } finally {
+      setBackfillBusy(false);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Bulk actions (ER3b) — sequential loop over the EXISTING per-assignment
+  // PATCH, so every change stays individually audited. Stops on the first
+  // error with an honest message; nothing after the failure is touched.
+  // -------------------------------------------------------------------------
+
+  function toggleRowSelection(key: string) {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    setBulkError(null);
+  }
+
+  function clearSelection() {
+    setSelectedKeys(new Set());
+    setBulkError(null);
+  }
+
+  async function runBulk(status: "READY" | "WAIVED") {
+    const targets = selectedOpenAssignments;
+    if (targets.length === 0 || bulkProgress != null) return;
+    setBulkError(null);
+    let done = 0;
+    try {
+      for (const target of targets) {
+        setBulkProgress({ done: done + 1, total: targets.length });
+        await organizerFetch(`/readiness/assignments/${target.id}`, eventId, {
+          method: "PATCH",
+          body: JSON.stringify({ status }),
+        });
+        done += 1;
+      }
+      setSelectedKeys(new Set());
+    } catch (err) {
+      const failed = targets[done];
+      const message = err instanceof Error ? err.message : "Update failed";
+      setBulkError(
+        `Stopped at item ${done + 1} of ${targets.length} (“${failed.requirementLabel}” for ${
+          failed.subject.name
+        }): ${message}. The first ${done} change${done === 1 ? "" : "s"} went through; nothing after was touched.`,
+      );
+    } finally {
+      setBulkProgress(null);
+      await refetch();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Activity history (ER3b) — loaded when the disclosure first opens;
+  // Refresh refetches. No polling.
+  // -------------------------------------------------------------------------
+
+  const loadActivity = useCallback(async () => {
+    setActivityBusy(true);
+    setActivityError(null);
+    try {
+      const data = await organizerFetch<{ entries: ActivityEntry[] }>(
+        "/readiness/activity",
+        eventId,
+      );
+      setActivity(data.entries);
+    } catch (err) {
+      setActivityError(err instanceof Error ? err.message : "Failed to load activity");
+    } finally {
+      setActivityBusy(false);
+    }
+  }, [eventId]);
+
+  /** Shared by the table's Details button and the needs-attention Open. */
+  function openSubjectDetail(key: string) {
+    setDetailKey(key);
+    setDetailError(null);
+    setDueDrafts({});
+  }
+
+  // -------------------------------------------------------------------------
   // Assignment updates (detail SlideOver)
   // -------------------------------------------------------------------------
 
@@ -456,6 +647,10 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         });
         setConfirm(null);
         await refetch();
+      } else if (confirm.kind === "bulk-waive") {
+        setConfirm(null);
+        // runBulk reports its own progress/error inline in the action bar.
+        await runBulk("WAIVED");
       } else {
         const status: ReadinessStatus = confirm.kind === "waive" ? "WAIVED" : "NOT_STARTED";
         setConfirm(null);
@@ -493,6 +688,10 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
   if (!overview) return null;
 
   const templates = overview.templates;
+  const deleteRequirementTracked =
+    confirm?.kind === "delete-requirement"
+      ? overview.assignments.filter((a) => a.requirementId === confirm.requirement.id).length
+      : 0;
   const speakerOptions = speakers.map((s) => ({
     id: s.id,
     name: s.name,
@@ -599,6 +798,95 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         </div>
       ) : (
         <>
+          {/* ——— ER3b: exception-first overview (derived client-side) ——— */}
+          {rows.length > 0 ? (
+            <div className="console-panel">
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <span className="chip">
+                  {counts.subjects} subject{counts.subjects === 1 ? "" : "s"}
+                </span>
+                <span className="chip">{counts.complete} complete</span>
+                <span className="chip">{counts.open} open</span>
+                <span
+                  className="chip"
+                  style={counts.late > 0 ? { color: "var(--danger)" } : undefined}
+                >
+                  {counts.late} late
+                </span>
+              </div>
+              <p className="console-panel-label" style={{ margin: "12px 0 8px" }}>
+                Needs attention
+              </p>
+              {attention.length === 0 ? (
+                <p className="help-text" style={{ margin: 0 }}>
+                  All caught up — nothing needs your attention.
+                </p>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <ul
+                    style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}
+                  >
+                    {(attentionExpanded ? attention : attention.slice(0, ATTENTION_PREVIEW)).map(
+                      (a) => {
+                        const chip = chipForStatus(a.status);
+                        const due = formatDue(a.effectiveDueAt);
+                        return (
+                          <li
+                            key={a.id}
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                gap: 8,
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <strong>{a.subject.name}</strong>
+                              <span>{a.requirementLabel}</span>
+                              <StatusChip status={chip.chipStatus} label={chip.label} />
+                              {isLate(a) ? <LateDot dueAt={a.effectiveDueAt} /> : null}
+                              <span className="text-meta">
+                                {due ? `due ${due}` : "no due date"}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              className="button secondary"
+                              style={{ minHeight: 44 }}
+                              onClick={() => openSubjectDetail(subjectKey(a.subject))}
+                            >
+                              Open
+                            </button>
+                          </li>
+                        );
+                      },
+                    )}
+                  </ul>
+                  {attention.length > ATTENTION_PREVIEW ? (
+                    <button
+                      type="button"
+                      className="button ghost"
+                      style={{ minHeight: 44, justifySelf: "start" }}
+                      onClick={() => setAttentionExpanded((v) => !v)}
+                    >
+                      {attentionExpanded
+                        ? "Show fewer"
+                        : `Show all (${attention.length})`}
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          ) : null}
+
           <div className="console-panel">
             <div
               style={{
@@ -727,6 +1015,73 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                     style={{ minWidth: 130 }}
                   />
                 </div>
+                {selectedKeys.size > 0 ? (
+                  <div
+                    role="toolbar"
+                    aria-label="Bulk readiness actions"
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      padding: "8px 12px",
+                      marginBottom: 12,
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--gray-200)",
+                      background: "var(--gray-50)",
+                    }}
+                  >
+                    <span style={{ font: "var(--text-label)", color: "var(--gray-900)" }}>
+                      {selectedOpenAssignments.length} selected
+                    </span>
+                    {bulkProgress ? (
+                      <span className="text-meta" aria-live="polite">
+                        Updating {bulkProgress.done} of {bulkProgress.total}…
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="button"
+                      style={{ minHeight: 44 }}
+                      disabled={
+                        selectedOpenAssignments.length === 0 || bulkProgress != null
+                      }
+                      onClick={() => void runBulk("READY")}
+                    >
+                      Mark READY
+                    </button>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      style={{ minHeight: 44 }}
+                      disabled={
+                        selectedOpenAssignments.length === 0 || bulkProgress != null
+                      }
+                      onClick={() =>
+                        setConfirm({
+                          kind: "bulk-waive",
+                          count: selectedOpenAssignments.length,
+                        })
+                      }
+                    >
+                      Waive…
+                    </button>
+                    <button
+                      type="button"
+                      className="button ghost"
+                      style={{ minHeight: 44 }}
+                      disabled={bulkProgress != null}
+                      onClick={clearSelection}
+                    >
+                      Clear selection
+                    </button>
+                    {bulkError ? (
+                      <p role="alert" style={{ color: "var(--danger)", margin: 0, flexBasis: "100%" }}>
+                        {bulkError}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {visibleRows.length === 0 ? (
                   <p className="help-text" style={{ margin: 0 }}>
                     No speakers or sessions match this filter.
@@ -736,6 +1091,7 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                     <table className="console-table">
                       <thead>
                         <tr>
+                          <th aria-label="Select" style={{ width: 44 }} />
                           <th>Speaker / session</th>
                           <th>Requirements</th>
                           <th>Ready</th>
@@ -745,6 +1101,27 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                       <tbody>
                         {visibleRows.map((row) => (
                           <tr key={row.key}>
+                            <td>
+                              <label
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  minHeight: 44,
+                                  minWidth: 44,
+                                  margin: 0,
+                                  cursor: row.rollup.open > 0 ? "pointer" : "default",
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedKeys.has(row.key)}
+                                  disabled={row.rollup.open === 0 || bulkProgress != null}
+                                  aria-label={`Select open requirements for ${row.name}`}
+                                  onChange={() => toggleRowSelection(row.key)}
+                                />
+                              </label>
+                            </td>
                             <td>
                               <span
                                 style={{
@@ -812,11 +1189,8 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                               <button
                                 type="button"
                                 className="button secondary"
-                                onClick={() => {
-                                  setDetailKey(row.key);
-                                  setDetailError(null);
-                                  setDueDrafts({});
-                                }}
+                                style={{ minHeight: 44 }}
+                                onClick={() => openSubjectDetail(row.key)}
                               >
                                 Details
                               </button>
@@ -832,6 +1206,60 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
           </div>
         </>
       )}
+
+      {/* ——— ER3b: activity history (AuditLog; load on open, refresh on demand) ——— */}
+      <details
+        className="console-panel"
+        onToggle={(e) => {
+          if (e.currentTarget.open && activity === null && !activityBusy) void loadActivity();
+        }}
+      >
+        <summary
+          style={{
+            cursor: "pointer",
+            minHeight: 44,
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          Activity
+        </summary>
+        <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+          <button
+            type="button"
+            className="button secondary"
+            style={{ justifySelf: "start", minHeight: 44 }}
+            disabled={activityBusy}
+            onClick={() => void loadActivity()}
+          >
+            {activityBusy ? "Refreshing…" : "Refresh"}
+          </button>
+          {activityError ? (
+            <p role="alert" style={{ color: "var(--danger)", margin: 0 }}>
+              {activityError}
+            </p>
+          ) : null}
+          {activityBusy && activity === null ? (
+            <p className="help-text" style={{ margin: 0 }}>
+              Loading activity…
+            </p>
+          ) : null}
+          {activity && activity.length === 0 ? (
+            <p className="help-text" style={{ margin: 0 }}>
+              No activity yet.
+            </p>
+          ) : null}
+          {activity && activity.length > 0 ? (
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+              {activity.map((entry, i) => (
+                <li key={`${entry.at}-${i}`} className="text-meta">
+                  {formatRelativeTime(entry.at)} · {entry.actorName} — {entry.summary}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </details>
 
       {/* ——— Template editor SlideOver (name/description + requirements) ——— */}
       <SlideOver
@@ -975,6 +1403,44 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                   Add requirement
                 </button>
               ) : null}
+              {backfillForId === editingTemplate.id ? (
+                <div
+                  style={{
+                    border: "1px solid var(--gray-200)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: 12,
+                    display: "grid",
+                    gap: 8,
+                  }}
+                >
+                  {backfillResult != null ? (
+                    <p role="status" style={{ color: "var(--success)", margin: 0 }}>
+                      Created {backfillResult} assignment{backfillResult === 1 ? "" : "s"}.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="help-text" style={{ margin: 0 }}>
+                        This template is assigned to {editingAssignedCount} subject
+                        {editingAssignedCount === 1 ? "" : "s"} — the new requirement isn't tracked
+                        for them yet.
+                      </p>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        style={{ justifySelf: "start", minHeight: 44 }}
+                        disabled={backfillBusy}
+                        onClick={() => void backfillAssigned(editingTemplate)}
+                      >
+                        {backfillBusy
+                          ? "Adding…"
+                          : `Add to ${editingAssignedCount} assigned subject${
+                              editingAssignedCount === 1 ? "" : "s"
+                            }`}
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="help-text" style={{ margin: 0 }}>
@@ -1026,6 +1492,7 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
             onChange={setSelSpeakerIds}
             placeholder="Search speakers…"
             emptyLabel="No speakers in this event yet"
+            selectAllNoun="speakers"
           />
           <SearchableMultiSelect
             label="Sessions"
@@ -1034,6 +1501,7 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
             onChange={setSelSessionIds}
             placeholder="Search sessions…"
             emptyLabel="No sessions in this event yet"
+            selectAllNoun="sessions"
           />
           {assignError ? (
             <p role="alert" style={{ color: "var(--danger)", margin: 0 }}>
@@ -1209,7 +1677,9 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                 ? `Waive “${confirm.assignment.requirementLabel}”?`
                 : confirm?.kind === "unwaive"
                   ? `Un-waive “${confirm.assignment.requirementLabel}”?`
-                  : ""
+                  : confirm?.kind === "bulk-waive"
+                    ? `Waive ${confirm.count} requirement${confirm.count === 1 ? "" : "s"}?`
+                    : ""
         }
         body={
           confirm?.kind === "delete-template"
@@ -1217,17 +1687,21 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                 confirm.template.requirements.length === 1 ? "" : "s"
               }, and every assignment created from it. This can't be undone.`
             : confirm?.kind === "delete-requirement"
-              ? `“${confirm.requirement.label}” disappears from this template and from every speaker and session it was assigned to. This can't be undone.`
+              ? `Deleting removes this requirement AND its ${deleteRequirementTracked} tracked item${
+                  deleteRequirementTracked === 1 ? "" : "s"
+                }, including any progress or waivers. This can't be undone.`
               : confirm?.kind === "waive"
                 ? `Waiving records who and when — visible in the activity history. ${confirm.assignment.subject.name} won't be chased for this item.`
                 : confirm?.kind === "unwaive"
                   ? `Un-waiving is recorded the same way — who and when, visible in the activity history. The item returns to Not started.`
-                  : ""
+                  : confirm?.kind === "bulk-waive"
+                    ? `Waive ${confirm.count} requirement${confirm.count === 1 ? "" : "s"}? Each waive is recorded individually.`
+                    : ""
         }
         confirmLabel={
           confirm?.kind === "delete-template" || confirm?.kind === "delete-requirement"
             ? "Delete"
-            : confirm?.kind === "waive"
+            : confirm?.kind === "waive" || confirm?.kind === "bulk-waive"
               ? "Waive"
               : "Un-waive"
         }
