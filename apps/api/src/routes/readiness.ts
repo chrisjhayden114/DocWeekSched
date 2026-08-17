@@ -14,6 +14,7 @@ import {
   revokePortalAccess,
   streamOrganizerFile,
 } from "../lib/readiness/portal";
+import { pipeStoredFileToResponse } from "../lib/readiness/files";
 import {
   assignTemplate,
   createRequirement,
@@ -378,9 +379,6 @@ readinessRouter.get(
     await requireFeature(submission.eventId, "readiness");
     await requireEventAccess(req.user!.id, submission.eventId, { manage: true });
     const file = await streamOrganizerFile(submission.eventId, submission.id);
-    res.setHeader("Content-Type", file.contentType);
-    res.setHeader("Content-Disposition", file.contentDisposition);
-    res.setHeader("Cache-Control", "private, no-store");
-    return res.status(200).send(file.body);
+    pipeStoredFileToResponse(file.stored, res, { contentDisposition: file.contentDisposition });
   }),
 );

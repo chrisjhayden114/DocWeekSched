@@ -4,10 +4,12 @@ import { asyncHandler } from "../lib/authorization";
 import { validationErrorBody } from "../lib/errors";
 import { authRateLimit } from "../lib/rateLimit";
 import {
+  createPortalUploadIntent,
   getPortalView,
   streamPortalFile,
   submitPortalAssignment,
 } from "../lib/readiness/portal";
+import { pipeStoredFileToResponse } from "../lib/readiness/files";
 
 /**
  * ER4 — public presenter portal. Token IS the auth; no login, no event ids
@@ -28,11 +30,31 @@ portalRouter.get(
   }),
 );
 
+const uploadIntentSchema = z.object({
+  fileName: z.string().min(1).max(260),
+  mime: z.string().min(1).max(200),
+  size: z.number().int().nonnegative(),
+});
+
+portalRouter.post(
+  "/:token/assignments/:assignmentId/upload-intent",
+  portalRateLimit,
+  asyncHandler(async (req, res) => {
+    const parsed = uploadIntentSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const token = String(req.params.token || "").trim();
+    const result = await createPortalUploadIntent(token, req.params.assignmentId, parsed.data);
+    return res.status(200).json(result);
+  }),
+);
+
 const submissionSchema = z.object({
   value: z.unknown().optional(),
   fileUrl: z.string().max(40_000_000).optional(),
+  fileRef: z.string().max(512).optional(),
   fileName: z.string().max(260).optional(),
   mime: z.string().max(200).optional(),
+  size: z.number().int().nonnegative().optional(),
 });
 
 portalRouter.post(
@@ -53,9 +75,6 @@ portalRouter.get(
   asyncHandler(async (req, res) => {
     const token = String(req.params.token || "").trim();
     const file = await streamPortalFile(token, req.params.submissionId);
-    res.setHeader("Content-Type", file.contentType);
-    res.setHeader("Content-Disposition", file.contentDisposition);
-    res.setHeader("Cache-Control", "private, no-store");
-    return res.status(200).send(file.body);
+    pipeStoredFileToResponse(file.stored, res, { contentDisposition: file.contentDisposition });
   }),
 );

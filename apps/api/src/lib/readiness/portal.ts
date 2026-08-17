@@ -9,8 +9,12 @@ import { getStorageProvider } from "../storage";
 import { deriveAssignmentState } from "./status";
 import {
   assertFileAllowed,
+  assertUploadMetaAllowed,
   contentDisposition,
   fileRulesForRequirement,
+  isReadinessKeyScoped,
+  mintReadinessObjectKey,
+  READINESS_DATA_URL_MAX_BYTES,
   readStoredFile,
 } from "./files";
 import {
@@ -499,14 +503,8 @@ function validateHttpUrlValue(
   return { valueText: parsed.toString(), valueJson: parsed.toString() };
 }
 
-export async function submitPortalAssignment(
-  rawToken: string,
-  assignmentId: string,
-  body: { value?: unknown; fileUrl?: string; fileName?: string; mime?: string },
-  now = new Date(),
-) {
+async function loadPortalFileAssignment(rawToken: string, assignmentId: string, now = new Date()) {
   const access = await resolvePortalAccess(rawToken, now);
-
   const assignment = await prisma.readinessAssignment.findFirst({
     where: { id: assignmentId, eventId: access.eventId, speakerId: access.speakerId },
     include: { requirement: true },
@@ -517,6 +515,81 @@ export async function submitPortalAssignment(
   if (ORGANIZER_ONLY_KINDS.has(assignment.requirement.kind)) {
     throw new HttpError(404, { error: "Assignment not found", reason: "not_found" });
   }
+  return { access, assignment };
+}
+
+/**
+ * ER4.3 — mint a presigned PUT for direct-to-storage upload.
+ * When the active provider cannot presign (dev/mock), returns `{ fallback: true }`.
+ */
+export async function createPortalUploadIntent(
+  rawToken: string,
+  assignmentId: string,
+  body: { fileName: string; mime: string; size: number },
+  now = new Date(),
+) {
+  const { access, assignment } = await loadPortalFileAssignment(rawToken, assignmentId, now);
+  if (assignment.requirement.kind !== "file") {
+    throw new HttpError(400, { error: "This requirement cannot be submitted here." });
+  }
+  const config = asRecord(assignment.requirement.config);
+  const rules = fileRulesForRequirement(config);
+  const meta = assertUploadMetaAllowed({
+    fileName: body.fileName,
+    mime: body.mime,
+    size: body.size,
+    config,
+    maxBytes: rules.maxBytes,
+  });
+
+  const provider = getStorageProvider();
+  if (typeof provider.presignPut !== "function") {
+    return { fallback: true as const };
+  }
+
+  const fileRef = mintReadinessObjectKey({
+    eventId: access.eventId,
+    assignmentId: assignment.id,
+    mime: meta.mime,
+    fileName: meta.fileName,
+  });
+  const signed = await provider.presignPut({
+    key: fileRef,
+    contentType: meta.mime,
+    expiresInSeconds: 600,
+  });
+  if (!signed) {
+    return { fallback: true as const };
+  }
+
+  await prisma.readinessPortalAccess.update({
+    where: { id: access.id },
+    data: { lastUsedAt: now },
+  });
+
+  return {
+    uploadUrl: signed.uploadUrl,
+    headers: signed.headers,
+    fileRef,
+    mime: meta.mime,
+    maxBytes: rules.maxBytes,
+  };
+}
+
+export async function submitPortalAssignment(
+  rawToken: string,
+  assignmentId: string,
+  body: {
+    value?: unknown;
+    fileUrl?: string;
+    fileRef?: string;
+    fileName?: string;
+    mime?: string;
+    size?: number;
+  },
+  now = new Date(),
+) {
+  const { access, assignment } = await loadPortalFileAssignment(rawToken, assignmentId, now);
 
   const config = asRecord(assignment.requirement.config);
   const kind = assignment.requirement.kind;
@@ -529,7 +602,56 @@ export async function submitPortalAssignment(
   let valueText: string | null = null;
   let valueJson: Prisma.InputJsonValue | typeof Prisma.JsonNull = Prisma.JsonNull;
 
-  if (kind === "file" && body.fileUrl?.trim()) {
+  if (kind === "file" && body.fileRef?.trim()) {
+    const rules = fileRulesForRequirement(config);
+    const claimedSize = typeof body.size === "number" ? body.size : Number.NaN;
+    const meta = assertUploadMetaAllowed({
+      fileName: body.fileName,
+      mime: body.mime,
+      size: Number.isFinite(claimedSize) ? claimedSize : 0,
+      config,
+      maxBytes: rules.maxBytes,
+    });
+    const key = body.fileRef.trim();
+    if (!isReadinessKeyScoped(key, access.eventId, assignment.id)) {
+      throw new HttpError(400, {
+        error: "That upload could not be confirmed. Please try again.",
+        reason: "invalid_file",
+      });
+    }
+    const provider = getStorageProvider();
+    if (typeof provider.head !== "function") {
+      throw new HttpError(400, {
+        error: "Direct upload is not available here — use the file picker and try again.",
+        reason: "invalid_file",
+      });
+    }
+    const head = await provider.head(key);
+    if (!head) {
+      throw new HttpError(400, {
+        error: "We couldn't find that upload. Please choose the file again and resubmit.",
+        reason: "missing_object",
+      });
+    }
+    if (head.contentLength > rules.maxBytes) {
+      if (typeof provider.deleteObject === "function") {
+        await provider.deleteObject(key).catch(() => undefined);
+      }
+      throw new HttpError(400, {
+        error: `This file is too large. Maximum size is ${Math.round(rules.maxBytes / 1_000_000)} MB.`,
+        reason: "too_large",
+      });
+    }
+    fileStorageKey = key;
+    fileUrl =
+      typeof provider.urlForKey === "function"
+        ? provider.urlForKey(key)
+        : `storage://${key}`;
+    fileName = meta.fileName;
+    fileMime = meta.mime;
+    // Never trust client-claimed size alone — persist HeadObject size.
+    fileSizeBytes = head.contentLength;
+  } else if (kind === "file" && body.fileUrl?.trim()) {
     const checked = assertFileAllowed({
       fileUrl: body.fileUrl,
       mime: body.mime,
@@ -544,7 +666,7 @@ export async function submitPortalAssignment(
       const stored = await getStorageProvider().acceptUpload({
         url: normalizedUrl,
         keyPrefix: `events/${access.eventId}/readiness/${assignment.id}`,
-        maxBytes: rules.maxBytes,
+        maxBytes: Math.min(rules.maxBytes, READINESS_DATA_URL_MAX_BYTES),
         allowedMimeTypes: rules.allowedMimeTypes,
       });
       fileUrl = stored.url;
@@ -553,7 +675,7 @@ export async function submitPortalAssignment(
       const message = err instanceof Error ? err.message : "Could not store the file.";
       if (/exceeds max size/i.test(message)) {
         throw new HttpError(400, {
-          error: `This file is too large. Maximum size is ${Math.round(rules.maxBytes / 1_000_000)} MB.`,
+          error: `This file is too large. Maximum size is ${Math.round(Math.min(rules.maxBytes, READINESS_DATA_URL_MAX_BYTES) / 1_000_000)} MB.`,
           reason: "too_large",
         });
       }
@@ -630,14 +752,17 @@ export async function streamPortalFile(rawToken: string, submissionId: string, n
     where: { id: submissionId, eventId: access.eventId },
     include: { assignment: { select: { speakerId: true } } },
   });
-  if (!submission || submission.assignment.speakerId !== access.speakerId || !submission.fileUrl) {
+  if (
+    !submission ||
+    submission.assignment.speakerId !== access.speakerId ||
+    (!submission.fileUrl && !submission.fileStorageKey)
+  ) {
     throw new HttpError(404, { error: "File not found", reason: "not_found" });
   }
   const stored = await readStoredFile(submission);
   if (!stored) throw new HttpError(404, { error: "File not found", reason: "not_found" });
   return {
-    body: stored.body,
-    contentType: stored.contentType,
+    stored,
     contentDisposition: contentDisposition(submission.fileName),
   };
 }
@@ -731,8 +856,7 @@ export async function streamOrganizerFile(eventId: string, submissionId: string)
   const stored = await readStoredFile(submission);
   if (!stored) throw new HttpError(404, { error: "File not found" });
   return {
-    body: stored.body,
-    contentType: stored.contentType,
+    stored,
     contentDisposition: contentDisposition(submission.fileName),
   };
 }

@@ -2,7 +2,15 @@ import { DataUrlStorageProvider } from "./dataUrl";
 import { S3CompatibleStorageProvider } from "./s3Compatible";
 import type { StorageProvider } from "./types";
 
-export type { StorageProvider, StoragePutResult, StorageAcceptInput, StorageGetResult } from "./types";
+export type {
+  StorageProvider,
+  StoragePutResult,
+  StorageAcceptInput,
+  StorageGetResult,
+  StoragePresignPutInput,
+  StoragePresignPutResult,
+  StorageHeadResult,
+} from "./types";
 
 let cached: StorageProvider | null = null;
 
@@ -38,4 +46,9 @@ export function getStorageProvider(): StorageProvider {
 /** Test helper — reset cached provider after env changes. */
 export function resetStorageProviderForTests(): void {
   cached = null;
+}
+
+/** Test helper — inject a mock provider (e.g. fallback vs object-store harness). */
+export function setStorageProviderForTests(provider: StorageProvider | null): void {
+  cached = provider;
 }

@@ -48,7 +48,7 @@ export function jsonLimitForPath(method: string, path: string): string {
   if (path === "/sponsors" || /^\/sponsors\/[^/]+\/?$/.test(path)) return "4mb";
   if (path === "/event" || path === "/event/") return "16mb"; // banner/logo fields
   if (/^\/cfp\/public\/[^/]+\/submit\/?$/.test(path)) return "12mb";
-  // Presenter portal file submissions (O10 deck cap 20MB → ~28MB data-URL)
+  // Presenter portal file submissions — legacy data-URL fallback ≤20MB (~28MB base64)
   if (/^\/portal\/[^/]+\/assignments\/[^/]+\/submission\/?$/.test(path)) return "30mb";
   // Attendee invite / profile photo data-URLs (schema allows up to ~12MB)
   if (path === "/attendees" || path === "/attendees/" || path === "/attendees/invite-bulk") return "16mb";

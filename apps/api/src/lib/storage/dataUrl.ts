@@ -61,6 +61,9 @@ export class DataUrlStorageProvider implements StorageProvider {
     return { url: trimmed, storageKey: key };
   }
 
+  /** Cannot mint client PUTs — callers treat missing presignPut as fallback. */
+  // no presignPut / head / deleteObject
+
   /** Bytes live on the row as a data URL — no object to fetch by key. */
   async get(_key: string): Promise<import("./types").StorageGetResult | null> {
     return null;

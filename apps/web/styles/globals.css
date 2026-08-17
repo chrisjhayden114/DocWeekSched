@@ -6025,6 +6025,21 @@ button.schedule-meta-chip:hover {
   transition: width var(--motion) var(--ease-in-out);
 }
 
+/* Presenter portal — direct-to-storage upload progress (ER4.3) */
+.portal-upload-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--gray-200);
+  overflow: hidden;
+}
+
+.portal-upload-progress__bar {
+  height: 100%;
+  background: var(--event-accent, var(--gray-800));
+  border-radius: 3px;
+  transition: width var(--motion-fast) linear;
+}
+
 .onboarding-steps {
   margin: 12px 0 0;
   padding: 0;

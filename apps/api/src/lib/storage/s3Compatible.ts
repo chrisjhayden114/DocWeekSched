@@ -1,13 +1,18 @@
 import { createHash, createHmac, randomBytes } from "crypto";
+import { Readable } from "stream";
 import type {
   StorageAcceptInput,
   StorageGetResult,
+  StorageHeadResult,
+  StoragePresignPutInput,
+  StoragePresignPutResult,
   StorageProvider,
   StoragePutInput,
   StoragePutResult,
 } from "./types";
 
 const DEFAULT_MAX = 20_000_000;
+const DEFAULT_PRESIGN_SECONDS = 600;
 
 export type S3CompatibleConfig = {
   bucket: string;
@@ -32,8 +37,16 @@ function amzDate(d = new Date()): { amz: string; dateStamp: string } {
   return { amz: iso, dateStamp: iso.slice(0, 8) };
 }
 
+function signingKey(secretAccessKey: string, dateStamp: string, region: string): Buffer {
+  const kDate = hmac(`AWS4${secretAccessKey}`, dateStamp);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, "s3");
+  return hmac(kService, "aws4_request");
+}
+
 /**
- * Minimal SigV4 PutObject for S3 / R2 / MinIO — no AWS SDK dependency.
+ * Minimal SigV4 PutObject / GetObject / HeadObject / DeleteObject / presigned PUT
+ * for S3 / R2 / MinIO — no AWS SDK dependency (getSignedUrl equivalent).
  */
 export class S3CompatibleStorageProvider implements StorageProvider {
   readonly name = "s3-compatible";
@@ -59,11 +72,43 @@ export class S3CompatibleStorageProvider implements StorageProvider {
     return { host, url: `https://${host}/${encodedKey}`, canonicalUri: `/${encodedKey}` };
   }
 
-  private publicUrl(key: string): string {
+  urlForKey(key: string): string {
     if (this.cfg.publicBaseUrl) {
       return `${this.cfg.publicBaseUrl.replace(/\/$/, "")}/${key}`;
     }
     return this.hostAndPath(key).url;
+  }
+
+  private async signedFetch(
+    method: "GET" | "HEAD" | "DELETE",
+    key: string,
+  ): Promise<Response> {
+    const { host, url, canonicalUri } = this.hostAndPath(key);
+    const { amz, dateStamp } = amzDate();
+    const payloadHash = sha256Hex("");
+    const canonicalHeaders = `host:${host}\n` + `x-amz-content-sha256:${payloadHash}\n` + `x-amz-date:${amz}\n`;
+    const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+    const canonicalRequest = [method, canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join(
+      "\n",
+    );
+    const credentialScope = `${dateStamp}/${this.cfg.region}/s3/aws4_request`;
+    const stringToSign = ["AWS4-HMAC-SHA256", amz, credentialScope, sha256Hex(canonicalRequest)].join("\n");
+    const signature = createHmac("sha256", signingKey(this.cfg.secretAccessKey, dateStamp, this.cfg.region))
+      .update(stringToSign, "utf8")
+      .digest("hex");
+    const authorization =
+      `AWS4-HMAC-SHA256 Credential=${this.cfg.accessKeyId}/${credentialScope}, ` +
+      `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    return fetch(url, {
+      method,
+      headers: {
+        Host: host,
+        "x-amz-content-sha256": payloadHash,
+        "x-amz-date": amz,
+        Authorization: authorization,
+      },
+    });
   }
 
   async put(input: StoragePutInput): Promise<StoragePutResult> {
@@ -76,11 +121,9 @@ export class S3CompatibleStorageProvider implements StorageProvider {
     const canonicalRequest = ["PUT", canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
     const credentialScope = `${dateStamp}/${this.cfg.region}/s3/aws4_request`;
     const stringToSign = ["AWS4-HMAC-SHA256", amz, credentialScope, sha256Hex(canonicalRequest)].join("\n");
-    const kDate = hmac(`AWS4${this.cfg.secretAccessKey}`, dateStamp);
-    const kRegion = hmac(kDate, this.cfg.region);
-    const kService = hmac(kRegion, "s3");
-    const kSigning = hmac(kService, "aws4_request");
-    const signature = createHmac("sha256", kSigning).update(stringToSign, "utf8").digest("hex");
+    const signature = createHmac("sha256", signingKey(this.cfg.secretAccessKey, dateStamp, this.cfg.region))
+      .update(stringToSign, "utf8")
+      .digest("hex");
     const authorization =
       `AWS4-HMAC-SHA256 Credential=${this.cfg.accessKeyId}/${credentialScope}, ` +
       `SignedHeaders=${signedHeaders}, Signature=${signature}`;
@@ -100,7 +143,7 @@ export class S3CompatibleStorageProvider implements StorageProvider {
       const text = await res.text().catch(() => "");
       throw new Error(`Object storage upload failed (${res.status}): ${text.slice(0, 200)}`);
     }
-    return { url: this.publicUrl(input.key), storageKey: input.key };
+    return { url: this.urlForKey(input.key), storageKey: input.key };
   }
 
   async acceptUpload(input: StorageAcceptInput): Promise<StoragePutResult> {
@@ -125,46 +168,90 @@ export class S3CompatibleStorageProvider implements StorageProvider {
       throw new Error(`MIME type not allowed: ${mime}`);
     }
 
-    const ext = mime.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "bin";
+    const ext = mime.split("/")[1]?.replace(/[^a-z0-9]+/gi, "") || "bin";
     const key = `${input.keyPrefix || "uploads"}/${randomBytes(12).toString("hex")}.${ext}`;
     return this.put({ key, body: buffer, contentType: mime });
   }
 
-  /** O5 — fetch bytes by key so the API can proxy without exposing a public URL. */
-  async get(key: string): Promise<StorageGetResult | null> {
-    const { host, url, canonicalUri } = this.hostAndPath(key);
+  /**
+   * Query-string presigned PUT (content-type signed). Client must send the same
+   * Content-Type header. Expiry defaults to 10 minutes.
+   */
+  async presignPut(input: StoragePresignPutInput): Promise<StoragePresignPutResult> {
+    const expiresIn = Math.max(60, Math.min(input.expiresInSeconds ?? DEFAULT_PRESIGN_SECONDS, 3600));
+    const { host, url, canonicalUri } = this.hostAndPath(input.key);
     const { amz, dateStamp } = amzDate();
-    const payloadHash = sha256Hex("");
-    const canonicalHeaders = `host:${host}\n` + `x-amz-content-sha256:${payloadHash}\n` + `x-amz-date:${amz}\n`;
-    const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
-    const canonicalRequest = ["GET", canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
     const credentialScope = `${dateStamp}/${this.cfg.region}/s3/aws4_request`;
+    const credential = `${this.cfg.accessKeyId}/${credentialScope}`;
+    const signedHeaders = "content-type;host";
+    const canonicalQuery = [
+      `X-Amz-Algorithm=AWS4-HMAC-SHA256`,
+      `X-Amz-Credential=${encodeURIComponent(credential)}`,
+      `X-Amz-Date=${amz}`,
+      `X-Amz-Expires=${expiresIn}`,
+      `X-Amz-SignedHeaders=${encodeURIComponent(signedHeaders)}`,
+    ].join("&");
+    const canonicalHeaders = `content-type:${input.contentType}\n` + `host:${host}\n`;
+    const canonicalRequest = [
+      "PUT",
+      canonicalUri,
+      canonicalQuery,
+      canonicalHeaders,
+      signedHeaders,
+      "UNSIGNED-PAYLOAD",
+    ].join("\n");
     const stringToSign = ["AWS4-HMAC-SHA256", amz, credentialScope, sha256Hex(canonicalRequest)].join("\n");
-    const kDate = hmac(`AWS4${this.cfg.secretAccessKey}`, dateStamp);
-    const kRegion = hmac(kDate, this.cfg.region);
-    const kService = hmac(kRegion, "s3");
-    const kSigning = hmac(kService, "aws4_request");
-    const signature = createHmac("sha256", kSigning).update(stringToSign, "utf8").digest("hex");
-    const authorization =
-      `AWS4-HMAC-SHA256 Credential=${this.cfg.accessKeyId}/${credentialScope}, ` +
-      `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+    const signature = createHmac("sha256", signingKey(this.cfg.secretAccessKey, dateStamp, this.cfg.region))
+      .update(stringToSign, "utf8")
+      .digest("hex");
+    return {
+      uploadUrl: `${url}?${canonicalQuery}&X-Amz-Signature=${signature}`,
+      headers: { "Content-Type": input.contentType },
+    };
+  }
 
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        Host: host,
-        "x-amz-content-sha256": payloadHash,
-        "x-amz-date": amz,
-        Authorization: authorization,
-      },
-    });
+  async head(key: string): Promise<StorageHeadResult | null> {
+    const res = await this.signedFetch("HEAD", key);
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Object storage head failed (${res.status}): ${text.slice(0, 200)}`);
+    }
+    const lenRaw = res.headers.get("content-length");
+    const contentLength = lenRaw != null ? Number(lenRaw) : NaN;
+    if (!Number.isFinite(contentLength) || contentLength < 0) {
+      throw new Error("Object storage head missing content-length");
+    }
+    return {
+      contentLength,
+      contentType: res.headers.get("content-type"),
+    };
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    const res = await this.signedFetch("DELETE", key);
+    if (res.status === 404) return;
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Object storage delete failed (${res.status}): ${text.slice(0, 200)}`);
+    }
+  }
+
+  /** O5 — stream bytes by key so the API can proxy without buffering whole objects. */
+  async get(key: string): Promise<StorageGetResult | null> {
+    const res = await this.signedFetch("GET", key);
     if (res.status === 404) return null;
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       throw new Error(`Object storage get failed (${res.status}): ${text.slice(0, 200)}`);
     }
     const contentType = res.headers.get("content-type") || "application/octet-stream";
-    const body = Buffer.from(await res.arrayBuffer());
-    return { body, contentType };
+    const lenRaw = res.headers.get("content-length");
+    const contentLength = lenRaw != null && Number.isFinite(Number(lenRaw)) ? Number(lenRaw) : undefined;
+    if (!res.body) {
+      return { body: Buffer.alloc(0), contentType, contentLength: 0 };
+    }
+    const body = Readable.fromWeb(res.body as import("stream/web").ReadableStream);
+    return { body, contentType, contentLength };
   }
 }

@@ -39,19 +39,27 @@ type PortalView = {
   assignments: PortalAssignment[];
 };
 
+type PickedFile = {
+  file: File;
+  fileName: string;
+  mime: string;
+  size: number;
+};
+
 const INPUT_STYLE: CSSProperties = { fontSize: 16 };
+const DEFAULT_MAX_BYTES = 250_000_000;
+const DATA_URL_MAX_BYTES = 20_000_000;
 
 function maxBytesOf(config: Record<string, unknown>): number {
-  return typeof config.maxBytes === "number" && config.maxBytes > 0 ? config.maxBytes : 20_000_000;
+  return typeof config.maxBytes === "number" && config.maxBytes > 0 ? config.maxBytes : DEFAULT_MAX_BYTES;
 }
 
 function mbRounded(bytes: number): number {
   return Math.round(bytes / 1_000_000);
 }
 
-function fileLimitCopy(config: Record<string, unknown>): string {
-  const mb = mbRounded(maxBytesOf(config));
-  return `PDF, PowerPoint, Word, or image — up to ${mb} MB — or paste a link (Google Slides, Canva, etc.).`;
+function fileLimitCopy(_config: Record<string, unknown>): string {
+  return "PDF, PowerPoint, Word, or image — up to 250 MB — or paste a link (Google Slides, Canva, etc.).";
 }
 
 function oversizedFileMessage(fileBytes: number, maxBytes: number): string {
@@ -101,6 +109,83 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+type UploadIntentOk = {
+  uploadUrl: string;
+  headers?: Record<string, string>;
+  fileRef: string;
+  mime?: string;
+};
+type UploadIntentFallback = { fallback: true };
+type UploadIntentResponse = UploadIntentOk | UploadIntentFallback;
+
+function isFallbackIntent(json: UploadIntentResponse): json is UploadIntentFallback {
+  return "fallback" in json && json.fallback === true;
+}
+
+async function requestUploadIntent(
+  token: string,
+  assignmentId: string,
+  picked: PickedFile,
+): Promise<UploadIntentResponse> {
+  const res = await fetch(
+    `${API_URL}/portal/${encodeURIComponent(token)}/assignments/${encodeURIComponent(assignmentId)}/upload-intent`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: picked.fileName,
+        mime: picked.mime,
+        size: picked.size,
+      }),
+    },
+  );
+  const json = (await res.json().catch(() => ({}))) as UploadIntentResponse & { error?: string };
+  if (!res.ok) {
+    throw new Error(typeof json.error === "string" ? json.error : "Could not start the upload.");
+  }
+  if (isFallbackIntent(json)) return json;
+  if (!("uploadUrl" in json) || !json.uploadUrl || !json.fileRef) {
+    throw new Error("Could not start the upload.");
+  }
+  return json;
+}
+
+function putFileWithProgress(
+  uploadUrl: string,
+  file: File,
+  headers: Record<string, string> | undefined,
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl);
+    const contentType = headers?.["Content-Type"] || headers?.["content-type"] || file.type || "application/octet-stream";
+    xhr.setRequestHeader("Content-Type", contentType);
+    if (headers) {
+      for (const [k, v] of Object.entries(headers)) {
+        if (k.toLowerCase() === "content-type") continue;
+        xhr.setRequestHeader(k, v);
+      }
+    }
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable || ev.total <= 0) return;
+      onProgress(Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+        return;
+      }
+      const expired = xhr.status === 403 || xhr.status === 400;
+      reject(Object.assign(new Error("Upload failed."), { expired, status: xhr.status }));
+    };
+    xhr.onerror = () => reject(new Error("Upload failed — check your connection and try again."));
+    xhr.onabort = () => reject(new Error("Upload was cancelled."));
+    xhr.send(file);
+  });
+}
+
 function FileRequirementInput({
   label,
   config,
@@ -111,6 +196,7 @@ function FileRequirementInput({
   fileError,
   onFile,
   onFileError,
+  uploadProgress,
 }: {
   label: string;
   config: Record<string, unknown>;
@@ -119,8 +205,9 @@ function FileRequirementInput({
   onChange: (value: unknown) => void;
   fileMeta: { fileName: string; size: number } | null;
   fileError: string | null;
-  onFile: (file: { fileUrl: string; fileName: string; mime: string; size: number } | null) => void;
+  onFile: (file: PickedFile | null) => void;
   onFileError: (message: string | null) => void;
+  uploadProgress: number | null;
 }) {
   const maxBytes = maxBytesOf(config);
   const [chooserKey, setChooserKey] = useState(0);
@@ -160,20 +247,12 @@ function FileRequirementInput({
             }
             onFileError(null);
             onChange("");
-            void readFileAsDataUrl(file)
-              .then((fileUrl) =>
-                onFile({
-                  fileUrl,
-                  fileName: file.name,
-                  mime: file.type || "application/octet-stream",
-                  size: file.size,
-                }),
-              )
-              .catch((err) => {
-                onFile(null);
-                onFileError(err instanceof Error ? err.message : "Could not read that file.");
-                setChooserKey((k) => k + 1);
-              });
+            onFile({
+              file,
+              fileName: file.name,
+              mime: file.type || "application/octet-stream",
+              size: file.size,
+            });
           }}
         />
         {fileMeta ? (
@@ -182,6 +261,26 @@ function FileRequirementInput({
           </span>
         ) : null}
       </div>
+      {uploadProgress != null ? (
+        <div style={{ display: "grid", gap: 4 }} aria-live="polite">
+          <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={uploadProgress}
+            aria-label="Upload progress"
+            className="portal-upload-progress"
+          >
+            <div
+              className="portal-upload-progress__bar"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+          <span className="text-meta" style={{ margin: 0 }}>
+            Uploading… {uploadProgress}%
+          </span>
+        </div>
+      ) : null}
       {fileError ? (
         <p role="alert" style={{ color: "var(--danger)", margin: 0 }}>
           {fileError}
@@ -222,6 +321,7 @@ function RequirementInput({
   fileError,
   onFile,
   onFileError,
+  uploadProgress,
 }: {
   assignment: PortalAssignment;
   disabled: boolean;
@@ -229,8 +329,9 @@ function RequirementInput({
   onChange: (value: unknown) => void;
   fileMeta: { fileName: string; size: number } | null;
   fileError: string | null;
-  onFile: (file: { fileUrl: string; fileName: string; mime: string; size: number } | null) => void;
+  onFile: (file: PickedFile | null) => void;
   onFileError: (message: string | null) => void;
+  uploadProgress: number | null;
 }) {
   const { kind, config, label } = assignment.requirement;
   const options = optionsOf(config);
@@ -349,6 +450,7 @@ function RequirementInput({
         fileError={fileError}
         onFile={onFile}
         onFileError={onFileError}
+        uploadProgress={uploadProgress}
       />
     );
   }
@@ -372,11 +474,10 @@ export default function PresenterPortalPage() {
   const [denial, setDenial] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, unknown>>({});
-  const [files, setFiles] = useState<
-    Record<string, { fileUrl: string; fileName: string; mime: string; size: number }>
-  >({});
+  const [files, setFiles] = useState<Record<string, PickedFile>>({});
   const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -412,6 +513,76 @@ export default function PresenterPortalPage() {
     load().catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load this page."));
   }, [token, router.isReady, load]);
 
+  async function submitFileDirect(assignment: PortalAssignment, picked: PickedFile) {
+    let intent = await requestUploadIntent(token, assignment.id, picked);
+    if (isFallbackIntent(intent)) {
+      if (picked.size > DATA_URL_MAX_BYTES) {
+        throw new Error(
+          oversizedFileMessage(picked.size, DATA_URL_MAX_BYTES) +
+            " Direct upload isn’t available in this environment.",
+        );
+      }
+      const fileUrl = await readFileAsDataUrl(picked.file);
+      const res = await fetch(
+        `${API_URL}/portal/${encodeURIComponent(token)}/assignments/${encodeURIComponent(assignment.id)}/submission`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileUrl,
+            fileName: picked.fileName,
+            mime: picked.mime,
+          }),
+        },
+      );
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(typeof json.error === "string" ? json.error : "Could not submit.");
+      }
+      return;
+    }
+
+    setUploadProgress((prev) => ({ ...prev, [assignment.id]: 0 }));
+    const putOnce = async (signed: UploadIntentOk) => {
+      await putFileWithProgress(signed.uploadUrl, picked.file, signed.headers, (pct) => {
+        setUploadProgress((prev) => ({ ...prev, [assignment.id]: pct }));
+      });
+      return signed.fileRef;
+    };
+
+    let fileRef: string;
+    try {
+      fileRef = await putOnce(intent);
+    } catch (err) {
+      const expired = Boolean(err && typeof err === "object" && "expired" in err && (err as { expired?: boolean }).expired);
+      if (!expired) throw err;
+      // Expired URL → re-request intent once automatically.
+      intent = await requestUploadIntent(token, assignment.id, picked);
+      if (isFallbackIntent(intent)) {
+        throw new Error("Upload link expired. Please try again.");
+      }
+      fileRef = await putOnce(intent);
+    }
+
+    const res = await fetch(
+      `${API_URL}/portal/${encodeURIComponent(token)}/assignments/${encodeURIComponent(assignment.id)}/submission`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileRef,
+          fileName: picked.fileName,
+          mime: picked.mime,
+          size: picked.size,
+        }),
+      },
+    );
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      throw new Error(typeof json.error === "string" ? json.error : "Could not submit.");
+    }
+  }
+
   async function submit(assignment: PortalAssignment) {
     setBusyId(assignment.id);
     setRowError((prev) => {
@@ -419,8 +590,12 @@ export default function PresenterPortalPage() {
       delete next[assignment.id];
       return next;
     });
+    setUploadProgress((prev) => {
+      const next = { ...prev };
+      delete next[assignment.id];
+      return next;
+    });
     try {
-      let body: Record<string, unknown>;
       if (assignment.requirement.kind === "file") {
         const picked = files[assignment.id];
         const link =
@@ -432,33 +607,39 @@ export default function PresenterPortalPage() {
             setFileErrors((prev) => ({ ...prev, [assignment.id]: message }));
             throw new Error(message);
           }
-          body = {
-            fileUrl: picked.fileUrl,
-            fileName: picked.fileName,
-            mime: picked.mime,
-          };
+          await submitFileDirect(assignment, picked);
         } else if (link) {
           if (!isValidHttpUrl(link)) {
             throw new Error("Enter a valid URL (starting with https://).");
           }
-          body = { value: link };
+          const res = await fetch(
+            `${API_URL}/portal/${encodeURIComponent(token)}/assignments/${encodeURIComponent(assignment.id)}/submission`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ value: link }),
+            },
+          );
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          if (!res.ok) {
+            throw new Error(typeof json.error === "string" ? json.error : "Could not submit.");
+          }
         } else {
           throw new Error("Attach a file or paste a link to submit this requirement.");
         }
       } else {
-        body = { value: drafts[assignment.id] };
-      }
-      const res = await fetch(
-        `${API_URL}/portal/${encodeURIComponent(token)}/assignments/${encodeURIComponent(assignment.id)}/submission`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        throw new Error(typeof json.error === "string" ? json.error : "Could not submit.");
+        const res = await fetch(
+          `${API_URL}/portal/${encodeURIComponent(token)}/assignments/${encodeURIComponent(assignment.id)}/submission`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ value: drafts[assignment.id] }),
+          },
+        );
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          throw new Error(typeof json.error === "string" ? json.error : "Could not submit.");
+        }
       }
       setFiles((prev) => {
         const next = { ...prev };
@@ -478,6 +659,11 @@ export default function PresenterPortalPage() {
       }));
     } finally {
       setBusyId(null);
+      setUploadProgress((prev) => {
+        const next = { ...prev };
+        delete next[assignment.id];
+        return next;
+      });
     }
   }
 
@@ -590,6 +776,7 @@ export default function PresenterPortalPage() {
                             : null
                         }
                         fileError={fileErrors[a.id] ?? null}
+                        uploadProgress={uploadProgress[a.id] ?? null}
                         onFileError={(message) =>
                           setFileErrors((prev) => {
                             const next = { ...prev };
@@ -619,7 +806,13 @@ export default function PresenterPortalPage() {
                         disabled={busyId === a.id}
                         onClick={() => void submit(a)}
                       >
-                        {busyId === a.id ? "Submitting…" : a.latestSubmission ? "Resubmit" : "Submit"}
+                        {busyId === a.id
+                          ? uploadProgress[a.id] != null
+                            ? "Uploading…"
+                            : "Submitting…"
+                          : a.latestSubmission
+                            ? "Resubmit"
+                            : "Submit"}
                       </button>
                     </>
                   ) : a.latestSubmission?.fileName ? (
