@@ -470,26 +470,33 @@ function validateSubmissionValue(
   }
 
   if (kind === "url") {
-    if (typeof value !== "string") {
-      throw new HttpError(400, { error: "Enter a URL." });
-    }
-    let parsed: URL;
-    try {
-      parsed = new URL(value.trim());
-    } catch {
-      throw new HttpError(400, { error: "Enter a valid URL (starting with https://)." });
-    }
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new HttpError(400, { error: "Enter a valid URL (starting with https://)." });
-    }
-    return { valueText: parsed.toString(), valueJson: parsed.toString() };
+    return validateHttpUrlValue(value);
   }
 
   if (kind === "file") {
-    return { valueText: null, valueJson: Prisma.JsonNull };
+    // Link-as-alternative for file requirements (ER4.2) — same shape as url.
+    return validateHttpUrlValue(value);
   }
 
   throw new HttpError(400, { error: "This requirement cannot be submitted here." });
+}
+
+function validateHttpUrlValue(
+  value: unknown,
+): { valueText: string; valueJson: string } {
+  if (typeof value !== "string") {
+    throw new HttpError(400, { error: "Enter a URL." });
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value.trim());
+  } catch {
+    throw new HttpError(400, { error: "Enter a valid URL (starting with https://)." });
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new HttpError(400, { error: "Enter a valid URL (starting with https://)." });
+  }
+  return { valueText: parsed.toString(), valueJson: parsed.toString() };
 }
 
 export async function submitPortalAssignment(
@@ -522,10 +529,7 @@ export async function submitPortalAssignment(
   let valueText: string | null = null;
   let valueJson: Prisma.InputJsonValue | typeof Prisma.JsonNull = Prisma.JsonNull;
 
-  if (kind === "file") {
-    if (!body.fileUrl?.trim()) {
-      throw new HttpError(400, { error: "Attach a file to submit this requirement." });
-    }
+  if (kind === "file" && body.fileUrl?.trim()) {
     const checked = assertFileAllowed({
       fileUrl: body.fileUrl,
       mime: body.mime,
@@ -564,6 +568,17 @@ export async function submitPortalAssignment(
     fileName = body.fileName?.trim() || "upload";
     fileMime = checked.mime;
     fileSizeBytes = checked.sizeBytes;
+  } else if (kind === "file") {
+    // ER4.2 — file requirements also accept a link (Canva / Google Slides, etc.).
+    // Store on valueText/valueJson with no file fields.
+    if (body.value == null || (typeof body.value === "string" && !body.value.trim())) {
+      throw new HttpError(400, {
+        error: "Attach a file or paste a link to submit this requirement.",
+      });
+    }
+    const validated = validateSubmissionValue("file", body.value, config);
+    valueText = validated.valueText;
+    valueJson = validated.valueJson;
   } else {
     const validated = validateSubmissionValue(kind, body.value, config);
     valueText = validated.valueText;

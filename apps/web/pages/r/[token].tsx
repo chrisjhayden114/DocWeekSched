@@ -41,11 +41,36 @@ type PortalView = {
 
 const INPUT_STYLE: CSSProperties = { fontSize: 16 };
 
+function maxBytesOf(config: Record<string, unknown>): number {
+  return typeof config.maxBytes === "number" && config.maxBytes > 0 ? config.maxBytes : 20_000_000;
+}
+
+function mbRounded(bytes: number): number {
+  return Math.round(bytes / 1_000_000);
+}
+
 function fileLimitCopy(config: Record<string, unknown>): string {
-  const max =
-    typeof config.maxBytes === "number" && config.maxBytes > 0 ? config.maxBytes : 20_000_000;
-  const mb = Math.round(max / 1_000_000);
-  return `PDF, PowerPoint, Word, or image — up to ${mb} MB. Bigger file? Ask the organizer to add a link requirement instead.`;
+  const mb = mbRounded(maxBytesOf(config));
+  return `PDF, PowerPoint, Word, or image — up to ${mb} MB — or paste a link (Google Slides, Canva, etc.).`;
+}
+
+function oversizedFileMessage(fileBytes: number, maxBytes: number): string {
+  return `This file is ${mbRounded(fileBytes)} MB — the limit is ${mbRounded(maxBytes)} MB. You can paste a link to it below instead.`;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1_000) return `${bytes} B`;
+  if (bytes < 1_000_000) return `${Math.round(bytes / 1_000)} KB`;
+  return `${mbRounded(bytes)} MB`;
+}
+
+function isValidHttpUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function optionsOf(config: Record<string, unknown>): string[] {
@@ -76,18 +101,136 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function FileRequirementInput({
+  label,
+  config,
+  disabled,
+  draft,
+  onChange,
+  fileMeta,
+  fileError,
+  onFile,
+  onFileError,
+}: {
+  label: string;
+  config: Record<string, unknown>;
+  disabled: boolean;
+  draft: unknown;
+  onChange: (value: unknown) => void;
+  fileMeta: { fileName: string; size: number } | null;
+  fileError: string | null;
+  onFile: (file: { fileUrl: string; fileName: string; mime: string; size: number } | null) => void;
+  onFileError: (message: string | null) => void;
+}) {
+  const maxBytes = maxBytesOf(config);
+  const [chooserKey, setChooserKey] = useState(0);
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <p className="help-text" style={{ margin: 0 }}>
+        {fileLimitCopy(config)}
+      </p>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <input
+          key={chooserKey}
+          className="input"
+          type="file"
+          disabled={disabled}
+          accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg"
+          aria-label={label}
+          style={{ ...INPUT_STYLE, flex: "1 1 220px", minWidth: 0 }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) {
+              onFile(null);
+              onFileError(null);
+              return;
+            }
+            if (file.size > maxBytes) {
+              onFile(null);
+              onFileError(oversizedFileMessage(file.size, maxBytes));
+              setChooserKey((k) => k + 1);
+              return;
+            }
+            onFileError(null);
+            onChange("");
+            void readFileAsDataUrl(file)
+              .then((fileUrl) =>
+                onFile({
+                  fileUrl,
+                  fileName: file.name,
+                  mime: file.type || "application/octet-stream",
+                  size: file.size,
+                }),
+              )
+              .catch((err) => {
+                onFile(null);
+                onFileError(err instanceof Error ? err.message : "Could not read that file.");
+                setChooserKey((k) => k + 1);
+              });
+          }}
+        />
+        {fileMeta ? (
+          <span className="text-meta" style={{ margin: 0 }}>
+            {fileMeta.fileName} · {formatFileSize(fileMeta.size)}
+          </span>
+        ) : null}
+      </div>
+      {fileError ? (
+        <p role="alert" style={{ color: "var(--danger)", margin: 0 }}>
+          {fileError}
+        </p>
+      ) : null}
+      <label style={{ margin: 0, display: "grid", gap: 6 }}>
+        <span className="help-text">…or paste a link instead</span>
+        <input
+          className="input"
+          type="url"
+          inputMode="url"
+          placeholder="https://"
+          disabled={disabled}
+          value={typeof draft === "string" ? draft : ""}
+          aria-label={`${label} link`}
+          style={INPUT_STYLE}
+          onChange={(e) => {
+            const next = e.target.value;
+            onChange(next);
+            if (next.trim()) {
+              if (fileMeta) setChooserKey((k) => k + 1);
+              onFile(null);
+              onFileError(null);
+            }
+          }}
+        />
+      </label>
+    </div>
+  );
+}
+
 function RequirementInput({
   assignment,
   disabled,
   draft,
   onChange,
+  fileMeta,
+  fileError,
   onFile,
+  onFileError,
 }: {
   assignment: PortalAssignment;
   disabled: boolean;
   draft: unknown;
   onChange: (value: unknown) => void;
-  onFile: (file: { fileUrl: string; fileName: string; mime: string } | null) => void;
+  fileMeta: { fileName: string; size: number } | null;
+  fileError: string | null;
+  onFile: (file: { fileUrl: string; fileName: string; mime: string; size: number } | null) => void;
+  onFileError: (message: string | null) => void;
 }) {
   const { kind, config, label } = assignment.requirement;
   const options = optionsOf(config);
@@ -196,29 +339,17 @@ function RequirementInput({
   }
   if (kind === "file") {
     return (
-      <div style={{ display: "grid", gap: 6 }}>
-        <p className="help-text" style={{ margin: 0 }}>
-          {fileLimitCopy(config)}
-        </p>
-        <input
-          className="input"
-          type="file"
-          disabled={disabled}
-          accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg"
-          aria-label={label}
-          style={INPUT_STYLE}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) {
-              onFile(null);
-              return;
-            }
-            void readFileAsDataUrl(file).then((fileUrl) =>
-              onFile({ fileUrl, fileName: file.name, mime: file.type || "application/octet-stream" }),
-            );
-          }}
-        />
-      </div>
+      <FileRequirementInput
+        label={label}
+        config={config}
+        disabled={disabled}
+        draft={draft}
+        onChange={onChange}
+        fileMeta={fileMeta}
+        fileError={fileError}
+        onFile={onFile}
+        onFileError={onFileError}
+      />
     );
   }
   return (
@@ -241,7 +372,10 @@ export default function PresenterPortalPage() {
   const [denial, setDenial] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, unknown>>({});
-  const [files, setFiles] = useState<Record<string, { fileUrl: string; fileName: string; mime: string }>>({});
+  const [files, setFiles] = useState<
+    Record<string, { fileUrl: string; fileName: string; mime: string; size: number }>
+  >({});
+  const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
 
@@ -286,10 +420,34 @@ export default function PresenterPortalPage() {
       return next;
     });
     try {
-      const body: Record<string, unknown> =
-        assignment.requirement.kind === "file"
-          ? { ...files[assignment.id] }
-          : { value: drafts[assignment.id] };
+      let body: Record<string, unknown>;
+      if (assignment.requirement.kind === "file") {
+        const picked = files[assignment.id];
+        const link =
+          typeof drafts[assignment.id] === "string" ? String(drafts[assignment.id]).trim() : "";
+        const maxBytes = maxBytesOf(assignment.requirement.config);
+        if (picked) {
+          if (picked.size > maxBytes) {
+            const message = oversizedFileMessage(picked.size, maxBytes);
+            setFileErrors((prev) => ({ ...prev, [assignment.id]: message }));
+            throw new Error(message);
+          }
+          body = {
+            fileUrl: picked.fileUrl,
+            fileName: picked.fileName,
+            mime: picked.mime,
+          };
+        } else if (link) {
+          if (!isValidHttpUrl(link)) {
+            throw new Error("Enter a valid URL (starting with https://).");
+          }
+          body = { value: link };
+        } else {
+          throw new Error("Attach a file or paste a link to submit this requirement.");
+        }
+      } else {
+        body = { value: drafts[assignment.id] };
+      }
       const res = await fetch(
         `${API_URL}/portal/${encodeURIComponent(token)}/assignments/${encodeURIComponent(assignment.id)}/submission`,
         {
@@ -302,6 +460,16 @@ export default function PresenterPortalPage() {
       if (!res.ok) {
         throw new Error(typeof json.error === "string" ? json.error : "Could not submit.");
       }
+      setFiles((prev) => {
+        const next = { ...prev };
+        delete next[assignment.id];
+        return next;
+      });
+      setFileErrors((prev) => {
+        const next = { ...prev };
+        delete next[assignment.id];
+        return next;
+      });
       await load();
     } catch (err) {
       setRowError((prev) => ({
@@ -416,6 +584,20 @@ export default function PresenterPortalPage() {
                         disabled={busyId === a.id}
                         draft={drafts[a.id]}
                         onChange={(value) => setDrafts((prev) => ({ ...prev, [a.id]: value }))}
+                        fileMeta={
+                          files[a.id]
+                            ? { fileName: files[a.id].fileName, size: files[a.id].size }
+                            : null
+                        }
+                        fileError={fileErrors[a.id] ?? null}
+                        onFileError={(message) =>
+                          setFileErrors((prev) => {
+                            const next = { ...prev };
+                            if (message) next[a.id] = message;
+                            else delete next[a.id];
+                            return next;
+                          })
+                        }
                         onFile={(file) =>
                           setFiles((prev) => {
                             const next = { ...prev };

@@ -345,6 +345,63 @@ describe("readiness presenter portal (DB, ER4)", () => {
     ).toBe(0);
   }, 60_000);
 
+  it("ER4.2 — link satisfies a file requirement; junk URL rejected; file path still works", async () => {
+    const junk = await fetch(`${base}/portal/${rawToken}/assignments/${ids.fileAssignment1}/submission`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ value: "not-a-url" }),
+    });
+    expect(junk.status).toBe(400);
+    expect(
+      await prisma.readinessSubmission.count({ where: { assignmentId: ids.fileAssignment1 } }),
+    ).toBe(0);
+
+    const linked = await fetch(`${base}/portal/${rawToken}/assignments/${ids.fileAssignment1}/submission`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ value: "https://docs.google.com/presentation/d/abc123" }),
+    });
+    expect(linked.status).toBe(201);
+    const linkBody = (await linked.json()) as { id: string; status: string };
+    expect(linkBody.status).toBe("SUBMITTED");
+    const linkRow = await prisma.readinessSubmission.findUniqueOrThrow({ where: { id: linkBody.id } });
+    expect(linkRow.valueText).toBe("https://docs.google.com/presentation/d/abc123");
+    expect(linkRow.fileUrl).toBeNull();
+    expect(linkRow.fileStorageKey).toBeNull();
+    expect(linkRow.fileName).toBeNull();
+    expect(
+      (await prisma.readinessAssignment.findUniqueOrThrow({ where: { id: ids.fileAssignment1! } })).status,
+    ).toBe("SUBMITTED");
+
+    // File path unchanged — uploading a file supersedes the link submission.
+    const tinyPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const uploaded = await fetch(
+      `${base}/portal/${rawToken}/assignments/${ids.fileAssignment1}/submission`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fileUrl: `data:image/png;base64,${tinyPng.toString("base64")}`,
+          fileName: "after-link.png",
+          mime: "image/png",
+        }),
+      },
+    );
+    expect(uploaded.status).toBe(201);
+    const fileBody = (await uploaded.json()) as { id: string };
+    const supersededLink = await prisma.readinessSubmission.findUniqueOrThrow({
+      where: { id: linkBody.id },
+    });
+    expect(supersededLink.supersededAt).toBeInstanceOf(Date);
+    const fileRow = await prisma.readinessSubmission.findUniqueOrThrow({ where: { id: fileBody.id } });
+    expect(fileRow.fileName).toBe("after-link.png");
+    expect(fileRow.fileUrl).toBeTruthy();
+    expect(fileRow.valueText).toBeNull();
+  }, 60_000);
+
   it("approve → READY + audit; reject stores the reason and returns IN_PROGRESS", async () => {
     const tinyPng = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",

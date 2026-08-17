@@ -114,6 +114,16 @@ function formatDue(iso: string | null | undefined): string | null {
   });
 }
 
+function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /** Derived-late marker: red dot, due date in the tooltip. */
 function LateDot({ dueAt }: { dueAt: string | null }) {
   const due = formatDue(dueAt);
@@ -891,8 +901,8 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         </label>
         {reqDraft.kind === "file" ? (
           <p className="help-text" style={{ margin: 0 }}>
-            PDF, PowerPoint, Word, or image — up to 20 MB. Bigger file? Add a link requirement
-            instead.
+            PDF, PowerPoint, Word, or image — up to 20 MB — or paste a link (Google
+            Slides, Canva, etc.).
           </p>
         ) : null}
         <label style={{ margin: 0 }}>
@@ -1862,6 +1872,15 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                           style={{ justifySelf: "start", minHeight: 44 }}
                         >
                           View {a.latestSubmission.fileName}
+                        </a>
+                      ) : isHttpUrl(a.latestSubmission.value) ? (
+                        <a
+                          href={a.latestSubmission.value}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ justifySelf: "start", overflowWrap: "anywhere" }}
+                        >
+                          {a.latestSubmission.value}
                         </a>
                       ) : a.latestSubmission.value != null ? (
                         <p style={{ margin: 0, overflowWrap: "anywhere" }}>
