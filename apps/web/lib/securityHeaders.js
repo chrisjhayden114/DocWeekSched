@@ -36,8 +36,13 @@ function sentryIngestOrigin(dsn) {
   }
 }
 
+// R2 presigned-upload endpoint for the presenter portal (ER4.3) — bytes go
+// directly from the browser to storage by design.
+const R2_PRESIGNED_UPLOAD_ORIGIN =
+  "https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com";
+
 function buildCsp({ apiUrl, sentryDsn } = {}) {
-  const connectSrc = ["'self'", apiOrigin(apiUrl)];
+  const connectSrc = ["'self'", apiOrigin(apiUrl), R2_PRESIGNED_UPLOAD_ORIGIN];
   const ingest = sentryIngestOrigin(sentryDsn);
   if (ingest) connectSrc.push(ingest);
 

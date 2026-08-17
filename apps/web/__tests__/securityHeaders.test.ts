@@ -74,7 +74,9 @@ describe("CSP policy string", () => {
     expect(cspDirective(csp, "style-src")).toBe("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com");
     expect(cspDirective(csp, "font-src")).toBe("font-src https://fonts.gstatic.com");
     expect(cspDirective(csp, "img-src")).toBe("img-src 'self' data: blob: https:");
-    expect(cspDirective(csp, "connect-src")).toBe("connect-src 'self' https://api.ukedl.com");
+    expect(cspDirective(csp, "connect-src")).toBe(
+      "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
+    );
     expect(cspDirective(csp, "worker-src")).toBe("worker-src 'self'");
     expect(cspDirective(csp, "manifest-src")).toBe("manifest-src 'self'");
     expect(cspDirective(csp, "frame-ancestors")).toBe("frame-ancestors 'none'");
@@ -96,14 +98,25 @@ describe("CSP policy string", () => {
     expect(apiOrigin("https://api.ukedl.com/some/path/")).toBe("https://api.ukedl.com");
     expect(apiOrigin(undefined)).toBe("http://localhost:4000");
     expect(apiOrigin("not a url")).toBe("http://localhost:4000");
-    expect(buildCsp({ apiUrl: "http://localhost:4000" })).toContain("connect-src 'self' http://localhost:4000");
+    expect(buildCsp({ apiUrl: "http://localhost:4000" })).toContain(
+      "connect-src 'self' http://localhost:4000 https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
+    );
   });
 
-  it("connect-src is exactly 'self' + API origin when no Sentry DSN is set", () => {
+  it("connect-src is 'self' + API origin + R2 when no Sentry DSN is set", () => {
     const noDsn = buildCsp({ apiUrl: "https://api.ukedl.com" });
-    expect(cspDirective(noDsn, "connect-src")).toBe("connect-src 'self' https://api.ukedl.com");
+    expect(cspDirective(noDsn, "connect-src")).toBe(
+      "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
+    );
     const emptyDsn = buildCsp({ apiUrl: "https://api.ukedl.com", sentryDsn: "  " });
-    expect(cspDirective(emptyDsn, "connect-src")).toBe("connect-src 'self' https://api.ukedl.com");
+    expect(cspDirective(emptyDsn, "connect-src")).toBe(
+      "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
+    );
+  });
+
+  it("connect-src includes the R2 presigned-upload origin (ER4.3 presenter portal)", () => {
+    const connectSrc = cspDirective(buildCsp({ apiUrl: "https://api.ukedl.com" }), "connect-src");
+    expect(connectSrc).toContain("https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com");
   });
 
   it("connect-src includes the DSN's exact ingest origin when set — never a wildcard", () => {
@@ -114,7 +127,7 @@ describe("CSP policy string", () => {
 
     const withDsn = buildCsp({ apiUrl: "https://api.ukedl.com", sentryDsn: dsn });
     expect(cspDirective(withDsn, "connect-src")).toBe(
-      "connect-src 'self' https://api.ukedl.com https://o424242.ingest.us.sentry.io",
+      "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com https://o424242.ingest.us.sentry.io",
     );
     expect(withDsn).not.toContain("*");
     // script-src is untouched by the Sentry addition.
@@ -168,7 +181,9 @@ describe("rendered page carries every header", () => {
     expect(reportOnly).toContain("script-src 'self'");
     expect(reportOnly).not.toContain("script-src 'self' 'unsafe-inline'");
     expect(reportOnly).toContain("frame-ancestors 'none'");
-    expect(reportOnly).toContain("connect-src 'self' http://localhost:4000");
+    expect(reportOnly).toContain(
+      "connect-src 'self' http://localhost:4000 https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
+    );
   });
 
   it("headers also apply to 404 responses", async () => {
