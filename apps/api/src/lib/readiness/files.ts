@@ -2,20 +2,34 @@ import { HttpError } from "../authorization";
 import { getStorageProvider } from "../storage";
 import type { StorageGetResult } from "../storage/types";
 
-/** O10 — CFP allowlist (PDF / DOCX / images). */
+/**
+ * O10 — readiness file (deck) allowlist.
+ * CFP attachments use a separate 10 MB PDF/DOCX/image list in routes/cfp.ts.
+ */
 export const READINESS_DEFAULT_MIME = [
   "application/pdf",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "image/png",
   "image/jpeg",
 ] as const;
 
-/** O10 — default file cap (CFP). */
-export const READINESS_DEFAULT_MAX_BYTES = 10_000_000;
-
-/** O10 — deck-type requirements may use the storage cap. */
+/** O10 — readiness default = storage cap (deck rule). */
 export const READINESS_DECK_MAX_BYTES = Number(process.env.STORAGE_MAX_UPLOAD_BYTES || 20_000_000);
+export const READINESS_DEFAULT_MAX_BYTES = READINESS_DECK_MAX_BYTES;
+
+const EXT_TO_MIME: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+};
 
 export function isDeckRequirement(config: Record<string, unknown> | null | undefined): boolean {
   if (!config) return false;
@@ -38,12 +52,22 @@ export function fileRulesForRequirement(config: Record<string, unknown> | null |
   const configuredMime = Array.isArray(config?.allowedMimeTypes)
     ? config.allowedMimeTypes.filter((m): m is string => typeof m === "string" && m.length > 0)
     : null;
-  const cap = deck ? READINESS_DECK_MAX_BYTES : READINESS_DEFAULT_MAX_BYTES;
   return {
     deck,
-    maxBytes: configuredMax ? Math.min(configuredMax, READINESS_DECK_MAX_BYTES) : cap,
+    // Deck is the readiness default; per-requirement config can still override.
+    maxBytes: configuredMax
+      ? Math.min(configuredMax, READINESS_DECK_MAX_BYTES)
+      : READINESS_DEFAULT_MAX_BYTES,
     allowedMimeTypes: configuredMime && configuredMime.length > 0 ? configuredMime : [...READINESS_DEFAULT_MIME],
   };
+}
+
+function mimeFromFileName(fileName?: string | null): string | null {
+  if (!fileName) return null;
+  const lower = fileName.trim().toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  if (dot < 0) return null;
+  return EXT_TO_MIME[lower.slice(dot)] ?? null;
 }
 
 function parseDataUrl(url: string): { mime: string; buffer: Buffer } | null {
@@ -57,6 +81,30 @@ function parseDataUrl(url: string): { mime: string; buffer: Buffer } | null {
   }
 }
 
+function resolveAllowedMime(input: {
+  mime?: string | null;
+  parsedMime: string;
+  fileName?: string | null;
+  allowedMimeTypes: string[];
+}): string | null {
+  const declared = input.mime?.trim().toLowerCase() || "";
+  const parsed = input.parsedMime.toLowerCase();
+
+  if (declared && input.allowedMimeTypes.includes(declared)) return declared;
+  if (input.allowedMimeTypes.includes(parsed)) return parsed;
+
+  // Browsers often send application/octet-stream for .ppt / .pptx — fall back to extension.
+  const fromExt = mimeFromFileName(input.fileName);
+  if (
+    fromExt &&
+    input.allowedMimeTypes.includes(fromExt) &&
+    (!declared || declared === "application/octet-stream" || parsed === "application/octet-stream")
+  ) {
+    return fromExt;
+  }
+  return null;
+}
+
 /**
  * Enforce O10 allowlist + size BEFORE storage. Throws honest 400s.
  * Returns the parsed buffer so the caller can persist size without re-decoding.
@@ -64,6 +112,7 @@ function parseDataUrl(url: string): { mime: string; buffer: Buffer } | null {
 export function assertFileAllowed(input: {
   fileUrl: string;
   mime?: string | null;
+  fileName?: string | null;
   config?: Record<string, unknown> | null;
 }): { mime: string; buffer: Buffer; sizeBytes: number } {
   const rules = fileRulesForRequirement(input.config ?? {});
@@ -78,10 +127,15 @@ export function assertFileAllowed(input: {
   if (!parsed) {
     throw new HttpError(400, { error: "That file could not be read.", reason: "invalid_file" });
   }
-  const mime = (input.mime?.trim().toLowerCase() || parsed.mime).toLowerCase();
-  if (!rules.allowedMimeTypes.includes(mime) && !rules.allowedMimeTypes.includes(parsed.mime)) {
+  const resolved = resolveAllowedMime({
+    mime: input.mime,
+    parsedMime: parsed.mime,
+    fileName: input.fileName,
+    allowedMimeTypes: rules.allowedMimeTypes,
+  });
+  if (!resolved) {
     throw new HttpError(400, {
-      error: "This file type isn't accepted. Use PDF, DOCX, or an image (PNG or JPEG).",
+      error: "This file type isn't accepted. Use PDF, PowerPoint, Word, or an image (PNG or JPEG).",
       reason: "wrong_type",
     });
   }
@@ -92,7 +146,7 @@ export function assertFileAllowed(input: {
       reason: "too_large",
     });
   }
-  return { mime: parsed.mime, buffer: parsed.buffer, sizeBytes: parsed.buffer.length };
+  return { mime: resolved, buffer: parsed.buffer, sizeBytes: parsed.buffer.length };
 }
 
 export async function readStoredFile(input: {

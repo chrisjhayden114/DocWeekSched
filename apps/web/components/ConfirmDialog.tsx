@@ -59,9 +59,16 @@ export function ConfirmDialog({
     }
   }, [open]);
 
+  /* Focus cancel ONLY when the dialog transitions to open. Do not depend on
+   * `onCancel`: consumers often pass inline handlers whose identity changes
+   * every render (e.g. reject-reason keystrokes), and re-running focus steals
+   * the caret from the prompt textarea — same disease as the ER3a SlideOver. */
+  useEffect(() => {
+    if (open) cancelRef.current?.focus();
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
-    cancelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCancel();
     };

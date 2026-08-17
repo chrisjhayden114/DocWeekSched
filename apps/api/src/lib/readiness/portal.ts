@@ -529,12 +529,16 @@ export async function submitPortalAssignment(
     const checked = assertFileAllowed({
       fileUrl: body.fileUrl,
       mime: body.mime,
+      fileName: body.fileName,
       config,
     });
     const rules = fileRulesForRequirement(config);
+    // Normalize the data-URL MIME so object-store acceptUpload doesn't reject
+    // octet-stream payloads that passed via extension fallback.
+    const normalizedUrl = `data:${checked.mime};base64,${checked.buffer.toString("base64")}`;
     try {
       const stored = await getStorageProvider().acceptUpload({
-        url: body.fileUrl.trim(),
+        url: normalizedUrl,
         keyPrefix: `events/${access.eventId}/readiness/${assignment.id}`,
         maxBytes: rules.maxBytes,
         allowedMimeTypes: rules.allowedMimeTypes,
@@ -551,7 +555,7 @@ export async function submitPortalAssignment(
       }
       if (/MIME type not allowed/i.test(message)) {
         throw new HttpError(400, {
-          error: "This file type isn't accepted. Use PDF, DOCX, or an image (PNG or JPEG).",
+          error: "This file type isn't accepted. Use PDF, PowerPoint, Word, or an image (PNG or JPEG).",
           reason: "wrong_type",
         });
       }

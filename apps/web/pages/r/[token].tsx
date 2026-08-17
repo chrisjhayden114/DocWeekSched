@@ -41,23 +41,11 @@ type PortalView = {
 
 const INPUT_STYLE: CSSProperties = { fontSize: 16 };
 
-function isDeck(config: Record<string, unknown>): boolean {
-  return (
-    config.deck === true ||
-    config.isDeck === true ||
-    (typeof config.role === "string" && config.role.toLowerCase() === "deck")
-  );
-}
-
 function fileLimitCopy(config: Record<string, unknown>): string {
   const max =
-    typeof config.maxBytes === "number" && config.maxBytes > 0
-      ? config.maxBytes
-      : isDeck(config)
-        ? 20_000_000
-        : 10_000_000;
+    typeof config.maxBytes === "number" && config.maxBytes > 0 ? config.maxBytes : 20_000_000;
   const mb = Math.round(max / 1_000_000);
-  return `PDF, Word (.docx), or image (PNG/JPEG). Maximum ${mb} MB.`;
+  return `PDF, PowerPoint, Word, or image — up to ${mb} MB. Bigger file? Ask the organizer to add a link requirement instead.`;
 }
 
 function optionsOf(config: Record<string, unknown>): string[] {
@@ -216,7 +204,7 @@ function RequirementInput({
           className="input"
           type="file"
           disabled={disabled}
-          accept=".pdf,.doc,.docx,application/pdf,image/png,image/jpeg"
+          accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg"
           aria-label={label}
           style={INPUT_STYLE}
           onChange={(e) => {

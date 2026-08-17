@@ -61,8 +61,6 @@ type RequirementDraft = {
   required: boolean;
   /** datetime-local value ("" = no due date). */
   dueAt: string;
-  /** O10 — file requirements marked as decks get the 20 MB cap. */
-  deck: boolean;
 };
 
 type ConfirmState =
@@ -161,7 +159,6 @@ const emptyRequirementDraft = (): RequirementDraft => ({
   helpText: "",
   required: true,
   dueAt: "",
-  deck: false,
 });
 
 export function ReadinessTab({ eventId, speakers, sessions }: Props) {
@@ -387,7 +384,6 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
       helpText: requirement.helpText ?? "",
       required: requirement.required,
       dueAt: toLocalInput(requirement.dueAt),
-      deck: requirement.config?.deck === true || requirement.config?.isDeck === true,
     });
     setTplError(null);
   }
@@ -403,7 +399,9 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         helpText: reqDraft.helpText.trim() || null,
         required: reqDraft.required,
         dueAt: fromLocalInput(reqDraft.dueAt),
-        config: reqDraft.kind === "file" && reqDraft.deck ? { deck: true } : {},
+        // Omit config on edit so API maxBytes/allowedMimeTypes overrides survive.
+        // New file requirements get {}; validation defaults to the deck rule.
+        ...(reqDraft.id ? {} : { config: {} }),
       };
       if (reqDraft.id) {
         await organizerFetch(`/readiness/requirements/${reqDraft.id}`, eventId, {
@@ -892,16 +890,10 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
           Required
         </label>
         {reqDraft.kind === "file" ? (
-          <label
-            style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, minHeight: 44 }}
-          >
-            <input
-              type="checkbox"
-              checked={reqDraft.deck}
-              onChange={(e) => setReqDraft({ ...reqDraft, deck: e.target.checked })}
-            />
-            Slide deck (allow up to 20 MB; other files stay at 10 MB)
-          </label>
+          <p className="help-text" style={{ margin: 0 }}>
+            PDF, PowerPoint, Word, or image — up to 20 MB. Bigger file? Add a link requirement
+            instead.
+          </p>
         ) : null}
         <label style={{ margin: 0 }}>
           Due date <span className="text-meta">(optional)</span>
