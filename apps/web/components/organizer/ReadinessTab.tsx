@@ -19,6 +19,7 @@ import {
   summaryCounts,
   READINESS_REQUIREMENT_KINDS,
   READINESS_STATUS_LABELS,
+  REQUIREMENT_KIND_HELPERS,
   REQUIREMENT_KIND_LABELS,
   type OverviewAssignment,
   type OverviewRequirement,
@@ -688,6 +689,10 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
   if (!overview) return null;
 
   const templates = overview.templates;
+  const deleteTemplateTracked =
+    confirm?.kind === "delete-template"
+      ? overview.assignments.filter((a) => a.templateId === confirm.template.id).length
+      : 0;
   const deleteRequirementTracked =
     confirm?.kind === "delete-requirement"
       ? overview.assignments.filter((a) => a.requirementId === confirm.requirement.id).length
@@ -728,6 +733,11 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
             value={reqDraft.kind}
             onChange={(v) => setReqDraft({ ...reqDraft, kind: v as ReadinessRequirementKind })}
           />
+          {REQUIREMENT_KIND_HELPERS[reqDraft.kind] ? (
+            <span className="help-text" style={{ display: "block", marginTop: 4 }}>
+              {REQUIREMENT_KIND_HELPERS[reqDraft.kind]}
+            </span>
+          ) : null}
         </label>
         <label style={{ margin: 0 }}>
           Help text <span className="text-meta">(optional)</span>
@@ -912,7 +922,11 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
               A template is a named set of requirements. Assign it to speakers or sessions to
               start tracking them below.
             </p>
-            <div className="console-table-wrap">
+            {/* overflow:visible so the row kebab panel isn't clipped by
+                console-table-wrap's overflow-x:auto (CSS pairs that to
+                overflow-y:auto) — live-observed: Edit was unreachable on
+                short template lists. */}
+            <div className="console-table-wrap" style={{ overflow: "visible" }}>
               <table className="console-table">
                 <thead>
                   <tr>
@@ -962,6 +976,11 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                                 id: "edit",
                                 label: "Edit template",
                                 onSelect: () => openTemplateEditor(t),
+                              },
+                              {
+                                id: "assign",
+                                label: "Assign…",
+                                onSelect: () => openAssign(t),
                               },
                               {
                                 id: "delete",
@@ -1683,9 +1702,11 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         }
         body={
           confirm?.kind === "delete-template"
-            ? `This removes the template, its ${confirm.template.requirements.length} requirement${
+            ? `Deletes the template, its ${confirm.template.requirements.length} requirement${
                 confirm.template.requirements.length === 1 ? "" : "s"
-              }, and every assignment created from it. This can't be undone.`
+              }, and all ${deleteTemplateTracked} tracked assignment${
+                deleteTemplateTracked === 1 ? "" : "s"
+              } including progress and waivers. This can't be undone.`
             : confirm?.kind === "delete-requirement"
               ? `Deleting removes this requirement AND its ${deleteRequirementTracked} tracked item${
                   deleteRequirementTracked === 1 ? "" : "s"

@@ -37,7 +37,13 @@ export const REQUIREMENT_KIND_LABELS: Record<ReadinessRequirementKind, string> =
   url: "URL",
   file: "File upload",
   agreement: "Agreement",
-  internal_checklist: "Internal checklist",
+  internal_checklist: "Internal task (organizer-only)",
+};
+
+/** Optional helper under the Kind select — only kinds that need clarifying copy. */
+export const REQUIREMENT_KIND_HELPERS: Partial<Record<ReadinessRequirementKind, string>> = {
+  internal_checklist:
+    "Tracked by the organizer — never requested from the speaker (e.g. AV booked, contract signed).",
 };
 
 export type ReadinessStatus =

@@ -8,6 +8,8 @@ import {
   needsAttention,
   subjectKey,
   summaryCounts,
+  REQUIREMENT_KIND_HELPERS,
+  REQUIREMENT_KIND_LABELS,
   type OverviewAssignment,
   type OverviewSubjectRef,
   type ReadinessOverview,
@@ -161,6 +163,13 @@ describe("subjectKey", () => {
   it("is type-qualified so a speaker and session with the same id stay distinct", () => {
     expect(subjectKey({ type: "speaker", id: "x1" })).toBe("speaker:x1");
     expect(subjectKey({ type: "session", id: "x1" })).toBe("session:x1");
+  });
+});
+
+describe("REQUIREMENT_KIND_LABELS", () => {
+  it('labels internal_checklist as an organizer-only task (stored kind unchanged)', () => {
+    expect(REQUIREMENT_KIND_LABELS.internal_checklist).toBe("Internal task (organizer-only)");
+    expect(REQUIREMENT_KIND_HELPERS.internal_checklist).toMatch(/never requested from the speaker/i);
   });
 });
 
