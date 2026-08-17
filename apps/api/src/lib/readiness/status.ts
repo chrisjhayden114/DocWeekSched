@@ -27,6 +27,23 @@ const SETTLED: ReadonlySet<StoredReadinessStatus> = new Set([
   "NOT_APPLICABLE",
 ]);
 
+/** READY / WAIVED / NOT_APPLICABLE — nothing left for anyone to do. */
+export function isSettledStatus(status: StoredReadinessStatus): boolean {
+  return SETTLED.has(status);
+}
+
+/**
+ * Requirement kinds the presenter never sees: organizer-side tracking only.
+ * The portal hides them, and reminders must never mention them.
+ */
+export const ORGANIZER_ONLY_REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
+  "internal_checklist",
+]);
+
+export function isOrganizerOnlyKind(kind: string): boolean {
+  return ORGANIZER_ONLY_REQUIREMENT_KINDS.has(kind);
+}
+
 export type AssignmentForDerivation = {
   status: StoredReadinessStatus;
   /** Per-assignment override; beats the requirement's dueAt when set. */

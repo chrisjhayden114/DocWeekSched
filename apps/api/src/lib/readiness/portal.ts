@@ -6,7 +6,7 @@ import { env } from "../env";
 import { featureEnabled } from "../features";
 import { sendReadinessInviteEmail } from "../mail";
 import { getStorageProvider } from "../storage";
-import { deriveAssignmentState } from "./status";
+import { deriveAssignmentState, isOrganizerOnlyKind } from "./status";
 import {
   assertFileAllowed,
   assertUploadMetaAllowed,
@@ -25,12 +25,10 @@ import {
   type PortalTokenDenial,
 } from "./portalTokens";
 
-const ORGANIZER_ONLY_KINDS = new Set(["internal_checklist"]);
-
 const portalNotFound = (reason: PortalTokenDenial) =>
   new HttpError(404, { error: portalDenialMessage(reason), reason });
 
-function portalUrl(raw: string): string {
+export function portalUrl(raw: string): string {
   return `${env.webBaseUrl.replace(/\/$/, "")}/r/${raw}`;
 }
 
@@ -111,7 +109,7 @@ async function requirementLabelsForSpeaker(eventId: string, speakerId: string) {
   const labels: string[] = [];
   let nearestDue: Date | null = null;
   for (const a of assignments) {
-    if (ORGANIZER_ONLY_KINDS.has(a.requirement.kind)) continue;
+    if (isOrganizerOnlyKind(a.requirement.kind)) continue;
     labels.push(a.requirement.label);
     const due = a.dueAtOverride ?? a.requirement.dueAt;
     if (due && (!nearestDue || due.getTime() < nearestDue.getTime())) nearestDue = due;
@@ -262,6 +260,29 @@ export async function remintPortalAccess(
   };
 }
 
+/**
+ * ER5 — a fresh portal URL for an automatic reminder.
+ *
+ * The stored token is a one-way hash, so no unattended job can reproduce the
+ * link a presenter already has; the only honest way to put a working link in a
+ * reminder is to mint one, exactly as the organizer's resend button does. Older
+ * links stop working (the reminder says so), and revoked access is never
+ * resurrected — `revokedAt: null` in the filter means a revoke that lands
+ * mid-sweep wins and this returns null.
+ */
+export async function mintReminderPortalUrl(
+  accessId: string,
+  now = new Date(),
+): Promise<string | null> {
+  const token = newPortalToken(now);
+  const claimed = await prisma.readinessPortalAccess.updateMany({
+    where: { id: accessId, revokedAt: null },
+    data: { tokenHash: token.hash, expiresAt: token.expiresAt, lastSentAt: now },
+  });
+  if (claimed.count !== 1) return null;
+  return portalUrl(token.raw);
+}
+
 export async function revokePortalAccess(eventId: string, accessId: string, actorUserId: string, now = new Date()) {
   const existing = await loadAccessForEvent(eventId, accessId);
   const row = await prisma.readinessPortalAccess.update({
@@ -384,7 +405,7 @@ export async function getPortalView(rawToken: string, now = new Date()) {
     },
     speakerName: access.speaker.name,
     assignments: assignments
-      .filter((a) => !ORGANIZER_ONLY_KINDS.has(a.requirement.kind))
+      .filter((a) => !isOrganizerOnlyKind(a.requirement.kind))
       .map((a) => {
         const derived = deriveAssignmentState(a, now);
         const config = (a.requirement.config ?? {}) as Record<string, unknown>;
@@ -514,7 +535,7 @@ async function loadPortalFileAssignment(rawToken: string, assignmentId: string, 
   if (!assignment) {
     throw new HttpError(404, { error: "Assignment not found", reason: "not_found" });
   }
-  if (ORGANIZER_ONLY_KINDS.has(assignment.requirement.kind)) {
+  if (isOrganizerOnlyKind(assignment.requirement.kind)) {
     throw new HttpError(404, { error: "Assignment not found", reason: "not_found" });
   }
   return { access, assignment };

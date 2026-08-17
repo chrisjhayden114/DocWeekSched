@@ -206,6 +206,86 @@ export async function sendReadinessInviteEmail(opts: {
   });
 }
 
+export type ReadinessReminderItem = {
+  label: string;
+  dueAt: Date | null;
+  late: boolean;
+};
+
+/**
+ * ER5 — the automatic 7-day / 2-day / overdue reminder. Pure builder so the
+ * subject, the item list, and the "no action needed" line are unit-tested.
+ * Dates are rendered in the event's timezone: a deadline is a local promise.
+ */
+export function buildReadinessReminderEmail(opts: {
+  speakerName: string;
+  eventName: string;
+  portalUrl: string;
+  items: ReadinessReminderItem[];
+  timeZone: string;
+}): { subject: string; html: string } {
+  const anyOverdue = opts.items.some((item) => item.late);
+  const subject = anyOverdue
+    ? `Reminder: materials overdue for ${opts.eventName}`
+    : `Reminder: materials due for ${opts.eventName}`;
+
+  const formatDue = (dueAt: Date): string => {
+    try {
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone: opts.timeZone,
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(dueAt);
+    } catch {
+      return dueAt.toISOString().slice(0, 10);
+    }
+  };
+
+  const rows = opts.items
+    .map((item) => {
+      const due = item.dueAt ? `due ${formatDue(item.dueAt)}` : "no due date";
+      const flag = item.late
+        ? ` <strong style="color:#b42318">overdue</strong>`
+        : "";
+      return `<li style="margin:0 0 6px">${escapeHtml(item.label)} — ${escapeHtml(due)}${flag}</li>`;
+    })
+    .join("");
+
+  const html = `<p>Hi ${escapeHtml(opts.speakerName)},</p>
+<p>${
+    anyOverdue
+      ? `Some materials for <strong>${escapeHtml(opts.eventName)}</strong> are past their due date.`
+      : `A reminder about the materials <strong>${escapeHtml(opts.eventName)}</strong> still needs from you.`
+  }</p>
+<ul style="padding-left:20px;margin:0 0 16px">${rows}</ul>
+<p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">Open your presenter portal</a></p>
+<p>This is a new link — it replaces earlier ones and works for 30 days.</p>
+<p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.portalUrl)}</p>
+<p style="color:#555;font-size:13px;margin-top:16px">Already sent these? Your organizer may still be reviewing — no action needed.</p>`;
+  return { subject, html };
+}
+
+export async function sendReadinessReminderEmail(opts: {
+  to: string;
+  speakerName: string;
+  eventName: string;
+  portalUrl: string;
+  items: ReadinessReminderItem[];
+  timeZone: string;
+}): Promise<SendEmailResult> {
+  const from = buildFromLine(opts.eventName);
+  const built = buildReadinessReminderEmail(opts);
+  return getEmailProvider().send({
+    to: opts.to,
+    from,
+    subject: built.subject,
+    logLabel: "readiness-reminder",
+    copyUrl: opts.portalUrl,
+    html: built.html,
+  });
+}
+
 export async function sendWaitlistPromotedEmail(opts: {
   to: string;
   name: string;

@@ -214,6 +214,14 @@ enum ReadinessAssignmentStatus {
 // LATE and BLOCKED are derived (dueAt < now, unresolved checks) — never stored,
 // per plan §6.1.D "do not manually store a single authoritative percentage".
 
+// ER5 — the three reminder moments. Each one fires at most once per assignment
+// (see ReadinessReminderSend); there is deliberately no "second overdue nudge".
+enum ReadinessReminderStage {
+  UPCOMING_7D
+  UPCOMING_2D
+  OVERDUE
+}
+
 enum SessionPublishStatus {
   DRAFT
   PUBLISHED
@@ -708,6 +716,7 @@ model Event {
   readinessTemplates   ReadinessTemplate[]
   readinessAssignments ReadinessAssignment[]
   readinessPortalAccess ReadinessPortalAccess[]
+  readinessReminderSends ReadinessReminderSend[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -803,6 +812,7 @@ model Speaker {
   cfpConversions CfpSubmission[]   @relation("CfpConvertedSpeaker")
   readinessAssignments ReadinessAssignment[]
   readinessPortalAccess ReadinessPortalAccess[]
+  readinessReminderSends ReadinessReminderSend[]
 
   @@index([eventId])
 }
@@ -2132,6 +2142,7 @@ model ReadinessAssignment {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   submissions    ReadinessSubmission[]
+  reminderSends  ReadinessReminderSend[]
 
   @@unique([requirementId, speakerId, sessionId, sessionItemId])
   @@index([eventId, status])
@@ -2184,5 +2195,24 @@ model ReadinessPortalAccess {
 
   @@unique([eventId, speakerId])
   @@index([eventId])
+  @@index([speakerId])
+}
+
+/// ER5 — the reminder dedupe ledger. One row per (assignment, stage) that has
+/// ever been emailed; the unique constraint IS the "at most once per stage"
+/// rule, so a stage can never fire twice however often the sweep runs.
+model ReadinessReminderSend {
+  id           String   @id @default(cuid())
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  speakerId    String
+  speaker      Speaker  @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  assignmentId String
+  assignment   ReadinessAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  stage        ReadinessReminderStage
+  sentAt       DateTime @default(now())
+
+  @@unique([assignmentId, stage])
+  @@index([eventId, sentAt])
   @@index([speakerId])
 }

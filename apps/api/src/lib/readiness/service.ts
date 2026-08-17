@@ -141,15 +141,18 @@ export type ReadinessActivityEntry = {
   summary: string;
 };
 
+function auditPayloadField(payload: unknown, key: string): unknown {
+  return payload != null && typeof payload === "object" && key in payload
+    ? (payload as Record<string, unknown>)[key]
+    : undefined;
+}
+
 /** Plain-English line for a stored readiness audit row. */
 function summarizeReadinessAudit(
   payload: unknown,
   context: { label: string; subjectName: string } | undefined,
 ): string {
-  const action =
-    payload != null && typeof payload === "object" && "action" in payload
-      ? String((payload as { action: unknown }).action)
-      : "";
+  const action = auditPayloadField(payload, "action") ? String(auditPayloadField(payload, "action")) : "";
   const target = context ? `“${context.label}” for ${context.subjectName}` : "a requirement";
   if (action === "waive") return `Waived ${target}`;
   if (action === "unwaive") return `Un-waived ${target}`;
@@ -158,6 +161,14 @@ function summarizeReadinessAudit(
   if (action === "invite") return context ? `Sent a portal invite to ${context.subjectName}` : "Sent a portal invite";
   if (action === "remint") return context ? `Reissued the portal link for ${context.subjectName}` : "Reissued a portal link";
   if (action === "revoke") return context ? `Revoked the portal link for ${context.subjectName}` : "Revoked a portal link";
+  if (action === "reminder") {
+    const itemCount = auditPayloadField(payload, "itemCount");
+    const count = typeof itemCount === "number" ? itemCount : 0;
+    const items = count === 1 ? "1 open item" : `${count} open items`;
+    const overdue = auditPayloadField(payload, "overdue") === true ? " (overdue)" : "";
+    const who = context ? context.subjectName : "a presenter";
+    return `Emailed ${who} a reminder about ${items}${overdue}`;
+  }
   return context ? `Updated ${target}` : "Updated a readiness item";
 }
 
@@ -227,7 +238,11 @@ export async function getReadinessActivity(
 
   return rows.map((row) => ({
     at: row.createdAt,
-    actorName: row.actor?.name ?? "Someone",
+    // Sweep-written rows have no actor on purpose; "Automatic" is honest about
+    // that, where "Someone" would imply a person pressed something.
+    actorName:
+      row.actor?.name ??
+      (auditPayloadField(row.payload, "system") === true ? "Automatic" : "Someone"),
     summary: summarizeReadinessAudit(
       row.payload,
       row.entityId ? contextById.get(row.entityId) : undefined,

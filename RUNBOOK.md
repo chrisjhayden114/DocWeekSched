@@ -26,12 +26,10 @@ There is no separate worker process: stopping/restarting the API stops all jobs 
   history; you can create a branch of the database as of any timestamp inside the
   retention window. There is no separate nightly dump job yet (Phase S2 adds an
   automated weekly restore drill).
-- **Retention window: 7 DAYS** (confirmed + set 2026-08-02; was 1 day). Neon console →
-  Project → Settings → History window, slider set to 7d and saved. At current DB size
-  (~0.2 GB data, ~0.01 GB history) the storage cost of the longer window is negligible.
-  UI note (2026): time-travel branch creation moved — the Create-branch dialog makes
-  current-point copies; point-in-time restore lives under **Backup & Restore** in the
-  branch sidebar.
+- **Retention window:** depends on the Neon plan — verify in the Neon console under
+  Project → Settings → History retention (free tier is on the order of 1 day; paid
+  plans allow multi-day windows). **Before launch, confirm the retention window
+  meets the recovery objective and record it here.**
 - **What is NOT covered:** anything outside Postgres. Object storage (if configured)
   and provider-side state (Lemon Squeezy orders, Resend logs) have their own retention.
 
@@ -54,7 +52,7 @@ An untested backup doesn't count. Procedure:
 
 | Date | Restored-to timestamp | Checks | Result |
 |---|---|---|---|
-| 2026-08-02 | current point (branch `restore-drill-2026-08-02`, auto-delete 1h) | SQL Editor on branch: `SELECT count(*) FROM "Event"` = 5 (matches prod: demo, Sample Academic Conference, QA Test Symposium, EDL DocWeek, Test); `SELECT count(*) FROM "User"` ran OK | **PASS** — full prod copy stood up and queried in <1 min via console (no CLI needed) |
+| _none yet_ | | | |
 
 ## 4. Deploy
 
@@ -88,7 +86,16 @@ All jobs run through the `BackgroundJob` poller. Retries: fixed 30s backoff up t
 | `recap.generate` | Post-event recap workspace | Idempotent regeneration |
 
 Interval loops inside the API process (not `BackgroundJob` rows): push-queue flush +
-"session starting soon" every `NOTIFICATION_JOB_INTERVAL_MS` (default 60s).
+"session starting soon" every `NOTIFICATION_JOB_INTERVAL_MS` (default 60s); unread-message
+emails every `MESSAGE_EMAIL_SWEEP_INTERVAL_MS` (default 10 min); daily-digest rollups every
+`DIGEST_SWEEP_INTERVAL_MS` (default 15 min); readiness reminders every
+`READINESS_REMINDER_SWEEP_INTERVAL_MS` (default 30 min).
+
+The readiness reminder sweep emails invited presenters at 7 days out, 2 days out, and once
+after a due date passes. Each `(assignment, stage)` pair is written to `ReadinessReminderSend`
+and that unique row is the "at most once" rule, so a shorter interval or a restart mid-sweep
+changes promptness only, never volume. It also skips itself entirely when email delivery is
+unconfigured, so no stage is spent on an email nobody receives.
 
 **Kill switches today (formal per-feature switches land in Phase S2):**
 
@@ -101,6 +108,8 @@ Interval loops inside the API process (not `BackgroundJob` rows): push-queue flu
 | Web push | Unset `VAPID_PRIVATE_KEY`/`VAPID_PUBLIC_KEY` + restart |
 | Billing checkout | Unset the active provider's vars — Stripe (`STRIPE_*`) or Lemon Squeezy — (checkout returns unconfigured) + restart |
 | Nightly demo reset | Mark the pending `demo.event.reset` row `DEAD`; note it reschedules on next API boot |
+| Readiness reminders, one event | Turn the event's `readiness` feature off (the sweep skips it; already-sent stages stay recorded) |
+| Readiness reminders, everywhere | `EMAIL_PROVIDER=none` + restart, or revoke the presenters' portal links (no live link, no reminder) |
 
 ## 6. Destructive-DB guard (`apps/api/src/lib/destructiveGuard.ts`)
 

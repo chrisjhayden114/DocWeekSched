@@ -55,6 +55,7 @@ import {
   sweepDailyDigests,
   sweepUnreadMessageEmails,
 } from "./lib/notifications";
+import { sweepReadinessReminders } from "./lib/readiness/reminderSweep";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
 import { warnIfAnthropicModelUnavailable } from "./lib/ai/providers/anthropic";
 import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
@@ -294,6 +295,21 @@ app.listen(env.apiPort, () => {
       captureException(err, { tags: { area: "notifications" } });
     });
   }, digestMs);
+
+  // Readiness reminders: 7 days out, 2 days out, and once when a due date has
+  // passed. Each stage fires at most once per assignment (ledger-deduped), so a
+  // shorter interval means promptness, never more email.
+  const readinessReminderMs = Number(
+    process.env.READINESS_REMINDER_SWEEP_INTERVAL_MS || 30 * 60_000,
+  );
+  setInterval(() => {
+    void sweepReadinessReminders().catch((err) => {
+      log("error", "sweepReadinessReminders failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      captureException(err, { tags: { area: "readiness" } });
+    });
+  }, readinessReminderMs);
 
   // Periodic ops detector sweep (enqueue per-event jobs; never auto-applies cards).
   const opsSweepMs = Number(process.env.OPS_DETECT_SWEEP_INTERVAL_MS || 5 * 60_000);
