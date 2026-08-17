@@ -327,6 +327,7 @@ function shapeLatestSubmission(sub: {
   valueText: string | null;
   valueJson: Prisma.JsonValue;
   fileName: string | null;
+  fileMime: string | null;
   createdAt: Date;
   approvedAt: Date | null;
   rejectedAt: Date | null;
@@ -337,6 +338,7 @@ function shapeLatestSubmission(sub: {
     id: sub.id,
     value: submissionValue(sub),
     fileName: sub.fileName,
+    fileMime: sub.fileMime,
     submittedAt: sub.createdAt,
     approvedAt: sub.approvedAt,
     rejectedAt: sub.rejectedAt,
@@ -763,7 +765,10 @@ export async function streamPortalFile(rawToken: string, submissionId: string, n
   if (!stored) throw new HttpError(404, { error: "File not found", reason: "not_found" });
   return {
     stored,
-    contentDisposition: contentDisposition(submission.fileName),
+    contentDisposition: contentDisposition(
+      submission.fileName,
+      stored.contentType || submission.fileMime,
+    ),
   };
 }
 
@@ -857,6 +862,9 @@ export async function streamOrganizerFile(eventId: string, submissionId: string)
   if (!stored) throw new HttpError(404, { error: "File not found" });
   return {
     stored,
-    contentDisposition: contentDisposition(submission.fileName),
+    contentDisposition: contentDisposition(
+      submission.fileName,
+      stored.contentType || submission.fileMime,
+    ),
   };
 }

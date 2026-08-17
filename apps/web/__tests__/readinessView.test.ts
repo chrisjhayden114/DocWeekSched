@@ -5,6 +5,7 @@ import {
   filterRows,
   isLate,
   isOpenStatus,
+  isReadinessFilePreviewable,
   needsAttention,
   subjectKey,
   summaryCounts,
@@ -450,5 +451,25 @@ describe("filterRows", () => {
   it("combines the query with the status filter", () => {
     expect(filterRows(rows, "grace", "open")).toEqual([]);
     expect(filterRows(rows, "grace", "ready").map((r) => r.key)).toEqual(["speaker:spk-grace"]);
+  });
+});
+
+describe("isReadinessFilePreviewable (ER4.5)", () => {
+  it("previews pdf and png/jpeg; Office and unknown download", () => {
+    expect(isReadinessFilePreviewable("application/pdf")).toBe(true);
+    expect(isReadinessFilePreviewable("image/png")).toBe(true);
+    expect(isReadinessFilePreviewable("image/jpeg")).toBe(true);
+    expect(
+      isReadinessFilePreviewable(
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ),
+    ).toBe(false);
+    expect(
+      isReadinessFilePreviewable(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ),
+    ).toBe(false);
+    expect(isReadinessFilePreviewable(null, "deck.pdf")).toBe(true);
+    expect(isReadinessFilePreviewable(null, "talk.pptx")).toBe(false);
   });
 });

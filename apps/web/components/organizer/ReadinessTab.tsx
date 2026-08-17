@@ -15,9 +15,11 @@ import {
   filterRows,
   isLate,
   isOpenStatus,
+  isReadinessFilePreviewable,
   needsAttention,
   subjectKey,
   summaryCounts,
+  READINESS_OFFICE_DOWNLOAD_NOTE,
   READINESS_REQUIREMENT_KINDS,
   READINESS_STATUS_LABELS,
   REQUIREMENT_KIND_HELPERS,
@@ -1818,6 +1820,12 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
               const busy = rowBusyId === a.id;
               const draft = dueDrafts[a.id] ?? toLocalInput(a.dueAtOverride);
               const draftChanged = draft !== toLocalInput(a.dueAtOverride);
+              const filePreviewable = a.latestSubmission?.fileName
+                ? isReadinessFilePreviewable(
+                    a.latestSubmission.fileMime,
+                    a.latestSubmission.fileName,
+                  )
+                : false;
               return (
                 <div
                   key={a.id}
@@ -1864,15 +1872,23 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                         {a.latestSubmission.rejectedAt ? " · rejected" : ""}
                       </p>
                       {a.latestSubmission.fileName ? (
-                        <a
-                          className="button secondary"
-                          href={`${API_URL}/readiness/files/${a.latestSubmission.id}?eventId=${encodeURIComponent(eventId)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{ justifySelf: "start", minHeight: 44 }}
-                        >
-                          View {a.latestSubmission.fileName}
-                        </a>
+                        <div style={{ display: "grid", gap: 4, justifyItems: "start" }}>
+                          <a
+                            className="button secondary"
+                            href={`${API_URL}/readiness/files/${a.latestSubmission.id}?eventId=${encodeURIComponent(eventId)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={filePreviewable ? undefined : READINESS_OFFICE_DOWNLOAD_NOTE}
+                            style={{ justifySelf: "start", minHeight: 44 }}
+                          >
+                            {filePreviewable ? "Preview" : "Download"} {a.latestSubmission.fileName}
+                          </a>
+                          {!filePreviewable ? (
+                            <p className="text-meta" style={{ margin: 0 }}>
+                              {READINESS_OFFICE_DOWNLOAD_NOTE}
+                            </p>
+                          ) : null}
+                        </div>
                       ) : isHttpUrl(a.latestSubmission.value) ? (
                         <a
                           href={a.latestSubmission.value}

@@ -107,6 +107,8 @@ export type OverviewLatestSubmission = {
   id: string;
   value?: unknown;
   fileName?: string | null;
+  /** Stored MIME — drives Preview vs Download (ER4.5). */
+  fileMime?: string | null;
   submittedAt: string;
   approvedAt: string | null;
   rejectedAt: string | null;
@@ -334,4 +336,28 @@ export function filterRows(
     if (statusFilter === "ready") return row.rollup.complete;
     return true;
   });
+}
+
+/**
+ * ER4.5 — mirrors API `readinessFileDisposition`: PDF and png/jpeg open
+ * inline in the browser; PowerPoint/Word and unknown types download.
+ * When `fileMime` is missing, falls back to the filename extension.
+ */
+export const READINESS_OFFICE_DOWNLOAD_NOTE =
+  "PowerPoint and Word files download — browsers can't display them.";
+
+export function isReadinessFilePreviewable(
+  mime?: string | null,
+  fileName?: string | null,
+): boolean {
+  const m = (mime || "").trim().toLowerCase();
+  if (m === "application/pdf" || m === "image/png" || m === "image/jpeg") return true;
+  if (m) return false;
+  const name = (fileName || "").trim().toLowerCase();
+  return (
+    name.endsWith(".pdf") ||
+    name.endsWith(".png") ||
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg")
+  );
 }

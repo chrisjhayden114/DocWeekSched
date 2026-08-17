@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   assertFileAllowed,
   assertUploadMetaAllowed,
+  contentDisposition,
   fileRulesForRequirement,
   isReadinessKeyScoped,
   mintReadinessObjectKey,
+  readinessFileDisposition,
   READINESS_DATA_URL_MAX_BYTES,
   READINESS_DECK_MAX_BYTES,
   READINESS_DEFAULT_MAX_BYTES,
@@ -149,5 +151,44 @@ describe("readiness object key scoping (ER4.3)", () => {
     expect(isReadinessKeyScoped("events/evt_1/readiness/asg_9/nested/path.pdf", "evt_1", "asg_9")).toBe(
       false,
     );
+  });
+});
+
+describe("readinessFileDisposition (ER4.5)", () => {
+  it("serves pdf and png/jpeg inline so the browser can preview", () => {
+    expect(readinessFileDisposition("application/pdf")).toBe("inline");
+    expect(readinessFileDisposition("image/png")).toBe("inline");
+    expect(readinessFileDisposition("image/jpeg")).toBe("inline");
+    expect(contentDisposition("deck.pdf", "application/pdf")).toBe('inline; filename="deck.pdf"');
+    expect(contentDisposition("shot.PNG", "image/png")).toBe('inline; filename="shot.PNG"');
+  });
+
+  it("forces Office and unknown types to download with the real filename", () => {
+    expect(
+      readinessFileDisposition(
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ),
+    ).toBe("attachment");
+    expect(
+      readinessFileDisposition(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ),
+    ).toBe("attachment");
+    expect(readinessFileDisposition("application/vnd.ms-powerpoint")).toBe("attachment");
+    expect(readinessFileDisposition("application/msword")).toBe("attachment");
+    expect(readinessFileDisposition(null)).toBe("attachment");
+    expect(readinessFileDisposition("application/octet-stream")).toBe("attachment");
+    expect(
+      contentDisposition(
+        "talk.pptx",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ),
+    ).toBe('attachment; filename="talk.pptx"');
+    expect(
+      contentDisposition(
+        "notes.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ),
+    ).toBe('attachment; filename="notes.docx"');
   });
 });

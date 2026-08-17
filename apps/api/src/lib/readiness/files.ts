@@ -290,8 +290,24 @@ export function pipeStoredFileToResponse(
   stream.pipe(res);
 }
 
-export function contentDisposition(fileName: string | null | undefined): string {
+/**
+ * ER4.5 — browsers can render PDF + common images in-tab; Office and unknown
+ * types must download (no third-party viewers).
+ */
+export function readinessFileDisposition(
+  mime: string | null | undefined,
+): "inline" | "attachment" {
+  const m = (mime || "").trim().toLowerCase();
+  if (m === "application/pdf") return "inline";
+  if (m === "image/png" || m === "image/jpeg") return "inline";
+  return "attachment";
+}
+
+export function contentDisposition(
+  fileName: string | null | undefined,
+  mime?: string | null,
+): string {
   const raw = (fileName || "submission").replace(/[\r\n"]/g, "");
   const fallback = raw.replace(/[^\x20-\x7E]/g, "_") || "submission";
-  return `inline; filename="${fallback}"`;
+  return `${readinessFileDisposition(mime)}; filename="${fallback}"`;
 }

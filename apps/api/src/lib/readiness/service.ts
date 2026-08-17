@@ -110,6 +110,7 @@ export async function getReadinessOverview(eventId: string, now: Date = new Date
             id: latest.id,
             value: latest.valueJson ?? latest.valueText,
             fileName: latest.fileName,
+            fileMime: latest.fileMime,
             submittedAt: latest.createdAt,
             approvedAt: latest.approvedAt,
             rejectedAt: latest.rejectedAt,

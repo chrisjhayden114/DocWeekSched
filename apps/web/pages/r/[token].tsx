@@ -5,7 +5,7 @@ import { EventHero } from "../../components/EventHero";
 import { StatusChip } from "../../components/StatusChip";
 import { API_URL } from "../../lib/api";
 import { eventAccentStyle } from "../../lib/eventAccent";
-import { chipForStatus, type ReadinessStatus } from "../../lib/readinessView";
+import { chipForStatus, isReadinessFilePreviewable, READINESS_OFFICE_DOWNLOAD_NOTE, type ReadinessStatus } from "../../lib/readinessView";
 
 type PortalRequirement = {
   label: string;
@@ -19,6 +19,7 @@ type PortalSubmission = {
   id: string;
   value?: unknown;
   fileName?: string | null;
+  fileMime?: string | null;
   submittedAt: string;
   approvedAt: string | null;
   rejectedAt: string | null;
@@ -712,6 +713,12 @@ export default function PresenterPortalPage() {
               const rejected = Boolean(a.latestSubmission?.rejectedAt);
               const submitted = Boolean(a.latestSubmission) && !rejected && !approved;
               const locked = approved;
+              const filePreviewable = a.latestSubmission?.fileName
+                ? isReadinessFilePreviewable(
+                    a.latestSubmission.fileMime,
+                    a.latestSubmission.fileName,
+                  )
+                : false;
               return (
                 <section
                   key={a.id}
@@ -816,9 +823,23 @@ export default function PresenterPortalPage() {
                       </button>
                     </>
                   ) : a.latestSubmission?.fileName ? (
-                    <p className="text-meta" style={{ margin: 0 }}>
-                      {a.latestSubmission.fileName}
-                    </p>
+                    <div style={{ display: "grid", gap: 4, justifyItems: "start" }}>
+                      <a
+                        className="button secondary"
+                        href={`${API_URL}/portal/${encodeURIComponent(token)}/files/${encodeURIComponent(a.latestSubmission.id)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={filePreviewable ? undefined : READINESS_OFFICE_DOWNLOAD_NOTE}
+                        style={{ justifySelf: "start", minHeight: 44 }}
+                      >
+                        {filePreviewable ? "Preview" : "Download"} {a.latestSubmission.fileName}
+                      </a>
+                      {!filePreviewable ? (
+                        <p className="text-meta" style={{ margin: 0 }}>
+                          {READINESS_OFFICE_DOWNLOAD_NOTE}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : a.latestSubmission?.value != null ? (
                     <p style={{ margin: 0, overflowWrap: "anywhere" }}>
                       {typeof a.latestSubmission.value === "string"
