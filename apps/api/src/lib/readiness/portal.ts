@@ -18,10 +18,12 @@ import {
   readStoredFile,
 } from "./files";
 import {
-  evaluatePortalAccess,
+  CLEARED_GRACE_SLOT,
   hashPortalToken,
+  matchPortalToken,
   newPortalToken,
   portalDenialMessage,
+  portalRemintData,
   type PortalTokenDenial,
 } from "./portalTokens";
 
@@ -151,6 +153,13 @@ export async function mintPortalAccess(
   const token = newPortalToken(now);
   const email = input.email.trim().toLowerCase();
 
+  // Inviting a speaker who already has access is a resend, so it gets the same
+  // ER5.1 grace as the remint button: the link they already hold survives.
+  const existing = await prisma.readinessPortalAccess.findUnique({
+    where: { eventId_speakerId: { eventId, speakerId: speaker.id } },
+    select: { tokenHash: true, expiresAt: true, revokedAt: true },
+  });
+
   const row = await prisma.readinessPortalAccess.upsert({
     where: { eventId_speakerId: { eventId, speakerId: speaker.id } },
     create: {
@@ -160,14 +169,16 @@ export async function mintPortalAccess(
       email,
       tokenHash: token.hash,
       expiresAt: token.expiresAt,
+      ...CLEARED_GRACE_SLOT,
       revokedAt: null,
       lastSentAt: now,
       lastUsedAt: null,
     },
     update: {
       email,
-      tokenHash: token.hash,
-      expiresAt: token.expiresAt,
+      ...(existing
+        ? portalRemintData(existing, token, !existing.revokedAt)
+        : { tokenHash: token.hash, expiresAt: token.expiresAt, ...CLEARED_GRACE_SLOT }),
       revokedAt: null,
       lastSentAt: now,
     },
@@ -223,8 +234,9 @@ export async function remintPortalAccess(
   const row = await prisma.readinessPortalAccess.update({
     where: { id: existing.id },
     data: {
-      tokenHash: token.hash,
-      expiresAt: token.expiresAt,
+      // A revoked link is never carried into grace — remint clears revokedAt,
+      // and a revoked token must not come back with it.
+      ...portalRemintData(existing, token, !existing.revokedAt),
       revokedAt: null,
       lastSentAt: now,
     },
@@ -265,19 +277,30 @@ export async function remintPortalAccess(
  *
  * The stored token is a one-way hash, so no unattended job can reproduce the
  * link a presenter already has; the only honest way to put a working link in a
- * reminder is to mint one, exactly as the organizer's resend button does. Older
- * links stop working (the reminder says so), and revoked access is never
- * resurrected — `revokedAt: null` in the filter means a revoke that lands
- * mid-sweep wins and this returns null.
+ * reminder is to mint one, exactly as the organizer's resend button does.
+ * Revoked access is never resurrected — `revokedAt: null` in the filter means a
+ * revoke that lands mid-sweep wins and this returns null.
+ *
+ * ER5.1 — the link being replaced slides into the grace slot on its original
+ * expiry, so a presenter who opens last week's reminder still gets in. The
+ * `tokenHash` in the filter makes this a compare-and-set: if an organizer
+ * reminted between the read and the write, that remint owns the grace slot and
+ * this sweep backs off rather than overwriting it.
  */
 export async function mintReminderPortalUrl(
   accessId: string,
   now = new Date(),
 ): Promise<string | null> {
+  const current = await prisma.readinessPortalAccess.findFirst({
+    where: { id: accessId, revokedAt: null },
+    select: { tokenHash: true, expiresAt: true },
+  });
+  if (!current) return null;
+
   const token = newPortalToken(now);
   const claimed = await prisma.readinessPortalAccess.updateMany({
-    where: { id: accessId, revokedAt: null },
-    data: { tokenHash: token.hash, expiresAt: token.expiresAt, lastSentAt: now },
+    where: { id: accessId, revokedAt: null, tokenHash: current.tokenHash },
+    data: { ...portalRemintData(current, token), lastSentAt: now },
   });
   if (claimed.count !== 1) return null;
   return portalUrl(token.raw);
@@ -287,7 +310,8 @@ export async function revokePortalAccess(eventId: string, accessId: string, acto
   const existing = await loadAccessForEvent(eventId, accessId);
   const row = await prisma.readinessPortalAccess.update({
     where: { id: existing.id },
-    data: { revokedAt: now },
+    // ER5.1 — revoke takes the grace slot with it: every link ever sent dies.
+    data: { revokedAt: now, ...CLEARED_GRACE_SLOT },
   });
   await writeAuditLog({
     organizationId: existing.organizationId,
@@ -305,14 +329,15 @@ export async function revokePortalAccess(eventId: string, accessId: string, acto
 export async function revokePortalAccessForEvent(eventId: string, now = new Date()) {
   await prisma.readinessPortalAccess.updateMany({
     where: { eventId, revokedAt: null },
-    data: { revokedAt: now },
+    data: { revokedAt: now, ...CLEARED_GRACE_SLOT },
   });
 }
 
 export async function resolvePortalAccess(rawToken: string, now = new Date()) {
   const hash = hashPortalToken(rawToken);
-  const row = await prisma.readinessPortalAccess.findUnique({
-    where: { tokenHash: hash },
+  // ER5.1 — either slot: the link that was just emailed, or the one before it.
+  const row = await prisma.readinessPortalAccess.findFirst({
+    where: { OR: [{ tokenHash: hash }, { previousTokenHash: hash }] },
     include: {
       speaker: { select: { id: true, name: true } },
       event: {
@@ -328,7 +353,7 @@ export async function resolvePortalAccess(rawToken: string, now = new Date()) {
       },
     },
   });
-  const verdict = evaluatePortalAccess(row, now);
+  const verdict = matchPortalToken(row, hash, now);
   if (!verdict.ok || !row) throw portalNotFound(verdict.ok ? "unknown" : verdict.reason);
   // Feature-off looks like an unknown token — don't confirm the link exists.
   if (!(await featureEnabled(row.eventId, "readiness"))) throw portalNotFound("unknown");

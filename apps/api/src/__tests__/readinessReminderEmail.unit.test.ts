@@ -40,7 +40,13 @@ describe("buildReadinessReminderEmail (ER5)", () => {
     expect(upcoming.html).toContain(
       "Already sent these? Your organizer may still be reviewing — no action needed.",
     );
-    expect(upcoming.html).toMatch(/replaces earlier ones and works for 30 days/i);
+  });
+
+  it("ER5.1 — no longer claims the fresh link replaces the one they already have", () => {
+    expect(upcoming.html).toContain(
+      "This link works for 30 days. Links from earlier emails keep working until their own expiry.",
+    );
+    expect(upcoming.html).not.toMatch(/replaces earlier ones/i);
   });
 
   it("does not include a tracking pixel", () => {

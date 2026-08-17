@@ -151,7 +151,11 @@ ${lineHtml}
   });
 }
 
-/** Pure builder — unit-tested for subject, portal link, and the 30-day expiry note. */
+/**
+ * Pure builder — unit-tested for subject, portal link, and the 30-day expiry
+ * note. ER5.1: the note no longer claims this link replaces earlier ones,
+ * because it does not — the previous link runs out its own clock.
+ */
 export function buildReadinessInviteEmail(opts: {
   speakerName: string;
   eventName: string;
@@ -181,7 +185,7 @@ export function buildReadinessInviteEmail(opts: {
 ${items}
 ${due}
 <p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">Open your presenter portal</a></p>
-<p>This link works for 30 days — ask the organizer for a fresh one if it expires.</p>
+<p>This link works for 30 days. Links from earlier emails keep working until their own expiry.</p>
 <p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.portalUrl)}</p>`;
   return { subject, html };
 }
@@ -260,7 +264,7 @@ export function buildReadinessReminderEmail(opts: {
   }</p>
 <ul style="padding-left:20px;margin:0 0 16px">${rows}</ul>
 <p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">Open your presenter portal</a></p>
-<p>This is a new link — it replaces earlier ones and works for 30 days.</p>
+<p>This link works for 30 days. Links from earlier emails keep working until their own expiry.</p>
 <p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.portalUrl)}</p>
 <p style="color:#555;font-size:13px;margin-top:16px">Already sent these? Your organizer may still be reviewing — no action needed.</p>`;
   return { subject, html };

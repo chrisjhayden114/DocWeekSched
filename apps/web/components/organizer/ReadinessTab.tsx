@@ -1742,16 +1742,22 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                         />
                       </label>
                       {access ? (
-                        <p className="text-meta" style={{ margin: 0 }}>
-                          Invited {formatDue(access.invitedAt) ?? "—"}
-                          {access.expiresAt ? ` · expires ${formatDue(access.expiresAt)}` : ""}
-                          {access.lastUsedAt ? ` · last used ${formatDue(access.lastUsedAt)}` : ""}
-                          {access.revokedAt
-                            ? ` · revoked ${formatDue(access.revokedAt)}`
-                            : expired
-                              ? " · expired"
-                              : ""}
-                        </p>
+                        <>
+                          <p className="text-meta" style={{ margin: 0 }}>
+                            Invited {formatDue(access.invitedAt) ?? "—"}
+                            {access.expiresAt ? ` · expires ${formatDue(access.expiresAt)}` : ""}
+                            {access.lastUsedAt ? ` · last used ${formatDue(access.lastUsedAt)}` : ""}
+                            {access.revokedAt
+                              ? ` · revoked ${formatDue(access.revokedAt)}`
+                              : expired
+                                ? " · expired"
+                                : ""}
+                          </p>
+                          <p className="help-text" style={{ margin: 0 }}>
+                            Resending sends a fresh 30-day link. The link in their last email keeps
+                            working until it expires. Revoking kills every link at once.
+                          </p>
+                        </>
                       ) : (
                         <p className="help-text" style={{ margin: 0 }}>
                           Sends a 30-day link. The presenter never creates an account.

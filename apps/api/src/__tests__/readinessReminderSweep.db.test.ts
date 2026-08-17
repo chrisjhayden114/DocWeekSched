@@ -70,6 +70,9 @@ describe("readiness reminder sweep (DB, ER5)", () => {
   }
 
   let adaOriginalTokenHash = "";
+  let adaOriginalExpiresAt: Date | null = null;
+  /** ER5.1 — the hash the first reminder minted, so the second can retire it. */
+  let adaFirstReminderTokenHash = "";
   let sendSpy: ReturnType<typeof mockMailer>;
 
   /** Only the mails this fixture caused — the sweep is global by design. */
@@ -249,6 +252,7 @@ describe("readiness reminder sweep (DB, ER5)", () => {
     const adaAccess = await access(event.id, ada.id, ADA);
     ids.adaAccessId = adaAccess.id;
     adaOriginalTokenHash = adaAccess.tokenHash;
+    adaOriginalExpiresAt = adaAccess.expiresAt;
     await access(event.id, grace.id, GRACE, new Date(now.getTime() - DAY_MS));
     await access(archivedEvent.id, zed.id, ZED);
     await access(draftEvent.id, draftPresenter.id, DRAFT_PRESENTER);
@@ -307,6 +311,13 @@ describe("readiness reminder sweep (DB, ER5)", () => {
     expect(access.tokenHash).not.toBe(adaOriginalTokenHash);
     expect(mail.html).toContain("/r/");
     expect(mail.copyUrl).toBeTruthy();
+    adaFirstReminderTokenHash = access.tokenHash;
+
+    // ER5.1 — the link from the invite email survives the reminder, on its own
+    // original expiry rather than a new 30-day one.
+    expect(access.previousTokenHash).toBe(adaOriginalTokenHash);
+    expect(access.previousExpiresAt?.getTime()).toBe(adaOriginalExpiresAt?.getTime());
+    expect(access.previousExpiresAt!.getTime()).toBeLessThan(access.expiresAt.getTime());
 
     // Two stages fired: 5 days out and 1 day out.
     expect(await ledgerFor(ids.eventId!)).toEqual(
@@ -355,6 +366,15 @@ describe("readiness reminder sweep (DB, ER5)", () => {
         `${ids.adaBio}:OVERDUE`,
       ].sort(),
     );
+
+    // ER5.1 — grace holds one link, not a growing pile: this reminder's link is
+    // current, the last reminder's is in grace, and the invite's has fallen off.
+    const access = await prisma.readinessPortalAccess.findUniqueOrThrow({
+      where: { id: ids.adaAccessId! },
+    });
+    expect(access.tokenHash).not.toBe(adaFirstReminderTokenHash);
+    expect(access.previousTokenHash).toBe(adaFirstReminderTokenHash);
+    expect(access.previousTokenHash).not.toBe(adaOriginalTokenHash);
 
     // Overdue is the last word: a further sweep is silent.
     sendSpy.mockClear();

@@ -2188,6 +2188,12 @@ model ReadinessPortalAccess {
   email        String       // contact email — lives here, NOT on Speaker (audit §2.2, O2 as amended at ER2)
   tokenHash    String  @unique   // sha-256 of opaque token (lib/auth.ts hashToken)
   expiresAt    DateTime          // REQUIRED — closes the CFP-token gap (conflict C9)
+  /// ER5.1 — the token this row carried before the last remint. Still accepted
+  /// until previousExpiresAt, so the link in an older email keeps working.
+  previousTokenHash String? @unique
+  /// The ORIGINAL expiry of previousTokenHash — copied across on remint and
+  /// never extended, so grace runs down the old clock rather than a new one.
+  previousExpiresAt DateTime?
   revokedAt    DateTime?
   lastSentAt   DateTime?
   lastUsedAt   DateTime?

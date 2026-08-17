@@ -797,3 +797,20 @@ Founder requirement (2026-08-17): when the presenter portal exists, requirement 
 after portal invites must surface to presenters (calm 'your checklist changed' notice via
 the ER6 reminder machinery — no immediate push).
 
+### ER5.1 — O1 amended: portal link grace on remint (founder, 2026-08-17)
+
+O1 said "remint on demand", and ER4/ER5 read that as "each new link kills every older one".
+In practice presenters open whichever invite or reminder email is nearest to hand, so every
+reminder turned an already-emailed link into a support ticket.
+
+Amendment: `ReadinessPortalAccess` keeps ONE previous token beside the current one
+(`previousTokenHash` + `previousExpiresAt`, both nullable; additive migration
+`20260820120000_er51_portal_link_grace`). On remint — organizer resend AND the ER5 reminder
+sweep — the outgoing token moves into that slot carrying its ORIGINAL expiry, which is never
+extended; a second remint retires the oldest. Token lookup accepts either hash and stamps
+`lastUsedAt` either way.
+
+Unchanged: 30 days per token, auto-revoke on archive, and revocation as the absolute answer —
+revoke clears both slots, and a revoked token is never carried into grace by the remint that
+clears `revokedAt`.
+

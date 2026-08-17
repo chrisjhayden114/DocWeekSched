@@ -460,7 +460,7 @@ describe("readiness presenter portal (DB, ER4)", () => {
     expect(rejected.rejectedAt).toBeInstanceOf(Date);
   }, 60_000);
 
-  it("expired and revoked tokens 404 with an honest reason; remint invalidates the old raw token", async () => {
+  it("expired and revoked tokens 404 with an honest reason; a remint after revoke never revives the revoked link", async () => {
     await prisma.readinessPortalAccess.update({
       where: { id: ids.accessId! },
       data: { expiresAt: new Date("2020-01-01T00:00:00Z") },
@@ -483,6 +483,8 @@ describe("readiness presenter portal (DB, ER4)", () => {
     expect(revoked.status).toBe(404);
     expect(await revoked.json()).toMatchObject({ reason: "revoked" });
 
+    // Reminting clears revokedAt, but the revoked token must not ride back in
+    // on the ER5.1 grace slot — revocation is the one absolute answer.
     const remint = await fetch(`${base}/readiness/portal-access/${ids.accessId}/remint`, {
       method: "POST",
       headers: adminHeaders(),
@@ -493,9 +495,98 @@ describe("readiness presenter portal (DB, ER4)", () => {
     expect(newRaw).not.toBe(rawToken);
     const oldAfterRemint = await fetch(`${base}/portal/${rawToken}`);
     expect(oldAfterRemint.status).toBe(404);
+    const graceless = await prisma.readinessPortalAccess.findUniqueOrThrow({
+      where: { id: ids.accessId! },
+    });
+    expect(graceless.previousTokenHash).toBeNull();
+    expect(graceless.previousExpiresAt).toBeNull();
     const fresh = await fetch(`${base}/portal/${newRaw}`);
     expect(fresh.status).toBe(200);
     rawToken = newRaw;
+  }, 60_000);
+
+  it("ER5.1 — a remint keeps the older link alive on its own expiry; a second remint retires the oldest; revoke kills both", async () => {
+    const oldest = rawToken;
+    const before = await prisma.readinessPortalAccess.findUniqueOrThrow({
+      where: { id: ids.accessId! },
+    });
+
+    const remint = async () => {
+      const res = await fetch(`${base}/readiness/portal-access/${ids.accessId}/remint`, {
+        method: "POST",
+        headers: adminHeaders(),
+      });
+      expect(res.status).toBe(200);
+      return ((await res.json()) as { url: string }).url.split("/r/")[1]!;
+    };
+
+    // One remint: the presenter's bookmarked invite link still opens the portal.
+    const middle = await remint();
+    expect((await fetch(`${base}/portal/${oldest}`)).status).toBe(200);
+    expect((await fetch(`${base}/portal/${middle}`)).status).toBe(200);
+
+    const afterOne = await prisma.readinessPortalAccess.findUniqueOrThrow({
+      where: { id: ids.accessId! },
+    });
+    expect(afterOne.previousTokenHash).toBe(hashToken(oldest));
+    // Grace runs down the OLD clock: the carried expiry is the one it had.
+    expect(afterOne.previousExpiresAt?.getTime()).toBe(before.expiresAt.getTime());
+    expect(afterOne.previousExpiresAt!.getTime()).toBeLessThan(afterOne.expiresAt.getTime());
+
+    // Using the older link is still using the portal — lastUsedAt moves either way.
+    await prisma.readinessPortalAccess.update({
+      where: { id: ids.accessId! },
+      data: { lastUsedAt: null },
+    });
+    expect((await fetch(`${base}/portal/${oldest}`)).status).toBe(200);
+    expect(
+      (await prisma.readinessPortalAccess.findUniqueOrThrow({ where: { id: ids.accessId! } }))
+        .lastUsedAt,
+    ).toBeInstanceOf(Date);
+
+    // Two remints: only one older link is ever kept, so the oldest goes dark.
+    const newest = await remint();
+    const oldestNow = await fetch(`${base}/portal/${oldest}`);
+    expect(oldestNow.status).toBe(404);
+    expect(await oldestNow.json()).toMatchObject({ reason: "unknown" });
+    expect((await fetch(`${base}/portal/${middle}`)).status).toBe(200);
+    expect((await fetch(`${base}/portal/${newest}`)).status).toBe(200);
+
+    // The grace link dies on its own schedule while the current one lives on.
+    await prisma.readinessPortalAccess.update({
+      where: { id: ids.accessId! },
+      data: { previousExpiresAt: new Date("2020-01-01T00:00:00Z") },
+    });
+    const staleGrace = await fetch(`${base}/portal/${middle}`);
+    expect(staleGrace.status).toBe(404);
+    expect(await staleGrace.json()).toMatchObject({ reason: "expired" });
+    expect((await fetch(`${base}/portal/${newest}`)).status).toBe(200);
+
+    // Revoke is absolute: current and grace links both stop, and the slot empties.
+    await prisma.readinessPortalAccess.update({
+      where: { id: ids.accessId! },
+      data: { previousExpiresAt: afterOne.expiresAt },
+    });
+    expect((await fetch(`${base}/portal/${middle}`)).status).toBe(200);
+    const revoke = await fetch(`${base}/readiness/portal-access/${ids.accessId}/revoke`, {
+      method: "POST",
+      headers: adminHeaders(),
+    });
+    expect(revoke.status).toBe(200);
+    for (const raw of [middle, newest]) {
+      const res = await fetch(`${base}/portal/${raw}`);
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({ reason: "revoked" });
+    }
+    const cleared = await prisma.readinessPortalAccess.findUniqueOrThrow({
+      where: { id: ids.accessId! },
+    });
+    expect(cleared.previousTokenHash).toBeNull();
+    expect(cleared.previousExpiresAt).toBeNull();
+
+    // Leave the fixture with one working link for the remaining tests.
+    rawToken = await remint();
+    expect((await fetch(`${base}/portal/${rawToken}`)).status).toBe(200);
   }, 60_000);
 
   it("cross-speaker assignmentId 404s; organizer file route 403s for attendees", async () => {

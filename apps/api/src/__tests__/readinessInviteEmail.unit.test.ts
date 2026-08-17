@@ -19,7 +19,13 @@ describe("buildReadinessInviteEmail (ER4)", () => {
     expect(built.html).toContain("Bio");
     expect(built.html).toContain("Slides");
     expect(built.html).toMatch(/30 days/i);
-    expect(built.html).toMatch(/fresh one/i);
+  });
+
+  it("ER5.1 — promises grace for older links instead of killing them", () => {
+    expect(built.html).toContain(
+      "This link works for 30 days. Links from earlier emails keep working until their own expiry.",
+    );
+    expect(built.html).not.toMatch(/replaces earlier|no longer work/i);
   });
 
   it("does not include a tracking pixel", () => {
