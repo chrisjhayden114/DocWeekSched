@@ -60,4 +60,9 @@ export class DataUrlStorageProvider implements StorageProvider {
     const key = `${input.keyPrefix || "uploads"}/${randomBytes(8).toString("hex")}`;
     return { url: trimmed, storageKey: key };
   }
+
+  /** Bytes live on the row as a data URL — no object to fetch by key. */
+  async get(_key: string): Promise<import("./types").StorageGetResult | null> {
+    return null;
+  }
 }

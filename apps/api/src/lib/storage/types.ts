@@ -20,6 +20,11 @@ export type StorageAcceptInput = {
   allowedMimeTypes?: string[];
 };
 
+export type StorageGetResult = {
+  body: Buffer;
+  contentType: string;
+};
+
 /**
  * Object-storage provider. When no bucket is configured, the data-URL
  * implementation stores files inline (legacy behavior) so local/dev keeps working.
@@ -30,4 +35,9 @@ export interface StorageProvider {
   isObjectStore(): boolean;
   put(input: StoragePutInput): Promise<StoragePutResult>;
   acceptUpload(input: StorageAcceptInput): Promise<StoragePutResult>;
+  /**
+   * Fetch bytes by storage key. Optional — data-URL fallback keeps bytes on
+   * the row (`fileUrl`) and returns null here. Used by readiness file proxy (O5).
+   */
+  get?(key: string): Promise<StorageGetResult | null>;
 }

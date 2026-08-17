@@ -12,6 +12,12 @@ export type ConfirmDialogProps = {
   busy?: boolean;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
+  /** Optional reason / note field (ER4 reject). */
+  promptLabel?: string;
+  promptValue?: string;
+  promptPlaceholder?: string;
+  promptRequired?: boolean;
+  onPromptChange?: (value: string) => void;
 };
 
 /**
@@ -27,6 +33,11 @@ export function ConfirmDialog({
   busy,
   onConfirm,
   onCancel,
+  promptLabel,
+  promptValue,
+  promptPlaceholder,
+  promptRequired,
+  onPromptChange,
 }: ConfirmDialogProps) {
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -82,6 +93,20 @@ export function ConfirmDialog({
         <p className="text-body-md" style={{ margin: "0 0 var(--space-5)", color: "var(--ink-secondary)" }}>
           {body}
         </p>
+        {promptLabel ? (
+          <label style={{ display: "grid", gap: 6, margin: "0 0 var(--space-5)" }}>
+            <span className="text-body-md">{promptLabel}</span>
+            <textarea
+              className="input"
+              rows={3}
+              value={promptValue ?? ""}
+              placeholder={promptPlaceholder}
+              required={promptRequired}
+              onChange={(e) => onPromptChange?.(e.target.value)}
+              style={{ fontSize: 16 }}
+            />
+          </label>
+        ) : null}
         <div style={{ display: "flex", gap: "var(--space-2)", justifyContent: "flex-end", flexWrap: "wrap" }}>
           <button ref={cancelRef} type="button" className="button secondary" disabled={busy} onClick={onCancel}>
             {cancelLabel}
@@ -89,7 +114,7 @@ export function ConfirmDialog({
           <button
             type="button"
             className={tone === "danger" ? "button button-danger" : "button"}
-            disabled={busy}
+            disabled={busy || (promptRequired && !promptValue?.trim())}
             onClick={() => void onConfirm()}
           >
             {busy ? "Working…" : confirmLabel}

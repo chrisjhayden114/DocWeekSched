@@ -1,5 +1,11 @@
 import { createHash, createHmac, randomBytes } from "crypto";
-import type { StorageAcceptInput, StorageProvider, StoragePutInput, StoragePutResult } from "./types";
+import type {
+  StorageAcceptInput,
+  StorageGetResult,
+  StorageProvider,
+  StoragePutInput,
+  StoragePutResult,
+} from "./types";
 
 const DEFAULT_MAX = 20_000_000;
 
@@ -122,5 +128,43 @@ export class S3CompatibleStorageProvider implements StorageProvider {
     const ext = mime.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "bin";
     const key = `${input.keyPrefix || "uploads"}/${randomBytes(12).toString("hex")}.${ext}`;
     return this.put({ key, body: buffer, contentType: mime });
+  }
+
+  /** O5 — fetch bytes by key so the API can proxy without exposing a public URL. */
+  async get(key: string): Promise<StorageGetResult | null> {
+    const { host, url, canonicalUri } = this.hostAndPath(key);
+    const { amz, dateStamp } = amzDate();
+    const payloadHash = sha256Hex("");
+    const canonicalHeaders = `host:${host}\n` + `x-amz-content-sha256:${payloadHash}\n` + `x-amz-date:${amz}\n`;
+    const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+    const canonicalRequest = ["GET", canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+    const credentialScope = `${dateStamp}/${this.cfg.region}/s3/aws4_request`;
+    const stringToSign = ["AWS4-HMAC-SHA256", amz, credentialScope, sha256Hex(canonicalRequest)].join("\n");
+    const kDate = hmac(`AWS4${this.cfg.secretAccessKey}`, dateStamp);
+    const kRegion = hmac(kDate, this.cfg.region);
+    const kService = hmac(kRegion, "s3");
+    const kSigning = hmac(kService, "aws4_request");
+    const signature = createHmac("sha256", kSigning).update(stringToSign, "utf8").digest("hex");
+    const authorization =
+      `AWS4-HMAC-SHA256 Credential=${this.cfg.accessKeyId}/${credentialScope}, ` +
+      `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Host: host,
+        "x-amz-content-sha256": payloadHash,
+        "x-amz-date": amz,
+        Authorization: authorization,
+      },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Object storage get failed (${res.status}): ${text.slice(0, 200)}`);
+    }
+    const contentType = res.headers.get("content-type") || "application/octet-stream";
+    const body = Buffer.from(await res.arrayBuffer());
+    return { body, contentType };
   }
 }

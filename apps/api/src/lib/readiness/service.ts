@@ -56,10 +56,15 @@ export async function getReadinessOverview(eventId: string, now: Date = new Date
       where: { eventId },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       include: {
-        requirement: { select: { id: true, templateId: true, label: true, dueAt: true } },
+        requirement: { select: { id: true, templateId: true, label: true, dueAt: true, kind: true } },
         speaker: { select: { id: true, name: true } },
         session: { select: { id: true, title: true } },
         sessionItem: { select: { id: true, title: true } },
+        submissions: {
+          where: { supersededAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
     }),
   ]);
@@ -79,11 +84,13 @@ export async function getReadinessOverview(eventId: string, now: Date = new Date
     subjectAssignments.set(key, group);
 
     const derived = deriveAssignmentState(a, now);
+    const latest = a.submissions[0] ?? null;
     return {
       id: a.id,
       templateId: a.requirement.templateId,
       requirementId: a.requirementId,
       requirementLabel: a.requirement.label,
+      requirementKind: a.requirement.kind,
       speakerId: a.speakerId,
       sessionId: a.sessionId,
       sessionItemId: a.sessionItemId,
@@ -98,6 +105,17 @@ export async function getReadinessOverview(eventId: string, now: Date = new Date
       ownerUserId: a.ownerUserId,
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
+      latestSubmission: latest
+        ? {
+            id: latest.id,
+            value: latest.valueJson ?? latest.valueText,
+            fileName: latest.fileName,
+            submittedAt: latest.createdAt,
+            approvedAt: latest.approvedAt,
+            rejectedAt: latest.rejectedAt,
+            rejectedReason: latest.reviewNote,
+          }
+        : null,
     };
   });
 
@@ -134,6 +152,11 @@ function summarizeReadinessAudit(
   const target = context ? `“${context.label}” for ${context.subjectName}` : "a requirement";
   if (action === "waive") return `Waived ${target}`;
   if (action === "unwaive") return `Un-waived ${target}`;
+  if (action === "approve") return `Approved ${target}`;
+  if (action === "reject") return `Rejected ${target}`;
+  if (action === "invite") return context ? `Sent a portal invite to ${context.subjectName}` : "Sent a portal invite";
+  if (action === "remint") return context ? `Reissued the portal link for ${context.subjectName}` : "Reissued a portal link";
+  if (action === "revoke") return context ? `Revoked the portal link for ${context.subjectName}` : "Revoked a portal link";
   return context ? `Updated ${target}` : "Updated a readiness item";
 }
 
@@ -162,6 +185,13 @@ export async function getReadinessActivity(
         .map((r) => r.entityId!),
     ),
   ];
+  const portalIds = [
+    ...new Set(
+      rows
+        .filter((r) => r.entityType === "ReadinessPortalAccess" && r.entityId)
+        .map((r) => r.entityId!),
+    ),
+  ];
   const assignments =
     assignmentIds.length > 0
       ? await prisma.readinessAssignment.findMany({
@@ -173,15 +203,26 @@ export async function getReadinessActivity(
           },
         })
       : [];
-  const contextById = new Map(
-    assignments.map((a) => [
+  const portals =
+    portalIds.length > 0
+      ? await prisma.readinessPortalAccess.findMany({
+          where: { id: { in: portalIds }, eventId },
+          include: { speaker: { select: { name: true } } },
+        })
+      : [];
+  const contextById = new Map<string, { label: string; subjectName: string }>([
+    ...assignments.map((a) => [
       a.id,
       {
         label: a.requirement.label,
         subjectName: a.speaker?.name ?? a.session?.title ?? "an unnamed subject",
       },
-    ]),
-  );
+    ] as const),
+    ...portals.map((p) => [
+      p.id,
+      { label: "Presenter portal", subjectName: p.speaker.name },
+    ] as const),
+  ]);
 
   return rows.map((row) => ({
     at: row.createdAt,

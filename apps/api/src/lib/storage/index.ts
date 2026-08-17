@@ -2,7 +2,7 @@ import { DataUrlStorageProvider } from "./dataUrl";
 import { S3CompatibleStorageProvider } from "./s3Compatible";
 import type { StorageProvider } from "./types";
 
-export type { StorageProvider, StoragePutResult, StorageAcceptInput } from "./types";
+export type { StorageProvider, StoragePutResult, StorageAcceptInput, StorageGetResult } from "./types";
 
 let cached: StorageProvider | null = null;
 

@@ -60,6 +60,7 @@ describe("jsonLimitForPath", () => {
     expect(jsonLimitForPath("POST", "/certificates/event/e1/templates")).toBe("2mb");
     expect(jsonLimitForPath("PUT", "/auth/me")).toBe("16mb");
     expect(jsonLimitForPath("PUT", "/auth/me/profile")).toBe("16mb");
+    expect(jsonLimitForPath("POST", "/portal/tok/assignments/a1/submission")).toBe("30mb");
   });
 
   it("keeps GET at the default (no body)", () => {

@@ -78,6 +78,7 @@ export type OverviewRequirement = {
   required: boolean;
   dueAt: string | null;
   sortOrder: number;
+  config?: Record<string, unknown>;
 };
 
 export type OverviewTemplate = {
@@ -102,11 +103,22 @@ export type SubjectRollup = {
   complete: boolean;
 };
 
+export type OverviewLatestSubmission = {
+  id: string;
+  value?: unknown;
+  fileName?: string | null;
+  submittedAt: string;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  rejectedReason: string | null;
+};
+
 export type OverviewAssignment = {
   id: string;
   templateId: string;
   requirementId: string;
   requirementLabel: string;
+  requirementKind?: string;
   subject: OverviewSubjectRef;
   status: ReadinessStatus;
   /** Server-derived: past effective due date and not READY/WAIVED/N-A. */
@@ -117,6 +129,7 @@ export type OverviewAssignment = {
   waivedAt: string | null;
   waivedById: string | null;
   sessionItemTitle?: string | null;
+  latestSubmission?: OverviewLatestSubmission | null;
 };
 
 export type ReadinessOverview = {

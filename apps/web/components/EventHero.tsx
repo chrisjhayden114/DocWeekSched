@@ -19,9 +19,11 @@ type EventHeroProps = {
   dateRange: string;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  /** Quiet-mode accent bar (presenter portal / branded header). */
+  accentColor?: string | null;
 };
 
-export function EventHero({ name, dateRange, bannerUrl, logoUrl }: EventHeroProps) {
+export function EventHero({ name, dateRange, bannerUrl, logoUrl, accentColor }: EventHeroProps) {
   if (bannerUrl) {
     return (
       <section
@@ -44,7 +46,14 @@ export function EventHero({ name, dateRange, bannerUrl, logoUrl }: EventHeroProp
   }
 
   return (
-    <section className="event-hero event-hero--quiet">
+    <section
+      className="event-hero event-hero--quiet"
+      style={
+        accentColor
+          ? { borderLeft: `4px solid ${accentColor}`, paddingLeft: 12 }
+          : undefined
+      }
+    >
       {logoUrl ? <img src={logoUrl} alt="" className="event-hero-logo" /> : null}
       <div className="event-hero-quiet-text">
         <h1 className="event-hero-name">{name}</h1>

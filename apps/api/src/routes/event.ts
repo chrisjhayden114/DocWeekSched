@@ -19,6 +19,7 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { hashToken } from "../lib/auth";
 import { validationErrorBody } from "../lib/errors";
+import { revokePortalAccessForEvent } from "../lib/readiness/portal";
 
 export const eventRouter = Router();
 
@@ -390,6 +391,8 @@ eventRouter.post(
       where: { id: event.id },
       data: { status: EventStatus.ARCHIVED },
     });
+    // O1 — portal tokens do not survive archive.
+    await revokePortalAccessForEvent(event.id);
     return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
   }),
 );
@@ -425,6 +428,9 @@ eventRouter.patch(
         ...(parsed.data.status === "ACTIVE" && !event.activatedAt ? { activatedAt: new Date() } : {}),
       },
     });
+    if (parsed.data.status === "ARCHIVED") {
+      await revokePortalAccessForEvent(event.id);
+    }
     return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
   }),
 );

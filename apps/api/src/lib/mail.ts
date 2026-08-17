@@ -151,6 +151,61 @@ ${lineHtml}
   });
 }
 
+/** Pure builder — unit-tested for subject, portal link, and the 30-day expiry note. */
+export function buildReadinessInviteEmail(opts: {
+  speakerName: string;
+  eventName: string;
+  portalUrl: string;
+  requirementLabels: string[];
+  nearestDueAt?: Date | null;
+}): { subject: string; html: string } {
+  const subject = `Materials needed for ${opts.eventName}`;
+  const items =
+    opts.requirementLabels.length > 0
+      ? `<ul style="padding-left:20px;margin:0 0 16px">${opts.requirementLabels
+          .map((label) => `<li>${escapeHtml(label)}</li>`)
+          .join("")}</ul>`
+      : `<p>Your organizer has asked you to complete a short materials checklist.</p>`;
+  const due =
+    opts.nearestDueAt && !Number.isNaN(opts.nearestDueAt.getTime())
+      ? `<p>The nearest due date is <strong>${escapeHtml(
+          opts.nearestDueAt.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+        )}</strong>.</p>`
+      : "";
+  const html = `<p>Hi ${escapeHtml(opts.speakerName)},</p>
+<p><strong>${escapeHtml(opts.eventName)}</strong> needs a few materials from you before the event.</p>
+${items}
+${due}
+<p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">Open your presenter portal</a></p>
+<p>This link works for 30 days — ask the organizer for a fresh one if it expires.</p>
+<p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.portalUrl)}</p>`;
+  return { subject, html };
+}
+
+export async function sendReadinessInviteEmail(opts: {
+  to: string;
+  speakerName: string;
+  eventName: string;
+  portalUrl: string;
+  requirementLabels: string[];
+  nearestDueAt?: Date | null;
+}): Promise<SendEmailResult> {
+  const from = buildFromLine(opts.eventName);
+  const built = buildReadinessInviteEmail(opts);
+  return getEmailProvider().send({
+    to: opts.to,
+    from,
+    subject: built.subject,
+    logLabel: "readiness-invite",
+    copyUrl: opts.portalUrl,
+    html: built.html,
+  });
+}
+
 export async function sendWaitlistPromotedEmail(opts: {
   to: string;
   name: string;

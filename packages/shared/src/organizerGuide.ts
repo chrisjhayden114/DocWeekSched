@@ -84,7 +84,7 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     id: "readiness-tab",
     topic: "Readiness",
     href: "/organizer/events/{eventId}?tab=readiness",
-    text: "Pilot preview — if enabled for this event, the Readiness tab tracks what every speaker and session still needs before show day. Create a template (a named set of requirements like bio, headshot, slides, AV needs), assign it to speakers or sessions, and follow per-requirement status, due dates, and waivers from the readiness table.",
+    text: "Pilot preview — if enabled for this event, the Readiness tab tracks what every speaker and session still needs before show day. Create a template (a named set of requirements like bio, headshot, slides, AV needs), assign it to speakers or sessions, and follow per-requirement status, due dates, and waivers from the readiness table. For a speaker, send a presenter portal invite from their detail panel — they get a 30-day link to submit materials without creating an account; you can resend or revoke that link, then approve or reject what they send.",
   },
   {
     id: "recap-tab",

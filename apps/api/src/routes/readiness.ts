@@ -1,9 +1,19 @@
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, requireEventAccess } from "../lib/authorization";
+import { prisma } from "../lib/db";
 import { validationErrorBody } from "../lib/errors";
 import { requireFeature } from "../lib/features";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { getRequestedEventId } from "../lib/requestEvent";
+import {
+  listPortalAccess,
+  mintPortalAccess,
+  remintPortalAccess,
+  reviewSubmission,
+  revokePortalAccess,
+  streamOrganizerFile,
+} from "../lib/readiness/portal";
 import {
   assignTemplate,
   createRequirement,
@@ -264,5 +274,113 @@ readinessRouter.patch(
     );
     const derived = deriveAssignmentState(updated, new Date());
     return res.json({ ...updated, late: derived.late, effectiveDueAt: derived.effectiveDueAt });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Portal access (ER4) — manage-gated; raw token returned exactly once
+// ---------------------------------------------------------------------------
+
+const portalMintSchema = z.object({
+  speakerId: z.string().min(1),
+  email: z.string().email().max(320),
+});
+
+readinessRouter.get(
+  "/portal-access",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { event } = await requireReadinessManage(req);
+    const accesses = await listPortalAccess(event.id);
+    return res.json({ accesses });
+  }),
+);
+
+readinessRouter.post(
+  "/portal-access",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = portalMintSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const { event } = await requireReadinessManage(req);
+    const result = await mintPortalAccess(
+      event.id,
+      event.organizationId,
+      parsed.data,
+      req.user!.id,
+    );
+    return res.status(201).json(result);
+  }),
+);
+
+readinessRouter.post(
+  "/portal-access/:id/remint",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { event } = await requireReadinessManage(req);
+    const result = await remintPortalAccess(event.id, req.params.id, req.user!.id);
+    return res.json(result);
+  }),
+);
+
+readinessRouter.post(
+  "/portal-access/:id/revoke",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { event } = await requireReadinessManage(req);
+    const access = await revokePortalAccess(event.id, req.params.id, req.user!.id);
+    return res.json(access);
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Organizer review + proxied files (ER4 / O5)
+// ---------------------------------------------------------------------------
+
+const reviewSchema = z.object({
+  action: z.enum(["approve", "reject"]),
+  reason: z.string().max(2000).optional(),
+});
+
+readinessRouter.patch(
+  "/submissions/:id",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = reviewSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const { event } = await requireReadinessManage(req);
+    const updated = await reviewSubmission(event.id, req.params.id, parsed.data, req.user!.id);
+    return res.json(updated);
+  }),
+);
+
+readinessRouter.get(
+  "/files/:submissionId",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    // Event is taken from the submission so a new-tab View works without
+    // x-event-id. A mismatched header/query still 404s (tenant isolation).
+    const submission = await prisma.readinessSubmission.findUnique({
+      where: { id: req.params.submissionId },
+      select: { id: true, eventId: true },
+    });
+    if (!submission) return res.status(404).json({ error: "File not found" });
+    const scoped =
+      getRequestedEventId(req) ||
+      (typeof req.query.eventId === "string" ? req.query.eventId.trim() : "");
+    if (scoped && scoped !== submission.eventId) {
+      return res.status(404).json({ error: "File not found" });
+    }
+    await requireFeature(submission.eventId, "readiness");
+    await requireEventAccess(req.user!.id, submission.eventId, { manage: true });
+    const file = await streamOrganizerFile(submission.eventId, submission.id);
+    res.setHeader("Content-Type", file.contentType);
+    res.setHeader("Content-Disposition", file.contentDisposition);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.status(200).send(file.body);
   }),
 );

@@ -7,6 +7,7 @@ import { Select } from "../Select";
 import { StatusChip } from "../StatusChip";
 import { SlideOver } from "../kit";
 import { formatRelativeTime } from "../../lib/dateFormat";
+import { API_URL } from "../../lib/api";
 import { organizerFetch } from "../../lib/organizerApi";
 import {
   buildSubjectRows,
@@ -60,6 +61,8 @@ type RequirementDraft = {
   required: boolean;
   /** datetime-local value ("" = no due date). */
   dueAt: string;
+  /** O10 — file requirements marked as decks get the 20 MB cap. */
+  deck: boolean;
 };
 
 type ConfirmState =
@@ -67,7 +70,18 @@ type ConfirmState =
   | { kind: "delete-requirement"; requirement: OverviewRequirement }
   | { kind: "waive"; assignment: OverviewAssignment }
   | { kind: "unwaive"; assignment: OverviewAssignment }
-  | { kind: "bulk-waive"; count: number };
+  | { kind: "bulk-waive"; count: number }
+  | { kind: "reject"; assignment: OverviewAssignment; submissionId: string };
+
+type PortalAccessRow = {
+  id: string;
+  speakerId: string;
+  email: string;
+  invitedAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  lastUsedAt: string | null;
+};
 
 type ActivityEntry = { at: string; actorName: string; summary: string };
 
@@ -147,6 +161,7 @@ const emptyRequirementDraft = (): RequirementDraft => ({
   helpText: "",
   required: true,
   dueAt: "",
+  deck: false,
 });
 
 export function ReadinessTab({ eventId, speakers, sessions }: Props) {
@@ -208,9 +223,23 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [backfillResult, setBackfillResult] = useState<number | null>(null);
 
+  // ER4 — presenter portal (speaker subjects only)
+  const [portalAccesses, setPortalAccesses] = useState<PortalAccessRow[]>([]);
+  const [portalEmail, setPortalEmail] = useState("");
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [mintedUrl, setMintedUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
   const load = useCallback(async () => {
-    const data = await organizerFetch<ReadinessOverview>("/readiness/overview", eventId);
+    const [data, portal] = await Promise.all([
+      organizerFetch<ReadinessOverview>("/readiness/overview", eventId),
+      organizerFetch<{ accesses: PortalAccessRow[] }>("/readiness/portal-access", eventId).catch(
+        () => ({ accesses: [] as PortalAccessRow[] }),
+      ),
+    ]);
     setOverview(data);
+    setPortalAccesses(portal.accesses);
   }, [eventId]);
 
   useEffect(() => {
@@ -358,6 +387,7 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
       helpText: requirement.helpText ?? "",
       required: requirement.required,
       dueAt: toLocalInput(requirement.dueAt),
+      deck: requirement.config?.deck === true || requirement.config?.isDeck === true,
     });
     setTplError(null);
   }
@@ -373,6 +403,7 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         helpText: reqDraft.helpText.trim() || null,
         required: reqDraft.required,
         dueAt: fromLocalInput(reqDraft.dueAt),
+        config: reqDraft.kind === "file" && reqDraft.deck ? { deck: true } : {},
       };
       if (reqDraft.id) {
         await organizerFetch(`/readiness/requirements/${reqDraft.id}`, eventId, {
@@ -586,6 +617,103 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
     setDetailKey(key);
     setDetailError(null);
     setDueDrafts({});
+    setMintedUrl(null);
+    setCopied(false);
+    const speakerId = key.startsWith("speaker:") ? key.slice("speaker:".length) : "";
+    const existing = portalAccesses.find((p) => p.speakerId === speakerId);
+    setPortalEmail(existing?.email ?? "");
+  }
+
+  function portalForSpeaker(speakerId: string): PortalAccessRow | undefined {
+    return portalAccesses.find((p) => p.speakerId === speakerId);
+  }
+
+  async function mintPortal(speakerId: string) {
+    if (!portalEmail.trim()) return;
+    setPortalBusy(true);
+    setDetailError(null);
+    try {
+      const result = await organizerFetch<{
+        url: string;
+        access: PortalAccessRow;
+        email: { delivered: boolean; copyUrl?: string; fallbackMessage?: string };
+      }>("/readiness/portal-access", eventId, {
+        method: "POST",
+        body: JSON.stringify({ speakerId, email: portalEmail.trim() }),
+      });
+      setMintedUrl(result.url);
+      setPortalAccesses((prev) => {
+        const rest = prev.filter((p) => p.speakerId !== speakerId);
+        return [...rest, result.access];
+      });
+      if (!result.email.delivered && result.email.fallbackMessage) {
+        setDetailError(result.email.fallbackMessage);
+      }
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "Could not send the portal invite");
+    } finally {
+      setPortalBusy(false);
+    }
+  }
+
+  async function remintPortal(accessId: string) {
+    setPortalBusy(true);
+    setDetailError(null);
+    try {
+      const result = await organizerFetch<{ url: string; access: PortalAccessRow }>(
+        `/readiness/portal-access/${accessId}/remint`,
+        eventId,
+        { method: "POST" },
+      );
+      setMintedUrl(result.url);
+      setPortalAccesses((prev) => prev.map((p) => (p.id === accessId ? result.access : p)));
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "Could not reissue the portal link");
+    } finally {
+      setPortalBusy(false);
+    }
+  }
+
+  async function revokePortal(accessId: string) {
+    setPortalBusy(true);
+    setDetailError(null);
+    try {
+      const access = await organizerFetch<PortalAccessRow>(
+        `/readiness/portal-access/${accessId}/revoke`,
+        eventId,
+        { method: "POST" },
+      );
+      setMintedUrl(null);
+      setPortalAccesses((prev) => prev.map((p) => (p.id === accessId ? access : p)));
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "Could not revoke the portal link");
+    } finally {
+      setPortalBusy(false);
+    }
+  }
+
+  async function reviewSubmission(submissionId: string, action: "approve" | "reject", reason?: string) {
+    setRowBusyId(submissionId);
+    setDetailError(null);
+    try {
+      await organizerFetch(`/readiness/submissions/${submissionId}`, eventId, {
+        method: "PATCH",
+        body: JSON.stringify(action === "reject" ? { action, reason } : { action }),
+      });
+      await load();
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "Could not review the submission");
+    } finally {
+      setRowBusyId(null);
+    }
+  }
+
+  function copyMintedUrl() {
+    if (!mintedUrl) return;
+    void navigator.clipboard.writeText(mintedUrl).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -652,6 +780,11 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         setConfirm(null);
         // runBulk reports its own progress/error inline in the action bar.
         await runBulk("WAIVED");
+      } else if (confirm.kind === "reject") {
+        const reason = rejectReason.trim();
+        setConfirm(null);
+        setRejectReason("");
+        await reviewSubmission(confirm.submissionId, "reject", reason);
       } else {
         const status: ReadinessStatus = confirm.kind === "waive" ? "WAIVED" : "NOT_STARTED";
         setConfirm(null);
@@ -758,6 +891,18 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
           />
           Required
         </label>
+        {reqDraft.kind === "file" ? (
+          <label
+            style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, minHeight: 44 }}
+          >
+            <input
+              type="checkbox"
+              checked={reqDraft.deck}
+              onChange={(e) => setReqDraft({ ...reqDraft, deck: e.target.checked })}
+            />
+            Slide deck (allow up to 20 MB; other files stay at 10 MB)
+          </label>
+        ) : null}
         <label style={{ margin: 0 }}>
           Due date <span className="text-meta">(optional)</span>
           <input
@@ -1560,6 +1705,112 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                 {detailError}
               </p>
             ) : null}
+            {detailRow.type === "speaker" ? (
+              <div
+                style={{
+                  border: "1px solid var(--gray-200)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: 12,
+                  display: "grid",
+                  gap: 10,
+                }}
+              >
+                <p className="console-panel-label" style={{ margin: 0 }}>
+                  Presenter portal
+                </p>
+                {(() => {
+                  const access = portalForSpeaker(detailRow.id);
+                  const expired = access
+                    ? new Date(access.expiresAt).getTime() < Date.now()
+                    : false;
+                  return (
+                    <>
+                      <label style={{ margin: 0 }}>
+                        Presenter email
+                        <input
+                          className="input"
+                          type="email"
+                          autoComplete="email"
+                          placeholder="speaker@university.edu"
+                          value={portalEmail}
+                          disabled={portalBusy}
+                          onChange={(e) => setPortalEmail(e.target.value)}
+                        />
+                      </label>
+                      {access ? (
+                        <p className="text-meta" style={{ margin: 0 }}>
+                          Invited {formatDue(access.invitedAt) ?? "—"}
+                          {access.expiresAt ? ` · expires ${formatDue(access.expiresAt)}` : ""}
+                          {access.lastUsedAt ? ` · last used ${formatDue(access.lastUsedAt)}` : ""}
+                          {access.revokedAt
+                            ? ` · revoked ${formatDue(access.revokedAt)}`
+                            : expired
+                              ? " · expired"
+                              : ""}
+                        </p>
+                      ) : (
+                        <p className="help-text" style={{ margin: 0 }}>
+                          Sends a 30-day link. The presenter never creates an account.
+                        </p>
+                      )}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className="button"
+                          disabled={portalBusy || !portalEmail.trim()}
+                          onClick={() =>
+                            access
+                              ? void remintPortal(access.id)
+                              : void mintPortal(detailRow.id)
+                          }
+                        >
+                          {portalBusy
+                            ? "Working…"
+                            : access
+                              ? "Resend portal invite"
+                              : "Send portal invite"}
+                        </button>
+                        {access && !access.revokedAt ? (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            disabled={portalBusy}
+                            onClick={() => void revokePortal(access.id)}
+                          >
+                            Revoke
+                          </button>
+                        ) : null}
+                      </div>
+                      {mintedUrl ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <input
+                            className="input"
+                            readOnly
+                            value={mintedUrl}
+                            aria-label="Portal URL (shown once)"
+                            style={{ flex: "1 1 200px" }}
+                          />
+                          <button
+                            type="button"
+                            className="button secondary"
+                            onClick={copyMintedUrl}
+                          >
+                            {copied ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : null}
             {detailRow.assignments.map((a) => {
               const chip = chipForStatus(a.status);
               const busy = rowBusyId === a.id;
@@ -1599,6 +1850,67 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                       {a.effectiveDueAt && a.waivedAt ? " · " : null}
                       {a.waivedAt ? `Waived ${formatDue(a.waivedAt)}` : null}
                     </p>
+                  ) : null}
+                  {a.latestSubmission ? (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <p className="text-meta" style={{ margin: 0 }}>
+                        Latest submission
+                        {a.latestSubmission.submittedAt
+                          ? ` · ${formatDue(a.latestSubmission.submittedAt)}`
+                          : ""}
+                        {a.latestSubmission.approvedAt ? " · approved" : ""}
+                        {a.latestSubmission.rejectedAt ? " · rejected" : ""}
+                      </p>
+                      {a.latestSubmission.fileName ? (
+                        <a
+                          className="button secondary"
+                          href={`${API_URL}/readiness/files/${a.latestSubmission.id}?eventId=${encodeURIComponent(eventId)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ justifySelf: "start", minHeight: 44 }}
+                        >
+                          View {a.latestSubmission.fileName}
+                        </a>
+                      ) : a.latestSubmission.value != null ? (
+                        <p style={{ margin: 0, overflowWrap: "anywhere" }}>
+                          {typeof a.latestSubmission.value === "string"
+                            ? a.latestSubmission.value
+                            : JSON.stringify(a.latestSubmission.value)}
+                        </p>
+                      ) : null}
+                      {a.latestSubmission.rejectedReason ? (
+                        <p className="text-meta" style={{ margin: 0, color: "var(--danger)" }}>
+                          {a.latestSubmission.rejectedReason}
+                        </p>
+                      ) : null}
+                      {!a.latestSubmission.approvedAt ? (
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            className="button"
+                            disabled={busy || rowBusyId === a.latestSubmission.id}
+                            onClick={() => void reviewSubmission(a.latestSubmission!.id, "approve")}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            className="button secondary"
+                            disabled={busy || rowBusyId === a.latestSubmission.id}
+                            onClick={() => {
+                              setRejectReason("");
+                              setConfirm({
+                                kind: "reject",
+                                assignment: a,
+                                submissionId: a.latestSubmission!.id,
+                              });
+                            }}
+                          >
+                            Reject…
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                   <label style={{ margin: 0 }} htmlFor={`readiness-status-${a.id}`}>
                     Status
@@ -1698,7 +2010,9 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                   ? `Un-waive “${confirm.assignment.requirementLabel}”?`
                   : confirm?.kind === "bulk-waive"
                     ? `Waive ${confirm.count} requirement${confirm.count === 1 ? "" : "s"}?`
-                    : ""
+                    : confirm?.kind === "reject"
+                      ? `Reject “${confirm.assignment.requirementLabel}”?`
+                      : ""
         }
         body={
           confirm?.kind === "delete-template"
@@ -1717,22 +2031,36 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                   ? `Un-waiving is recorded the same way — who and when, visible in the activity history. The item returns to Not started.`
                   : confirm?.kind === "bulk-waive"
                     ? `Waive ${confirm.count} requirement${confirm.count === 1 ? "" : "s"}? Each waive is recorded individually.`
-                    : ""
+                    : confirm?.kind === "reject"
+                      ? "The presenter will see this reason and can resubmit."
+                      : ""
         }
         confirmLabel={
           confirm?.kind === "delete-template" || confirm?.kind === "delete-requirement"
             ? "Delete"
             : confirm?.kind === "waive" || confirm?.kind === "bulk-waive"
               ? "Waive"
-              : "Un-waive"
+              : confirm?.kind === "reject"
+                ? "Reject"
+                : "Un-waive"
         }
         tone={
-          confirm?.kind === "delete-template" || confirm?.kind === "delete-requirement"
+          confirm?.kind === "delete-template" ||
+          confirm?.kind === "delete-requirement" ||
+          confirm?.kind === "reject"
             ? "danger"
             : "default"
         }
         busy={confirmBusy}
-        onCancel={() => setConfirm(null)}
+        promptLabel={confirm?.kind === "reject" ? "Reason" : undefined}
+        promptValue={confirm?.kind === "reject" ? rejectReason : undefined}
+        promptRequired={confirm?.kind === "reject"}
+        promptPlaceholder="What should they change?"
+        onPromptChange={confirm?.kind === "reject" ? setRejectReason : undefined}
+        onCancel={() => {
+          setConfirm(null);
+          setRejectReason("");
+        }}
         onConfirm={runConfirm}
       />
     </section>
