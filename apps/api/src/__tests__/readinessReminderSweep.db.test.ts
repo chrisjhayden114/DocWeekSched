@@ -34,6 +34,13 @@ describe("readiness reminder sweep (DB, ER5)", () => {
   const DAY_MS = 24 * 60 * 60 * 1000;
   /** Both of Ada's deadlines are past by now — one reminder, subject "overdue". */
   const afterBothDue = new Date(now.getTime() + 6 * DAY_MS);
+  /**
+   * Invites are sent before the sweep runs. Minting them off this earlier clock
+   * keeps the grace slot's carried expiry strictly older than the fresh 30 days
+   * a reminder mints — minting both at `now` makes the two equal and the
+   * comparison vacuous.
+   */
+  const invitedAt = new Date(now.getTime() - 3 * DAY_MS);
 
   const email = (who: string) => `er5-${who}-${stamp}@example.com`;
   const ADA = email("ada");
@@ -235,7 +242,7 @@ describe("readiness reminder sweep (DB, ER5)", () => {
       to: string,
       revokedAt: Date | null = null,
     ) => {
-      const token = newPortalToken(now);
+      const token = newPortalToken(invitedAt);
       return prisma.readinessPortalAccess.create({
         data: {
           organizationId: org.id,

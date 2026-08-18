@@ -143,6 +143,28 @@ export function clearAuthFailures(req: Request): void {
   }
 }
 
+/**
+ * The `max` a route limiter should use: the production number normally,
+ * effectively unlimited under the test harness (vitest sets NODE_ENV=test) or
+ * when RATE_LIMIT_DISABLED=1.
+ *
+ * A DB suite drives a whole feature over HTTP from one loopback address, so a
+ * realistic per-IP max starts refusing requests part-way through the file.
+ * Production limits are untouched: NODE_ENV is "production" on Render and
+ * RATE_LIMIT_DISABLED is never set there.
+ *
+ * Only for routers whose limit no test asserts. The suites that DO assert 429s
+ * (rateLimit.unit, rateLimitRoutes.unit, security.unit) run in the same
+ * NODE_ENV=test process, so routing their routers through this would delete
+ * that coverage instead of fixing a flake.
+ */
+export function testUnlimitedMax(productionMax: number): number {
+  if (process.env.NODE_ENV === "test" || process.env.RATE_LIMIT_DISABLED === "1") {
+    return Number.MAX_SAFE_INTEGER;
+  }
+  return productionMax;
+}
+
 /** Public read rate limit: 60 / minute / IP (SSR + crawlers). */
 export function publicRateLimit(opts?: { windowMs?: number; max?: number }) {
   return authRateLimit({ windowMs: opts?.windowMs ?? 60_000, max: opts?.max ?? 60 });

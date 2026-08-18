@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../lib/authorization";
 import { validationErrorBody } from "../lib/errors";
-import { authRateLimit } from "../lib/rateLimit";
+import { authRateLimit, testUnlimitedMax } from "../lib/rateLimit";
 import {
   createPortalUploadIntent,
   getPortalView,
@@ -17,7 +17,11 @@ import { pipeStoredFileToResponse } from "../lib/readiness/files";
  */
 export const portalRouter = Router();
 
-const portalRateLimit = authRateLimit({ windowMs: 60_000, max: 20, name: "portal" });
+const portalRateLimit = authRateLimit({
+  windowMs: 60_000,
+  max: testUnlimitedMax(20),
+  name: "portal",
+});
 
 portalRouter.get(
   "/:token",
