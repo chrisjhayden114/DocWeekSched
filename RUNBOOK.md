@@ -12,7 +12,7 @@ Keep this file current: any session that changes operational behavior updates it
 
 | Piece | Where | Config |
 |---|---|---|
-| Web (Next.js 14, Pages Router, PWA) | Netlify | `netlify.toml` (`@netlify/plugin-nextjs`, Node 20) |
+| Web (Next.js 14, Pages Router, PWA) | Netlify | `netlify.toml` (`@netlify/plugin-nextjs`, Node 22) |
 | API (Express + Prisma) | Render, service `docweeksched-api` | `render.yaml` (free plan, **single instance**) |
 | Database (PostgreSQL) | Neon | `DATABASE_URL` |
 | Background jobs | In-process poller inside the API (`BackgroundJob` table) | `JOB_POLL_INTERVAL_MS` (default 5s) |

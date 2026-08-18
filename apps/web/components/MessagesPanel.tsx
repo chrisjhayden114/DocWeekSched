@@ -208,6 +208,10 @@ export function MessagesPanel({
     } catch {
       /* ignore storage failures */
     }
+    // Keyed on the ids on purpose: `activeConversation` is rebuilt by useMemo on
+    // every 20s list poll, so depending on it would re-run this and flash a
+    // dismissed chip back (it resets to visible before re-reading storage).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversation?.id, activeConversation?.contextSession?.id]);
 
   /* ——— conversation list: fetch on mount, poll every 20s while visible ——— */

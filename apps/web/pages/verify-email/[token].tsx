@@ -1,5 +1,6 @@
 import { brand } from "@event-app/config";
 import Head from "next/head";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { API_URL } from "../../lib/api";
@@ -39,9 +40,9 @@ export default function VerifyEmailPage() {
           <h1>{brand.productName}</h1>
           <p>{message}</p>
           {ok && (
-            <a className="button" href="/login">
+            <Link className="button" href="/login">
               Sign in
-            </a>
+            </Link>
           )}
         </div>
       </div>

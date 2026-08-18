@@ -10,7 +10,7 @@ services:
     startCommand: npm run start --workspace=@event-app/api
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: "22"
       # Set explicitly rather than relying on a platform default: NODE_ENV
       # gates Secure session/CSRF cookies (env.ts cookieSecure), the HSTS
       # response header (securityHeaders.ts), and the rate-limiter's test

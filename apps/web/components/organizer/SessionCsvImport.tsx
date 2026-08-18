@@ -176,7 +176,7 @@ export function SessionCsvImport({ eventId, onCreated, bare, initialFile }: Prop
       }
       applyTable(parsed.headers, parsed.rows);
     },
-    [parseWorkbook],
+    [applyTable, parseWorkbook],
   );
 
   // E21: process a file handed over by the ingest page's Upload tab.

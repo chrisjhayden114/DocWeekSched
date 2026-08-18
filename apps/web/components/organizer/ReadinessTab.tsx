@@ -1589,7 +1589,7 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
                     <>
                       <p className="help-text" style={{ margin: 0 }}>
                         This template is assigned to {editingAssignedCount} subject
-                        {editingAssignedCount === 1 ? "" : "s"} — the new requirement isn't tracked
+                        {editingAssignedCount === 1 ? "" : "s"} — the new requirement isn&apos;t tracked
                         for them yet.
                       </p>
                       <button

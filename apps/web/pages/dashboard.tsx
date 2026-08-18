@@ -1,4 +1,5 @@
 import { brand, communityCopy, emptyStateCopy, icsProductId, sessionEditorCopy } from "@event-app/config";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
@@ -444,6 +445,9 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
+    // Mount-only auth bootstrap: re-running it on an event switch would refetch
+    // /auth/me and reset the token, which the effect below already owns.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -552,7 +556,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [token, activeEventId]);
+  }, [token, activeEventId, withEventHeaders]);
 
   useEffect(() => {
     if (!token) return;
@@ -606,6 +610,11 @@ export default function Dashboard() {
       }
     };
     void load();
+    // `attendees.length` and `isAdmin` are read as "have we got a roster yet"
+    // guards, not as triggers: depending on attendees.length would refetch the
+    // whole panel every time this effect fills the roster in. withEventHeaders
+    // only changes with activeEventId, which is already a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, token, user?.role, activeConversationId, activeEventId, communityChannel, event, tabReloadToken]);
 
   useEffect(() => {
@@ -633,7 +642,7 @@ export default function Dashboard() {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [token, activeEventId]);
+  }, [token, activeEventId, withEventHeaders]);
 
   useEffect(() => {
     if (!token || !activeEventId || active !== "Notifications") return;
@@ -654,7 +663,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [active, token, activeEventId]);
+  }, [active, token, activeEventId, withEventHeaders]);
 
   useEffect(() => {
     if (!token || !activeEventId) {
@@ -777,7 +786,7 @@ export default function Dashboard() {
     )
       .then((list) => setRoomPins(roomPinIndex(list as never)))
       .catch(() => setRoomPins({}));
-  }, [token, activeEventId, venueMapsOn]);
+  }, [token, activeEventId, venueMapsOn, withEventHeaders]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -795,6 +804,11 @@ export default function Dashboard() {
         setActiveConversationId(router.query.c);
       }
     }
+    // `router.query.c` is deliberately not a trigger: this effect only routes the
+    // initial ?tab=/?mapId= deep link, and the effect below owns ?c= once the
+    // Messages tab is open. Re-running here would yank the tab back on every
+    // conversation change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, router.query.mapId, router.query.pinId, router.query.tab]);
 
   useEffect(() => {
@@ -3325,7 +3339,7 @@ function ProfileEditor({
     <form className="card grid" onSubmit={handleSubmit}>
       <h3 style={{ marginTop: 0 }}>My Profile</h3>
       <p className="help-text" style={{ marginTop: 0 }}>
-        <a href="/account">Account &amp; data export</a>
+        <Link href="/account">Account &amp; data export</Link>
       </p>
       {checkInCode ? (
         <div
@@ -3611,9 +3625,7 @@ function ProfileEditor({
           <h4 style={{ marginTop: 0 }}>My Events</h4>
           <p className="help-text" style={{ marginTop: 0 }}>
             Prefer the new{" "}
-            <a href="/organizer">
-              organizer workspace
-            </a>{" "}
+            <Link href="/organizer">organizer workspace</Link>{" "}
             for drafts, publishing, tracks/rooms/speakers, papers and presentations, and CSV dry-run invites.
           </p>
           <div className="grid" style={{ gap: 8, marginBottom: 12 }}>

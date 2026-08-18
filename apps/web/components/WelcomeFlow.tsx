@@ -81,13 +81,22 @@ export function WelcomeFlow({
     onDone();
   }, [eventHeaders, onDone, token]);
 
+  // Ref so the open effect doesn't re-run (and steal focus back to the dialog)
+  // whenever `skip` gets a fresh identity — it chains through eventHeaders to
+  // the `withEventHeaders` prop, which callers rebuild every render. Same fix,
+  // same reason as SessionPeekSheet and the SlideOver focus-steal bug.
+  const skipRef = useRef(skip);
+  useEffect(() => {
+    skipRef.current = skip;
+  });
+
   useEffect(() => {
     if (!open) return;
     restoreFocusRef.current = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        void skip();
+        void skipRef.current();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -99,7 +108,7 @@ export function WelcomeFlow({
       document.body.style.overflow = prevOverflow;
       restoreFocusRef.current?.focus?.();
     };
-  }, [open, skip]);
+  }, [open]);
 
   if (!open) return null;
 

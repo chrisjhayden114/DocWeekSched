@@ -117,6 +117,9 @@ export default function SecurityPage() {
             <h2 id="report">Report a vulnerability</h2>
             <p>
               Email <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>. See also{" "}
+              {/* A static file served from public/, not a route — next/link would
+                  try to client-navigate to a page that doesn't exist. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a href="/.well-known/security.txt">/.well-known/security.txt</a>.
             </p>
           </article>

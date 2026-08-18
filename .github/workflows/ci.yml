@@ -34,13 +34,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Prisma generate (API types)
         run: npm run prisma:generate --workspace @event-app/api
       - name: Lint API
         run: npm run lint --workspace @event-app/api
+      - name: Lint web
+        run: npm run lint --workspace @event-app/web
       - name: Typecheck API
         run: npx tsc -p apps/api/tsconfig.json --noEmit
       - name: Typecheck web
@@ -48,8 +50,27 @@ jobs:
       - name: Unit tests
         working-directory: apps/api
         run: npx vitest run unit.test
-      - name: Web security-header tests
+      - name: Web unit tests
         run: npm test --workspace @event-app/web
+      # Typecheck alone never caught the failures that killed Netlify deploys
+      # (bad next.config, a module missing at bundle time, a page crashing
+      # during prerender), so CI builds the web app for real. The Next cache
+      # keeps that cheap; when only sources change the restore-keys still hand
+      # back the last cache built against this lockfile.
+      #
+      # The hashed globs list source directories explicitly — a broad
+      # `apps/web/**` would hash node_modules too, which is both slow and
+      # already covered by the lockfile hash.
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/web/pages/**', 'apps/web/components/**', 'apps/web/lib/**', 'apps/web/styles/**', 'apps/web/content/**', 'apps/web/next.config.js', 'packages/*/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-
+            ${{ runner.os }}-next-
+      - name: Build web
+        run: npm run build:web
 
   db-tests:
     name: Full suite vs service Postgres
@@ -78,7 +99,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Prisma generate + migrate

@@ -6,7 +6,7 @@
   # Next.js on Netlify (OpenNext) uses this output; framework detection may override publish.
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
 
 # Ensures dynamic routes (e.g. /session/[sessionId]) and API routes work on Netlify.
 [[plugins]]
