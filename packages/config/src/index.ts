@@ -87,6 +87,7 @@ export type BrandConfig = typeof brand;
  */
 export const authCopy = {
   ageAttestation: "I am 16 or older",
+  ageAttestationRequired: "Please confirm you are 16 or older.",
 } as const;
 
 /**

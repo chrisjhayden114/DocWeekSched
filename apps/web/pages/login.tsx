@@ -211,7 +211,11 @@ export default function LoginPage() {
       }
       window.location.href = await postLoginDestination();
     } catch (err) {
-      setError((err as Error).message);
+      const apiErr = err as Error & { body?: { details?: Record<string, string[]> } };
+      const fieldMessages = apiErr.body?.details
+        ? Object.values(apiErr.body.details).flat().filter(Boolean)
+        : [];
+      setError(fieldMessages[0] || apiErr.message);
     } finally {
       setLoading(false);
     }
@@ -323,7 +327,19 @@ export default function LoginPage() {
                 )}
                 {!(adminMode && registerType === "admin") ? (
                   <label htmlFor="reg-age" style={{ display: "flex", gap: 8, alignItems: "center", margin: "12px 0" }}>
-                    <input id="reg-age" type="checkbox" name="ageAttested" value="true" required />
+                    <input
+                      id="reg-age"
+                      type="checkbox"
+                      name="ageAttested"
+                      value="true"
+                      required
+                      onInvalid={(e) => {
+                        e.currentTarget.setCustomValidity(authCopy.ageAttestationRequired);
+                      }}
+                      onChange={(e) => {
+                        e.currentTarget.setCustomValidity("");
+                      }}
+                    />
                     {authCopy.ageAttestation}
                   </label>
                 ) : null}
