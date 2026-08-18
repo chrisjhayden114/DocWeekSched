@@ -45,7 +45,9 @@ export type PortalTokenSlots = {
  * Presenters bookmark the email they happen to have open, so a remint must not
  * turn an older email into a dead end. The previous slot is honored on its own
  * original expiry — grace never extends a clock, it only declines to smash one.
- * Revocation is checked first and covers both slots: revoked is revoked.
+ * Revocation is checked first and covers both slots: revoked is revoked. ER5.3 —
+ * that check is also why revoke can leave both hashes stored: they still match,
+ * so both dead links get the honest "revoked" answer, and neither one opens.
  */
 export function matchPortalToken(
   row: PortalTokenSlots | null,
@@ -93,7 +95,7 @@ export function portalRemintData(
   };
 }
 
-/** ER5.1 — revoke empties the grace slot; revocation covers every link ever sent. */
+/** ER5.1 — a freshly minted access has no older link to honor. */
 export const CLEARED_GRACE_SLOT = {
   previousTokenHash: null,
   previousExpiresAt: null,

@@ -121,12 +121,14 @@ describe("readiness portal link grace (ER5.1)", () => {
     expect(matchPortalToken(row, first.hash, at)).toEqual({ ok: false, reason: "unknown" });
   });
 
-  it("revocation is absolute: both slots deny, and revoke empties the grace slot", () => {
+  it("revocation is absolute: both slots deny, and neither hash is thrown away", () => {
     const at = later(10 * DAY_MS);
     const { first, second, row } = afterOneRemint(at);
     const revoked = { ...row, revokedAt: at };
     expect(matchPortalToken(revoked, second.hash, at)).toEqual({ ok: false, reason: "revoked" });
     expect(matchPortalToken(revoked, first.hash, at)).toEqual({ ok: false, reason: "revoked" });
+    // ER5.3 — those two answers are only reachable because revoke leaves both
+    // hashes stored; the cleared slot belongs to a brand-new invite, not revoke.
     expect(CLEARED_GRACE_SLOT).toEqual({ previousTokenHash: null, previousExpiresAt: null });
   });
 

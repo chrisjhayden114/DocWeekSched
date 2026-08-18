@@ -310,8 +310,10 @@ export async function revokePortalAccess(eventId: string, accessId: string, acto
   const existing = await loadAccessForEvent(eventId, accessId);
   const row = await prisma.readinessPortalAccess.update({
     where: { id: existing.id },
-    // ER5.1 — revoke takes the grace slot with it: every link ever sent dies.
-    data: { revokedAt: now, ...CLEARED_GRACE_SLOT },
+    // ER5.3 — both hashes stay put so a presenter clicking either dead link is
+    // told it was revoked rather than that it never existed. `matchPortalToken`
+    // reads `revokedAt` before it reads a hash, so neither one opens anything.
+    data: { revokedAt: now },
   });
   await writeAuditLog({
     organizationId: existing.organizationId,
@@ -329,7 +331,7 @@ export async function revokePortalAccess(eventId: string, accessId: string, acto
 export async function revokePortalAccessForEvent(eventId: string, now = new Date()) {
   await prisma.readinessPortalAccess.updateMany({
     where: { eventId, revokedAt: null },
-    data: { revokedAt: now, ...CLEARED_GRACE_SLOT },
+    data: { revokedAt: now },
   });
 }
 

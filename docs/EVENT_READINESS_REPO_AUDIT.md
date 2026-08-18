@@ -811,6 +811,17 @@ extended; a second remint retires the oldest. Token lookup accepts either hash a
 `lastUsedAt` either way.
 
 Unchanged: 30 days per token, auto-revoke on archive, and revocation as the absolute answer —
-revoke clears both slots, and a revoked token is never carried into grace by the remint that
-clears `revokedAt`.
+neither slot opens the portal once `revokedAt` is set, and a revoked token is never carried
+into grace by the remint that clears `revokedAt`.
+
+### ER5.3 — revoke keeps the hashes it kills (founder, 2026-08-17)
+
+ER5.1 had revoke empty the grace slot, so the link in the presenter's older email matched no
+row at all and the portal answered with the generic "this link is not valid" — the same words
+a typo gets. Revoke (organizer button and archive bulk-revoke) now stamps `revokedAt` and
+leaves both hashes in place. `matchPortalToken` reads `revokedAt` before it reads either hash,
+so neither link opens anything; the presenter is told the link was revoked and to ask the
+organizer for a fresh one. No schema change — the honest answer was always one stored hash
+away. The no-resurrection guard is untouched: reminting a revoked row clears `revokedAt`, mints
+fresh, and writes `null` over the pre-revoke grace slot rather than honoring it.
 

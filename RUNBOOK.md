@@ -101,7 +101,9 @@ Every reminder mints a fresh portal link, and since ER5.1 the link it replaces s
 until its own original expiry (`ReadinessPortalAccess.previousTokenHash` /
 `previousExpiresAt`, one older link at a time). Support consequence: "my link stopped
 working" is now genuinely expiry, revocation, or a link two remints old — not simply the
-last reminder. Revoke still kills every link the presenter has, immediately.
+last reminder. Revoke still kills every link the presenter has, immediately; since ER5.3 it
+also leaves both stored hashes in place, so a revoked link says "revoked" instead of the
+generic "not valid" — the presenter's screenshot tells you which of the three it was.
 
 **Kill switches today (formal per-feature switches land in Phase S2):**
 

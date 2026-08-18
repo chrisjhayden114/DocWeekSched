@@ -562,7 +562,8 @@ describe("readiness presenter portal (DB, ER4)", () => {
     expect(await staleGrace.json()).toMatchObject({ reason: "expired" });
     expect((await fetch(`${base}/portal/${newest}`)).status).toBe(200);
 
-    // Revoke is absolute: current and grace links both stop, and the slot empties.
+    // Revoke is absolute: current and grace links both stop. ER5.3 — the hashes
+    // stay stored so both links say "revoked" rather than looking like nonsense.
     await prisma.readinessPortalAccess.update({
       where: { id: ids.accessId! },
       data: { previousExpiresAt: afterOne.expiresAt },
@@ -578,11 +579,12 @@ describe("readiness presenter portal (DB, ER4)", () => {
       expect(res.status).toBe(404);
       expect(await res.json()).toMatchObject({ reason: "revoked" });
     }
-    const cleared = await prisma.readinessPortalAccess.findUniqueOrThrow({
+    const afterRevoke = await prisma.readinessPortalAccess.findUniqueOrThrow({
       where: { id: ids.accessId! },
     });
-    expect(cleared.previousTokenHash).toBeNull();
-    expect(cleared.previousExpiresAt).toBeNull();
+    expect(afterRevoke.revokedAt).toBeInstanceOf(Date);
+    expect(afterRevoke.tokenHash).toBe(hashToken(newest));
+    expect(afterRevoke.previousTokenHash).toBe(hashToken(middle));
 
     // Leave the fixture with one working link for the remaining tests.
     rawToken = await remint();
