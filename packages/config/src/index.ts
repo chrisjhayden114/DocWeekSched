@@ -48,18 +48,20 @@ export const brand = {
   },
   /**
    * Subprocessors named in the privacy policy.
-   * `region` is a dashboard placeholder — fill in the real region per provider; do not invent one.
+   * Regions are founder-read from the live dashboards where we have them;
+   * remaining providers are labeled "United States–based provider" only —
+   * do not invent a region.
    */
   subprocessors: [
-    { name: "Neon", role: "PostgreSQL hosting", region: "see dashboard" },
-    { name: "Render", role: "API hosting", region: "see dashboard" },
-    { name: "Netlify", role: "Web hosting", region: "see dashboard" },
-    { name: "Cloudflare", role: "Object storage (R2)", region: "see dashboard" },
-    { name: "Resend", role: "Transactional email", region: "see dashboard" },
-    { name: "Stripe", role: "Merchant of record (payments, tax)", region: "see dashboard" },
-    { name: "Anthropic", role: "AI processing for organizer-initiated features", region: "see dashboard" },
-    { name: "Sentry", role: "Error tracking", region: "see dashboard" },
-    { name: "Better Stack", role: "Uptime monitoring and status page", region: "see dashboard" },
+    { name: "Neon", role: "PostgreSQL hosting", region: "AWS us-east-1 (N. Virginia, USA)" },
+    { name: "Render", role: "API hosting", region: "Virginia (US East), USA" },
+    { name: "Netlify", role: "Web hosting", region: "Global CDN, US-based provider" },
+    { name: "Cloudflare", role: "Object storage (R2)", region: "Western North America (WNAM)" },
+    { name: "Resend", role: "Transactional email", region: "United States–based provider" },
+    { name: "Stripe", role: "Merchant of record (payments, tax)", region: "United States–based provider" },
+    { name: "Anthropic", role: "AI processing for organizer-initiated features", region: "United States–based provider" },
+    { name: "Sentry", role: "Error tracking", region: "United States–based provider" },
+    { name: "Better Stack", role: "Uptime monitoring and status page", region: "United States–based provider" },
   ],
   colors: {
     ink: "#18253F",

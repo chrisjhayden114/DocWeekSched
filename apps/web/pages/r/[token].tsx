@@ -5,7 +5,7 @@ import { EventHero } from "../../components/EventHero";
 import { StatusChip } from "../../components/StatusChip";
 import { API_URL } from "../../lib/api";
 import { eventAccentStyle } from "../../lib/eventAccent";
-import { chipForStatus, isReadinessFilePreviewable, READINESS_OFFICE_DOWNLOAD_NOTE, type ReadinessStatus } from "../../lib/readinessView";
+import { isReadinessFilePreviewable, portalAssignmentChip, portalAssignmentStatus, READINESS_OFFICE_DOWNLOAD_NOTE, type ReadinessStatus } from "../../lib/readinessView";
 
 type PortalRequirement = {
   label: string;
@@ -706,9 +706,9 @@ export default function PresenterPortalPage() {
               Hi {view.speakerName} — please complete the items below.
             </p>
             {view.assignments.map((a) => {
-              const chip = chipForStatus(a.status);
+              const chip = portalAssignmentChip(a);
               const due = formatDue(a.dueAt);
-              const late = isLate(a.dueAt, a.status);
+              const late = isLate(a.dueAt, portalAssignmentStatus(a));
               const approved = Boolean(a.latestSubmission?.approvedAt);
               const rejected = Boolean(a.latestSubmission?.rejectedAt);
               const submitted = Boolean(a.latestSubmission) && !rejected && !approved;

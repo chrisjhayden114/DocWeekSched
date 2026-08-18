@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSubjectRows,
   chipForStatus,
+  portalAssignmentChip,
   filterRows,
   isLate,
   isOpenStatus,
@@ -239,6 +240,20 @@ describe("chipForStatus", () => {
   it("falls back to the gray default tone for an unknown status", () => {
     const chip = chipForStatus("SOMETHING_NEW" as ReadinessStatus);
     expect(chip.chipStatus).toBe("default");
+  });
+});
+
+describe("portal view model", () => {
+  it('maps a SUBMITTED assignment with a submission to a "Submitted" chip', () => {
+    expect(
+      portalAssignmentChip({
+        status: "SUBMITTED",
+        latestSubmission: {
+          approvedAt: null,
+          rejectedAt: null,
+        },
+      }),
+    ).toEqual({ chipStatus: "pending", label: "Submitted" });
   });
 });
 

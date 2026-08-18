@@ -229,6 +229,39 @@ export function chipForStatus(status: ReadinessStatus): StatusChipProps {
 }
 
 // ---------------------------------------------------------------------------
+// portalAssignmentChip — presenter-portal card chip (same source as organizer)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /portal/:token assignment shape the portal card needs for its chip.
+ * The card body infers "Submitted ✓" from `latestSubmission`. The corner chip
+ * used to follow stored `status` only — a stale NOT_STARTED then stayed on
+ * "Not started" after a real submission. Effective status is the stored
+ * assignment status, reconciled with the latest submission so the chip uses
+ * the same chipForStatus mapping as the organizer table.
+ */
+export type PortalAssignmentForChip = {
+  status: ReadinessStatus;
+  latestSubmission?: { approvedAt?: string | null; rejectedAt?: string | null } | null;
+};
+
+/** Stored assignment status, or SUBMITTED/READY/IN_PROGRESS when a submission is ahead of a stale NOT_STARTED. */
+export function portalAssignmentStatus(assignment: PortalAssignmentForChip): ReadinessStatus {
+  const stored = assignment.status;
+  if (stored !== "NOT_STARTED") return stored;
+  const sub = assignment.latestSubmission;
+  if (!sub) return stored;
+  if (sub.approvedAt) return "READY";
+  if (sub.rejectedAt) return "IN_PROGRESS";
+  return "SUBMITTED";
+}
+
+/** Same chipForStatus mapping as the organizer Readiness table. */
+export function portalAssignmentChip(assignment: PortalAssignmentForChip): StatusChipProps {
+  return chipForStatus(portalAssignmentStatus(assignment));
+}
+
+// ---------------------------------------------------------------------------
 // isLate — passthrough of the server-derived flag
 // ---------------------------------------------------------------------------
 
