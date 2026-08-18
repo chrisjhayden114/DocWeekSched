@@ -541,6 +541,8 @@ model User {
   /// Free-text participant category (e.g. Student, Faculty, Industry). Legacy academic codes may still appear.
   participantType             String?
   passwordHash                String
+  /// Incremented on password reset/change and account-deletion request. JWT claim must match.
+  sessionVersion              Int                      @default(0)
   engagementPoints            Int                      @default(0)
   emailVerifiedAt             DateTime?
   emailVerifyTokenHash        String?                  @unique

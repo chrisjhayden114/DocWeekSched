@@ -31,10 +31,31 @@ export function tokensEqual(a: string, b: string): boolean {
 export type AuthToken = {
   userId: string;
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
+  /** Absent on JWTs issued before HARDEN-2; requireAuth treats missing as 0. */
+  sessionVersion?: number;
 };
 
+/** Prisma data fragment — bump so existing JWTs stop matching the User row. */
+export const sessionVersionBump = { sessionVersion: { increment: 1 } } as const;
+
+export function authTokenFor(user: {
+  id: string;
+  role: AuthToken["role"];
+  sessionVersion?: number | null;
+}): AuthToken {
+  return { userId: user.id, role: user.role, sessionVersion: user.sessionVersion ?? 0 };
+}
+
 export const signToken = (payload: AuthToken) => {
-  return jwt.sign(payload, env.jwtSecret, { expiresIn: "7d" });
+  return jwt.sign(
+    {
+      userId: payload.userId,
+      role: payload.role,
+      sessionVersion: payload.sessionVersion ?? 0,
+    },
+    env.jwtSecret,
+    { expiresIn: "7d" },
+  );
 };
 
 export const verifyToken = (token: string) => {

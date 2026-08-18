@@ -83,11 +83,25 @@ export type RateLimitOptions = {
  * `req.route` is unset at that point, so keys fall back to the concrete path and
  * path-param enumeration reopens (each guessed ID gets its own bucket).
  */
+/** Authenticated AI chat cost surfaces — generous but real. */
+export const AUTHENTICATED_AI_CHAT_LIMIT = {
+  windowMs: 60_000,
+  max: 30,
+  keyBy: "user" as const,
+};
+
+/** Attendee messaging anti-spam ceiling. */
+export const CONVERSATION_MESSAGE_LIMIT = {
+  windowMs: 60_000,
+  max: 60,
+  keyBy: "user" as const,
+};
+
 export function authRateLimit(opts?: RateLimitOptions) {
   const windowMs = opts?.windowMs ?? 60_000;
   const max = opts?.max ?? 5;
 
-  return (req: Request, res: Response, next: NextFunction) => {
+  return function authRateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
     const now = Date.now();
     sweepExpired(now);
 

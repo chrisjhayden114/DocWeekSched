@@ -18,6 +18,7 @@ import { assertMutuallyVisible, isBlockedBetween } from "../lib/visibility";
 import { authorOrDeleted } from "../lib/authorDisplay";
 import { validationErrorBody } from "../lib/errors";
 import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
+import { CONVERSATION_MESSAGE_LIMIT, authRateLimit, testUnlimitedMax } from "../lib/rateLimit";
 
 export const conversationsRouter = Router();
 
@@ -498,6 +499,10 @@ conversationsRouter.post(
   "/:id/messages",
   requireAuth,
   requireCsrf,
+  authRateLimit({
+    ...CONVERSATION_MESSAGE_LIMIT,
+    max: testUnlimitedMax(CONVERSATION_MESSAGE_LIMIT.max),
+  }),
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = messageSchema.safeParse(req.body);
     if (!parsed.success) {

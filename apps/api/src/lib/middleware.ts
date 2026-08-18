@@ -38,9 +38,13 @@ export const requireAuth = (req: AuthedRequest, res: Response, next: NextFunctio
       const payload = verifyToken(token);
       const row = await prisma.user.findUnique({
         where: { id: payload.userId },
-        select: { deactivatedAt: true, role: true },
+        select: { deactivatedAt: true, role: true, sessionVersion: true },
       });
       if (!row) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const tokenVersion = typeof payload.sessionVersion === "number" ? payload.sessionVersion : 0;
+      if (tokenVersion !== row.sessionVersion) {
         return res.status(401).json({ error: "Unauthorized" });
       }
       if (row.deactivatedAt && !isDeletionCancelOrStatus(req)) {

@@ -1,5 +1,6 @@
 import { NotificationKind } from "@prisma/client";
 import { prisma } from "../db";
+import { withDbRetry } from "../dbRetry";
 import { deliverNotification } from "./deliver";
 
 /** Window: sessions that start between now+leadMinutes and now+leadMinutes+widthMinutes. */
@@ -19,18 +20,20 @@ export function sessionStartingSoonWindow(
  */
 export async function notifySessionStartingSoon(now = new Date()): Promise<number> {
   const { from, to } = sessionStartingSoonWindow(now);
-  const sessions = await prisma.session.findMany({
-    where: {
-      startsAt: { gte: from, lt: to },
-    },
-    select: {
-      id: true,
-      title: true,
-      eventId: true,
-      startsAt: true,
-      bookmarks: { select: { userId: true } },
-    },
-  });
+  const sessions = await withDbRetry(() =>
+    prisma.session.findMany({
+      where: {
+        startsAt: { gte: from, lt: to },
+      },
+      select: {
+        id: true,
+        title: true,
+        eventId: true,
+        startsAt: true,
+        bookmarks: { select: { userId: true } },
+      },
+    }),
+  );
 
   let sent = 0;
   for (const session of sessions) {

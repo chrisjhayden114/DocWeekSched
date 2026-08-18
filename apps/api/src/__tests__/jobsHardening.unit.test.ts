@@ -282,4 +282,13 @@ describe("jobCaptureContext — Sentry grouping for connection-drop bursts", () 
     enoent.code = "P1001";
     expect(jobCaptureContext(enoent, { jobType: "a" }).fingerprint).toBe(undefined);
   });
+
+  it("groups the Server-has-closed-the-connection message with other drops", () => {
+    const closed = jobCaptureContext(new Error("Server has closed the connection"), {
+      area: "job_poller",
+    });
+    const coded = jobCaptureContext(prismaError("P1017"), { area: "job_poller" });
+    expect(closed.fingerprint).toEqual(coded.fingerprint);
+    expect(closed.tags.prismaCode).toBe("P1017");
+  });
 });

@@ -51,6 +51,7 @@ import type { AuthedRequest } from "../lib/middleware";
 import { requireAuth, requireCsrf } from "../lib/middleware";
 import { loadFeatureOverrides } from "../lib/features";
 import { validationErrorBody } from "../lib/errors";
+import { AUTHENTICATED_AI_CHAT_LIMIT, authRateLimit, testUnlimitedMax } from "../lib/rateLimit";
 
 export const setupCopilotRouter = Router();
 
@@ -140,6 +141,10 @@ setupCopilotRouter.post(
   "/turn",
   requireAuth,
   requireCsrf,
+  authRateLimit({
+    ...AUTHENTICATED_AI_CHAT_LIMIT,
+    max: testUnlimitedMax(AUTHENTICATED_AI_CHAT_LIMIT.max),
+  }),
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = turnSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
@@ -274,6 +279,10 @@ setupCopilotRouter.post(
   "/document",
   requireAuth,
   requireCsrf,
+  authRateLimit({
+    ...AUTHENTICATED_AI_CHAT_LIMIT,
+    max: testUnlimitedMax(AUTHENTICATED_AI_CHAT_LIMIT.max),
+  }),
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = documentSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));

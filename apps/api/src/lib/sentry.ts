@@ -69,17 +69,26 @@ export function captureException(
  */
 const PRISMA_CONNECTION_DROP_CODES = new Set(["P1001", "P1002", "P1008", "P1017", "P2024"]);
 
+/** pg/Prisma wording when the server hangs up without always stamping P1017. */
+const SERVER_CLOSED_CONNECTION = "Server has closed the connection";
+
 /**
  * The Prisma connection-drop code carried by `err`, or null when the error is
  * something else. Matches PrismaClientKnownRequestError and its initialization
- * sibling, both of which expose a string `code`.
+ * sibling, both of which expose a string `code`. Also matches the bare
+ * "Server has closed the connection" message (treated as P1017) so retry and
+ * Sentry grouping share one predicate.
  */
 export function prismaConnectionDropCode(err: unknown): string | null {
   if (!err || typeof err !== "object") return null;
-  const { name, code } = err as { name?: unknown; code?: unknown };
-  if (typeof name !== "string" || !name.startsWith("PrismaClient")) return null;
-  if (typeof code !== "string" || !PRISMA_CONNECTION_DROP_CODES.has(code)) return null;
-  return code;
+  const { name, code, message } = err as { name?: unknown; code?: unknown; message?: unknown };
+  if (typeof name === "string" && name.startsWith("PrismaClient")) {
+    if (typeof code === "string" && PRISMA_CONNECTION_DROP_CODES.has(code)) return code;
+  }
+  if (typeof message === "string" && message.includes(SERVER_CLOSED_CONNECTION)) {
+    return typeof code === "string" && PRISMA_CONNECTION_DROP_CODES.has(code) ? code : "P1017";
+  }
+  return null;
 }
 
 /**

@@ -1,5 +1,6 @@
 import { BackgroundJobStatus, type Prisma } from "@prisma/client";
 import { prisma } from "../db";
+import { withDbRetry } from "../dbRetry";
 import { writeAuditLog } from "../ai/audit";
 import { log } from "../log";
 import {
@@ -34,18 +35,20 @@ export async function enqueueJob(input: {
   /** When the job becomes eligible (defaults to now). */
   scheduledAt?: Date;
 }): Promise<{ id: string }> {
-  const row = await prisma.backgroundJob.create({
-    data: {
-      type: input.type,
-      organizationId: input.organizationId ?? null,
-      eventId: input.eventId ?? null,
-      createdById: input.createdById ?? null,
-      input: input.payload ?? {},
-      maxAttempts: input.maxAttempts ?? 3,
-      status: BackgroundJobStatus.PENDING,
-      ...(input.scheduledAt ? { scheduledAt: input.scheduledAt } : {}),
-    },
-  });
+  const row = await withDbRetry(() =>
+    prisma.backgroundJob.create({
+      data: {
+        type: input.type,
+        organizationId: input.organizationId ?? null,
+        eventId: input.eventId ?? null,
+        createdById: input.createdById ?? null,
+        input: input.payload ?? {},
+        maxAttempts: input.maxAttempts ?? 3,
+        status: BackgroundJobStatus.PENDING,
+        ...(input.scheduledAt ? { scheduledAt: input.scheduledAt } : {}),
+      },
+    }),
+  );
   await writeAuditLog({
     organizationId: input.organizationId,
     eventId: input.eventId,
@@ -77,19 +80,21 @@ export const STALE_RUNNING_RECLAIM_MS = 10 * 60_000;
 export async function processDueJobs(limit = 5): Promise<number> {
   const now = new Date();
   const staleRunningBefore = new Date(now.getTime() - STALE_RUNNING_RECLAIM_MS);
-  const candidates = await prisma.backgroundJob.findMany({
-    where: {
-      OR: [
-        { status: BackgroundJobStatus.PENDING, scheduledAt: { lte: now } },
-        { status: BackgroundJobStatus.FAILED, scheduledAt: { lte: now } },
-        // Stranded mid-flight: attempts was already incremented when it started,
-        // so maxAttempts still bounds how often this can come back around.
-        { status: BackgroundJobStatus.RUNNING, startedAt: { lt: staleRunningBefore } },
-      ],
-    },
-    orderBy: { scheduledAt: "asc" },
-    take: limit * 3,
-  });
+  const candidates = await withDbRetry(() =>
+    prisma.backgroundJob.findMany({
+      where: {
+        OR: [
+          { status: BackgroundJobStatus.PENDING, scheduledAt: { lte: now } },
+          { status: BackgroundJobStatus.FAILED, scheduledAt: { lte: now } },
+          // Stranded mid-flight: attempts was already incremented when it started,
+          // so maxAttempts still bounds how often this can come back around.
+          { status: BackgroundJobStatus.RUNNING, startedAt: { lt: staleRunningBefore } },
+        ],
+      },
+      orderBy: { scheduledAt: "asc" },
+      take: limit * 3,
+    }),
+  );
 
   let processed = 0;
   for (const job of candidates) {

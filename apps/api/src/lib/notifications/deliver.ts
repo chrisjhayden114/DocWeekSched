@@ -4,6 +4,7 @@ import {
   NotificationKind,
 } from "@prisma/client";
 import { prisma } from "../db";
+import { withDbRetry } from "../dbRetry";
 import { sendWebPushToUser } from "../push/webPush";
 import { tryChargePushBudget } from "./budget";
 import {
@@ -317,13 +318,15 @@ export async function notifyMany(rows: NotifyManyRow[], now = new Date()): Promi
 
 /** Flush quiet-hour queue whose queuedUntil has passed — charge budget or digest. */
 export async function flushQueuedPushes(now = new Date()): Promise<number> {
-  const due = await prisma.userNotification.findMany({
-    where: {
-      delivery: NotificationDelivery.QUEUED_PUSH,
-      queuedUntil: { lte: now },
-    },
-    take: 200,
-  });
+  const due = await withDbRetry(() =>
+    prisma.userNotification.findMany({
+      where: {
+        delivery: NotificationDelivery.QUEUED_PUSH,
+        queuedUntil: { lte: now },
+      },
+      take: 200,
+    }),
+  );
   let flushed = 0;
   for (const n of due) {
     if (!n.eventId) continue;

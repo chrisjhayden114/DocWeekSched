@@ -10,7 +10,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "../db";
 import { assertDestructiveAllowed } from "../destructiveGuard";
-import { verifyPassword } from "../auth";
+import { sessionVersionBump, verifyPassword } from "../auth";
 import { writeAuditLog } from "../ai/audit";
 import { enqueueJob, registerJobHandler } from "../jobs";
 import { HttpError } from "../authorization";
@@ -110,7 +110,7 @@ export async function requestAccountDeletion(input: {
   const request = await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: user.id },
-      data: { deactivatedAt: new Date() },
+      data: { deactivatedAt: new Date(), ...sessionVersionBump },
     });
     await tx.eventMembership.updateMany({
       where: { userId: user.id },

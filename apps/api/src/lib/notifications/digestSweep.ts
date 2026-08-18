@@ -1,5 +1,6 @@
 import { NotificationClass, NotificationDelivery, NotificationKind } from "@prisma/client";
 import { prisma } from "../db";
+import { withDbRetry } from "../dbRetry";
 import { log } from "../log";
 import { rollupMorningDigest } from "./digest";
 
@@ -14,20 +15,22 @@ import { rollupMorningDigest } from "./digest";
  * no eligible items — this sweep does not duplicate those checks.
  */
 export async function sweepDailyDigests(now = new Date()): Promise<{ rolled: number }> {
-  const candidates = await prisma.userNotification.findMany({
-    where: {
-      readAt: null,
-      eventId: { not: null },
-      createdAt: { gte: new Date(now.getTime() - 48 * 60 * 60 * 1000) },
-      kind: { not: NotificationKind.DIGEST_ROLLUP },
-      OR: [
-        { class: NotificationClass.DIGEST, delivery: NotificationDelivery.INBOX },
-        { delivery: NotificationDelivery.DIGESTED },
-      ],
-    },
-    distinct: ["userId", "eventId"],
-    select: { userId: true, eventId: true },
-  });
+  const candidates = await withDbRetry(() =>
+    prisma.userNotification.findMany({
+      where: {
+        readAt: null,
+        eventId: { not: null },
+        createdAt: { gte: new Date(now.getTime() - 48 * 60 * 60 * 1000) },
+        kind: { not: NotificationKind.DIGEST_ROLLUP },
+        OR: [
+          { class: NotificationClass.DIGEST, delivery: NotificationDelivery.INBOX },
+          { delivery: NotificationDelivery.DIGESTED },
+        ],
+      },
+      distinct: ["userId", "eventId"],
+      select: { userId: true, eventId: true },
+    }),
+  );
 
   let rolled = 0;
   for (const pair of candidates) {

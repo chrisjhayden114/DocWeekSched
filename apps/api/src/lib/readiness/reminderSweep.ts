@@ -1,6 +1,7 @@
 import { EventStatus, ReadinessAssignmentStatus } from "@prisma/client";
 import { writeAuditLog } from "../ai";
 import { prisma } from "../db";
+import { withDbRetry } from "../dbRetry";
 import { getEmailProvider } from "../email";
 import { featureEnabled } from "../features";
 import { log } from "../log";
@@ -53,15 +54,17 @@ export type ReminderSweepResult = {
  * published, which is the whole point of the feature.
  */
 async function reminderEligibleEventIds(now: Date): Promise<string[]> {
-  const candidates = await prisma.readinessAssignment.findMany({
-    where: {
-      speakerId: { not: null },
-      status: { in: OPEN_STATUSES },
-      event: { status: { not: EventStatus.ARCHIVED }, endDate: { gte: now } },
-    },
-    distinct: ["eventId"],
-    select: { eventId: true },
-  });
+  const candidates = await withDbRetry(() =>
+    prisma.readinessAssignment.findMany({
+      where: {
+        speakerId: { not: null },
+        status: { in: OPEN_STATUSES },
+        event: { status: { not: EventStatus.ARCHIVED }, endDate: { gte: now } },
+      },
+      distinct: ["eventId"],
+      select: { eventId: true },
+    }),
+  );
   const eligible: string[] = [];
   for (const candidate of candidates) {
     if (await featureEnabled(candidate.eventId, "readiness")) eligible.push(candidate.eventId);

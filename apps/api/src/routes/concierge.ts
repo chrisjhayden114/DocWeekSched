@@ -22,6 +22,7 @@ import {
   saveAssistantStarters,
 } from "../lib/ai/concierge";
 import { validationErrorBody } from "../lib/errors";
+import { AUTHENTICATED_AI_CHAT_LIMIT, authRateLimit, testUnlimitedMax } from "../lib/rateLimit";
 
 export const conciergeRouter = Router();
 
@@ -100,6 +101,10 @@ conciergeRouter.post(
   "/turn",
   requireAuth,
   requireCsrf,
+  authRateLimit({
+    ...AUTHENTICATED_AI_CHAT_LIMIT,
+    max: testUnlimitedMax(AUTHENTICATED_AI_CHAT_LIMIT.max),
+  }),
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = turnSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));

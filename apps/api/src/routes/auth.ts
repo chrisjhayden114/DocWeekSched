@@ -4,9 +4,11 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   assertPasswordAllowed,
+  authTokenFor,
   generateOpaqueToken,
   hashPassword,
   hashToken,
+  sessionVersionBump,
   verifyPassword,
 } from "../lib/auth";
 import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
@@ -211,7 +213,7 @@ authRouter.post(
       });
     }
 
-    const { csrfToken } = setSessionCookies(res, { userId: user.id, role: user.role });
+    const { csrfToken } = setSessionCookies(res, authTokenFor(user));
     clearAuthFailures(req);
     return res.json({ user, csrfToken });
   }),
@@ -270,7 +272,7 @@ authRouter.post(
       }
     }
 
-    const { csrfToken } = setSessionCookies(res, { userId: user.id, role: user.role });
+    const { csrfToken } = setSessionCookies(res, authTokenFor(user));
     clearAuthFailures(req);
     clearIdentifierFailures(email);
     return res.json({
@@ -378,10 +380,56 @@ authRouter.post(
         passwordHash,
         passwordResetTokenHash: null,
         passwordResetTokenExpiresAt: null,
+        ...sessionVersionBump,
       },
     });
 
     return res.json({ ok: true });
+  }),
+);
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  password: z.string().min(8),
+});
+
+authRouter.post(
+  "/change-password",
+  requireAuth,
+  requireCsrf,
+  authRateLimit(),
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const ok = await verifyPassword(parsed.data.currentPassword, user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ error: GENERIC_AUTH_ERROR });
+    }
+
+    try {
+      await assertPasswordAllowed(parsed.data.password);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      return res.status(400).json({ error: passwordErrorMessage(code) });
+    }
+
+    const passwordHash = await hashPassword(parsed.data.password);
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, ...sessionVersionBump },
+      select: { id: true, role: true, sessionVersion: true },
+    });
+
+    const { csrfToken } = setSessionCookies(res, authTokenFor(updated));
+    return res.json({ ok: true, csrfToken });
   }),
 );
 
@@ -588,7 +636,7 @@ authRouter.post(
       select: meSelect,
     });
 
-    const { csrfToken } = setSessionCookies(res, { userId: updated.id, role: updated.role });
+    const { csrfToken } = setSessionCookies(res, authTokenFor(updated));
     return res.json({ user: updated, csrfToken });
   }),
 );
