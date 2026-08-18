@@ -161,8 +161,8 @@ marketing site stays UKEDL, contrast held, calm (banner is identity, not a billb
 - BRAND-2 (done): input hygiene — partial-save-safe PUT /event branding fields, server hex
   validation, wizard branding step folds color+logo+banner with neutral default (not
   UKEDL blue). Settled: branding is PATCH-shaped on PUT /event (absent = untouched,
-  explicit null = clear — the only field group with that contract, so callers must send
-  null to clear); brandColor is normalized server-side to lowercase `#rrggbb` and a
+  explicit null = clear, so callers must send null to clear — generalized to every
+  nullable column by FIX-NULL below); brandColor is normalized server-side to lowercase `#rrggbb` and a
   non-hex value is a 400 keyed to the field; both surfaces that collect branding render
   `components/organizer/EventBrandingFields` so the size/type limits cannot drift; no
   branding form seeds a color (empty = the neutral accent eventAccent.ts already derives).
@@ -171,6 +171,20 @@ marketing site stays UKEDL, contrast held, calm (banner is identity, not a billb
 - BRAND-4 (post-pilot, white_label tier): email header branding, "powered by UKEDL"
   footer control — first real use of the white_label entitlement. Custom domains out
   of scope.
+- FIX-NULL (done, 2026-08-18): the audit that followed BRAND-2 found the same defect on
+  its siblings, so the contract is now repo-wide and lives in one place —
+  `apps/api/src/lib/patchFields.ts`. Settled for every nullable column on an update
+  route: ABSENT = untouched, explicit null or "" = clear. Applied to the venue and
+  description fields of PUT /event, to location/imageUrl/zoomLink/recordingUrl/fileUrl/
+  fileLink/speakerId on PUT /sessions/:id (the hot path — a reschedule must not erase a
+  presenter's deck), to PUT /sessions/:id/items/:itemId, and to the push-subscription
+  upsert. Corollary for callers: a form that lets the user empty a field must send null,
+  not omit the key — `EventSettingsSlideOver` and the dashboard session form now do, and
+  the ProgramTab quick edit stopped echoing fields it does not show.
+  Deliberately NOT converted (intentional full-replace endpoints, commented as such):
+  PUT /certificates/templates/:templateId, PUT /feedback/session/:sessionId.
+  Audited and already correct: tracks, rooms, maps, badges, speakers, sponsors, auth
+  profile, notification preferences, CFP, readiness, ops.
 
 ## Settled ground honored (do not re-litigate)
 

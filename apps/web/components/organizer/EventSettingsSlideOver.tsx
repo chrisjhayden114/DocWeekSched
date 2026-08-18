@@ -141,14 +141,14 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
           // Slug is sent only when actually changed; omitted, PUT keeps the
           // existing one (same contract the old panel relied on).
           slug: nextSlug && nextSlug !== event.slug ? nextSlug : undefined,
-          description: form.description.trim() || undefined,
-          venueName: form.venueName.trim() || undefined,
-          venueAddress: form.venueAddress.trim() || undefined,
-          onlineUrl: form.onlineUrl.trim() || undefined,
-          // BRAND-2: branding is patch-shaped on the server (absent = keep,
-          // null = clear). This panel always carries the stored branding, so
-          // it sends all three explicitly — an emptied field must arrive as
-          // null to actually clear.
+          // FIX-NULL: every nullable column is patch-shaped on the server
+          // (absent = keep, null = clear). This panel carries the stored value
+          // for all of them, so it sends all of them explicitly — an emptied
+          // field must arrive as null to actually clear.
+          description: form.description.trim() || null,
+          venueName: form.venueName.trim() || null,
+          venueAddress: form.venueAddress.trim() || null,
+          onlineUrl: form.onlineUrl.trim() || null,
           brandColor: form.brandColor.trim() || null,
           logoUrl: form.logoUrl.trim() || null,
           bannerUrl: form.bannerUrl.trim() || null,

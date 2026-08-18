@@ -114,26 +114,21 @@ function textToAuthors(text: string) {
     .map((name, i) => ({ name, isPresenter: i === 0, sortOrder: i }));
 }
 
-/** Full-schema PUT body: draft fields + existing values the API would otherwise wipe. */
-function sessionUpdatePayload(existing: ProgramSession, draft: SessionDraft, timezone: string) {
+/**
+ * The inline row edit only offers title, times, track, and room, so it sends
+ * only those. FIX-NULL: the server leaves the fields a PUT omits alone, so
+ * this no longer has to echo the presenter's materials back to defend them —
+ * echoing risked writing whatever this list last loaded over a newer value,
+ * and re-sending allowVirtualJoin: false moved virtual attendees in-person on
+ * every quick reschedule.
+ */
+function sessionUpdatePayload(draft: SessionDraft, timezone: string) {
   return {
     title: draft.title.trim(),
     startsAt: zonedDateTimeLocalToIso(draft.startLocal, timezone),
     endsAt: zonedDateTimeLocalToIso(draft.endLocal, timezone),
     trackId: draft.trackId || null,
     roomId: draft.roomId || null,
-    description: existing.description ?? undefined,
-    location: existing.location ?? undefined,
-    speakers: existing.speakers ?? undefined,
-    imageUrl: existing.imageUrl ?? undefined,
-    zoomLink: existing.zoomLink ?? undefined,
-    recordingUrl: existing.recordingUrl ?? undefined,
-    fileUrl: existing.fileUrl ?? undefined,
-    fileLink: existing.fileLink ?? undefined,
-    speakerId: existing.speakerId ?? undefined,
-    allowVirtualJoin: existing.allowVirtualJoin ?? undefined,
-    inPersonCapacity: existing.inPersonCapacity ?? undefined,
-    virtualCapacity: existing.virtualCapacity ?? undefined,
   };
 }
 
@@ -494,12 +489,11 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
   async function submitEditSession(e: FormEvent) {
     e.preventDefault();
     if (!editSession) return;
-    const existing = sessions.find((s) => s.id === editSession.id);
-    if (!existing || !editSession.title.trim() || !editSession.startLocal || !editSession.endLocal) return;
+    if (!editSession.title.trim() || !editSession.startLocal || !editSession.endLocal) return;
     const ok = await run(editSession.id, async () => {
       await organizerFetch(`/sessions/${editSession.id}`, eventId, {
         method: "PUT",
-        body: JSON.stringify(sessionUpdatePayload(existing, editSession, event.timezone)),
+        body: JSON.stringify(sessionUpdatePayload(editSession, event.timezone)),
       });
     });
     if (ok) setEditSession(null);

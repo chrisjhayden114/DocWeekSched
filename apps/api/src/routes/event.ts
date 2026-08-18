@@ -21,31 +21,28 @@ import { hashToken } from "../lib/auth";
 import { validationErrorBody } from "../lib/errors";
 import { revokePortalAccessForEvent } from "../lib/readiness/portal";
 import { brandColorField } from "../lib/brandColor";
+import { patchFields, trimmedOrNull } from "../lib/patchFields";
 
 export const eventRouter = Router();
 
-function trimmedOrNull(value: string | null | undefined): string | null {
-  return value?.trim() || null;
-}
-
 /**
- * BRAND-2 — branding is patch-shaped on update: a field the client did not
- * send is left alone, and only an explicit null clears it. Before this, a
- * settings save that omitted branding (or any future caller sending a partial
- * payload) silently wiped the organizer's color, logo, and banner.
+ * FIX-NULL (BRAND-2 generalized) — every nullable text column on the event is
+ * patch-shaped on update: a field the client did not send is left alone, and
+ * only an explicit null (or an emptied text box) clears it. BRAND-2 fixed the
+ * three branding columns after a name-only settings save wiped an organizer's
+ * colour, logo, and banner; the venue and description columns beside them had
+ * the same defect.
  */
-function brandingUpdate(data: {
-  brandColor?: string | null;
-  bannerUrl?: string | null;
-  logoUrl?: string | null;
-}) {
-  return {
-    // brandColor arrives already normalized (or nulled) from brandColorField.
-    ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
-    ...(data.bannerUrl !== undefined ? { bannerUrl: trimmedOrNull(data.bannerUrl) } : {}),
-    ...(data.logoUrl !== undefined ? { logoUrl: trimmedOrNull(data.logoUrl) } : {}),
-  };
-}
+const EVENT_PATCH_FIELDS = [
+  "description",
+  "venueName",
+  "venueAddress",
+  "onlineUrl",
+  // brandColor arrives already normalized (or nulled) from brandColorField.
+  "brandColor",
+  "bannerUrl",
+  "logoUrl",
+] as const;
 
 const slugField = z
   .string()
@@ -279,10 +276,11 @@ eventRouter.post(
       data: {
         name: parsed.data.name,
         slug,
-        description: parsed.data.description?.trim() || null,
-        venueName: parsed.data.venueName?.trim() || null,
-        venueAddress: parsed.data.venueAddress?.trim() || null,
-        onlineUrl: parsed.data.onlineUrl?.trim() || null,
+        // On create there is nothing to preserve, so absent legitimately means null.
+        description: trimmedOrNull(parsed.data.description),
+        venueName: trimmedOrNull(parsed.data.venueName),
+        venueAddress: trimmedOrNull(parsed.data.venueAddress),
+        onlineUrl: trimmedOrNull(parsed.data.onlineUrl),
         brandColor: parsed.data.brandColor ?? null,
         bannerUrl: trimmedOrNull(parsed.data.bannerUrl),
         logoUrl: trimmedOrNull(parsed.data.logoUrl),
@@ -335,11 +333,7 @@ eventRouter.put(
       data: {
         name: parsed.data.name,
         slug,
-        description: parsed.data.description?.trim() || null,
-        venueName: parsed.data.venueName?.trim() || null,
-        venueAddress: parsed.data.venueAddress?.trim() || null,
-        onlineUrl: parsed.data.onlineUrl?.trim() || null,
-        ...brandingUpdate(parsed.data),
+        ...patchFields(parsed.data, EVENT_PATCH_FIELDS),
         timezone: parsed.data.timezone,
         startDate: new Date(parsed.data.startDate),
         endDate: new Date(parsed.data.endDate),

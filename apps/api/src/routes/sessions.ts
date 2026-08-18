@@ -13,16 +13,21 @@ import { recordSessionScheduleChange } from "../lib/ai/ops/scheduleChange";
 import { authorOrDeleted } from "../lib/authorDisplay";
 import { uploadHttpError, validationErrorBody } from "../lib/errors";
 import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
+import { patchFields, trimmedOrNull } from "../lib/patchFields";
 import { getRequestId } from "../lib/requestId";
 
 export const sessionsRouter = Router();
 
-const optionalLink = z.string().max(5_000_000).optional();
+/**
+ * FIX-NULL — nullable on top of optional so a caller can say "clear this"
+ * (null) distinctly from "leave this alone" (absent). See patchFields.
+ */
+const optionalLink = z.string().max(5_000_000).nullable().optional();
 
 const sessionSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
-  location: z.string().max(500).optional(),
+  location: z.string().max(500).nullable().optional(),
   speakers: z.string().optional(),
   imageUrl: optionalLink,
   zoomLink: optionalLink,
@@ -35,12 +40,23 @@ const sessionSchema = z.object({
   virtualCapacity: z.number().int().positive().nullable().optional(),
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
-  speakerId: z.string().optional(),
+  speakerId: z.string().nullable().optional(),
   trackId: z.string().nullable().optional(),
   roomId: z.string().nullable().optional(),
   /** Event-scoped Speaker roster IDs (ordered). */
   speakerIds: z.array(z.string()).optional(),
 });
+
+/** The nullable columns PUT /sessions/:id patches rather than replaces. */
+const SESSION_PATCH_FIELDS = [
+  "location",
+  "imageUrl",
+  "zoomLink",
+  "recordingUrl",
+  "fileUrl",
+  "fileLink",
+  "speakerId",
+] as const;
 
 const attendanceSchema = z.object({
   status: z.enum(["JOINING", "NOT_JOINING"]),
@@ -463,19 +479,19 @@ sessionsRouter.post(
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
 
-    const locationTrimmed = (parsed.data.location ?? "").trim();
     const session = await prisma.session.create({
       data: {
         title: parsed.data.title,
         description: parsed.data.description,
-        location: locationTrimmed || null,
+        // On create there is nothing to preserve, so absent legitimately means null.
+        location: trimmedOrNull(parsed.data.location),
         speakers: parsed.data.speakers,
-        imageUrl: parsed.data.imageUrl || null,
-        zoomLink: parsed.data.zoomLink || null,
-        recordingUrl: parsed.data.recordingUrl || null,
-        fileUrl: parsed.data.fileUrl || null,
-        fileLink: parsed.data.fileLink || null,
-        speakerId: parsed.data.speakerId || null,
+        imageUrl: trimmedOrNull(parsed.data.imageUrl),
+        zoomLink: trimmedOrNull(parsed.data.zoomLink),
+        recordingUrl: trimmedOrNull(parsed.data.recordingUrl),
+        fileUrl: trimmedOrNull(parsed.data.fileUrl),
+        fileLink: trimmedOrNull(parsed.data.fileLink),
+        speakerId: trimmedOrNull(parsed.data.speakerId),
         trackId: parsed.data.trackId ?? null,
         roomId: parsed.data.roomId ?? null,
         allowVirtualJoin: parsed.data.allowVirtualJoin ?? true,
@@ -514,18 +530,17 @@ sessionsRouter.put(
     }
     await requireEventAccess(req.user!.id, existing.eventId, { manage: true });
 
-    const locationTrimmed = (parsed.data.location ?? "").trim();
     const sessionUpdate: Prisma.SessionUncheckedUpdateInput = {
       title: parsed.data.title,
+      // description and speakers pass through raw: undefined already means
+      // untouched to Prisma, and "" is a legitimate stored value for them.
       description: parsed.data.description,
-      location: locationTrimmed || null,
       speakers: parsed.data.speakers,
-      imageUrl: parsed.data.imageUrl || null,
-      zoomLink: parsed.data.zoomLink || null,
-      recordingUrl: parsed.data.recordingUrl || null,
-      fileUrl: parsed.data.fileUrl || null,
-      fileLink: parsed.data.fileLink || null,
-      speakerId: parsed.data.speakerId || null,
+      // FIX-NULL — the materials a presenter uploaded must survive a partial
+      // save. A quick reschedule or rename sends none of these keys, and this
+      // route used to read that as "erase the deck, the Zoom link, the
+      // recording, and the location". Absent = untouched, null or "" = clear.
+      ...patchFields(parsed.data, SESSION_PATCH_FIELDS),
       startsAt: new Date(parsed.data.startsAt),
       endsAt: new Date(parsed.data.endsAt),
     };
@@ -1247,14 +1262,10 @@ sessionsRouter.put(
         where: { id: existing.id },
         data: {
           ...(parsed.data.title !== undefined ? { title: parsed.data.title.trim() } : {}),
-          ...(parsed.data.abstract !== undefined ? { abstract: parsed.data.abstract?.trim() || null } : {}),
           ...(parsed.data.sortOrder !== undefined ? { sortOrder: parsed.data.sortOrder } : {}),
-          ...(parsed.data.discussantName !== undefined
-            ? { discussantName: parsed.data.discussantName?.trim() || null }
-            : {}),
-          ...(parsed.data.discussantSpeakerId !== undefined
-            ? { discussantSpeakerId: parsed.data.discussantSpeakerId }
-            : {}),
+          // This route already had the right semantics, hand-rolled; it uses the
+          // shared helper now so there is one copy of the rule.
+          ...patchFields(parsed.data, ["abstract", "discussantName", "discussantSpeakerId"]),
         },
       });
       if (parsed.data.authors) {

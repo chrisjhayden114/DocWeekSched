@@ -3778,7 +3778,11 @@ function SessionForm({
         })(),
         startsAt: zonedDateTimeLocalToIso(String(form.get("startsAt") || ""), eventTimezone),
         endsAt: zonedDateTimeLocalToIso(String(form.get("endsAt") || ""), eventTimezone),
-        speakerId: String(form.get("speakerId") || "") || undefined,
+        // FIX-NULL: this is the full session form, so every nullable field it
+        // shows is sent on every save — "" and null both clear. Omitting
+        // speakerId would now read as "leave the link alone", which is not
+        // what picking "No linked directory speaker" means.
+        speakerId: String(form.get("speakerId") || "") || null,
       };
 
       if (editing) {

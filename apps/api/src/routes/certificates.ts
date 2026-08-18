@@ -116,6 +116,8 @@ certificatesRouter.post(
   }),
 );
 
+// FIX-NULL: intentional full replace — the template editor always submits the
+// whole template, and an omitted bodyText/signature/hours means "removed".
 certificatesRouter.put(
   "/templates/:templateId",
   requireAuth,

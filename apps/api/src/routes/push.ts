@@ -5,6 +5,7 @@ import { prisma } from "../lib/db";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { vapidPublicKey } from "../lib/push/webPush";
 import { validationErrorBody } from "../lib/errors";
+import { patchFields, trimmedOrNull } from "../lib/patchFields";
 
 export const pushRouter = Router();
 
@@ -40,14 +41,16 @@ pushRouter.post(
         endpoint: parsed.data.endpoint,
         p256dh: parsed.data.keys.p256dh,
         auth: parsed.data.keys.auth,
-        userAgent: parsed.data.userAgent || null,
+        userAgent: trimmedOrNull(parsed.data.userAgent),
         lastSeenAt: new Date(),
       },
       update: {
         userId,
         p256dh: parsed.data.keys.p256dh,
         auth: parsed.data.keys.auth,
-        userAgent: parsed.data.userAgent || null,
+        // FIX-NULL: a re-subscribe that omits the user agent should not forget
+        // which device this endpoint belongs to.
+        ...patchFields(parsed.data, ["userAgent"]),
         lastSeenAt: new Date(),
       },
     });

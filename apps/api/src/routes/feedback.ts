@@ -60,6 +60,8 @@ const submitSchema = z.object({
   comment: z.string().max(4000).optional().nullable(),
 });
 
+// FIX-NULL: intentional full replace — one row per attendee per session, and a
+// resubmission without a comment means the attendee removed their comment.
 feedbackRouter.put(
   "/session/:sessionId",
   requireAuth,
