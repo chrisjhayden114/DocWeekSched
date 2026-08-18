@@ -14,6 +14,7 @@ import { apiFetch, type AuthResponse, clearAuthClientState } from "../../lib/api
 import { downloadProgramIcs } from "../../lib/calendarIcs";
 import { loginPathWithEvent } from "../../lib/entryRedirects";
 import { eventAccentStyle } from "../../lib/eventAccent";
+import { serializeJsonLd } from "../../lib/jsonLd";
 import { trackColor } from "../../lib/trackColors";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -614,7 +615,7 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
         />
         {/* Customer events are not auto-indexed — opt-in later. Demo may be listed in sitemap. */}
         {slug === brand.demoEventSlug ? null : <meta name="robots" content="noindex, follow" />}

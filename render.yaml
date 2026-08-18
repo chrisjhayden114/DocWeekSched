@@ -11,6 +11,13 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # Set explicitly rather than relying on a platform default: NODE_ENV
+      # gates Secure session/CSRF cookies (env.ts cookieSecure), the HSTS
+      # response header (securityHeaders.ts), and the rate-limiter's test
+      # bypass. If this were ever absent the API would boot as "development"
+      # and quietly serve non-Secure cookies over HTTPS.
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET

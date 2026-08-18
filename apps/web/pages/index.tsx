@@ -8,6 +8,7 @@ import { SiteHeader } from "../components/marketing/SiteHeader";
 import { HeroIngestDemo } from "../components/marketing/HeroIngestDemo";
 import { DemoScheduleFrame } from "../components/marketing/DemoScheduleFrame";
 import { homeEventQueryRedirect } from "../lib/entryRedirects";
+import { serializeJsonLd } from "../lib/jsonLd";
 
 type Props = Record<string, never>;
 
@@ -103,7 +104,7 @@ export default function LandingPage() {
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(softwareJsonLd) }}
         />
       </Head>
 

@@ -2,7 +2,11 @@ import { BackgroundJobStatus, type Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { writeAuditLog } from "../ai/audit";
 import { log } from "../log";
-import { captureException } from "../sentry";
+import {
+  JOB_DB_CONNECTION_DROP_FINGERPRINT,
+  captureException,
+  prismaConnectionDropCode,
+} from "../sentry";
 
 export type JobHandler = (job: {
   id: string;
@@ -59,12 +63,28 @@ export async function getJob(id: string) {
   return prisma.backgroundJob.findUnique({ where: { id } });
 }
 
+/**
+ * How long a job may sit in RUNNING before we assume nobody is working on it.
+ *
+ * runOne flips the row to RUNNING *before* invoking the handler, so a process
+ * crash, a redeploy, or a dropped DB connection mid-handler leaves the row
+ * RUNNING forever — invisible to a PENDING/FAILED-only sweep. Past this age the
+ * row is treated as retryable. Comfortably longer than any handler we ship, so a
+ * genuinely slow job is never yanked out from under itself.
+ */
+export const STALE_RUNNING_RECLAIM_MS = 10 * 60_000;
+
 export async function processDueJobs(limit = 5): Promise<number> {
+  const now = new Date();
+  const staleRunningBefore = new Date(now.getTime() - STALE_RUNNING_RECLAIM_MS);
   const candidates = await prisma.backgroundJob.findMany({
     where: {
       OR: [
-        { status: BackgroundJobStatus.PENDING, scheduledAt: { lte: new Date() } },
-        { status: BackgroundJobStatus.FAILED, scheduledAt: { lte: new Date() } },
+        { status: BackgroundJobStatus.PENDING, scheduledAt: { lte: now } },
+        { status: BackgroundJobStatus.FAILED, scheduledAt: { lte: now } },
+        // Stranded mid-flight: attempts was already incremented when it started,
+        // so maxAttempts still bounds how often this can come back around.
+        { status: BackgroundJobStatus.RUNNING, startedAt: { lt: staleRunningBefore } },
       ],
     },
     orderBy: { scheduledAt: "asc" },
@@ -83,10 +103,37 @@ export async function processDueJobs(limit = 5): Promise<number> {
       continue;
     }
     if (processed >= limit) break;
+    if (job.status === BackgroundJobStatus.RUNNING) {
+      log("warn", "reclaiming stale RUNNING job", {
+        jobId: job.id,
+        type: job.type,
+        startedAt: job.startedAt ? job.startedAt.toISOString() : null,
+        attempts: job.attempts,
+      });
+    }
     await runOne(job.id);
     processed += 1;
   }
   return processed;
+}
+
+/**
+ * Sentry context for a failure anywhere in the job subsystem. A dropped DB
+ * connection is an infrastructure event, so those get a shared fingerprint and
+ * arrive as one issue instead of one per handler; everything else keeps Sentry's
+ * default stack-trace grouping.
+ */
+export function jobCaptureContext(
+  err: unknown,
+  tags: Record<string, string>,
+  extra?: Record<string, unknown>,
+): { tags: Record<string, string>; extra?: Record<string, unknown>; fingerprint?: string[] } {
+  const dropCode = prismaConnectionDropCode(err);
+  return {
+    tags: { ...tags, ...(dropCode ? { prismaCode: dropCode, dbConnectionDrop: "true" } : {}) },
+    ...(extra ? { extra } : {}),
+    ...(dropCode ? { fingerprint: JOB_DB_CONNECTION_DROP_FINGERPRINT } : {}),
+  };
 }
 
 async function runOne(jobId: string): Promise<void> {
@@ -174,7 +221,7 @@ async function runOne(jobId: string): Promise<void> {
       detail: message,
       dead,
     });
-    captureException(err, { tags: { jobType: job.type, jobId }, extra: { dead } });
+    captureException(err, jobCaptureContext(err, { jobType: job.type, jobId }, { dead }));
     await prisma.backgroundJob.update({
       where: { id: jobId },
       data: {
@@ -218,7 +265,7 @@ export function startJobPoller(intervalMs = Number(process.env.JOB_POLL_INTERVAL
         log("error", "processDueJobs tick failed", {
           detail: err instanceof Error ? err.message : String(err),
         });
-        captureException(err, { tags: { area: "job_poller" } });
+        captureException(err, jobCaptureContext(err, { area: "job_poller" }));
       })
       .finally(() => {
         lastPollerHeartbeatAt = Date.now();

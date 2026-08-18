@@ -963,11 +963,15 @@ export default function SessionPage() {
                       style={{ gap: 8, marginTop: 8 }}
                       onSubmit={async (e) => {
                         e.preventDefault();
-                        const form = new FormData(e.currentTarget);
-                        const body = String(form.get("body") || "").trim();
+                        // React nulls currentTarget once dispatch returns, so hold the
+                        // node itself — reading e.currentTarget after the await threw
+                        // "Cannot read properties of null" (UKEDL-WEB-9).
+                        const form = e.currentTarget;
+                        const body = String(new FormData(form).get("body") || "").trim();
                         if (!body) return;
                         await sendReply(openThread.id, body);
-                        e.currentTarget.reset();
+                        // The thread can close while the reply is in flight.
+                        form?.reset();
                       }}
                     >
                       <textarea className="textarea" name="body" placeholder="Reply to this conversation…" required rows={2} />
@@ -1314,7 +1318,10 @@ export default function SessionPage() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if (!token || !sessionId) return;
-                    const fd = new FormData(e.currentTarget);
+                    // Same lifecycle trap as the reply form (UKEDL-WEB-9): capture the
+                    // form node before awaiting, because currentTarget is gone after.
+                    const form = e.currentTarget;
+                    const fd = new FormData(form);
                     const question = String(fd.get("question") || "").trim();
                     const options = String(fd.get("options") || "")
                       .split("\n")
@@ -1325,7 +1332,7 @@ export default function SessionPage() {
                       method: "POST",
                       body: JSON.stringify({ question, options }),
                     }, token);
-                    e.currentTarget.reset();
+                    form?.reset();
                     await reloadPollsAndFeedback();
                   }}
                 >
