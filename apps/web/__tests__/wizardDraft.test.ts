@@ -20,7 +20,9 @@ function draft(overrides: Partial<WizardDraft> = {}): WizardDraft {
     venueName: "Marine Lab",
     venueAddress: "1 Shore Dr",
     onlineUrl: "",
-    brandColor: "#0033A0",
+    brandColor: "#0f766e",
+    logoUrl: "https://cdn.example.com/logo.png",
+    bannerUrl: "",
     featureOverrides: { qa: "on" },
     ...overrides,
   };
@@ -63,10 +65,48 @@ describe("parseWizardDraft resilience", () => {
       venueName: "",
       venueAddress: "",
       onlineUrl: "",
+      brandColor: "",
+      logoUrl: "",
+      bannerUrl: "",
       featureOverrides: {},
     });
     expect(isEmptyWizardDraft(empty)).toBe(true);
     expect(parseWizardDraft(serializeWizardDraft(empty))).toBeNull();
+  });
+
+  it("keeps a chosen brand color but does not invent one", () => {
+    expect(parseWizardDraft(serializeWizardDraft(draft({ brandColor: "#0f766e" })))?.brandColor).toBe(
+      "#0f766e",
+    );
+    // No color chosen stays no color — the wizard must not resurrect a default.
+    expect(parseWizardDraft(serializeWizardDraft(draft({ brandColor: "" })))?.brandColor).toBe("");
+  });
+
+  it("persists typed image links but never multi-megabyte uploaded data URLs", () => {
+    const uploaded = `data:image/jpeg;base64,${"A".repeat(500)}`;
+    const restored = parseWizardDraft(
+      serializeWizardDraft(draft({ logoUrl: "https://cdn.example.com/logo.png", bannerUrl: uploaded })),
+    );
+    expect(restored?.logoUrl).toBe("https://cdn.example.com/logo.png");
+    // Dropped rather than risking a quota error that would lose the whole draft.
+    expect(restored?.bannerUrl).toBe("");
+  });
+
+  it("a draft holding only an uploaded image counts as empty (nothing survives storage)", () => {
+    const onlyUpload = draft({
+      name: "",
+      description: "",
+      startDate: "",
+      endDate: "",
+      venueName: "",
+      venueAddress: "",
+      onlineUrl: "",
+      brandColor: "",
+      logoUrl: "data:image/jpeg;base64,AAAA",
+      bannerUrl: "",
+      featureOverrides: {},
+    });
+    expect(isEmptyWizardDraft(onlyUpload)).toBe(true);
   });
 
   it("coerces wrong-typed fields instead of crashing", () => {

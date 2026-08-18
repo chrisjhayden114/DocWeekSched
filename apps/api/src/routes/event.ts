@@ -20,8 +20,32 @@ import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { hashToken } from "../lib/auth";
 import { validationErrorBody } from "../lib/errors";
 import { revokePortalAccessForEvent } from "../lib/readiness/portal";
+import { brandColorField } from "../lib/brandColor";
 
 export const eventRouter = Router();
+
+function trimmedOrNull(value: string | null | undefined): string | null {
+  return value?.trim() || null;
+}
+
+/**
+ * BRAND-2 — branding is patch-shaped on update: a field the client did not
+ * send is left alone, and only an explicit null clears it. Before this, a
+ * settings save that omitted branding (or any future caller sending a partial
+ * payload) silently wiped the organizer's color, logo, and banner.
+ */
+function brandingUpdate(data: {
+  brandColor?: string | null;
+  bannerUrl?: string | null;
+  logoUrl?: string | null;
+}) {
+  return {
+    // brandColor arrives already normalized (or nulled) from brandColorField.
+    ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
+    ...(data.bannerUrl !== undefined ? { bannerUrl: trimmedOrNull(data.bannerUrl) } : {}),
+    ...(data.logoUrl !== undefined ? { logoUrl: trimmedOrNull(data.logoUrl) } : {}),
+  };
+}
 
 const slugField = z
   .string()
@@ -37,7 +61,7 @@ const eventSchema = z.object({
   venueName: z.string().max(200).optional().nullable(),
   venueAddress: z.string().max(500).optional().nullable(),
   onlineUrl: z.string().max(2000).optional().nullable(),
-  brandColor: z.string().max(32).optional().nullable(),
+  brandColor: brandColorField,
   bannerUrl: z.string().max(12_000_000).optional().nullable(),
   logoUrl: z.string().max(12_000_000).optional().nullable(),
   timezone: z.string().min(1),
@@ -259,9 +283,9 @@ eventRouter.post(
         venueName: parsed.data.venueName?.trim() || null,
         venueAddress: parsed.data.venueAddress?.trim() || null,
         onlineUrl: parsed.data.onlineUrl?.trim() || null,
-        brandColor: parsed.data.brandColor?.trim() || null,
-        bannerUrl: parsed.data.bannerUrl?.trim() || null,
-        logoUrl: parsed.data.logoUrl?.trim() || null,
+        brandColor: parsed.data.brandColor ?? null,
+        bannerUrl: trimmedOrNull(parsed.data.bannerUrl),
+        logoUrl: trimmedOrNull(parsed.data.logoUrl),
         timezone: parsed.data.timezone,
         startDate: new Date(parsed.data.startDate),
         endDate: new Date(parsed.data.endDate),
@@ -315,9 +339,7 @@ eventRouter.put(
         venueName: parsed.data.venueName?.trim() || null,
         venueAddress: parsed.data.venueAddress?.trim() || null,
         onlineUrl: parsed.data.onlineUrl?.trim() || null,
-        brandColor: parsed.data.brandColor?.trim() || null,
-        bannerUrl: parsed.data.bannerUrl?.trim() || null,
-        logoUrl: parsed.data.logoUrl?.trim() || null,
+        ...brandingUpdate(parsed.data),
         timezone: parsed.data.timezone,
         startDate: new Date(parsed.data.startDate),
         endDate: new Date(parsed.data.endDate),

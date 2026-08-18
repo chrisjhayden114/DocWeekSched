@@ -155,13 +155,18 @@ certificates use platform colors and badge showLogo draws text.
 Constraints honored: neutral chrome + scoped accent (F decision), no full theming,
 marketing site stays UKEDL, contrast held, calm (banner is identity, not a billboard).
 
-- BRAND-1 (now): render what's stored — attendee-app banner band + prominent event
+- BRAND-1 (done): render what's stored — attendee-app banner band + prominent event
   name (fix 13px/truncation), /e/[slug] banner hero + logo beside the title,
   session-page accentStyle bug fix.
-- BRAND-2: input hygiene — partial-save-safe PUT /event branding fields, server hex
+- BRAND-2 (done): input hygiene — partial-save-safe PUT /event branding fields, server hex
   validation, wizard branding step folds color+logo+banner with neutral default (not
-  UKEDL blue).
-- BRAND-3: branded documents — certificates wear event accent + optional logo; badge
+  UKEDL blue). Settled: branding is PATCH-shaped on PUT /event (absent = untouched,
+  explicit null = clear — the only field group with that contract, so callers must send
+  null to clear); brandColor is normalized server-side to lowercase `#rrggbb` and a
+  non-hex value is a 400 keyed to the field; both surfaces that collect branding render
+  `components/organizer/EventBrandingFields` so the size/type limits cannot drift; no
+  branding form seeds a color (empty = the neutral accent eventAccent.ts already derives).
+- BRAND-3 (now): branded documents — certificates wear event accent + optional logo; badge
   showLogo draws the actual logo image.
 - BRAND-4 (post-pilot, white_label tier): email header branding, "powered by UKEDL"
   footer control — first real use of the white_label entitlement. Custom domains out

@@ -9,7 +9,7 @@ import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../component
 import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
 import { AiGeneratedChip } from "../../../components/AiGeneratedChip";
-import { ColorSwatchInput } from "../../../components/ColorSwatchInput";
+import { EventBrandingFields } from "../../../components/organizer/EventBrandingFields";
 import { Select } from "../../../components/Select";
 import { TimezoneSelect } from "../../../components/TimezoneSelect";
 import { apiFetch } from "../../../lib/api";
@@ -63,7 +63,11 @@ export default function NewEventWizard() {
   const [venueName, setVenueName] = useState("");
   const [venueAddress, setVenueAddress] = useState("");
   const [onlineUrl, setOnlineUrl] = useState("");
-  const [brandColor, setBrandColor] = useState("#0033A0");
+  // BRAND-2: branding starts empty, which means the neutral platform accent
+  // (lib/eventAccent.ts). A new event must never be born wearing UKEDL blue.
+  const [brandColor, setBrandColor] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [bannerUrl, setBannerUrl] = useState("");
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [copilotForm, setCopilotForm] = useState<SetupCopilotFormState>(() => emptySetupFormState(timezone));
   const [copilotHistory, setCopilotHistory] = useState<SetupCopilotMessage[]>([]);
@@ -125,7 +129,9 @@ export default function NewEventWizard() {
     setVenueName(draft.venueName);
     setVenueAddress(draft.venueAddress);
     setOnlineUrl(draft.onlineUrl);
-    if (draft.brandColor) setBrandColor(draft.brandColor);
+    setBrandColor(draft.brandColor);
+    setLogoUrl(draft.logoUrl);
+    setBannerUrl(draft.bannerUrl);
     setFeatureOverrides(draft.featureOverrides as FeatureOverridesMap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -178,6 +184,8 @@ export default function NewEventWizard() {
       venueAddress,
       onlineUrl,
       brandColor,
+      logoUrl,
+      bannerUrl,
       featureOverrides,
     };
     if (isEmptyWizardDraft(draft)) return;
@@ -201,6 +209,8 @@ export default function NewEventWizard() {
     venueAddress,
     onlineUrl,
     brandColor,
+    logoUrl,
+    bannerUrl,
     featureOverrides,
   ]);
 
@@ -250,7 +260,9 @@ export default function NewEventWizard() {
     setVenueName("");
     setVenueAddress("");
     setOnlineUrl("");
-    setBrandColor("#0033A0");
+    setBrandColor("");
+    setLogoUrl("");
+    setBannerUrl("");
     setFeatureOverrides({});
     setCopilotForm(emptySetupFormState(tz));
     setCopilotHistory([]);
@@ -295,6 +307,8 @@ export default function NewEventWizard() {
       venueAddress: mapped.venueAddress,
       onlineUrl: mapped.onlineUrl,
       brandColor,
+      logoUrl,
+      bannerUrl,
       featureOverrides: mapped.featureOverrides as WizardDraft["featureOverrides"],
     };
     if (!isEmptyWizardDraft(draft)) {
@@ -391,6 +405,8 @@ export default function NewEventWizard() {
           venueAddress: venueAddress.trim() || null,
           onlineUrl: onlineUrl.trim() || null,
           brandColor: brandColor.trim() || null,
+          logoUrl: logoUrl.trim() || null,
+          bannerUrl: bannerUrl.trim() || null,
           timezone,
           startDate: startIso,
           endDate: endIso,
@@ -716,10 +732,21 @@ export default function NewEventWizard() {
 
             {step === 2 ? (
               <>
-                <label>
-                  Brand color
-                  <ColorSwatchInput label="Brand color" value={brandColor} onChange={setBrandColor} />
-                </label>
+                <h2 className="text-display-sm" style={{ margin: 0 }}>
+                  Branding (optional)
+                </h2>
+                <p className="help-text" style={{ marginTop: 0 }}>
+                  Skip this and your event wears the neutral platform look. You can add or change
+                  any of it later in Event settings.
+                </p>
+                <EventBrandingFields
+                  value={{ brandColor, logoUrl, bannerUrl }}
+                  onChange={(patch) => {
+                    if (patch.brandColor !== undefined) setBrandColor(patch.brandColor);
+                    if (patch.logoUrl !== undefined) setLogoUrl(patch.logoUrl);
+                    if (patch.bannerUrl !== undefined) setBannerUrl(patch.bannerUrl);
+                  }}
+                />
                 <div style={{ display: "flex", gap: 8 }}>
                   <button type="button" className="button secondary" onClick={() => setStep(1)}>
                     Back

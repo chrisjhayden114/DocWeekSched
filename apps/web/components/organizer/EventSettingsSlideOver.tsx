@@ -1,10 +1,9 @@
 import { overviewCopy } from "@event-app/config";
 import { FormEvent, useEffect, useId, useState } from "react";
-import { ColorSwatchInput } from "../ColorSwatchInput";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { SlideOver, SlideOverMoreOptions } from "../kit";
 import { TimezoneSelect } from "../TimezoneSelect";
-import { UploadDropzone } from "../UploadDropzone";
+import { EventBrandingFields } from "./EventBrandingFields";
 import { toLocalInputValueInTimeZone, zonedDateTimeLocalToIso } from "../../lib/eventTimezone";
 import { organizerFetch } from "../../lib/organizerApi";
 
@@ -58,47 +57,12 @@ function initialForm(event: EventSettingsEvent): FormState {
     venueAddress: event.venueAddress || "",
     onlineUrl: event.onlineUrl || "",
     slug: event.slug,
-    brandColor: event.brandColor || "#0033A0",
+    // BRAND-2: no colour means no colour — seeding UKEDL blue here made any
+    // save on a neutral event silently adopt the platform brand.
+    brandColor: event.brandColor || "",
     logoUrl: event.logoUrl || "",
     bannerUrl: event.bannerUrl || "",
   };
-}
-
-/** Image file → resized JPEG data URL (same treatment the old modal used). */
-function fileToDataUrl(
-  file: File,
-  options: { maxWidth: number; maxHeight: number; quality: number },
-): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const raw = String(reader.result || "");
-      if (!file.type.startsWith("image/")) {
-        resolve(raw);
-        return;
-      }
-      const image = new Image();
-      image.onload = () => {
-        const scale = Math.min(options.maxWidth / image.width, options.maxHeight / image.height, 1);
-        const width = Math.max(1, Math.round(image.width * scale));
-        const height = Math.max(1, Math.round(image.height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        if (!context) {
-          resolve(raw);
-          return;
-        }
-        context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", options.quality));
-      };
-      image.onerror = () => resolve(raw);
-      image.src = raw;
-    };
-    reader.onerror = () => reject(reader.error || new Error("Unable to read file"));
-    reader.readAsDataURL(file);
-  });
 }
 
 /**
@@ -132,9 +96,13 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
 
   const dirty = JSON.stringify(form) !== JSON.stringify(initialForm(event));
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+  function patch(next: Partial<FormState>) {
+    setForm((f) => ({ ...f, ...next }));
     setSaved(false);
+  }
+
+  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+    patch({ [key]: value } as Partial<FormState>);
   }
 
   function requestClose() {
@@ -177,9 +145,13 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
           venueName: form.venueName.trim() || undefined,
           venueAddress: form.venueAddress.trim() || undefined,
           onlineUrl: form.onlineUrl.trim() || undefined,
-          brandColor: form.brandColor.trim() || undefined,
-          logoUrl: form.logoUrl.trim() || undefined,
-          bannerUrl: form.bannerUrl.trim() || undefined,
+          // BRAND-2: branding is patch-shaped on the server (absent = keep,
+          // null = clear). This panel always carries the stored branding, so
+          // it sends all three explicitly — an emptied field must arrive as
+          // null to actually clear.
+          brandColor: form.brandColor.trim() || null,
+          logoUrl: form.logoUrl.trim() || null,
+          bannerUrl: form.bannerUrl.trim() || null,
           timezone: form.timezone,
           startDate: startIso,
           endDate: endIso,
@@ -295,54 +267,13 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
                 />
                 <span className="help-text">Public link: /e/{form.slug || "…"}</span>
               </label>
-              <label>
-                Brand color
-                <ColorSwatchInput
-                  label="Brand color"
-                  value={form.brandColor}
-                  onChange={(hex) => set("brandColor", hex)}
-                />
-                <span className="help-text">
-                  This event&apos;s accent color — the console and public page wear it.
-                </span>
-              </label>
-              <label>
-                Logo URL
-                <input
-                  className="input"
-                  value={form.logoUrl}
-                  onChange={(e) => set("logoUrl", e.target.value)}
-                  placeholder="https://… or upload below"
-                />
-              </label>
-              <UploadDropzone
-                variant="compact"
-                label="Logo upload"
-                accept="image/*"
-                maxBytes={2_000_000}
-                onFile={async (file) => {
-                  const data = await fileToDataUrl(file, { maxWidth: 512, maxHeight: 512, quality: 0.88 });
-                  set("logoUrl", data);
+              <EventBrandingFields
+                value={{
+                  brandColor: form.brandColor,
+                  logoUrl: form.logoUrl,
+                  bannerUrl: form.bannerUrl,
                 }}
-              />
-              <label>
-                Banner URL
-                <input
-                  className="input"
-                  value={form.bannerUrl}
-                  onChange={(e) => set("bannerUrl", e.target.value)}
-                  placeholder="https://… or upload below"
-                />
-              </label>
-              <UploadDropzone
-                variant="compact"
-                label="Banner upload"
-                accept="image/*"
-                maxBytes={4_500_000}
-                onFile={async (file) => {
-                  const data = await fileToDataUrl(file, { maxWidth: 1920, maxHeight: 720, quality: 0.82 });
-                  set("bannerUrl", data);
-                }}
+                onChange={patch}
               />
             </div>
           </SlideOverMoreOptions>

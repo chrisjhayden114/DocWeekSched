@@ -24,6 +24,8 @@ export type WizardDraft = {
   venueAddress: string;
   onlineUrl: string;
   brandColor: string;
+  logoUrl: string;
+  bannerUrl: string;
   featureOverrides: Record<string, unknown>;
 };
 
@@ -38,8 +40,23 @@ export function isEmptyWizardDraft(draft: WizardDraft): boolean {
     !draft.venueName.trim() &&
     !draft.venueAddress.trim() &&
     !draft.onlineUrl.trim() &&
+    !draft.brandColor.trim() &&
+    !persistableImage(draft.logoUrl) &&
+    !persistableImage(draft.bannerUrl) &&
     Object.keys(draft.featureOverrides).length === 0
   );
+}
+
+/**
+ * BRAND-2: an uploaded logo or banner is a data URL of up to a few megabytes.
+ * Writing one here risks a sessionStorage quota error, which would throw away
+ * the ENTIRE draft — name, dates, everything typed. Typed links are tiny and
+ * always persist; an upload lives in component state for as long as the wizard
+ * stays mounted, and a remount shows an honestly empty field.
+ */
+function persistableImage(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.startsWith("data:") ? "" : trimmed;
 }
 
 export function clearWizardDraft(): void {
@@ -52,7 +69,12 @@ export function clearWizardDraft(): void {
 }
 
 export function serializeWizardDraft(draft: WizardDraft): string {
-  return JSON.stringify({ ...draft, step: clampStep(draft.step) });
+  return JSON.stringify({
+    ...draft,
+    step: clampStep(draft.step),
+    logoUrl: persistableImage(draft.logoUrl),
+    bannerUrl: persistableImage(draft.bannerUrl),
+  });
 }
 
 function clampStep(step: number): number {
@@ -97,6 +119,8 @@ export function parseWizardDraft(raw: string | null): WizardDraft | null {
     venueAddress: str(o.venueAddress),
     onlineUrl: str(o.onlineUrl),
     brandColor: str(o.brandColor),
+    logoUrl: persistableImage(str(o.logoUrl)),
+    bannerUrl: persistableImage(str(o.bannerUrl)),
     featureOverrides: overrides,
   };
   return isEmptyWizardDraft(draft) ? null : draft;
