@@ -71,8 +71,8 @@ describe("CSP policy string", () => {
   it("matches the approved directive set", () => {
     expect(cspDirective(csp, "default-src")).toBe("default-src 'self'");
     expect(cspDirective(csp, "script-src")).toBe("script-src 'self'");
-    expect(cspDirective(csp, "style-src")).toBe("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com");
-    expect(cspDirective(csp, "font-src")).toBe("font-src https://fonts.gstatic.com");
+    expect(cspDirective(csp, "style-src")).toBe("style-src 'self' 'unsafe-inline'");
+    expect(cspDirective(csp, "font-src")).toBe("font-src 'self'");
     expect(cspDirective(csp, "img-src")).toBe("img-src 'self' data: blob: https:");
     expect(cspDirective(csp, "connect-src")).toBe(
       "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",

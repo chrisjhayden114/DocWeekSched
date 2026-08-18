@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { authCopy, brand } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -163,7 +163,10 @@ export default function LoginPage() {
     setLoading(true);
 
     const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    const payload: Record<string, unknown> = Object.fromEntries(form.entries());
+    if (mode === "register" && !(adminMode && registerType === "admin")) {
+      payload.ageAttested = form.get("ageAttested") === "true";
+    }
 
     try {
       const endpoint =
@@ -318,6 +321,12 @@ export default function LoginPage() {
                     <input id="reg-invite" className="input" name="inviteCode" type="password" required />
                   </>
                 )}
+                {!(adminMode && registerType === "admin") ? (
+                  <label htmlFor="reg-age" style={{ display: "flex", gap: 8, alignItems: "center", margin: "12px 0" }}>
+                    <input id="reg-age" type="checkbox" name="ageAttested" value="true" required />
+                    {authCopy.ageAttestation}
+                  </label>
+                ) : null}
                 {error ? (
                   <p className="mkt-form-status mkt-form-status--error" role="alert">
                     {error}

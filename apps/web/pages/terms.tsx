@@ -27,7 +27,7 @@ const TOC = [
 export default function TermsPage() {
   const title = `Terms of Service — ${brand.productName}`;
   const description = `Terms of Service for ${brand.productName} (draft).`;
-  const updated = "2 August 2026";
+  const updated = "18 August 2026";
   const url = `${brand.primaryUrl}/terms`;
 
   return (
@@ -77,7 +77,8 @@ export default function TermsPage() {
               You are responsible for safeguarding credentials and for activity under your account.
               Organizers are responsible for the events they create, the content they publish, and the
               attendees they invite. You must not abuse the service, probe others&apos; data, or violate
-              applicable law.
+              applicable law. The service is for organizer-invited adults and participants aged 16 or older; it
+              is not directed to children.
             </p>
 
             <h2 id="billing">4. Plans, billing, and merchant of record</h2>

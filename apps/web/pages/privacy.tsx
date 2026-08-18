@@ -21,6 +21,7 @@ const TOC = [
   { id: "cookies", label: "Cookies" },
   { id: "retention", label: "Retention" },
   { id: "rights", label: "Your rights" },
+  { id: "ccpa", label: "California residents" },
   { id: "transfers", label: "International transfers" },
   { id: "security", label: "Security" },
   { id: "children", label: "Children" },
@@ -30,7 +31,7 @@ const TOC = [
 export default function PrivacyPage() {
   const title = `Privacy Policy — ${brand.productName}`;
   const description = `Privacy Policy for ${brand.productName} (draft).`;
-  const updated = "2 August 2026";
+  const updated = "18 August 2026";
   const url = `${brand.primaryUrl}/privacy`;
 
   return (
@@ -84,6 +85,14 @@ export default function PrivacyPage() {
               <li>Event participation: attendance, bookmarks, check-ins, messages you send</li>
               <li>Billing metadata via our merchant of record (not full card numbers on our servers)</li>
               <li>Technical logs needed to operate and secure the service (without storing secrets in logs)</li>
+              <li>
+                Event-assistant conversations: questions you ask the in-event assistant and the answers we
+                generate are stored and processed by Anthropic so we can return those answers.
+              </li>
+              <li>
+                Sponsor lead capture: if you scan a sponsor&apos;s code, your name and email are shared with
+                that sponsor.
+              </li>
             </ul>
 
             <h2 id="why">4. Why we process data</h2>
@@ -98,7 +107,7 @@ export default function PrivacyPage() {
             <ul>
               {brand.subprocessors.map((s) => (
                 <li key={s.name}>
-                  <strong>{s.name}</strong> — {s.role}
+                  <strong>{s.name}</strong> — {s.role} (region: {s.region})
                 </li>
               ))}
             </ul>
@@ -120,16 +129,28 @@ export default function PrivacyPage() {
             </p>
             <p>
               Messages, profiles, and event participation data are retained for the life of your account and
-              are removed when you delete your account.
+              are removed or anonymized when you delete your account. Anonymized means the message body is
+              replaced with a placeholder and detached from your identity so the thread can remain for other
+              participants.
             </p>
 
             <h2 id="rights">8. Your rights (including GDPR)</h2>
             <p>
               Depending on your location, you may have rights to access, correct, export, or delete personal
               data. Signed-in users can download a JSON export of their own account data from{" "}
-              <Link href="/account">Account</Link>. Deletion of accounts is available once cascade rules are
-              finalized (see /security for continuity commitments). Organizer-held lists outside{" "}
+              <Link href="/account">Account</Link>. Account deletion is live: you re-enter your email and
+              password to request it, the account is deactivated immediately, and permanent deletion runs after
+              a 7-day grace period. Signing in or cancelling during that window restores the account. We keep
+              an audit trail of deletion requests, cancellations, and completions. Organizer-held lists outside{" "}
               {brand.productName} remain the organizer&apos;s responsibility.
+            </p>
+
+            <h2 id="ccpa">California residents (CCPA)</h2>
+            <p>
+              If you are a California resident, we do not sell or share your personal information as those
+              terms are defined in the CCPA. You may request access to or deletion of your personal information;
+              we honor those rights through in-product export and account deletion, or by emailing{" "}
+              <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>.
             </p>
 
             <h2 id="transfers">9. International transfers</h2>

@@ -56,6 +56,7 @@ import {
   sweepUnreadMessageEmails,
 } from "./lib/notifications";
 import { sweepReadinessReminders } from "./lib/readiness/reminderSweep";
+import { sweepSoftDeletedMemberships } from "./lib/memberships/purgeSweep";
 import { registerAgendaIngestJob } from "./lib/ai/ingest";
 import { warnIfAnthropicModelUnavailable } from "./lib/ai/providers/anthropic";
 import { registerMatchmakerJobs } from "./lib/ai/matchmaker";
@@ -295,6 +296,16 @@ app.listen(env.apiPort, () => {
       captureException(err, { tags: { area: "notifications" } });
     });
   }, digestMs);
+
+  const membershipPurgeMs = Number(process.env.MEMBERSHIP_PURGE_INTERVAL_MS || 6 * 60 * 60_000);
+  setInterval(() => {
+    void sweepSoftDeletedMemberships().catch((err) => {
+      log("error", "sweepSoftDeletedMemberships failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      captureException(err, { tags: { area: "membership_purge" } });
+    });
+  }, membershipPurgeMs);
 
   // Readiness reminders: 7 days out, 2 days out, and once when a due date has
   // passed. Each stage fires at most once per assignment (ledger-deduped), so a

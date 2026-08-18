@@ -76,7 +76,12 @@ describe("POST /auth/register email fallback (DB)", () => {
     const res = await fetch(`${base}/auth/register`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, name: "Reg Test", password: "Str0ng!Passw0rd#2026" }),
+      body: JSON.stringify({
+        email,
+        name: "Reg Test",
+        password: "Str0ng!Passw0rd#2026",
+        ageAttested: true,
+      }),
     });
     const body = (await res.json()) as Record<string, unknown>;
     return { status: res.status, body };
@@ -88,6 +93,19 @@ describe("POST /auth/register email fallback (DB)", () => {
     expect(status).toBe(201);
     expect(body.emailDeliveryUnavailable).toBe(true);
     expect(String(body.verifyUrl)).toMatch(/\/verify-email\/.{16,}/);
+  });
+
+  it("rejects registration without age attestation", async () => {
+    const email = `reg-no-age-${Date.now()}@example.com`;
+    createdEmails.push(email);
+    const res = await fetch(`${base}/auth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, name: "Reg Test", password: "Str0ng!Passw0rd#2026" }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { details?: Record<string, string[]> };
+    expect(body.details?.ageAttested?.join(" ")).toMatch(/16 or older/i);
   });
 
   it("configured provider (delivered) → response never includes verifyUrl", async () => {

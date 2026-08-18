@@ -5,8 +5,9 @@ import { rollupMorningDigest } from "./digest";
 
 /**
  * Periodic sweep: find user/event pairs with unread digest-eligible items and
- * ask rollupMorningDigest() to roll them up. In-app only — digestEmail has no
- * UI or template yet, so the emailAllowed result is intentionally ignored.
+ * ask rollupMorningDigest() to roll them up. In-app rollup only — emailAllowed
+ * is still ignored here (prefs + plan gate live in rollupMorningDigest; the
+ * digest email template/headers live in mail.ts for when email is wired).
  *
  * rollupMorningDigest() already short-circuits on the daily_digest flag, the
  * local digest time not having passed yet, an existing rollup for today, or

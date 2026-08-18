@@ -46,16 +46,20 @@ export const brand = {
     x: "https://x.com/ukedl",
     linkedin: "https://www.linkedin.com/company/ukedl",
   },
-  /** Subprocessors named in the privacy policy (Chunk B). */
+  /**
+   * Subprocessors named in the privacy policy.
+   * `region` is a dashboard placeholder — fill in the real region per provider; do not invent one.
+   */
   subprocessors: [
-    { name: "Neon", role: "PostgreSQL hosting" },
-    { name: "Render", role: "API hosting" },
-    { name: "Netlify", role: "Web hosting" },
-    { name: "Resend", role: "Transactional email" },
-    { name: "Stripe", role: "Merchant of record (payments, tax)" },
-    { name: "Anthropic", role: "AI processing for organizer-initiated features" },
-    { name: "Sentry", role: "Error tracking" },
-    { name: "Better Stack", role: "Uptime monitoring and status page" },
+    { name: "Neon", role: "PostgreSQL hosting", region: "see dashboard" },
+    { name: "Render", role: "API hosting", region: "see dashboard" },
+    { name: "Netlify", role: "Web hosting", region: "see dashboard" },
+    { name: "Cloudflare", role: "Object storage (R2)", region: "see dashboard" },
+    { name: "Resend", role: "Transactional email", region: "see dashboard" },
+    { name: "Stripe", role: "Merchant of record (payments, tax)", region: "see dashboard" },
+    { name: "Anthropic", role: "AI processing for organizer-initiated features", region: "see dashboard" },
+    { name: "Sentry", role: "Error tracking", region: "see dashboard" },
+    { name: "Better Stack", role: "Uptime monitoring and status page", region: "see dashboard" },
   ],
   colors: {
     ink: "#18253F",
@@ -77,6 +81,13 @@ export const brand = {
 } as const;
 
 export type BrandConfig = typeof brand;
+
+/**
+ * Auth / consent copy. Edit here, not on the login form.
+ */
+export const authCopy = {
+  ageAttestation: "I am 16 or older",
+} as const;
 
 /**
  * Search-facing marketing copy (Chunk E25). The launch channel is inbound

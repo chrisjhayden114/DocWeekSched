@@ -1,5 +1,15 @@
 import { brand } from "@event-app/config";
 import { getEmailProvider, type SendEmailResult } from "./email";
+import {
+  listUnsubscribeHeaders,
+  notificationSettingsFooterHtml,
+  notificationSettingsUrl,
+} from "./email/listUnsubscribe";
+
+function recurringMailHeaders(): Record<string, string> {
+  const settingsUrl = notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000");
+  return listUnsubscribeHeaders({ settingsUrl, mailto: brand.supportEmail });
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -124,6 +134,27 @@ export async function sendCertificateReadyEmail(opts: {
   });
 }
 
+export function buildUnreadMessagesEmail(opts: {
+  name: string;
+  eventName: string;
+  count: number;
+  lines: string[];
+  dashboardUrl: string;
+  settingsUrl: string;
+}): { subject: string; html: string; headers: Record<string, string> } {
+  const subject = `${opts.count} new message${opts.count === 1 ? "" : "s"} at ${opts.eventName}`;
+  const lineHtml = opts.lines
+    .map((line) => `<p style="margin:0 0 8px">${escapeHtml(line)}</p>`)
+    .join("");
+  const html = `<p>Hi ${escapeHtml(opts.name)},</p>
+<p>You have <strong>${opts.count} unread message${opts.count === 1 ? "" : "s"}</strong> at <strong>${escapeHtml(opts.eventName)}</strong>.</p>
+${lineHtml}
+<p><a href="${opts.dashboardUrl.replace(/"/g, "&quot;")}">Open Messages</a></p>
+<p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.dashboardUrl)}</p>
+${notificationSettingsFooterHtml(opts.settingsUrl)}`;
+  return { subject, html, headers: listUnsubscribeHeaders({ settingsUrl: opts.settingsUrl }) };
+}
+
 export async function sendUnreadMessagesEmail(opts: {
   to: string;
   name: string;
@@ -133,21 +164,71 @@ export async function sendUnreadMessagesEmail(opts: {
   dashboardUrl: string;
 }): Promise<SendEmailResult> {
   const from = buildFromLine(opts.eventName);
-  const subject = `${opts.count} new message${opts.count === 1 ? "" : "s"} at ${opts.eventName}`;
-  const lineHtml = opts.lines
-    .map((line) => `<p style="margin:0 0 8px">${escapeHtml(line)}</p>`)
-    .join("");
+  const headers = recurringMailHeaders();
+  const built = buildUnreadMessagesEmail({
+    name: opts.name,
+    eventName: opts.eventName,
+    count: opts.count,
+    lines: opts.lines,
+    dashboardUrl: opts.dashboardUrl,
+    settingsUrl: notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+  });
   return getEmailProvider().send({
     to: opts.to,
     from,
-    subject,
+    subject: built.subject,
     logLabel: "unread-messages",
     copyUrl: opts.dashboardUrl,
-    html: `<p>Hi ${escapeHtml(opts.name)},</p>
-<p>You have <strong>${opts.count} unread message${opts.count === 1 ? "" : "s"}</strong> at <strong>${escapeHtml(opts.eventName)}</strong>.</p>
-${lineHtml}
-<p><a href="${opts.dashboardUrl.replace(/"/g, "&quot;")}">Open Messages</a></p>
-<p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.dashboardUrl)}</p>`,
+    html: built.html,
+    headers,
+  });
+}
+
+export function buildDigestEmail(opts: {
+  name: string;
+  eventName: string;
+  body: string;
+  dashboardUrl: string;
+  settingsUrl: string;
+}): { subject: string; html: string; headers: Record<string, string> } {
+  const subject = `Your daily digest — ${opts.eventName}`;
+  const lines = opts.body
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => `<p style="margin:0 0 8px">${escapeHtml(line)}</p>`)
+    .join("");
+  const html = `<p>Hi ${escapeHtml(opts.name)},</p>
+<p>Your daily digest for <strong>${escapeHtml(opts.eventName)}</strong>:</p>
+${lines}
+<p><a href="${opts.dashboardUrl.replace(/"/g, "&quot;")}">Open ${escapeHtml(brand.productName)}</a></p>
+${notificationSettingsFooterHtml(opts.settingsUrl)}`;
+  return { subject, html, headers: listUnsubscribeHeaders({ settingsUrl: opts.settingsUrl }) };
+}
+
+export async function sendDigestEmail(opts: {
+  to: string;
+  name: string;
+  eventName: string;
+  body: string;
+  dashboardUrl: string;
+}): Promise<SendEmailResult> {
+  const from = buildFromLine(opts.eventName);
+  const headers = recurringMailHeaders();
+  const built = buildDigestEmail({
+    name: opts.name,
+    eventName: opts.eventName,
+    body: opts.body,
+    dashboardUrl: opts.dashboardUrl,
+    settingsUrl: notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+  });
+  return getEmailProvider().send({
+    to: opts.to,
+    from,
+    subject: built.subject,
+    logLabel: "digest",
+    copyUrl: opts.dashboardUrl,
+    html: built.html,
+    headers,
   });
 }
 
@@ -227,7 +308,8 @@ export function buildReadinessReminderEmail(opts: {
   portalUrl: string;
   items: ReadinessReminderItem[];
   timeZone: string;
-}): { subject: string; html: string } {
+  settingsUrl?: string;
+}): { subject: string; html: string; headers: Record<string, string> } {
   const anyOverdue = opts.items.some((item) => item.late);
   const subject = anyOverdue
     ? `Reminder: materials overdue for ${opts.eventName}`
@@ -266,8 +348,17 @@ export function buildReadinessReminderEmail(opts: {
 <p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">Open your presenter portal</a></p>
 <p>This link works for 30 days. Links from earlier emails keep working until their own expiry.</p>
 <p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.portalUrl)}</p>
-<p style="color:#555;font-size:13px;margin-top:16px">Already sent these? Your organizer may still be reviewing — no action needed.</p>`;
-  return { subject, html };
+<p style="color:#555;font-size:13px;margin-top:16px">Already sent these? Your organizer may still be reviewing — no action needed.</p>
+${notificationSettingsFooterHtml(
+    opts.settingsUrl ?? notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+  )}`;
+  return {
+    subject,
+    html,
+    headers: listUnsubscribeHeaders({
+      settingsUrl: opts.settingsUrl ?? notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+    }),
+  };
 }
 
 export async function sendReadinessReminderEmail(opts: {
@@ -279,7 +370,11 @@ export async function sendReadinessReminderEmail(opts: {
   timeZone: string;
 }): Promise<SendEmailResult> {
   const from = buildFromLine(opts.eventName);
-  const built = buildReadinessReminderEmail(opts);
+  const headers = recurringMailHeaders();
+  const built = buildReadinessReminderEmail({
+    ...opts,
+    settingsUrl: notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+  });
   return getEmailProvider().send({
     to: opts.to,
     from,
@@ -287,6 +382,7 @@ export async function sendReadinessReminderEmail(opts: {
     logLabel: "readiness-reminder",
     copyUrl: opts.portalUrl,
     html: built.html,
+    headers,
   });
 }
 

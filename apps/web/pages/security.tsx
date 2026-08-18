@@ -18,7 +18,7 @@ export default function SecurityPage() {
   const title = marketingSeo.pages.security.title;
   const description = marketingSeo.pages.security.description;
   /** Content date — bump when this page's substance changes. Not the render date. */
-  const updated = "2 August 2026";
+  const updated = "18 August 2026";
   const url = `${brand.primaryUrl}/security`;
 
   return (
@@ -98,9 +98,28 @@ export default function SecurityPage() {
             <p>
               Signed-in users can export their own account data as JSON from{" "}
               <Link href="/account">Account</Link> (profile, memberships, attendance, and message metadata).
-              We do not hold attendee data hostage: organizers can export event tables from the product, and
-              account deletion cascade rules will be published once approved. During incidents we aim for
-              read-only degradation so schedules remain available.
+              Account deletion is live: email and password re-authentication, immediate deactivation, a 7-day
+              grace period during which signing in or cancelling restores the account, then permanent deletion
+              with an audit trail. We do not hold attendee data hostage — organizers can export event tables
+              from the product. During incidents we aim for read-only degradation so schedules remain available.
+            </p>
+            <p>
+              Payments are processed by Stripe as merchant of record; card data never touches{" "}
+              {brand.productName} servers.
+            </p>
+            <p>
+              What we can verify in this product today: essential cookies only (no analytics or advertising
+              cookies); encryption in transit (TLS) and at rest (provider-managed); tenant isolation covered by
+              automated tests; audit logging of sensitive actions; private files are served through the API
+              after an authorization check; live status at{" "}
+              <a href={brand.statusPageUrl} rel="noopener noreferrer">
+                {brand.statusPageUrl}
+              </a>
+              ; vulnerability contact via{" "}
+              {/* A static file served from public/, not a route — next/link would
+                  try to client-navigate to a page that doesn't exist. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a href="/.well-known/security.txt">/.well-known/security.txt</a>.
             </p>
 
             <h2 id="principles">Product principles (anti-goals)</h2>

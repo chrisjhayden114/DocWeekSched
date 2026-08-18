@@ -26,17 +26,9 @@ import {
 } from "../lib/rateLimit";
 import { resolveEventFromRequest, getRequestedEventId } from "../lib/requestEvent";
 import { validationErrorBody } from "../lib/errors";
+import { registerSchema } from "../lib/authRegisterSchema";
 
 export const authRouter = Router();
-
-const registerSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(1),
-  password: z.string().min(8),
-  role: z.enum(["ATTENDEE", "SPEAKER"]).default("ATTENDEE"),
-  researchInterests: z.string().optional(),
-  participantType: z.enum(["GRAD_STUDENT", "EDD_STUDENT", "PHD_STUDENT", "EDL_ALUMNI", "PROFESSOR"]).optional(),
-});
 
 const adminRegisterSchema = z.object({
   email: z.string().email(),

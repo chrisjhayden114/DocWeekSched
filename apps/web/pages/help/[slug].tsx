@@ -58,6 +58,7 @@ export default function HelpArticlePage({ article }: Props) {
             </p>
             <div
               className="help-article-body"
+              // Repo-authored help markdown compiled to HTML — not user input.
               dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
             />
             <p className="text-meta" style={{ marginTop: 32 }}>

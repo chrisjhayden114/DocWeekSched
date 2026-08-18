@@ -7,6 +7,8 @@ export type SendEmailInput = {
   logLabel?: string;
   /** URL to surface for copy-link fallback (invite/reset/verify). */
   copyUrl?: string;
+  /** Optional SMTP/provider headers (List-Unsubscribe on recurring mail). */
+  headers?: Record<string, string>;
 };
 
 export type SendEmailResult = {
