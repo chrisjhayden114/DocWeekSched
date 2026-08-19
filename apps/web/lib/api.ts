@@ -12,7 +12,8 @@ export type AuthResponse = {
     role: string;
     photoUrl?: string | null;
     researchInterests?: string | null;
-    participantType?: "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | null;
+    /** Legacy account-global field; kept on /auth/me for compat, not shown in UI. */
+    participantType?: string | null;
     engagementPoints?: number;
     emailVerifiedAt?: string | null;
     isEventAdmin?: boolean;

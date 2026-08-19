@@ -3,6 +3,8 @@ import { Portal } from "./kit/Portal";
 import { initialsFor } from "./kit/kitHelpers";
 import { apiFetch } from "../lib/api";
 import { fileToDataUrl } from "../lib/photoDataUrl";
+import { participantLabelSelectOptions, shouldShowParticipantLabelSelect } from "../lib/participantLabels";
+import { Select } from "./Select";
 
 export type WelcomeFlowProps = {
   open: boolean;
@@ -10,6 +12,7 @@ export type WelcomeFlowProps = {
   activeEventId: string;
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   user: { name: string; photoUrl?: string | null; researchInterests?: string | null };
+  participantLabels?: string[];
   onDone: () => void;
 };
 
@@ -23,6 +26,7 @@ export function WelcomeFlow({
   activeEventId,
   withEventHeaders,
   user,
+  participantLabels = [],
   onDone,
 }: WelcomeFlowProps) {
   const titleId = useId();
@@ -36,6 +40,7 @@ export function WelcomeFlow({
   const [researchInterests, setResearchInterests] = useState(user.researchInterests || "");
   const [directoryOptIn, setDirectoryOptIn] = useState(false);
   const [messageEmail, setMessageEmail] = useState(true);
+  const [participantLabel, setParticipantLabel] = useState("");
 
   const eventHeaders = useCallback(
     (extra: RequestInit = {}) => {
@@ -62,6 +67,13 @@ export function WelcomeFlow({
         token,
       ).catch(() => undefined);
     }
+    if (shouldShowParticipantLabelSelect(participantLabels) && participantLabel) {
+      await apiFetch(
+        "/attendees/me",
+        eventHeaders({ method: "PUT", body: JSON.stringify({ participantLabel }) }),
+        token,
+      ).catch(() => undefined);
+    }
     if (!messageEmail) {
       await apiFetch(
         "/notifications/preferences",
@@ -71,7 +83,18 @@ export function WelcomeFlow({
     }
     await apiFetch("/attendees/me/welcome-seen", eventHeaders({ method: "POST" }), token).catch(() => undefined);
     onDone();
-  }, [directoryOptIn, eventHeaders, messageEmail, onDone, photoChosen, photoPreview, researchInterests, token]);
+  }, [
+    directoryOptIn,
+    eventHeaders,
+    messageEmail,
+    onDone,
+    participantLabel,
+    participantLabels,
+    photoChosen,
+    photoPreview,
+    researchInterests,
+    token,
+  ]);
 
   const skip = useCallback(async () => {
     if (settledRef.current) return;
@@ -182,6 +205,17 @@ export function WelcomeFlow({
                   placeholder="Research interests, projects, and topics you care about"
                 />
               </label>
+              {shouldShowParticipantLabelSelect(participantLabels) ? (
+                <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+                  Your label at this event (optional)
+                  <Select
+                    name="participantLabel"
+                    value={participantLabel}
+                    onChange={(v) => setParticipantLabel(v)}
+                    options={participantLabelSelectOptions(participantLabels)}
+                  />
+                </label>
+              ) : null}
             </div>
           ) : null}
 

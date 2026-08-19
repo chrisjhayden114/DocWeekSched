@@ -20,6 +20,9 @@ import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListS
 import { StatusChip } from "../../../../components/StatusChip";
 import { PageHeader, StatCard } from "../../../../components/kit";
 import { EventSettingsSlideOver } from "../../../../components/organizer/EventSettingsSlideOver";
+import { ParticipantLabelsEditor } from "../../../../components/organizer/ParticipantLabelsEditor";
+import { Select } from "../../../../components/Select";
+import { participantLabelSelectOptions, shouldShowParticipantLabelSelect } from "../../../../lib/participantLabels";
 import { ReadinessTab } from "../../../../components/organizer/ReadinessTab";
 import {
   ProgramTab,
@@ -57,6 +60,7 @@ type EventDetail = {
   logoUrl?: string | null;
   organizationId: string;
   seriesId?: string | null;
+  participantLabels?: string[];
 };
 
 type Speaker = { id: string; name: string; title?: string | null; affiliation?: string | null };
@@ -68,6 +72,7 @@ type ParticipantRow = {
   email: string;
   eventRole?: "ADMIN" | "ATTENDEE" | string;
   inviteStatus?: InviteStatus;
+  participantLabel?: string | null;
 };
 
 type RosterAction = { kind: "make-admin" | "remove-admin" | "remove"; row: ParticipantRow };
@@ -342,6 +347,27 @@ export default function OrganizerEventPage() {
     setRoster(rows);
     setRegisteredCount(rows.length);
   }, [eventId]);
+
+  const setMemberLabel = useCallback(
+    async (userId: string, participantLabel: string | null) => {
+      if (!eventId) return;
+      setRosterError(null);
+      try {
+        await organizerFetch(`/attendees/${userId}`, eventId, {
+          method: "PUT",
+          body: JSON.stringify({ participantLabel }),
+        });
+        setRoster((prev) =>
+          prev
+            ? prev.map((row) => (row.id === userId ? { ...row, participantLabel } : row))
+            : prev,
+        );
+      } catch (err) {
+        setRosterError(err instanceof Error ? err.message : "Could not update label");
+      }
+    },
+    [eventId],
+  );
 
   useEffect(() => {
     if (!eventId) return;
@@ -1083,6 +1109,20 @@ export default function OrganizerEventPage() {
               ) : null}
             </div>
 
+            {event ? (
+              <ParticipantLabelsEditor
+                eventId={eventId}
+                event={event}
+                labels={event.participantLabels ?? []}
+                onSaved={(next) => {
+                  setEvent((prev) => (prev ? { ...prev, participantLabels: next } : prev));
+                  void refreshRoster().catch((err) =>
+                    setRosterError(err instanceof Error ? err.message : "Could not refresh roster"),
+                  );
+                }}
+              />
+            ) : null}
+
             {/* INV-1 d) — roster */}
             <div className="console-panel">
               <p className="console-panel-label">Roster</p>
@@ -1128,6 +1168,9 @@ export default function OrganizerEventPage() {
                               <th>Name</th>
                               <th>Email</th>
                               <th>Status</th>
+                              {shouldShowParticipantLabelSelect(event?.participantLabels) ? (
+                                <th>Label</th>
+                              ) : null}
                               <th aria-label="Actions" />
                             </tr>
                           </thead>
@@ -1147,6 +1190,16 @@ export default function OrganizerEventPage() {
                                     label={inviteStatusLabel(p.inviteStatus)}
                                   />
                                 </td>
+                                {shouldShowParticipantLabelSelect(event?.participantLabels) ? (
+                                  <td>
+                                    <Select
+                                      aria-label={`Label for ${p.name}`}
+                                      value={p.participantLabel || ""}
+                                      onChange={(v) => void setMemberLabel(p.id, v || null)}
+                                      options={participantLabelSelectOptions(event?.participantLabels ?? [])}
+                                    />
+                                  </td>
+                                ) : null}
                                 <td style={{ textAlign: "right" }}>
                                   <KebabMenu
                                     label={`Actions for ${p.name}`}

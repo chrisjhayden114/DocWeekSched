@@ -22,6 +22,7 @@ import { validationErrorBody } from "../lib/errors";
 import { revokePortalAccessForEvent } from "../lib/readiness/portal";
 import { brandColorField } from "../lib/brandColor";
 import { patchFields, trimmedOrNull } from "../lib/patchFields";
+import { saveEventParticipantLabels, toEventClient } from "../lib/participantLabels";
 
 export const eventRouter = Router();
 
@@ -65,6 +66,8 @@ const eventSchema = z.object({
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
   organizationId: z.string().optional(),
+  // PART-1 — patch-shaped: absent = untouched, null/[] = cleared.
+  participantLabels: z.array(z.string()).nullable().optional(),
 });
 
 const publicEventSelect = {
@@ -190,7 +193,7 @@ eventRouter.get(
     const { can } = await import("../lib/billing");
     const hideBadge = await can(event.organizationId, "hide_powered_by_badge");
     return res.json({
-      ...event,
+      ...toEventClient(event),
       uiStatus: uiEventStatus(event),
       showPoweredByBadge: !hideBadge,
     });
@@ -215,7 +218,7 @@ eventRouter.get(
       },
       orderBy: { startDate: "desc" },
     });
-    return res.json(events.map((e) => ({ ...e, uiStatus: uiEventStatus(e) })));
+    return res.json(events.map((e) => ({ ...toEventClient(e), uiStatus: uiEventStatus(e) })));
   }),
 );
 
@@ -300,7 +303,7 @@ eventRouter.post(
 
     const base = env.webBaseUrl.replace(/\/$/, "");
     return res.json({
-      ...created,
+      ...toEventClient(created),
       uiStatus: uiEventStatus(created),
       joinToken: joinRaw,
       slugUrl: `${base}/e/${created.slug}`,
@@ -328,7 +331,7 @@ eventRouter.put(
       slug = await ensureUniqueEventSlug(next, event.id);
     }
 
-    const updated = await prisma.event.update({
+    await prisma.event.update({
       where: { id: event.id },
       data: {
         name: parsed.data.name,
@@ -340,7 +343,18 @@ eventRouter.put(
       },
     });
 
-    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+    // PART-1 — same patch contract as the nullable text columns: absent =
+    // untouched; explicit null or [] clears the list (and NULLs memberships
+    // that held a removed label).
+    if (parsed.data.participantLabels !== undefined) {
+      await saveEventParticipantLabels({
+        eventId: event.id,
+        labels: parsed.data.participantLabels,
+      });
+    }
+
+    const fresh = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
+    return res.json({ ...toEventClient(fresh), uiStatus: uiEventStatus(fresh) });
   }),
 );
 
@@ -372,7 +386,7 @@ eventRouter.post(
     });
     const { markEventChecklistDone } = await import("../lib/onboarding/checklist");
     await markEventChecklistDone(event.id, "publish").catch(() => undefined);
-    return res.json({ ...updated, uiStatus: uiEventStatus(updated), publishedSessionCount });
+    return res.json({ ...toEventClient(updated), uiStatus: uiEventStatus(updated), publishedSessionCount });
   }),
 );
 
@@ -392,7 +406,7 @@ eventRouter.post(
       where: { id: event.id },
       data: { status: EventStatus.DRAFT },
     });
-    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+    return res.json({ ...toEventClient(updated), uiStatus: uiEventStatus(updated) });
   }),
 );
 
@@ -409,7 +423,7 @@ eventRouter.post(
     });
     // O1 — portal tokens do not survive archive.
     await revokePortalAccessForEvent(event.id);
-    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+    return res.json({ ...toEventClient(updated), uiStatus: uiEventStatus(updated) });
   }),
 );
 
@@ -424,7 +438,7 @@ eventRouter.post(
       where: { id: event.id },
       data: { status: EventStatus.DRAFT },
     });
-    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+    return res.json({ ...toEventClient(updated), uiStatus: uiEventStatus(updated) });
   }),
 );
 
@@ -447,7 +461,7 @@ eventRouter.patch(
     if (parsed.data.status === "ARCHIVED") {
       await revokePortalAccessForEvent(event.id);
     }
-    return res.json({ ...updated, uiStatus: uiEventStatus(updated) });
+    return res.json({ ...toEventClient(updated), uiStatus: uiEventStatus(updated) });
   }),
 );
 

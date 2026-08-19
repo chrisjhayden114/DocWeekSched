@@ -25,7 +25,6 @@ type User = {
   role: "ADMIN" | "ATTENDEE" | "SPEAKER";
   photoUrl?: string | null;
   researchInterests?: string | null;
-  participantType?: "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | null;
   engagementPoints?: number;
   isEventAdmin?: boolean;
 };

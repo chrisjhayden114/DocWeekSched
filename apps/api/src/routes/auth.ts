@@ -94,7 +94,7 @@ authRouter.post(
       return res.status(400).json({ error: passwordErrorMessage(code) });
     }
 
-    const { email, name, password, role, researchInterests, participantType } = parsed.data;
+    const { email, name, password, role, researchInterests } = parsed.data;
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       // Invited users complete setup via /profile-setup; do not reveal account existence.
@@ -109,7 +109,6 @@ authRouter.post(
         name,
         role,
         researchInterests,
-        participantType,
         passwordHash,
         emailVerifiedAt: null,
         emailVerifyTokenHash: hashToken(verifyRaw),
@@ -514,10 +513,6 @@ const profileSchema = z.object({
   affiliation: z.string().max(200).optional().nullable(),
   bio: z.string().max(4000).optional().nullable(),
   photoUrl: z.string().max(2_000_000).optional(),
-  participantType: z
-    .enum(["GRAD_STUDENT", "EDD_STUDENT", "PHD_STUDENT", "EDL_ALUMNI", "PROFESSOR"])
-    .nullable()
-    .optional(),
 });
 
 authRouter.put(
@@ -539,7 +534,6 @@ authRouter.put(
         ...(parsed.data.affiliation !== undefined ? { affiliation: parsed.data.affiliation } : {}),
         ...(parsed.data.bio !== undefined ? { bio: parsed.data.bio } : {}),
         ...(parsed.data.photoUrl !== undefined ? { photoUrl: parsed.data.photoUrl } : {}),
-        ...(parsed.data.participantType !== undefined ? { participantType: parsed.data.participantType } : {}),
       },
       select: meSelect,
     });

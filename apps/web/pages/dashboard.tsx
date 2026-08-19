@@ -52,6 +52,10 @@ import { MESSAGES_MOBILE_QUERY, messagesTabQuery, type ConversationView } from "
 import { fileToDataUrl } from "../lib/photoDataUrl";
 import { shouldShowWelcome } from "../lib/welcome";
 import { WelcomeFlow } from "../components/WelcomeFlow";
+import {
+  participantLabelSelectOptions,
+  shouldShowParticipantLabelSelect,
+} from "../lib/participantLabels";
 
 type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -65,7 +69,7 @@ type User = {
   title?: string | null;
   affiliation?: string | null;
   bio?: string | null;
-  participantType?: "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | null;
+  participantLabel?: string | null;
   engagementPoints?: number;
   inviteStatus?: "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED";
   inviteExpiresAt?: string | null;
@@ -86,6 +90,7 @@ type Event = {
   startDate: string;
   endDate: string;
   showPoweredByBadge?: boolean;
+  participantLabels?: string[];
 };
 
 type AgendaJoinMode = "VIRTUAL" | "IN_PERSON" | "ASYNC";
@@ -2125,6 +2130,7 @@ export default function Dashboard() {
           user={user}
           adminEvents={adminEvents}
           activeEventId={activeEventId}
+          participantLabels={event?.participantLabels ?? []}
           withEventHeaders={withEventHeaders}
           onAdminRequestSent={async () => {
             try {
@@ -2276,6 +2282,7 @@ export default function Dashboard() {
           activeEventId={activeEventId}
           withEventHeaders={withEventHeaders}
           user={{ name: user.name, photoUrl: user.photoUrl, researchInterests: user.researchInterests }}
+          participantLabels={event?.participantLabels ?? []}
           onDone={() => {
             setWelcomeMe((prev) => (prev ? { ...prev, welcomeSeenAt: new Date().toISOString() } : prev));
             void refreshUser();
@@ -3148,6 +3155,7 @@ function ProfileEditor({
   user,
   adminEvents,
   activeEventId,
+  participantLabels,
   withEventHeaders,
   onSaved,
   onEventSelected,
@@ -3158,6 +3166,7 @@ function ProfileEditor({
   user: User;
   adminEvents: EventItem[];
   activeEventId: string | null;
+  participantLabels: string[];
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   onSaved: (user: User) => void;
   onEventSelected: (eventId: string) => void;
@@ -3180,11 +3189,7 @@ function ProfileEditor({
   const [messagePolicy, setMessagePolicy] = useState<"ANYONE" | "EXISTING_ONLY" | "NONE">("ANYONE");
   const [messageEmail, setMessageEmail] = useState(true);
   const [readReceipts, setReadReceipts] = useState(false);
-  const [participantType, setParticipantType] = useState<
-    "GRAD_STUDENT" | "EDD_STUDENT" | "PHD_STUDENT" | "EDL_ALUMNI" | "PROFESSOR" | ""
-  >(
-    user.participantType || "",
-  );
+  const [participantLabel, setParticipantLabel] = useState(user.participantLabel || "");
   const [resettingEngagement, setResettingEngagement] = useState(false);
   const [appearanceTheme, setAppearanceTheme] = useState<"blue" | "slate">("blue");
   const [checkInCode, setCheckInCode] = useState<{
@@ -3200,12 +3205,17 @@ function ProfileEditor({
     setTitle(user.title || "");
     setAffiliation(user.affiliation || "");
     setBio(user.bio || "");
-    setParticipantType(user.participantType || "");
+    setParticipantLabel(user.participantLabel || "");
   }, [user]);
 
   useEffect(() => {
     if (!token || !activeEventId) return;
-    apiFetch<{ directoryOptIn: boolean; matchMeEnabled?: boolean; messagePolicy?: string }>(
+    apiFetch<{
+      directoryOptIn: boolean;
+      matchMeEnabled?: boolean;
+      messagePolicy?: string;
+      participantLabel?: string | null;
+    }>(
       "/attendees/me",
       withEventHeaders(),
       token,
@@ -3216,6 +3226,7 @@ function ProfileEditor({
         if (r.messagePolicy === "ANYONE" || r.messagePolicy === "EXISTING_ONLY" || r.messagePolicy === "NONE") {
           setMessagePolicy(r.messagePolicy);
         }
+        setParticipantLabel(r.participantLabel || "");
       })
       .catch(() => {
         setDirectoryOptIn(false);
@@ -3270,7 +3281,6 @@ function ProfileEditor({
       affiliation: affiliation.trim() || null,
       bio: bio.trim() || null,
       photoUrl: photoPreview || undefined,
-      participantType: participantType || null,
     };
     setSaving(true);
     setSaveError(null);
@@ -3285,6 +3295,12 @@ function ProfileEditor({
           method: "PUT",
           body: JSON.stringify({ directoryOptIn, messagePolicy }),
         }), token);
+        if (shouldShowParticipantLabelSelect(participantLabels)) {
+          await apiFetch("/attendees/me", withEventHeaders({
+            method: "PUT",
+            body: JSON.stringify({ participantLabel: participantLabel || null }),
+          }), token);
+        }
         try {
           await apiFetch("/attendees/me/match-me", withEventHeaders({
             method: "PUT",
@@ -3298,7 +3314,12 @@ function ProfileEditor({
           body: JSON.stringify({ messageEmail, readReceipts }),
         }), token);
       }
-      onSaved(updated);
+      onSaved({
+        ...updated,
+        participantLabel: shouldShowParticipantLabelSelect(participantLabels)
+          ? participantLabel || null
+          : updated.participantLabel,
+      });
       setSaveSuccess("Profile saved.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save profile.";
@@ -3403,22 +3424,17 @@ function ProfileEditor({
         onChange={(e) => setAffiliation(e.target.value)}
         placeholder="Affiliation / organization"
       />
-      <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
-        Participant type
-        <Select
-          name="participantType"
-          value={participantType}
-          onChange={(v) => setParticipantType(v as typeof participantType)}
-          options={[
-            { value: "", label: "Choose one (optional)" },
-            { value: "GRAD_STUDENT", label: "Grad Student" },
-            { value: "EDD_STUDENT", label: "EdD Student" },
-            { value: "PHD_STUDENT", label: "PhD Student" },
-            { value: "EDL_ALUMNI", label: "EDL Alumni" },
-            { value: "PROFESSOR", label: "Professor" },
-          ]}
-        />
-      </label>
+      {shouldShowParticipantLabelSelect(participantLabels) ? (
+        <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
+          Participant label
+          <Select
+            name="participantLabel"
+            value={participantLabel}
+            onChange={(v) => setParticipantLabel(v)}
+            options={participantLabelSelectOptions(participantLabels)}
+          />
+        </label>
+      ) : null}
       <textarea
         className="textarea"
         name="bio"
@@ -4260,11 +4276,11 @@ function AttendeeDirectory({
               </div>
             )}
             <div className="attendee-meta attendee-email-meta">{a.email}</div>
-            {a.participantType && (
+            {a.participantLabel ? (
               <div className="attendee-meta attendee-role-note">
-                {participantTypeLabel(a.participantType)}
+                {a.participantLabel}
               </div>
-            )}
+            ) : null}
             {/* Mobile: Message / Meet under the identity block. */}
             <div className="attendee-actions attendee-actions--under">{actionButtons}</div>
           </div>
@@ -5247,15 +5263,6 @@ function inviteStatusLabel(attendee: User) {
 function rosterRoleLabel(role: User["role"]) {
   if (role === "SPEAKER") return "Speaker";
   return "Attendee";
-}
-
-function participantTypeLabel(type?: User["participantType"] | "") {
-  if (type === "GRAD_STUDENT") return "Grad Student";
-  if (type === "EDD_STUDENT") return "EdD Student";
-  if (type === "PHD_STUDENT") return "PhD Student";
-  if (type === "EDL_ALUMNI") return "EDL Alumni";
-  if (type === "PROFESSOR") return "Professor";
-  return "";
 }
 
 function zonedDateParts(date: Date, timeZone: string) {

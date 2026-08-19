@@ -33,3 +33,16 @@ describe("POST /auth/register age attestation", () => {
     expect(parsed.success).toBe(false);
   });
 });
+
+describe("POST /auth/register no longer accepts account-global participantType", () => {
+  it("strips the legacy enum — nothing per-event belongs at registration", () => {
+    const parsed = registerSchema.safeParse({
+      ...valid,
+      participantType: "GRAD_STUDENT",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).not.toHaveProperty("participantType");
+    }
+  });
+});

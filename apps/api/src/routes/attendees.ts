@@ -15,6 +15,7 @@ import { randomBytes } from "crypto";
 import { requireFeature } from "../lib/features";
 import { validationErrorBody } from "../lib/errors";
 import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
+import { setMembershipParticipantLabel } from "../lib/participantLabels";
 
 export const attendeesRouter = Router();
 
@@ -39,7 +40,6 @@ const attendeePublicSelect = {
   title: true,
   affiliation: true,
   bio: true,
-  participantType: true,
 } as const;
 
 type InviteInput = z.infer<typeof inviteSchema>;
@@ -202,7 +202,7 @@ attendeesRouter.get(
           title: m.user.title,
           affiliation: m.user.affiliation,
           bio: m.user.bio,
-          participantType: m.user.participantType,
+          participantLabel: m.participantLabel ?? null,
           eventRole: m.role,
           directoryOptIn: m.directoryOptIn,
         };
@@ -222,7 +222,7 @@ attendeesRouter.get(
         title: u.title,
         affiliation: u.affiliation,
         bio: u.bio,
-        participantType: u.participantType,
+        participantLabel: m.participantLabel ?? null,
         eventRole: m.role,
         directoryOptIn: m.directoryOptIn,
         inviteStatus,
@@ -252,8 +252,32 @@ attendeesRouter.get(
       matchMeEnabled: m.matchMeEnabled,
       messagePolicy: m.messagePolicy ?? "ANYONE",
       role: m.role,
+      participantLabel: m.participantLabel ?? null,
       welcomeSeenAt: welcomeSeenAt ? welcomeSeenAt.toISOString() : null,
     });
+  }),
+);
+
+const membershipLabelSchema = z.object({
+  participantLabel: z.string().max(40).nullable(),
+});
+
+/** Attendee self-set: pick (or clear) this event's participant label. */
+attendeesRouter.put(
+  "/me",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = membershipLabelSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id);
+    const participantLabel = await setMembershipParticipantLabel({
+      eventId: event.id,
+      userId: req.user!.id,
+      label: parsed.data.participantLabel,
+    });
+    return res.json({ participantLabel });
   }),
 );
 
@@ -704,6 +728,26 @@ attendeesRouter.post(
     });
 
     return res.json({ ok: true });
+  }),
+);
+
+/** Organizer set/override of a member's label at this event. Clear = null. */
+attendeesRouter.put(
+  "/:id",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = membershipLabelSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    const targetId = req.params.id;
+    const participantLabel = await setMembershipParticipantLabel({
+      eventId: event.id,
+      userId: targetId,
+      label: parsed.data.participantLabel,
+    });
+    return res.json({ participantLabel });
   }),
 );
 

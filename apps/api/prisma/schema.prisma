@@ -466,6 +466,8 @@ model EventMembership {
   messagePolicy String @default("ANYONE")
   /// ONB-A: first-run welcome stamped once per (user,event); skip counts as seen.
   welcomeSeenAt DateTime?
+  /// This member's organizer-defined label at THIS event. Must match Event.participantLabelsJson at write time.
+  participantLabel String? @db.VarChar(40)
 
   @@unique([eventId, userId])
   @@unique([eventId, checkInCode])
@@ -674,6 +676,8 @@ model Event {
   slugInviteUseCount   Int                  @default(0)
   /// Keyword list for ops moderation detector (Phase A5). Empty = off.
   communityBlocklist   Json                 @default("[]")
+  /// Organizer-defined participant labels for this event (JSON string[], max 20 × 40 chars). null = none.
+  participantLabelsJson String?
   /// CHAT-2 — organizer-configured Event assistant starter questions (JSON string[], max 3 × 80 chars). null = defaults.
   assistantStartersJson String?
   sessions             Session[]

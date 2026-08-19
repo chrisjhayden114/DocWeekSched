@@ -9,7 +9,6 @@ export const registerSchema = z.object({
   password: z.string().min(8),
   role: z.enum(["ATTENDEE", "SPEAKER"]).default("ATTENDEE"),
   researchInterests: z.string().optional(),
-  participantType: z.enum(["GRAD_STUDENT", "EDD_STUDENT", "PHD_STUDENT", "EDL_ALUMNI", "PROFESSOR"]).optional(),
   ageAttested: z
     .boolean({
       required_error: AGE_ATTESTATION_MESSAGE,
