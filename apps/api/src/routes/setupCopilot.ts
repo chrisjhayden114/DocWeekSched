@@ -71,10 +71,11 @@ const formStateSchema = z.object({
     z.literal("academic_program"),
     z.literal("meetup"),
     z.literal("internal"),
+    z.literal("pd_day"),
   ]),
   hasProgramDocument: z.boolean().nullable(),
   featureOverrides: z.record(z.union([z.boolean(), z.enum(["daily", "weekly", "interrupts_only"])])),
-  suggestedPreset: z.enum(["everything", "focused", "academic"]).nullable(),
+  suggestedPreset: z.enum(["everything", "focused", "academic", "pd_day"]).nullable(),
   networkingChoice: z.enum(["full", "focused", "custom"]).nullable(),
 });
 

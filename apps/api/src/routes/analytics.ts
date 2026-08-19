@@ -1,10 +1,18 @@
 /**
- * Phase 5 — Organizer analytics (ingests existing engagement points).
+ * Phase 5 — Organizer analytics.
+ *
+ * FOSSIL-1: headline engagement is counted from this event's own signals.
+ * The account-wide points counter is still reported, but labeled as lifetime.
  */
 
 import { Router } from "express";
 import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
+import {
+  LIFETIME_POINTS_LABEL,
+  eventEngagementActorIds,
+  sumEventEngagementActions,
+} from "../lib/eventEngagement";
 import { AuthedRequest, requireAuth } from "../lib/middleware";
 import { can } from "../lib/billing/entitlements";
 
@@ -47,36 +55,18 @@ analyticsRouter.get(
         userId: true,
         createdAt: true,
         directoryOptIn: true,
-        user: { select: { engagementPoints: true, emailVerifiedAt: true } },
+        user: { select: { engagementPoints: true } },
       },
     });
     const totalRegistrants = memberships.length;
     const directoryOptIns = memberships.filter((m) => m.directoryOptIn).length;
     const checkIns = await prisma.checkIn.count({ where: { eventId: event.id } });
 
-    // Adoption: registrants who used the app (points, messages, joins, or check-in)
-    const [messagers, attenders, checkInRows] = await Promise.all([
-      prisma.conversationMessage.findMany({
-        where: { conversation: { eventId: event.id } },
-        select: { userId: true },
-        distinct: ["userId"],
-      }),
-      prisma.sessionAttendance.findMany({
-        where: { status: "JOINING", session: { eventId: event.id } },
-        select: { userId: true },
-        distinct: ["userId"],
-      }),
-      prisma.checkIn.findMany({
-        where: { eventId: event.id },
-        select: { userId: true },
-      }),
-    ]);
-    const activeIds = new Set([
-      ...memberships.filter((m) => m.user.engagementPoints > 0 || m.user.emailVerifiedAt).map((m) => m.userId),
-      ...messagers.map((m) => m.userId),
-      ...attenders.map((a) => a.userId),
-      ...checkInRows.map((c) => c.userId),
-    ]);
+    // Adoption: registrants who did something AT this event. Lifetime points and
+    // account email verification are global and say nothing about this event.
+    const registeredIds = new Set(memberships.map((m) => m.userId));
+    const actorIds = await eventEngagementActorIds(event.id);
+    const activeIds = new Set([...actorIds].filter((id) => registeredIds.has(id)));
     const adoptionRate = totalRegistrants === 0 ? 0 : activeIds.size / totalRegistrants;
 
     // Registrations over time (by day)
@@ -128,16 +118,34 @@ analyticsRouter.get(
       };
     });
 
-    const [messageCount, meetingCount, pollVotes, qaUpvotes] = await Promise.all([
-      prisma.conversationMessage.count({ where: { conversation: { eventId: event.id } } }),
-      prisma.meetingRequest.count({ where: { eventId: event.id } }),
-      prisma.sessionPollVote.count({ where: { poll: { session: { eventId: event.id } } } }),
-      prisma.sessionDiscussionUpvote.count({
-        where: { thread: { session: { eventId: event.id } } },
-      }),
-    ]);
+    const [messageCount, meetingCount, pollVotes, qaUpvotes, communityThreads, communityReplies] =
+      await Promise.all([
+        prisma.conversationMessage.count({ where: { conversation: { eventId: event.id } } }),
+        prisma.meetingRequest.count({ where: { eventId: event.id } }),
+        prisma.sessionPollVote.count({ where: { poll: { session: { eventId: event.id } } } }),
+        prisma.sessionDiscussionUpvote.count({
+          where: { thread: { session: { eventId: event.id } } },
+        }),
+        prisma.networkThread.count({ where: { eventId: event.id } }),
+        prisma.networkReply.count({ where: { thread: { eventId: event.id } } }),
+      ]);
 
-    const totalPoints = memberships.reduce((s, m) => s + m.user.engagementPoints, 0);
+    const eventEngagementActions = sumEventEngagementActions({
+      sessionJoins: sessionPopularity.reduce((s, x) => s + x.joins, 0),
+      sessionLikes: sessionPopularity.reduce((s, x) => s + x.likes, 0),
+      qaThreads: sessionPopularity.reduce((s, x) => s + x.qaThreads, 0),
+      feedbackResponses: sessionPopularity.reduce((s, x) => s + x.feedbackCount, 0),
+      qaUpvotes,
+      pollVotes,
+      communityThreads,
+      communityReplies,
+      messages: messageCount,
+      meetings: meetingCount,
+      checkIns,
+    });
+
+    // Account-wide counter — reported for continuity, never as an event figure.
+    const lifetimePoints = memberships.reduce((s, m) => s + m.user.engagementPoints, 0);
 
     const format = String(req.query.format || "");
     if (format === "csv") {
@@ -170,8 +178,10 @@ analyticsRouter.get(
         checkIns,
         directoryOptInRate: totalRegistrants === 0 ? 0 : directoryOptIns / totalRegistrants,
         directoryOptIns,
-        totalEngagementPoints: totalPoints,
+        eventEngagementActions,
+        lifetimeEngagementPoints: lifetimePoints,
       },
+      labels: { lifetimeEngagementPoints: LIFETIME_POINTS_LABEL },
       registrationsOverTime,
       sessionPopularity,
       volume: {
@@ -179,6 +189,8 @@ analyticsRouter.get(
         meetings: meetingCount,
         pollVotes,
         qaUpvotes,
+        communityThreads,
+        communityReplies,
       },
     });
   }),
@@ -208,9 +220,35 @@ analyticsRouter.get(
 
     const editions = [];
     for (const e of events) {
-      const [registrants, checkIns, pointsAgg] = await Promise.all([
+      const [
+        registrants,
+        checkIns,
+        sessionJoins,
+        sessionLikes,
+        qaThreads,
+        qaUpvotes,
+        pollVotes,
+        feedbackResponses,
+        communityThreads,
+        communityReplies,
+        messages,
+        pointsAgg,
+      ] = await Promise.all([
         prisma.eventMembership.count({ where: { eventId: e.id, deletedAt: null } }),
         prisma.checkIn.count({ where: { eventId: e.id } }),
+        prisma.sessionAttendance.count({
+          where: { status: "JOINING", session: { eventId: e.id } },
+        }),
+        prisma.sessionLike.count({ where: { session: { eventId: e.id } } }),
+        prisma.sessionDiscussionThread.count({ where: { session: { eventId: e.id } } }),
+        prisma.sessionDiscussionUpvote.count({
+          where: { thread: { session: { eventId: e.id } } },
+        }),
+        prisma.sessionPollVote.count({ where: { poll: { session: { eventId: e.id } } } }),
+        prisma.sessionFeedback.count({ where: { session: { eventId: e.id } } }),
+        prisma.networkThread.count({ where: { eventId: e.id } }),
+        prisma.networkReply.count({ where: { thread: { eventId: e.id } } }),
+        prisma.conversationMessage.count({ where: { conversation: { eventId: e.id } } }),
         prisma.eventMembership.findMany({
           where: { eventId: e.id, deletedAt: null },
           select: { user: { select: { engagementPoints: true } } },
@@ -223,10 +261,29 @@ analyticsRouter.get(
         registrants,
         checkIns,
         checkInRate: registrants === 0 ? 0 : checkIns / registrants,
-        totalEngagementPoints: pointsAgg.reduce((s, m) => s + m.user.engagementPoints, 0),
+        eventEngagementActions: sumEventEngagementActions({
+          sessionJoins,
+          sessionLikes,
+          qaThreads,
+          qaUpvotes,
+          pollVotes,
+          feedbackResponses,
+          communityThreads,
+          communityReplies,
+          messages,
+          checkIns,
+        }),
+        // Account-wide counter — comparing editions on it compares attendees,
+        // not editions. Kept for continuity, labeled as lifetime.
+        lifetimeEngagementPoints: pointsAgg.reduce((s, m) => s + m.user.engagementPoints, 0),
       });
     }
 
-    return res.json({ seriesId: series.id, seriesName: series.name, editions });
+    return res.json({
+      seriesId: series.id,
+      seriesName: series.name,
+      editions,
+      labels: { lifetimeEngagementPoints: LIFETIME_POINTS_LABEL },
+    });
   }),
 );

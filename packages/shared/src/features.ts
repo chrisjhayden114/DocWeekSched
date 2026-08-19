@@ -182,9 +182,9 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     defaultOn: true,
   },
   {
-    // H5 (DESIGN_PHASE_H D5 + D7): organizer-declared breakout shape. Not in
-    // any preset — absent = defaultOn false. AI suggestion via ingest
-    // assumptions is a later chunk.
+    // H5 (DESIGN_PHASE_H D5 + D7): organizer-declared breakout shape. Only the
+    // PD-day preset suggests it — absent elsewhere = defaultOn false. AI
+    // suggestion via ingest assumptions is a later chunk.
     key: "breakout_style",
     name: "Pick-one breakouts",
     plainDescription:
@@ -311,7 +311,7 @@ export const FEATURE_BY_KEY: Record<FeatureKey, FeatureDefinition> = Object.from
   FEATURE_REGISTRY.map((f) => [f.key, f]),
 ) as Record<FeatureKey, FeatureDefinition>;
 
-export type FeaturePresetId = "everything" | "focused" | "academic";
+export type FeaturePresetId = "everything" | "focused" | "academic" | "pd_day";
 
 export type FeaturePreset = {
   id: FeaturePresetId;
@@ -417,6 +417,44 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_polls: true,
       session_feedback: true,
       sponsors: true,
+      checkin: true,
+      ops_agent: true,
+      recap_agent: true,
+      certificates: true,
+    },
+  },
+  {
+    id: "pd_day",
+    name: "PD day / Training",
+    plainDescription:
+      "Calm defaults for a staff PD day — pick-one breakouts, certificates on, photo sharing off.",
+    overrides: {
+      community: true,
+      community_meetups: false,
+      community_moments: false,
+      community_local: false,
+      community_icebreakers: true,
+      community_general: true,
+      messaging_dms: true,
+      messaging_requests: true,
+      messaging_groups: true,
+      session_qa: true,
+      session_likes: true,
+      engagement_points: false,
+      public_leaderboard: false,
+      // Everyone is in the same building on the same day.
+      timezone_toggle: false,
+      breakout_style: true,
+      attendee_directory: true,
+      matchmaker: false,
+      waitlist_visibility: true,
+      venue_maps: true,
+      daily_digest: "interrupts_only",
+      cfp: false,
+      concierge: true,
+      session_polls: true,
+      session_feedback: true,
+      sponsors: false,
       checkin: true,
       ops_agent: true,
       recap_agent: true,

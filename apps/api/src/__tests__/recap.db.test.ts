@@ -405,8 +405,24 @@ describe("Phase A6 recap (DB)", () => {
     expect(m.engagement.qaThreads).toBe(1);
     expect(m.engagement.pollVotes).toBe(1);
     expect(m.engagement.communityThreads).toBe(1);
-    expect(m.engagement.engagementPoints).toBe(50); // 40+10+0 (+admin/speaker 0)
     expect(m.topSessions[0]!.sessionId).toBe(ids.sessionA);
+
+    // FOSSIL-1 — adoption and the headline engagement figure are event-scoped.
+    // A, B and C each acted at this event; admin and the speaker did not.
+    expect(m.headline.adoptionCount).toBe(3);
+    expect(m.engagement.sessionJoins).toBe(4);
+    expect(m.engagement.sessionLikes).toBe(0);
+    expect(m.engagement.feedbackResponses).toBe(2);
+    expect(m.engagement.messages).toBe(0);
+    expect(m.engagement.eventEngagementActions).toBe(
+      // joins 4 + likes 0 + qa 1 + upvotes 0 + polls 1 + feedback 2
+      // + community 1 + replies 0 + messages 0 + check-ins 2
+      11,
+    );
+    // Lifetime points stay reported, but under a label that says what they are.
+    expect(m.engagement.lifetimeEngagementPoints).toBe(50); // 40+10+0 (+admin/speaker 0)
+    expect(m.labels.lifetimeEngagementPoints).toMatch(/lifetime/i);
+    expect(m.labels.lifetimeEngagementPoints).toMatch(/not scoped to this event/i);
   });
 
   it("2) narrative numbers deep-equal metrics; invented number rejected", async () => {

@@ -51,8 +51,17 @@ export type RecapMetricsSnapshot = {
     pollVotes: number;
     communityThreads: number;
     communityReplies: number;
-    /** Sum of memberships' user.engagementPoints (Phase 5 spirit — ingest, don't invent). */
-    engagementPoints: number;
+    sessionJoins: number;
+    sessionLikes: number;
+    feedbackResponses: number;
+    messages: number;
+    /** Participation actions taken AT this event (sum of the event-scoped counts). */
+    eventEngagementActions: number;
+    /**
+     * FOSSIL-1 — sum of memberships' account-wide User.engagementPoints. This is
+     * a LIFETIME figure, not this event's: report it under the lifetime label.
+     */
+    lifetimeEngagementPoints: number;
   };
   sessions: RecapSessionMetrics[];
   /** Top sessions by fixed sort keys in code (see TOP_SESSION_SORT). */
@@ -69,6 +78,7 @@ export type RecapMetricsSnapshot = {
   labels: {
     checkedInAttributedByMode:
       "Event check-in attributed via session join mode (not a per-session door scan)";
+    lifetimeEngagementPoints: string;
   };
 };
 

@@ -23,7 +23,25 @@ export function metricsSnapshotToCsv(snapshot: RecapMetricsSnapshot): string {
   lines.push(["engagement.pollVotes", snapshot.engagement.pollVotes].map(csvEscape).join(","));
   lines.push(["engagement.communityThreads", snapshot.engagement.communityThreads].map(csvEscape).join(","));
   lines.push(["engagement.communityReplies", snapshot.engagement.communityReplies].map(csvEscape).join(","));
-  lines.push(["engagement.engagementPoints", snapshot.engagement.engagementPoints].map(csvEscape).join(","));
+  lines.push(["engagement.sessionJoins", snapshot.engagement.sessionJoins].map(csvEscape).join(","));
+  lines.push(["engagement.sessionLikes", snapshot.engagement.sessionLikes].map(csvEscape).join(","));
+  lines.push(
+    ["engagement.feedbackResponses", snapshot.engagement.feedbackResponses].map(csvEscape).join(","),
+  );
+  lines.push(["engagement.messages", snapshot.engagement.messages].map(csvEscape).join(","));
+  lines.push(
+    ["engagement.eventEngagementActions", snapshot.engagement.eventEngagementActions]
+      .map(csvEscape)
+      .join(","),
+  );
+  lines.push(
+    [
+      `engagement.lifetimeEngagementPoints (${snapshot.labels.lifetimeEngagementPoints})`,
+      snapshot.engagement.lifetimeEngagementPoints,
+    ]
+      .map(csvEscape)
+      .join(","),
+  );
 
   lines.push("");
   lines.push(

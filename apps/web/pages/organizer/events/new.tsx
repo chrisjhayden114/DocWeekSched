@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { SetupCopilotFormState, SetupCopilotMessage, SetupCopilotStep } from "@event-app/shared";
-import { ASSISTANT_COPY, emptySetupFormState, setupTimezoneFieldLabel } from "@event-app/shared";
+import {
+  ASSISTANT_COPY,
+  emptySetupFormState,
+  setupEventTypeLabel,
+  setupTimezoneFieldLabel,
+} from "@event-app/shared";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../components/FeatureConfigPanel";
 import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
@@ -594,7 +599,7 @@ export default function NewEventWizard() {
                 </div>
                 <div>
                   <dt className="help-text">Type</dt>
-                  <dd style={{ margin: 0 }}>{copilotForm.eventType || "—"}</dd>
+                  <dd style={{ margin: 0 }}>{setupEventTypeLabel(copilotForm.eventType) || "—"}</dd>
                 </div>
                 <div>
                   <dt className="help-text">Program document</dt>

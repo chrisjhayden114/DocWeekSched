@@ -2897,7 +2897,7 @@ function AdminParticipantInviteCard({
           <input className="input" name="inviteName" required disabled={!canInvite || inviteBusy} />
         </label>
         <label>
-          Description / research interests
+          Description / interests
           <textarea
             className="textarea"
             name="inviteBio"
@@ -2993,11 +2993,11 @@ function parseParticipantInviteCsv(text: string): { ok: true; rows: ParsedInvite
     return {
       ok: false,
       error:
-        'The first row must include columns "email" and "name". Optional columns: description (or bio, research_interests), photo_url.',
+        'The first row must include columns "email" and "name". Optional columns: description (or bio, interests), photo_url.',
     };
   }
   const descIdx = header.findIndex((h) =>
-    ["description", "bio", "research_interests", "research", "notes", "details"].includes(h),
+    ["description", "bio", "interests", "research_interests", "research", "notes", "details"].includes(h),
   );
   const photoIdx = header.findIndex((h) => ["photo_url", "photo", "image_url", "avatar"].includes(h));
 
@@ -3049,8 +3049,8 @@ function BulkInviteCsvCard({
 
   function downloadExampleCsv() {
     const csv = `email,name,description,photo_url
-colleague@university.edu,Jane Participant,Optional bio text,
-other@university.edu,John Example,,
+jane@example.org,Jane Participant,Optional bio text,
+john@example.org,John Example,,
 `;
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -3415,7 +3415,7 @@ function ProfileEditor({
         name="title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="Title (e.g. PhD Candidate)"
+        placeholder="Your role or title (e.g. Grade 4 teacher, Program Chair)"
       />
       <input
         className="input"
@@ -3448,7 +3448,7 @@ function ProfileEditor({
         name="researchInterests"
         value={researchInterests}
         onChange={(e) => setResearchInterests(e.target.value)}
-        placeholder="Research interests, projects, and topics you care about"
+        placeholder="Interests / topics you care about"
         rows={4}
       />
       {activeEventId ? (
@@ -4340,7 +4340,7 @@ function AttendeeDirectory({
         <input
           className="input attendee-search"
           type="search"
-          placeholder="Search by name, email, or research interests"
+          placeholder="Search by name, email, or interests"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Search attendees"

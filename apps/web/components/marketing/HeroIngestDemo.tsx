@@ -1,22 +1,31 @@
 import { useMemo, useState } from "react";
 
 /** Fixture sample program — client-only mock extract (no AI metering). */
-const SAMPLE_PROGRAM = `International Methods Workshop — Day 1
+const SAMPLE_PROGRAM = `Whole-Staff PD Day — Lincoln Middle School
 
-09:00  Opening remarks — Dr. A. Chen (Hall A)
-09:30  Panel: Field notes at scale
-       • Paper: Sampling bias in diary studies — Rivera, Okonkwo
-       • Paper: Consent UX for longitudinal apps — Patel
-11:00  Coffee
-11:30  Workshop: Agenda design for multi-track days
-13:00  Lunch
-14:00  Keynote: Calm tools for crowded programs — Morgan Lee
+08:30  Welcome and the year ahead — J. Okonkwo (Hall A)
+09:00  Workshop block A
+       • Reading conferences — Room 12
+       • Small-group math routines — Room 14
+       • Supporting multilingual learners — Library
+10:30  Coffee
+11:00  Workshop block B: Feedback students actually use | Coaching cycles that stick
+12:30  Lunch
+13:30  Grade-level breakouts — plan one change for next term
+       • Facilitator: M. Chen, instructional coach
+15:00  Closing: what we commit to
 `;
 
 type DraftSession = { time: string; title: string; detail?: string };
 
 /** Display cap only — extraction itself is uncapped; truncation is announced. */
 const DISPLAY_CAP = 20;
+
+/**
+ * Bullets naming who runs a block, or a paper under a session, describe the
+ * row above them. Every other bullet under a timed line is its own session.
+ */
+const DETAIL_BULLET = /^(paper|presenter|presented by|facilitator|led by|speaker)\b/i;
 
 function mockExtract(text: string): DraftSession[] {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -35,11 +44,9 @@ function mockExtract(text: string): DraftSession[] {
     if (line.startsWith("•") && out.length) {
       const last = out[out.length - 1]!;
       const item = line.replace(/^•\s*/, "");
-      if (/^paper:/i.test(item)) {
-        // Papers attach to their parent session.
+      if (DETAIL_BULLET.test(item)) {
         last.detail = [last.detail, item].filter(Boolean).join(" · ");
       } else {
-        // A non-paper bullet under a timed line is a concurrent session, not detail.
         out.push({ time: last.time, title: item });
       }
     }

@@ -1,5 +1,8 @@
 /**
- * Phase 5 — Organizer analytics dashboard (ingests engagement points).
+ * Phase 5 — Organizer analytics dashboard.
+ *
+ * FOSSIL-1: headline engagement counts actions taken at THIS event. The
+ * account-wide points total is still shown, under an explicit lifetime label.
  */
 
 import Head from "next/head";
@@ -21,8 +24,10 @@ type Analytics = {
     checkIns: number;
     directoryOptInRate: number;
     directoryOptIns: number;
-    totalEngagementPoints: number;
+    eventEngagementActions: number;
+    lifetimeEngagementPoints: number;
   };
+  labels: { lifetimeEngagementPoints: string };
   registrationsOverTime: { day: string; count: number }[];
   sessionPopularity: {
     sessionId: string;
@@ -34,7 +39,14 @@ type Analytics = {
     feedbackCount: number;
     avgFeedback: number | null;
   }[];
-  volume: { messages: number; meetings: number; pollVotes: number; qaUpvotes: number };
+  volume: {
+    messages: number;
+    meetings: number;
+    pollVotes: number;
+    qaUpvotes: number;
+    communityThreads: number;
+    communityReplies: number;
+  };
 };
 
 type SeriesYoY = {
@@ -47,8 +59,10 @@ type SeriesYoY = {
     registrants: number;
     checkIns: number;
     checkInRate: number;
-    totalEngagementPoints: number;
+    eventEngagementActions: number;
+    lifetimeEngagementPoints: number;
   }[];
+  labels: { lifetimeEngagementPoints: string };
 };
 
 function pct(n: number) {
@@ -106,7 +120,7 @@ export default function EventAnalyticsPage() {
       <OrganizerShell active="analytics" eventId={eventId} eventName={data?.eventName}>
         <h1 style={{ margin: "0 0 4px", font: "var(--text-h1)" }}>Analytics</h1>
         <p className="help-text" style={{ marginTop: 0 }}>
-          Engagement points feed these numbers — no public leaderboard unless you enable it.
+          These numbers count what people did at this event — no public leaderboard unless you enable it.
         </p>
         {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
         {!data && !error ? <ListSkeleton rows={4} /> : null}
@@ -133,14 +147,21 @@ export default function EventAnalyticsPage() {
                 <strong className="stat-number">{pct(data.headline.directoryOptInRate)}</strong>
               </div>
               <div>
-                <div className="help-text">Engagement points</div>
-                <strong className="stat-number">{data.headline.totalEngagementPoints}</strong>
+                <div className="help-text">Actions at this event</div>
+                <strong className="stat-number">{data.headline.eventEngagementActions}</strong>
+                <div className="help-text">joins, likes, Q&amp;A, polls, feedback, posts, messages</div>
+              </div>
+              <div>
+                <div className="help-text">Lifetime points</div>
+                <strong className="stat-number">{data.headline.lifetimeEngagementPoints}</strong>
+                <div className="help-text">{data.labels.lifetimeEngagementPoints}</div>
               </div>
             </section>
 
             <p className="help-text">
               Volume: {data.volume.messages} messages · {data.volume.meetings} meetings · {data.volume.pollVotes} poll
-              votes · {data.volume.qaUpvotes} Q&amp;A upvotes
+              votes · {data.volume.qaUpvotes} Q&amp;A upvotes · {data.volume.communityThreads} community threads ·{" "}
+              {data.volume.communityReplies} replies
             </p>
 
             <p>
@@ -231,11 +252,15 @@ export default function EventAnalyticsPage() {
                       <span className="help-text">
                         {" "}
                         · {new Date(ed.startDate).getFullYear()} · {ed.registrants} registered · check-in{" "}
-                        {pct(ed.checkInRate)} · {ed.totalEngagementPoints} pts
+                        {pct(ed.checkInRate)} · {ed.eventEngagementActions} actions
                       </span>
                     </li>
                   ))}
                 </ul>
+                <p className="help-text">
+                  Editions compare on actions taken at each event. Lifetime points are account-wide and would
+                  compare attendees, not editions.
+                </p>
               </>
             ) : null}
           </>

@@ -9,7 +9,10 @@
  */
 
 import {
+  FEATURE_PRESETS,
+  SETUP_EVENT_TYPES,
   emptySetupFormState,
+  type FeaturePresetId,
   type SetupCopilotFormState,
   type SetupCopilotMessage,
   type SetupCopilotStep,
@@ -53,7 +56,7 @@ export type SetupHandoffWizardFields = {
   featureOverrides: SetupCopilotFormState["featureOverrides"];
 };
 
-const EVENT_TYPES: readonly SetupEventType[] = ["conference", "academic_program", "meetup", "internal"];
+const EVENT_TYPES = SETUP_EVENT_TYPES;
 const NETWORKING = ["full", "focused", "custom"] as const;
 const STEPS: readonly SetupCopilotStep[] = [
   "name",
@@ -143,10 +146,9 @@ function parseForm(raw: unknown): SetupCopilotFormState | null {
     eventType,
     hasProgramDocument: o.hasProgramDocument === true ? true : o.hasProgramDocument === false ? false : null,
     featureOverrides: overrides,
-    suggestedPreset:
-      o.suggestedPreset === "everything" || o.suggestedPreset === "academic" || o.suggestedPreset === "focused"
-        ? o.suggestedPreset
-        : null,
+    suggestedPreset: FEATURE_PRESETS.some((p) => p.id === o.suggestedPreset)
+      ? (o.suggestedPreset as FeaturePresetId)
+      : null,
     networkingChoice,
   };
 }

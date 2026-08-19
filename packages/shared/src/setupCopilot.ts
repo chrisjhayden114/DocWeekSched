@@ -6,7 +6,33 @@
 import type { ConciergeLink } from "./concierge";
 import type { FeatureKey, FeatureOverrideValue, FeaturePresetId } from "./features";
 
-export type SetupEventType = "conference" | "academic_program" | "meetup" | "internal";
+export type SetupEventType =
+  | "conference"
+  | "academic_program"
+  | "meetup"
+  | "internal"
+  | "pd_day";
+
+export const SETUP_EVENT_TYPES: readonly SetupEventType[] = [
+  "conference",
+  "academic_program",
+  "meetup",
+  "internal",
+  "pd_day",
+];
+
+/** Human-readable names — the raw enum token is never shown to an organizer. */
+export const SETUP_EVENT_TYPE_LABEL: Record<SetupEventType, string> = {
+  conference: "Conference",
+  academic_program: "Academic program",
+  meetup: "Meetup",
+  internal: "Internal",
+  pd_day: "PD day / Training",
+};
+
+export function setupEventTypeLabel(type: SetupEventType | ""): string {
+  return type ? SETUP_EVENT_TYPE_LABEL[type] : "";
+}
 
 export type SetupCopilotMode = "create" | "settings";
 
@@ -98,6 +124,7 @@ export const EVENT_TYPE_PRESET: Record<SetupEventType, FeaturePresetId> = {
   academic_program: "academic",
   meetup: "everything",
   internal: "focused",
+  pd_day: "pd_day",
 };
 
 /** Event-details label: honest that the pre-fill is the organizer's local zone. */

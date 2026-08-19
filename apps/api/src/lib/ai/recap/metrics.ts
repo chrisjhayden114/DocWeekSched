@@ -8,6 +8,11 @@ import {
   type SessionJoinMode,
 } from "@prisma/client";
 import { prisma } from "../../db";
+import {
+  LIFETIME_POINTS_LABEL,
+  eventEngagementActorIds,
+  sumEventEngagementActions,
+} from "../../eventEngagement";
 import type {
   ModeCounts,
   RecapJoinModeKey,
@@ -60,10 +65,11 @@ export async function computeRecapMetrics(eventId: string): Promise<RecapMetrics
     where: { eventId, deletedAt: null },
     select: {
       userId: true,
-      user: { select: { engagementPoints: true, emailVerifiedAt: true } },
+      user: { select: { engagementPoints: true } },
     },
   });
   const registrants = memberships.length;
+  const registeredIds = new Set(memberships.map((m) => m.userId));
 
   const checkInRows = await prisma.checkIn.findMany({
     where: { eventId },
@@ -72,27 +78,10 @@ export async function computeRecapMetrics(eventId: string): Promise<RecapMetrics
   const checkedInUserIds = new Set(checkInRows.map((c) => c.userId));
   const checkIns = checkedInUserIds.size;
 
-  const [messagers, attenders] = await Promise.all([
-    prisma.conversationMessage.findMany({
-      where: { conversation: { eventId } },
-      select: { userId: true },
-      distinct: ["userId"],
-    }),
-    prisma.sessionAttendance.findMany({
-      where: { status: SessionAttendanceStatus.JOINING, session: { eventId } },
-      select: { userId: true },
-      distinct: ["userId"],
-    }),
-  ]);
-
-  const activeIds = new Set([
-    ...memberships
-      .filter((m) => m.user.engagementPoints > 0 || m.user.emailVerifiedAt)
-      .map((m) => m.userId),
-    ...messagers.map((m) => m.userId),
-    ...attenders.map((a) => a.userId),
-    ...checkedInUserIds,
-  ]);
+  // FOSSIL-1: adoption counts registrants who acted AT this event. Lifetime
+  // points and account email verification are global and prove nothing here.
+  const actorIds = await eventEngagementActorIds(eventId);
+  const activeIds = new Set([...actorIds].filter((id) => registeredIds.has(id)));
 
   const sessions = await prisma.session.findMany({
     where: { eventId },
@@ -166,17 +155,24 @@ export async function computeRecapMetrics(eventId: string): Promise<RecapMetrics
     };
   });
 
-  const [qaUpvotes, communityThreads, communityReplies] = await Promise.all([
+  const [qaUpvotes, communityThreads, communityReplies, messages] = await Promise.all([
     prisma.sessionDiscussionUpvote.count({
       where: { thread: { session: { eventId } } },
     }),
     prisma.networkThread.count({ where: { eventId } }),
     prisma.networkReply.count({ where: { thread: { eventId } } }),
+    prisma.conversationMessage.count({ where: { conversation: { eventId } } }),
   ]);
 
-  const engagementPoints = memberships.reduce((sum, m) => sum + m.user.engagementPoints, 0);
+  const lifetimeEngagementPoints = memberships.reduce(
+    (sum, m) => sum + m.user.engagementPoints,
+    0,
+  );
   const qaThreads = sessionMetrics.reduce((sum, s) => sum + s.qaThreads, 0);
   const pollVotes = sessionMetrics.reduce((sum, s) => sum + s.pollVotes, 0);
+  const sessionJoins = sessionMetrics.reduce((sum, s) => sum + s.joinedTotal, 0);
+  const sessionLikes = sessionMetrics.reduce((sum, s) => sum + s.likes, 0);
+  const feedbackResponses = sessionMetrics.reduce((sum, s) => sum + s.feedbackCount, 0);
 
   const ranked = [...sessionMetrics].sort(compareTopSessions);
   const topSessions = ranked.slice(0, 10).map((s) => ({
@@ -206,13 +202,30 @@ export async function computeRecapMetrics(eventId: string): Promise<RecapMetrics
       pollVotes,
       communityThreads,
       communityReplies,
-      engagementPoints,
+      sessionJoins,
+      sessionLikes,
+      feedbackResponses,
+      messages,
+      eventEngagementActions: sumEventEngagementActions({
+        sessionJoins,
+        sessionLikes,
+        qaThreads,
+        qaUpvotes,
+        pollVotes,
+        feedbackResponses,
+        communityThreads,
+        communityReplies,
+        messages,
+        checkIns,
+      }),
+      lifetimeEngagementPoints,
     },
     sessions: sessionMetrics,
     topSessions,
     labels: {
       checkedInAttributedByMode:
         "Event check-in attributed via session join mode (not a per-session door scan)",
+      lifetimeEngagementPoints: LIFETIME_POINTS_LABEL,
     },
   };
 }

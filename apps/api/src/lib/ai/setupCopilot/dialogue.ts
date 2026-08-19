@@ -113,6 +113,9 @@ function applyTypePreset(form: SetupCopilotFormState): SetupCopilotFormState {
   };
 }
 
+const EVENT_TYPE_QUESTION =
+  "What kind of event is this?\n1) Conference\n2) Academic program\n3) Meetup\n4) Internal\n5) PD day / Training";
+
 const AGENDA_INGEST_NOTE =
   "After you create the event, upload this same file in Agenda ingest and the AI will draft the full agenda.";
 
@@ -155,7 +158,7 @@ function cannedReplyForStep(
     case "size":
       return `Roughly how many people? (A number is fine.)${ingestNote}`;
     case "type":
-      return `What kind of event is this?\n1) Conference\n2) Academic program\n3) Meetup\n4) Internal${ingestNote}`;
+      return `${EVENT_TYPE_QUESTION}${ingestNote}`;
     case "networking":
       return `Want the full networking experience — community spaces, ice-breakers, photo sharing — or keep it focused on the schedule? You can also say something specific like “no ice-breakers, and everyone's local so don't show timezone conversion.”${ingestNote}`;
     case "document":
@@ -299,14 +302,14 @@ export function runCreateTurn(
       }
       form = { ...form, estimatedSize: size };
       step = "type";
-      reply =
-        "What kind of event is this?\n1) Conference\n2) Academic program\n3) Meetup\n4) Internal";
+      reply = EVENT_TYPE_QUESTION;
       break;
     }
     case "type": {
       const eventType = parseEventType(text);
       if (!eventType) {
-        reply = "Pick one: conference, academic program, meetup, or internal.";
+        reply =
+          "Pick one: conference, academic program, meetup, internal, or PD day / training.";
         break;
       }
       form = applyTypePreset({ ...form, eventType });

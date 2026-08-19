@@ -46,7 +46,9 @@ function defaultNarrative(snapshot: RecapMetricsSnapshot): string {
     ``,
     `Engagement — Q&A threads {{engagement.qaThreads}}, upvotes {{engagement.qaUpvotes}}, poll votes {{engagement.pollVotes}},`,
     `community threads {{engagement.communityThreads}} / replies {{engagement.communityReplies}},`,
-    `engagement points {{engagement.engagementPoints}}.`,
+    `actions taken at this event {{engagement.eventEngagementActions}}.`,
+    ``,
+    `Lifetime points {{engagement.lifetimeEngagementPoints}} — {{labels.lifetimeEngagementPoints}}.`,
     ``,
     `Checked-in-by-mode figures are event check-in attributed via session join mode (not a per-session door scan).`,
   ];
@@ -81,7 +83,9 @@ export async function draftReportNarrative(input: {
     "engagement.pollVotes",
     "engagement.communityThreads",
     "engagement.communityReplies",
-    "engagement.engagementPoints",
+    "engagement.eventEngagementActions",
+    "engagement.lifetimeEngagementPoints",
+    "labels.lifetimeEngagementPoints",
     ...(input.snapshot.topSessions[0]
       ? [
           "topSessions.0.title",

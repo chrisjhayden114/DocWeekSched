@@ -4,8 +4,21 @@
 
 import type { FeatureKey, FeatureOverrideValue, SetupEventType } from "@event-app/shared";
 
+/**
+ * Order matters: PD wins over the academic patterns so "PD program" and
+ * "training program" route to pd_day. Bare "program" is only academic when
+ * it is academically qualified ("academic program", "doctoral program") —
+ * on its own it is too generic to route anywhere.
+ */
 const TYPE_PATTERNS: Array<{ type: SetupEventType; re: RegExp }> = [
-  { type: "academic_program", re: /\b(academic|doctoral|phd|graduate|seminar series|program)\b/i },
+  {
+    type: "pd_day",
+    re: /\b(pd|p\.d\.|professional development|professional learning|in-?service|inset|training|staff development)\b/i,
+  },
+  {
+    type: "academic_program",
+    re: /\b(academic|doctoral|phd|graduate|seminar series)\b|\b(?:academic|doctoral|phd|graduate|masters|master'?s|research)\s+program\b/i,
+  },
   { type: "meetup", re: /\b(meetup|meet-up|casual|community hangout)\b/i },
   { type: "internal", re: /\b(internal|company|offsite|all-?hands|team)\b/i },
   { type: "conference", re: /\b(conference|summit|symposium|forum)\b/i },
@@ -20,6 +33,7 @@ export function parseEventType(text: string): SetupEventType | null {
   if (t === "2" || t === "b") return "academic_program";
   if (t === "3" || t === "c") return "meetup";
   if (t === "4" || t === "d") return "internal";
+  if (t === "5" || t === "e") return "pd_day";
   return null;
 }
 

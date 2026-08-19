@@ -61,6 +61,11 @@ const TRACKS_BY_TYPE: Record<SetupEventType, SkeletonTrack[]> = {
     { name: "All-hands", color: "#0033A0", aiGenerated: true },
     { name: "Breakouts", color: "#41506D", aiGenerated: true },
   ],
+  pd_day: [
+    { name: "Keynote", color: "#0033A0", aiGenerated: true },
+    { name: "Workshops", color: "#1E7A34", aiGenerated: true },
+    { name: "Grade-level breakouts", color: "#7A5A00", aiGenerated: true },
+  ],
 };
 
 function dayCount(form: SetupCopilotFormState): number {

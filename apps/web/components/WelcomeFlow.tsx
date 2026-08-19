@@ -202,7 +202,7 @@ export function WelcomeFlow({
                   rows={4}
                   value={researchInterests}
                   onChange={(e) => setResearchInterests(e.target.value)}
-                  placeholder="Research interests, projects, and topics you care about"
+                  placeholder="Interests / topics you care about"
                 />
               </label>
               {shouldShowParticipantLabelSelect(participantLabels) ? (

@@ -13,6 +13,7 @@ import {
   ORGANIZER_GUIDE,
   getOrganizerVisibleFeatures,
   resolveFeatureEnabled,
+  setupEventTypeLabel,
   type SetupCopilotFormState,
   type SetupCopilotMessage,
   type SetupCopilotMode,
@@ -33,7 +34,7 @@ export const ORGANIZER_GUIDE_CLOSE = "=== END ORGANIZER GUIDE ===";
 /** Create-mode persona. The deterministic layer owns extraction and writes. */
 export const SETUP_SYSTEM = `You help an organizer set up an event in ${brand.productName}.
 
-Collect, conversationally and at most two questions at a time: event name, dates + timezone, venue or online link, expected size, event type (conference / academic program / meetup / internal), networking preference (full / focused / custom), and whether they have a program document.
+Collect, conversationally and at most two questions at a time: event name, dates + timezone, venue or online link, expected size, event type (conference / academic program / meetup / internal / PD day or training), networking preference (full / focused / custom), and whether they have a program document.
 
 You'll be given KNOWN SO FAR and STILL NEEDED — ask only for what's missing, acknowledge what just changed, and answer brief questions about what these choices mean. When nothing is needed, summarize the setup in 3-4 lines and tell them to say 'create' to finish (drafts only — nothing publishes) or switch to manual entry.
 
@@ -97,8 +98,8 @@ const SETUP_FIELDS: FieldSpec[] = [
     known: (f) => (f.estimatedSize ? `Expected size: about ${scrubCorpusText(f.estimatedSize)} people` : null),
   },
   {
-    label: "event type (conference / academic program / meetup / internal)",
-    known: (f) => (f.eventType ? `Event type: ${f.eventType.replace("_", " ")}` : null),
+    label: "event type (conference / academic program / meetup / internal / PD day or training)",
+    known: (f) => (f.eventType ? `Event type: ${setupEventTypeLabel(f.eventType).toLowerCase()}` : null),
   },
   {
     label: "networking preference (full / focused / custom)",

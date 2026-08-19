@@ -115,7 +115,7 @@ function deterministicFallbackRank(
   return shortlist.slice(0, 5).map((c) => {
     const shared =
       extractSharedPhrase(forInterests, c.researchInterests || "") ||
-      (c.researchInterests || "shared research interests").slice(0, 80);
+      (c.researchInterests || "shared interests").slice(0, 80);
     return {
       userId: c.userId,
       why: `You both work on ${shared}.`,

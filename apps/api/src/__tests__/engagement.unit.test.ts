@@ -6,6 +6,7 @@ import {
   planDefinitionForTier,
   resolveFeatureEnabled,
 } from "@event-app/shared";
+import { LIFETIME_POINTS_LABEL, sumEventEngagementActions } from "../lib/eventEngagement";
 
 describe("Phase 5 entitlements & registry", () => {
   it("exposes polls, feedback, sponsors, checkin; leaderboard hidden (unbuilt) and default off", () => {
@@ -54,5 +55,34 @@ describe("Phase P4 entitlements & registry", () => {
 
     expect(resolveEntitlement(planDefinitionForTier("PRO"), "badges")).toBe(true);
     expect(resolveEntitlement(planDefinitionForTier("PRO"), "certificates")).toBe(true);
+  });
+});
+
+/**
+ * FOSSIL-1 — per-event reports must not present the account-wide points
+ * counter as this event's engagement.
+ */
+describe("event-scoped engagement (FOSSIL-1)", () => {
+  it("sums only the event-scoped signals the caller supplied", () => {
+    expect(
+      sumEventEngagementActions({
+        sessionJoins: 4,
+        sessionLikes: 3,
+        qaThreads: 1,
+        pollVotes: 1,
+        feedbackResponses: 2,
+        checkIns: 2,
+      }),
+    ).toBe(13);
+  });
+
+  it("treats absent signals as zero rather than inventing them", () => {
+    expect(sumEventEngagementActions({})).toBe(0);
+    expect(sumEventEngagementActions({ messages: 5, communityThreads: undefined })).toBe(5);
+  });
+
+  it("labels the lifetime figure as account-wide, never per-event", () => {
+    expect(LIFETIME_POINTS_LABEL).toMatch(/lifetime/i);
+    expect(LIFETIME_POINTS_LABEL).toMatch(/not scoped to this event/i);
   });
 });

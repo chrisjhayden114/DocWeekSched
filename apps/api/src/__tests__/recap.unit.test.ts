@@ -12,6 +12,7 @@ import {
   stableFixSlug,
 } from "../lib/ai/recap/synthesis";
 import { mergeFixNextYearIntoChecklist } from "../lib/ai/recap/series";
+import { LIFETIME_POINTS_LABEL, sumEventEngagementActions } from "../lib/eventEngagement";
 import { RecapSectionError, type RecapMetricsSnapshot, type FeedbackQuote } from "../lib/ai/recap/types";
 
 const sampleSnapshot: RecapMetricsSnapshot = {
@@ -31,7 +32,12 @@ const sampleSnapshot: RecapMetricsSnapshot = {
     pollVotes: 12,
     communityThreads: 2,
     communityReplies: 4,
-    engagementPoints: 100,
+    sessionJoins: 5,
+    sessionLikes: 2,
+    feedbackResponses: 2,
+    messages: 6,
+    eventEngagementActions: 48,
+    lifetimeEngagementPoints: 100,
   },
   sessions: [
     {
@@ -65,6 +71,7 @@ const sampleSnapshot: RecapMetricsSnapshot = {
   labels: {
     checkedInAttributedByMode:
       "Event check-in attributed via session join mode (not a per-session door scan)",
+    lifetimeEngagementPoints: LIFETIME_POINTS_LABEL,
   },
 };
 
@@ -99,6 +106,30 @@ describe("recap placeholders", () => {
   it("getMetricPathValue reads nested session modes", () => {
     expect(getMetricPathValue(sampleSnapshot, "sessions.sess_a.checkedInAttributedByMode.IN_PERSON")).toBe(3);
     expect(getMetricPathValue(sampleSnapshot, "labels.checkedInAttributedByMode")).toMatch(/not a per-session door scan/);
+  });
+
+  // FOSSIL-1 — the narrative can cite the lifetime figure only alongside the
+  // label that says it is account-wide; there is no bare "engagement points".
+  it("exposes the event-scoped total and the labeled lifetime figure", () => {
+    expect(getMetricPathValue(sampleSnapshot, "engagement.eventEngagementActions")).toBe(
+      sumEventEngagementActions({
+        sessionJoins: 5,
+        sessionLikes: 2,
+        qaThreads: 3,
+        qaUpvotes: 5,
+        pollVotes: 12,
+        feedbackResponses: 2,
+        communityThreads: 2,
+        communityReplies: 4,
+        messages: 6,
+        checkIns: 7,
+      }),
+    );
+    expect(getMetricPathValue(sampleSnapshot, "engagement.lifetimeEngagementPoints")).toBe(100);
+    expect(getMetricPathValue(sampleSnapshot, "labels.lifetimeEngagementPoints")).toMatch(
+      /not scoped to this event/i,
+    );
+    expect(getMetricPathValue(sampleSnapshot, "engagement.engagementPoints")).toBeUndefined();
   });
 
   it("resolves event.name and session titles via placeholders", () => {

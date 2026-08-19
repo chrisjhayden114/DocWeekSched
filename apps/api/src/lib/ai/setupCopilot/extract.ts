@@ -33,7 +33,7 @@ export const setupExtractSchema = z.object({
   onlineUrl: z.string().nullable().optional(),
   estimatedSize: z.union([z.number(), z.string()]).nullable().optional(),
   eventType: z
-    .enum(["conference", "academic_program", "meetup", "internal"])
+    .enum(["conference", "academic_program", "meetup", "internal", "pd_day"])
     .nullable()
     .optional(),
   networkingChoice: z.enum(["full", "focused", "custom"]).nullable().optional(),

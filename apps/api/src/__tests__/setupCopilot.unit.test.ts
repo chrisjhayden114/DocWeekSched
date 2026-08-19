@@ -1,8 +1,11 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
   EVENT_TYPE_PRESET,
+  SETUP_EVENT_TYPES,
   emptySetupFormState,
   applyPreset,
+  resolveFeatureEnabled,
+  setupEventTypeLabel,
 } from "@event-app/shared";
 import {
   MockAiProvider,
@@ -248,6 +251,80 @@ describe("Setup Copilot A2 (unit, mock provider)", () => {
   it("academic type maps to Academic preset", () => {
     expect(parseEventType("academic program")).toBe("academic_program");
     expect(EVENT_TYPE_PRESET.academic_program).toBe("academic");
+  });
+
+  it("FOSSIL-1 — PD-day wording maps to the PD day preset", () => {
+    for (const phrase of [
+      "PD day",
+      "professional development",
+      "in-service day",
+      "inset day",
+      "staff training day",
+      "a training program for our teachers",
+    ]) {
+      expect(parseEventType(phrase), phrase).toBe("pd_day");
+    }
+    expect(EVENT_TYPE_PRESET.pd_day).toBe("pd_day");
+  });
+
+  it("FOSSIL-1 — bare “program” no longer mis-routes to academic_program", () => {
+    expect(parseEventType("it's a program")).toBeNull();
+    expect(parseEventType("our leadership program")).toBeNull();
+    expect(parseEventType("doctoral program")).toBe("academic_program");
+    expect(parseEventType("graduate program")).toBe("academic_program");
+  });
+
+  it("FOSSIL-1 — PD day preset is calm: breakouts on, certificates on, moments off", () => {
+    const o = applyPreset("pd_day");
+    expect(o.breakout_style).toBe(true);
+    expect(o.certificates).toBe(true);
+    expect(o.community_moments).toBe(false);
+    expect(resolveFeatureEnabled("community_moments", o)).toBe(false);
+  });
+
+  it("FOSSIL-1 — PD day skeleton tracks are keynote / workshops / grade-level breakouts", () => {
+    const skeleton = buildSkeleton(
+      {
+        ...emptySetupFormState("UTC"),
+        name: "Whole-Staff PD Day",
+        startDate: "2027-01-04",
+        endDate: "2027-01-04",
+        eventType: "pd_day" as const,
+      },
+      false,
+    );
+    expect(skeleton.tracks.map((t) => t.name)).toEqual([
+      "Keynote",
+      "Workshops",
+      "Grade-level breakouts",
+    ]);
+  });
+
+  it("FOSSIL-1 — the type question offers PD day and the copilot routes to it", () => {
+    let state = initialDialogue("create", "UTC");
+    let turn = runCreateTurn(state, "Whole-Staff PD Day");
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "2027-01-04, America/New_York");
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "Lincoln Middle School");
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "about 90 teachers");
+    expect(turn.assistantMessage).toContain("5) PD day / Training");
+
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "professional development day");
+    expect(turn.form.eventType).toBe("pd_day");
+    expect(turn.form.suggestedPreset).toBe("pd_day");
+    expect(turn.form.featureOverrides.breakout_style).toBe(true);
+  });
+
+  it("FOSSIL-1 — event types render a display label, never the raw token", () => {
+    expect(setupEventTypeLabel("pd_day")).toBe("PD day / Training");
+    expect(setupEventTypeLabel("academic_program")).toBe("Academic program");
+    expect(setupEventTypeLabel("")).toBe("");
+    for (const type of SETUP_EVENT_TYPES) {
+      expect(setupEventTypeLabel(type)).not.toContain("_");
+    }
   });
 
   it("parseDatesAndTimezone — ISO range, month range + PT, or null", () => {

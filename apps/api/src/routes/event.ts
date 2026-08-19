@@ -600,7 +600,7 @@ eventRouter.post(
 
 const featuresPutSchema = z.object({
   overrides: z.record(z.union([z.boolean(), z.enum(["daily", "weekly", "interrupts_only"])])).optional(),
-  preset: z.enum(["everything", "focused", "academic"]).optional(),
+  preset: z.enum(["everything", "focused", "academic", "pd_day"]).optional(),
 });
 
 eventRouter.get(

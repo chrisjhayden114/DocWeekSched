@@ -1,4 +1,4 @@
-/** Shared research-interest tokens (comma / semicolon / newline separated). */
+/** Shared interest tokens (comma / semicolon / newline separated). */
 export function splitInterestTokens(raw: string | null | undefined): string[] {
   if (!raw?.trim()) return [];
   return raw
