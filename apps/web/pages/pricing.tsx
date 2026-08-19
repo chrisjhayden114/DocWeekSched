@@ -11,29 +11,7 @@ import { useEffect, useState } from "react";
 import { API_URL, apiFetch } from "../lib/api";
 import { SiteFooter } from "../components/marketing/SiteFooter";
 import { SiteHeader } from "../components/marketing/SiteHeader";
-
-const FAQ = [
-  {
-    q: "What counts as an attendee?",
-    a: "Anyone invited to or joined into an event counts toward that event’s attendee cap on your plan.",
-  },
-  {
-    q: "How do refunds work?",
-    a: "Checkout, tax, and refunds are handled by Stripe (merchant of record). Contact support with your order ID.",
-  },
-  {
-    q: "What happens when I archive an event?",
-    a: "Archived events leave the active-event count. Attendee data remains available to organizers for export until you delete it.",
-  },
-  {
-    q: "What is the recurring-event price lock?",
-    a: PRICE_LOCK.body,
-  },
-  {
-    q: "What happens to a published event if I cancel Pro?",
-    a: "Your organization moves back to the Free plan when the cancellation takes effect. Published events stay published and attendees keep access — nothing is unpublished or deleted. Free limits apply going forward: one active event, up to 50 attendees per event for new joins, and Free-tier AI allowances.",
-  },
-] as const;
+import { CONCIERGE_CROSS_LINK, PRICING_FAQ, planFeatureBullets } from "../lib/pricingCopy";
 
 type TierCard = {
   plan: PlanDefinition;
@@ -41,25 +19,6 @@ type TierCard = {
   /** Extra honest bullets beyond generated limits. */
   extras?: string[];
 };
-
-function limitFeatures(plan: PlanDefinition): string[] {
-  const events =
-    plan.limits.activeEvents == null ? "Unlimited active events" : `${plan.limits.activeEvents} active event`;
-  const attendees =
-    plan.limits.attendees == null
-      ? "Unlimited attendees per event"
-      : `Up to ${plan.limits.attendees.toLocaleString()} attendees per event`;
-  const rows = [events, attendees];
-  if (plan.entitlements.ai_ingest) rows.push("AI program ingest");
-  if (plan.entitlements.analytics) rows.push("Analytics");
-  if (plan.entitlements.ai_full_suite) rows.push("Full AI suite");
-  if (plan.entitlements.sso) rows.push("SSO");
-  if (plan.entitlements.white_label) rows.push("White-label");
-  if (plan.entitlements.priority_support) rows.push("Priority support");
-  if (plan.tier === "FREE") rows.push("Core agenda and community");
-  if (plan.tier === "PER_EVENT" || plan.tier === "PRO") rows.push("No “Powered by” badge");
-  return rows;
-}
 
 /** Three comparison tiers from the public catalog (display only). */
 const TIERS: TierCard[] = [
@@ -179,7 +138,7 @@ export default function PricingPage() {
 
               <div className="mkt-plan-grid">
                 {TIERS.map(({ plan, popular, extras }) => {
-                  const features = [...limitFeatures(plan), ...(extras ?? [])];
+                  const features = [...planFeatureBullets(plan), ...(extras ?? [])];
                   return (
                     <article key={plan.sku} className={`mkt-plan-card${popular ? " is-popular" : ""}`}>
                       {popular ? <span className="mkt-plan-chip">Popular</span> : null}
@@ -255,7 +214,7 @@ export default function PricingPage() {
                       {plan.plainDescription}
                     </p>
                     <ul className="mkt-plan-features">
-                      {limitFeatures(plan).map((f) => (
+                      {planFeatureBullets(plan).map((f) => (
                         <li key={f}>{f}</li>
                       ))}
                     </ul>
@@ -263,16 +222,28 @@ export default function PricingPage() {
                   </article>
                 ))}
               </div>
+              <p className="mkt-plan-more">
+                {CONCIERGE_CROSS_LINK.lead}{" "}
+                <Link href={CONCIERGE_CROSS_LINK.href}>{CONCIERGE_CROSS_LINK.linkLabel}</Link>.
+              </p>
 
               <p className="mkt-eyebrow" style={{ marginTop: 16 }}>
                 FAQ
               </p>
               <h2 className="mkt-h2">Common questions</h2>
               <div className="mkt-faq">
-                {FAQ.map((item) => (
+                {PRICING_FAQ.map((item) => (
                   <details key={item.q}>
                     <summary>{item.q}</summary>
-                    <p>{item.a}</p>
+                    <p>
+                      {item.a}
+                      {"href" in item && item.href ? (
+                        <>
+                          {" "}
+                          <Link href={item.href}>{item.linkLabel}</Link>.
+                        </>
+                      ) : null}
+                    </p>
                   </details>
                 ))}
               </div>

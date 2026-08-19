@@ -5368,6 +5368,10 @@ button.schedule-meta-chip:hover {
   color: var(--gray-600);
 }
 
+.mkt-plan-more a {
+  color: var(--primary);
+}
+
 .mkt-email {
   margin: 0;
   max-width: 640px;
