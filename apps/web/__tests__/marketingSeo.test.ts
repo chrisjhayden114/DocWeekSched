@@ -71,3 +71,13 @@ describe("comparison pages (E27) — the two 'alternative' queries", () => {
     }
   });
 });
+
+describe("speakerReadiness page (MKT-2) — buyer-search title", () => {
+  it("leads with speaker management / content collection and ends with the feature + brand", () => {
+    expect(marketingSeo.pages.speakerReadiness.title).toBe(
+      `Speaker management and content collection for conferences and PD days — Speaker Readiness — ${brand.productName}`,
+    );
+    expect(marketingSeo.pages.speakerReadiness.description.toLowerCase()).toContain("speaker management");
+    expect(marketingSeo.pages.speakerReadiness.description.toLowerCase()).toContain("content collection");
+  });
+});

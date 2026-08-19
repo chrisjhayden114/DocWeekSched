@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, readinessReminderCopy } from "@event-app/config";
 import { getEmailProvider, type SendEmailResult } from "./email";
 import {
   listUnsubscribeHeaders,
@@ -265,9 +265,9 @@ export function buildReadinessInviteEmail(opts: {
 <p><strong>${escapeHtml(opts.eventName)}</strong> needs a few materials from you before the event.</p>
 ${items}
 ${due}
-<p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">Open your presenter portal</a></p>
-<p>This link works for 30 days. Links from earlier emails keep working until their own expiry.</p>
-<p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.portalUrl)}</p>`;
+<p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">${readinessReminderCopy.portalCta}</a></p>
+<p>${readinessReminderCopy.linkExpiryNote}</p>
+<p>${readinessReminderCopy.linkFallback}<br/>${escapeHtml(opts.portalUrl)}</p>`;
   return { subject, html };
 }
 
@@ -312,8 +312,8 @@ export function buildReadinessReminderEmail(opts: {
 }): { subject: string; html: string; headers: Record<string, string> } {
   const anyOverdue = opts.items.some((item) => item.late);
   const subject = anyOverdue
-    ? `Reminder: materials overdue for ${opts.eventName}`
-    : `Reminder: materials due for ${opts.eventName}`;
+    ? readinessReminderCopy.subjectOverdue(opts.eventName)
+    : readinessReminderCopy.subjectDue(opts.eventName);
 
   const formatDue = (dueAt: Date): string => {
     try {
@@ -330,25 +330,28 @@ export function buildReadinessReminderEmail(opts: {
 
   const rows = opts.items
     .map((item) => {
-      const due = item.dueAt ? `due ${formatDue(item.dueAt)}` : "no due date";
+      const due = item.dueAt
+        ? readinessReminderCopy.itemDue(formatDue(item.dueAt))
+        : readinessReminderCopy.itemNoDue;
       const flag = item.late
-        ? ` <strong style="color:#b42318">overdue</strong>`
+        ? ` <strong style="color:#b42318">${readinessReminderCopy.itemOverdue}</strong>`
         : "";
       return `<li style="margin:0 0 6px">${escapeHtml(item.label)} — ${escapeHtml(due)}${flag}</li>`;
     })
     .join("");
 
-  const html = `<p>Hi ${escapeHtml(opts.speakerName)},</p>
+  const eventHtml = `<strong>${escapeHtml(opts.eventName)}</strong>`;
+  const html = `<p>${readinessReminderCopy.greeting(escapeHtml(opts.speakerName))}</p>
 <p>${
     anyOverdue
-      ? `Some materials for <strong>${escapeHtml(opts.eventName)}</strong> are past their due date.`
-      : `A reminder about the materials <strong>${escapeHtml(opts.eventName)}</strong> still needs from you.`
+      ? readinessReminderCopy.bodyOverdue(eventHtml)
+      : readinessReminderCopy.bodyDue(eventHtml)
   }</p>
 <ul style="padding-left:20px;margin:0 0 16px">${rows}</ul>
-<p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">Open your presenter portal</a></p>
-<p>This link works for 30 days. Links from earlier emails keep working until their own expiry.</p>
-<p>If the button does not work, copy this link into your browser:<br/>${escapeHtml(opts.portalUrl)}</p>
-<p style="color:#555;font-size:13px;margin-top:16px">Already sent these? Your organizer may still be reviewing — no action needed.</p>
+<p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">${readinessReminderCopy.portalCta}</a></p>
+<p>${readinessReminderCopy.linkExpiryNote}</p>
+<p>${readinessReminderCopy.linkFallback}<br/>${escapeHtml(opts.portalUrl)}</p>
+<p style="color:#555;font-size:13px;margin-top:16px">${readinessReminderCopy.alreadySent}</p>
 ${notificationSettingsFooterHtml(
     opts.settingsUrl ?? notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
   )}`;

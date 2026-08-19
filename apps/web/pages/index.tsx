@@ -1,4 +1,4 @@
-import { brand, marketingSeo } from "@event-app/config";
+import { brand, marketingSeo, speakerReadinessPilotMailto } from "@event-app/config";
 import { formatDisplayPrice, PLAN_BY_SKU, publicPricingPlans } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
@@ -152,7 +152,7 @@ export default function LandingPage() {
   const title = marketingSeo.pages.home.title;
   const description = marketingSeo.pages.home.description;
   const ogImage = `${brand.primaryUrl}/icons/icon-512.png`;
-  const readinessMailto = `mailto:${brand.supportEmail}?subject=${encodeURIComponent("Speaker Readiness pilot")}`;
+  const readinessMailto = speakerReadinessPilotMailto();
 
   // schema.org SoftwareApplication with offers straight from the plan catalog (E25.4).
   const softwareJsonLd = {
@@ -337,7 +337,10 @@ export default function LandingPage() {
                 </li>
               </ul>
               <div className="mkt-hero-cta" style={{ marginTop: 28, marginBottom: 0 }}>
-                <a className="button" href={readinessMailto}>
+                <Link className="button" href="/speaker-readiness">
+                  See Speaker Readiness
+                </Link>
+                <a className="button secondary" href={readinessMailto}>
                   Ask about a Speaker Readiness pilot
                 </a>
               </div>

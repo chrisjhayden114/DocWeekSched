@@ -4921,6 +4921,10 @@ button.schedule-meta-chip:hover {
   max-width: 14ch;
 }
 
+.mkt-hero-headline--wide {
+  max-width: 20ch;
+}
+
 .mkt-hero-sub {
   margin: 0 0 24px;
   max-width: 36rem;
@@ -5362,6 +5366,112 @@ button.schedule-meta-chip:hover {
   margin: -16px 0 40px;
   font: 400 14px/22px var(--font-body);
   color: var(--gray-600);
+}
+
+.mkt-email {
+  margin: 0;
+  max-width: 640px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+}
+
+.mkt-email-chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.mkt-email-chrome-label {
+  margin-left: 8px;
+  font: 400 12px/16px var(--font-body);
+  color: var(--gray-500);
+}
+
+.mkt-email-meta {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--gray-200);
+  display: grid;
+  gap: 6px;
+}
+
+.mkt-email-meta p,
+.mkt-email-subject {
+  margin: 0;
+  font: 400 14px/20px var(--font-body);
+  color: var(--gray-700);
+}
+
+.mkt-email-subject {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.mkt-email-key {
+  display: inline-block;
+  width: 64px;
+  font: 500 12px/20px var(--font-body);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+}
+
+.mkt-email-body {
+  padding: 16px 16px 8px;
+  background: var(--gray-50);
+}
+
+.mkt-email-body p {
+  margin: 0 0 12px;
+  font: 400 15px/24px var(--font-body);
+  color: var(--gray-700);
+}
+
+.mkt-email-body ul {
+  margin: 0 0 16px;
+  padding-left: 1.2rem;
+  font: 400 15px/24px var(--font-body);
+  color: var(--gray-700);
+}
+
+.mkt-email-cta {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.mkt-email-already {
+  color: #555;
+  font-size: 13px;
+}
+
+.mkt-email-caption {
+  display: block;
+  padding: 12px 16px 16px;
+  background: #ffffff;
+  border-top: 1px solid var(--gray-100);
+}
+
+.mkt-screenshot-ph {
+  margin: 28px 0 0;
+  min-height: 220px;
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  background: var(--gray-50);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--gray-500);
+  font: 400 15px/22px var(--font-body);
+}
+
+.mkt-screenshot-ph p {
+  margin: 0;
 }
 
 .mkt-draft-banner {

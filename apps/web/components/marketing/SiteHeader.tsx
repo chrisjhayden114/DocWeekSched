@@ -12,6 +12,7 @@ export function SiteHeader() {
         </Link>
         <nav className="mkt-header-nav" aria-label="Primary">
           <Link href="/#product">Product</Link>
+          <Link href="/speaker-readiness">Speaker Readiness</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/help">Help</Link>
           <Link href="/login" className="mkt-header-signin">

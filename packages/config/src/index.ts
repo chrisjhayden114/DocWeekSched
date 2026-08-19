@@ -140,6 +140,11 @@ export const marketingSeo = {
       description:
         "Whova alternative for conferences and PD days: public pricing without a sales call, Speaker Readiness with automatic reminders, personal agendas, no app download.",
     },
+    speakerReadiness: {
+      title: `Speaker management and content collection for conferences and PD days — Speaker Readiness — ${brand.productName}`,
+      description:
+        "Speaker management and content collection for conferences and PD days: bios, slides, forms, and agreements — automatic reminders, no presenter account.",
+    },
   },
 } as const;
 
@@ -147,6 +152,43 @@ export const marketingSeo = {
 export function marketingArticleTitle(articleTitle: string): string {
   return `${articleTitle} — ${brand.productName} conference software`;
 }
+
+/**
+ * Speaker Readiness concierge-pilot prices.
+ * Source: EVENT_READINESS_PLAN.md §13.2. Manually granted for the first pilots —
+ * these amounts are not Stripe SKUs and are not in packages/shared/src/plans.ts.
+ */
+export const speakerReadinessPilot = {
+  small: { priceUsd: 750, presentersApprox: 50 },
+  medium: { priceUsd: 1250, presentersApprox: 150 },
+  mailtoSubject: "Speaker Readiness pilot",
+} as const;
+
+export function speakerReadinessPilotMailto(): string {
+  return `mailto:${brand.supportEmail}?subject=${encodeURIComponent(speakerReadinessPilot.mailtoSubject)}`;
+}
+
+/**
+ * Presenter-facing reminder email copy (ER5). The API builder
+ * (`buildReadinessReminderEmail`) and the /speaker-readiness mock both import
+ * this so the marketing page cannot drift from the mail that actually sends.
+ */
+export const readinessReminderCopy = {
+  subjectDue: (eventName: string) => `Reminder: materials due for ${eventName}`,
+  subjectOverdue: (eventName: string) => `Reminder: materials overdue for ${eventName}`,
+  greeting: (speakerName: string) => `Hi ${speakerName},`,
+  /** `eventName` is interpolated as-is — the HTML builder wraps it in <strong>. */
+  bodyDue: (eventName: string) => `A reminder about the materials ${eventName} still needs from you.`,
+  bodyOverdue: (eventName: string) => `Some materials for ${eventName} are past their due date.`,
+  portalCta: "Open your presenter portal",
+  linkExpiryNote:
+    "This link works for 30 days. Links from earlier emails keep working until their own expiry.",
+  linkFallback: "If the button does not work, copy this link into your browser:",
+  alreadySent: "Already sent these? Your organizer may still be reviewing — no action needed.",
+  itemDue: (formattedDate: string) => `due ${formattedDate}`,
+  itemNoDue: "no due date",
+  itemOverdue: "overdue",
+} as const;
 
 /**
  * Organizer-console copy for what a session can hold (Chunk E11.3).

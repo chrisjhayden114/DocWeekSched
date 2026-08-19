@@ -17,6 +17,7 @@ export function SiteFooter() {
               <p className="mkt-footer-col-label">Product</p>
               <nav aria-label="Product">
                 <Link href="/#product">Features</Link>
+                <Link href="/speaker-readiness">Speaker Readiness</Link>
                 <Link href={`/e/${brand.demoEventSlug}`}>Demo</Link>
                 <Link href="/pricing">Pricing</Link>
               </nav>
