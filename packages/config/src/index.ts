@@ -59,7 +59,7 @@ export const brand = {
     { name: "Cloudflare", role: "Object storage (R2)", region: "Western North America (WNAM)" },
     { name: "Resend", role: "Transactional email", region: "United States–based provider" },
     { name: "Stripe", role: "Merchant of record (payments, tax)", region: "United States–based provider" },
-    { name: "Anthropic", role: "AI processing for organizer-initiated features", region: "United States–based provider" },
+    { name: "Anthropic", role: "AI processing for event assistant conversations and organizer AI features (drafts and answers; disclosed in-product)", region: "United States–based provider" },
     { name: "Sentry", role: "Error tracking", region: "United States–based provider" },
     { name: "Better Stack", role: "Uptime monitoring and status page", region: "United States–based provider" },
   ],
@@ -94,50 +94,51 @@ export const authCopy = {
 
 /**
  * Search-facing marketing copy (Chunk E25). The launch channel is inbound
- * search: buyers type category problems ("conference schedule software"),
- * not brand names, so every marketing <title> leads with category words and
- * ends with the brand. The hero H1 tagline is separate and unchanged — it
- * converts humans; these strings convert searchers.
+ * search: buyers type category problems ("conference schedule software",
+ * "PD day software", "speaker management"), not brand names, so every
+ * marketing <title> leads with category words and ends with the brand.
+ * The hero H1 tagline is separate — it converts humans; these strings
+ * convert searchers.
  *
  * Marketing surfaces ONLY. Signed-in app pages keep their "Brand — Page"
  * titles. Edit this module, not the pages.
  */
 export const marketingSeo = {
   /** Plain category descriptor — rendered near the wordmark (footer, hero). */
-  categoryLine: "Event software for academic conferences",
+  categoryLine: "Calm event software for conferences and PD days in education.",
   /** Homepage <title>: category first, brand last — the pattern for every marketing title. */
-  seoTitle: `Conference schedule software for academic events — ${brand.productName}`,
+  seoTitle: `Conference and PD day software — schedule builder + Speaker Readiness — ${brand.productName}`,
   pages: {
     home: {
-      title: `Conference schedule software for academic events — ${brand.productName}`,
+      title: `Conference and PD day software — schedule builder + Speaker Readiness — ${brand.productName}`,
       description:
-        "Turn a conference program — PDF, Word, Excel or paste — into a published event site in minutes. Papers and presentations with ordered authors, CFP, calm notifications.",
+        "Excel, PDF, Word, paste, or describe your program. Speaker management and materials collection with automatic reminders. Personal agendas, no app download.",
     },
     pricing: {
-      title: `Pricing — open, no sales calls — ${brand.productName} conference software`,
+      title: `Conference and PD day software pricing — open, no sales calls — ${brand.productName}`,
       description:
-        "Open pricing for conference schedule software: a free tier, one-time per-event plans, and Pro subscriptions. Every price is public — no sales calls, no quote gate.",
+        "Open pricing for conference and PD day software: a free tier, one-time per-event plans, and Pro. Every price is public — budget without emailing anyone.",
     },
     help: {
-      title: `Help — ${brand.productName} conference software`,
+      title: `Help for conference and PD day software — ${brand.productName}`,
       description:
-        "Guides for publishing a conference program online — importing sessions from PDF, Word, Excel or CSV, organizing papers, presentations and speakers, and attendee FAQs.",
+        "Guides for conference and PD day software — importing from Excel, PDF, Word, paste or a description, Speaker Readiness, and attendee FAQs.",
     },
     security: {
-      title: `Security & data practices — ${brand.productName} conference software`,
+      title: `Security & data practices for conference and PD day software — ${brand.productName}`,
       description:
-        "Security and data practices for conference software: architecture, subprocessors, data export and continuity, and the product principles we publish as true.",
+        "Security and data practices for conference and PD day software: architecture, subprocessors, data export and deletion, and the product principles we publish as true.",
     },
     /** Comparison pages (Chunk E27) — highest-intent "alternative" queries. */
     compareSched: {
-      title: `Sched alternative for academic conferences — ${brand.productName} vs Sched`,
+      title: `Sched alternative for conferences and PD days — ${brand.productName} vs Sched`,
       description:
-        "Sched alternative for academic conferences: papers inside sessions with ordered authors, AI import of the PDF or Word programme you already have, and open pricing.",
+        "Sched alternative for conferences and PD days: program import from Excel, PDF, Word, paste or a description, Speaker Readiness, personal agendas, no app.",
     },
     compareWhova: {
-      title: `Whova alternative for academic conferences — ${brand.productName} vs Whova`,
+      title: `Whova alternative for conferences and PD days — ${brand.productName} vs Whova`,
       description:
-        "Whova alternative for academic conferences: public pricing without a sales call, calm digest-first notifications, and papers, authors and CFP in the data model.",
+        "Whova alternative for conferences and PD days: public pricing without a sales call, Speaker Readiness with automatic reminders, personal agendas, no app download.",
     },
   },
 } as const;

@@ -65,7 +65,7 @@ there when you want it, quiet when you don't.
 
 ## Honest reasons to pick Whova instead
 
-- You need **exhibitor and sponsor tooling** — booths, lead retrieval — today.
+- You need **full exhibitor booths** — a dedicated hall, not just sponsor pages and lead capture — today.
 - Your submission pipeline is **HotCRP/OpenReview** and that import matters.
 - Your event thrives on engagement mechanics and contests.
 - You want built-in registration/ticketing.

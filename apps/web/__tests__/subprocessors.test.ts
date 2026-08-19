@@ -39,4 +39,10 @@ describe("brand.subprocessors (privacy rendering)", () => {
       expect(byName[name]?.region).toBe("United States–based provider");
     }
   });
+
+  it("names Anthropic's role without calling Event assistant traffic organizer-initiated", () => {
+    expect(byName.Anthropic?.role).toBe(
+      "AI processing for event assistant conversations and organizer AI features (drafts and answers; disclosed in-product)",
+    );
+  });
 });

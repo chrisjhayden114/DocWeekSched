@@ -17,6 +17,7 @@ Disallow: /dashboard
 Disallow: /organizer
 Disallow: /login
 Disallow: /invite
+Disallow: /r/
 Disallow: /styleguide
 Disallow: /api/
 

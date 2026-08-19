@@ -27,7 +27,7 @@ describe("marketingSeo (E25) — search-facing titles and descriptions", () => {
 
   it("the homepage title is the category-first seoTitle", () => {
     expect(marketingSeo.pages.home.title).toBe(marketingSeo.seoTitle);
-    expect(marketingSeo.seoTitle.toLowerCase()).toContain("conference schedule software");
+    expect(marketingSeo.seoTitle.toLowerCase()).toContain("conference and pd day software");
   });
 
   it("descriptions stay within search-snippet length", () => {
@@ -37,7 +37,7 @@ describe("marketingSeo (E25) — search-facing titles and descriptions", () => {
   });
 
   it("categoryLine names the category plainly", () => {
-    expect(marketingSeo.categoryLine.toLowerCase()).toContain("academic conferences");
+    expect(marketingSeo.categoryLine).toBe("Calm event software for conferences and PD days in education.");
     expect(marketingSeo.categoryLine.startsWith(brand.productName)).toBe(false);
   });
 
@@ -66,7 +66,7 @@ describe("comparison pages (E27) — the two 'alternative' queries", () => {
 
   it("descriptions lead with the category query, within the snippet budget", () => {
     for (const { page, competitor } of cases) {
-      expect(page.description.startsWith(`${competitor} alternative for academic conferences`)).toBe(true);
+      expect(page.description.startsWith(`${competitor} alternative for conferences and PD days`)).toBe(true);
       expect(page.description.length).toBeLessThanOrEqual(170);
     }
   });

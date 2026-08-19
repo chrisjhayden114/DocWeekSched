@@ -108,8 +108,8 @@ export default function CompareWhovaPage() {
             <h2>Honest reasons to pick Whova instead</h2>
             <ul>
               <li>
-                You need <strong>exhibitor and sponsor tooling</strong> — booths, lead retrieval —
-                today.
+                You need <strong>full exhibitor booths</strong> — a dedicated hall, not just sponsor
+                pages and lead capture — today.
               </li>
               <li>
                 Your submission pipeline is <strong>HotCRP/OpenReview</strong> and that import
