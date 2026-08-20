@@ -8,7 +8,14 @@ import type { EventAccess } from "../../authorization";
 export function sessionVisibilityWhere(
   access: EventAccess,
 ): Prisma.SessionWhereInput {
-  if (access.canManageEvent) {
+  return sessionVisibilityWhereFor(access.canManageEvent);
+}
+
+/** Same rule for callers that only carry the resolved manage flag, not the EventAccess. */
+export function sessionVisibilityWhereFor(
+  canManageEvent: boolean,
+): Prisma.SessionWhereInput {
+  if (canManageEvent) {
     return {};
   }
   return {

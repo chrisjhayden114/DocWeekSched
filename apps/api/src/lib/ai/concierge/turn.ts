@@ -57,10 +57,15 @@ export async function runConciergeTurn(params: {
   organizationId: string;
   userId: string;
   userMessage: string;
+  /** From requireEventAccess — managers keep the DRAFT sessions they can already see. */
+  canManageEvent?: boolean;
 }): Promise<ConciergeTurnResponse> {
   const { eventId, organizationId, userId, userMessage } = params;
   const conversation = await getOrCreateConversation(eventId, userId);
-  const grounding = await buildEventGroundingContext(eventId, { userId });
+  const grounding = await buildEventGroundingContext(eventId, {
+    userId,
+    canManageEvent: params.canManageEvent,
+  });
   const now = new Date();
 
   // History window BEFORE persisting this turn's user message.

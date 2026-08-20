@@ -5,6 +5,7 @@ import {
   EventStatus,
   OrgRole,
   PrismaClient,
+  SessionPublishStatus,
 } from "@prisma/client";
 import { hashPassword } from "../lib/auth";
 import { MockAiProvider, resetAiProviderForTests } from "../lib/ai";
@@ -18,7 +19,7 @@ import {
   runConciergeTurn,
   saveAssistantStarters,
 } from "../lib/ai/concierge";
-import { buildEventGroundingContext } from "../lib/ai/grounding";
+import { assertGroundedIds, buildEventGroundingContext } from "../lib/ai/grounding";
 import { applyPlanSkuToOrg } from "../lib/billing/entitlements";
 import { HttpError } from "../lib/authorization";
 
@@ -31,6 +32,7 @@ describe("Concierge (DB)", () => {
     userId?: string;
     userBId?: string;
     sessionId?: string;
+    draftSessionId?: string;
   } = {};
 
   beforeAll(async () => {
@@ -116,6 +118,17 @@ describe("Concierge (DB)", () => {
     });
     ids.sessionId = session.id;
 
+    const draft = await prisma.session.create({
+      data: {
+        eventId: event.id,
+        title: "Unannounced Restructure Briefing",
+        startsAt: new Date("2027-06-02T17:00:00Z"),
+        endsAt: new Date("2027-06-02T18:00:00Z"),
+        publishStatus: SessionPublishStatus.DRAFT,
+      },
+    });
+    ids.draftSessionId = draft.id;
+
     await prisma.eventFaq.create({
       data: {
         eventId: event.id,
@@ -141,6 +154,30 @@ describe("Concierge (DB)", () => {
       userId: ids.userId!,
     });
     expect(dialogue.mutationProposals).toHaveLength(0);
+  });
+
+  // GROUND-1 — the corpus is scoped like the attendee agenda, so an unpublished
+  // session is invisible to the assistant even though it lives on the event.
+  it("grounding omits DRAFT sessions for attendees and keeps them for managers", async () => {
+    const attendee = await buildEventGroundingContext(ids.eventId!, { userId: ids.userBId! });
+    expect(attendee.textBlob).toContain("Leadership Lab");
+    expect(attendee.textBlob).not.toContain("Unannounced Restructure Briefing");
+    expect(attendee.sessionIds.has(ids.sessionId!)).toBe(true);
+    expect(attendee.sessionIds.has(ids.draftSessionId!)).toBe(false);
+    expect(attendee.sessions.map((s) => s.title)).not.toContain("Unannounced Restructure Briefing");
+
+    // Out of the corpus means out of reach for mutations too.
+    expect(() => assertGroundedIds(attendee, { sessionIds: [ids.draftSessionId!] })).toThrow(
+      /Foreign sessionId/,
+    );
+
+    // Organizer-side grounding is unchanged — managers still see their drafts.
+    const manager = await buildEventGroundingContext(ids.eventId!, {
+      userId: ids.userId!,
+      canManageEvent: true,
+    });
+    expect(manager.sessionIds.has(ids.draftSessionId!)).toBe(true);
+    expect(manager.textBlob).toContain("Unannounced Restructure Briefing");
   });
 
   it("every mutation mints a pending action; confirm requires matching session user/event", async () => {

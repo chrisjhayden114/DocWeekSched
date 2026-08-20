@@ -110,7 +110,7 @@ conciergeRouter.post(
     if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const event = await resolveEventFromRequest(req);
-    await requireEventAccess(req.user!.id, event.id);
+    const access = await requireEventAccess(req.user!.id, event.id);
     await requireFeature(event.id, "concierge");
 
     const result = await runConciergeTurn({
@@ -118,6 +118,7 @@ conciergeRouter.post(
       organizationId: event.organizationId,
       userId: req.user!.id,
       userMessage: parsed.data.message,
+      canManageEvent: access.canManageEvent,
     });
 
     if (result.teaser) {
@@ -149,7 +150,7 @@ conciergeRouter.post(
     if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
 
     const event = await resolveEventFromRequest(req);
-    await requireEventAccess(req.user!.id, event.id);
+    const access = await requireEventAccess(req.user!.id, event.id);
     await requireFeature(event.id, "concierge");
 
     // userId + eventId from server session only — body may only carry the pendingActionId
@@ -157,6 +158,7 @@ conciergeRouter.post(
       pendingActionId: parsed.data.pendingActionId,
       userId: req.user!.id,
       eventId: event.id,
+      canManageEvent: access.canManageEvent,
     });
 
     return res.json({

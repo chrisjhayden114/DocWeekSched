@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { sessionVisibilityWhereFor } from "./ingest/visibility";
 import type { GroundingContext } from "./types";
 
 export class GroundingError extends Error {
@@ -12,10 +13,16 @@ export class GroundingError extends Error {
  * Assemble grounding for ONE event. eventId must come from the server session —
  * never from model output.
  * Optional userId adds that attendee's agenda only (still never from the model).
+ *
+ * Sessions are scoped with the same rule the attendee agenda endpoints use
+ * (sessionVisibilityWhere), so DRAFT sessions never reach the corpus — and
+ * therefore never reach the model, the grounded id sets, or linkify anchors.
+ * canManageEvent must come from requireEventAccess; it defaults to false so a
+ * caller that forgets it gets the attendee-safe corpus.
  */
 export async function buildEventGroundingContext(
   eventId: string,
-  opts?: { userId?: string | null },
+  opts?: { userId?: string | null; canManageEvent?: boolean },
 ): Promise<GroundingContext> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -28,6 +35,7 @@ export async function buildEventGroundingContext(
       description: true,
       organizationId: true,
       sessions: {
+        where: sessionVisibilityWhereFor(opts?.canManageEvent ?? false),
         select: {
           id: true,
           title: true,

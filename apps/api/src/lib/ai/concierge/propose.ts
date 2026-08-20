@@ -41,6 +41,8 @@ export async function confirmPendingAction(params: {
   userId: string;
   /** From resolveEventFromRequest / access check — not from the model. */
   eventId: string;
+  /** From requireEventAccess — not from the model. */
+  canManageEvent?: boolean;
 }) {
   const row = await prisma.conciergePendingAction.findUnique({
     where: { id: params.pendingActionId },
@@ -66,7 +68,10 @@ export async function confirmPendingAction(params: {
     throw new HttpError(410, { error: "This action expired — ask Concierge again" });
   }
 
-  const grounding = await buildEventGroundingContext(params.eventId, { userId: params.userId });
+  const grounding = await buildEventGroundingContext(params.eventId, {
+    userId: params.userId,
+    canManageEvent: params.canManageEvent,
+  });
   const result = await executeMutatingTool({
     tool: row.tool as ConciergeToolName,
     args: (row.args && typeof row.args === "object" ? row.args : {}) as ToolArgs,
