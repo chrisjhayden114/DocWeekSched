@@ -28,12 +28,12 @@ describe("sessionCsv", () => {
       rows: parsed.rows,
       mapping,
       tracks: [
-        { id: "t1", name: "Plenary" },
-        { id: "t2", name: "Research" },
+        { id: "t1", name: "Keynote" },
+        { id: "t2", name: "Workshops" },
       ],
       rooms: [
         { id: "r1", name: "Hall A" },
-        { id: "r2", name: "Room 214" },
+        { id: "r2", name: "Room 12" },
       ],
       event,
     });

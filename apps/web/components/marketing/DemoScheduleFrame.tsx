@@ -8,31 +8,31 @@ import { brand } from "@event-app/config";
 const ROWS = [
   {
     time: "9:00 AM",
-    title: "Opening plenary",
-    meta: "9:00–10:00 AM · Hall A · Plenary",
+    title: "Opening keynote: Designing calm learning days",
+    meta: "9:00–10:00 AM · Hall A · Keynote",
     track: "var(--track-1)",
     papers: 0,
   },
   {
     time: "10:30 AM",
-    title: "Paper session: Research design",
-    meta: "10:30–12:00 · Room 214 · Research",
+    title: "Workshop block A: Reading conferences",
+    meta: "10:30–12:00 · Room 12 · Workshops",
     track: "var(--track-2)",
-    papers: 3,
+    papers: 0,
   },
   {
     time: "10:30 AM",
-    title: "Practice workshop",
-    meta: "10:30–12:00 · Room 108 · Practice",
+    title: "Workshop block A: Small-group math routines",
+    meta: "10:30–12:00 · Room 14 · Workshops",
     track: "var(--track-3)",
     papers: 0,
   },
   {
-    time: "1:30 PM",
-    title: "Poster session & coffee",
-    meta: "1:30–3:00 PM · Gallery · Posters",
+    time: "1:00 PM",
+    title: "Practice showcase: What worked this year",
+    meta: "1:00–2:30 PM · Library · Practice",
     track: "var(--track-4)",
-    papers: 12,
+    papers: 2,
   },
 ] as const;
 

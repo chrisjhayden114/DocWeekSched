@@ -34,8 +34,8 @@ export const SESSION_CSV_MAPPING_OPTIONS: { value: string; label: string }[] = [
 export function sessionCsvTemplate(): string {
   return [
     "title,start,end,track,room,speakers,description",
-    '"Opening keynote",2026-09-14 09:00,2026-09-14 10:00,Plenary,Hall A,"Dr. Maya Chen","Welcome and opening address"',
-    '"Paper session: Mentoring networks",2026-09-14 10:30,2026-09-14 12:00,Research,Room 214,"Jonas Okonkwo, Elena Ruiz",',
+    '"Opening keynote: Designing calm learning days",2026-09-14 09:00,2026-09-14 10:00,Keynote,Hall A,"Jordan Lee","Welcome and the year ahead"',
+    '"Workshop block A: Reading conferences",2026-09-14 10:30,2026-09-14 12:00,Workshops,Room 12,"Priya Raman, Sam Whitfield",',
     "",
   ].join("\n");
 }
