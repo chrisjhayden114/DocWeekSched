@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:help": "node scripts/gen-help-content.mjs"
   },
   "dependencies": {
     "@event-app/config": "*",

@@ -23,10 +23,20 @@ function loadArticles() {
 }
 
 describe("Phase 6 /help seed (unit)", () => {
-  it("ships getting-started, attendee-faq, and contact markdown", () => {
+  it("ships the seed articles (the set grows; these three must not disappear)", () => {
+    const slugs = loadArticles().map((a) => a.slug);
+    for (const seed of ["attendee-faq", "contact", "getting-started"]) {
+      expect(slugs).toContain(seed);
+    }
+  });
+
+  it("gives every article a title and a description", () => {
     const articles = loadArticles();
-    const slugs = articles.map((a) => a.slug).sort();
-    expect(slugs).toEqual(["attendee-faq", "contact", "getting-started"]);
+    expect(articles.length).toBeGreaterThan(0);
+    for (const a of articles) {
+      expect(a.title, `${a.slug} title`).not.toBe(a.slug);
+      expect(a.raw, `${a.slug} description`).toMatch(/^description:\s*\S/m);
+    }
   });
 
   it("contact article uses config support email token", () => {
