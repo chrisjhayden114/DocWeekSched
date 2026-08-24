@@ -84,6 +84,11 @@ const CORE_ATTENDEE_FEATURES: Partial<Record<EntitlementKey, boolean>> = {
   ops_agent: false,
   recap_agent: false,
   certificates: false,
+  // PAY-T0: granted on every tier, free included. This feature moves no money
+  // — it only lets an organizer publish their own payment link and record who
+  // paid. Charging for the ability to say "here's how to pay" would be a
+  // gate on honesty, not on value.
+  paid_attendance: true,
   badges: false,
   ai_ingest: true,
   ai_full_suite: false,

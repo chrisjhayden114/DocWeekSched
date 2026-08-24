@@ -44,6 +44,7 @@ export type FeatureKey =
   | "ops_agent"
   | "recap_agent"
   | "certificates"
+  | "paid_attendance"
   | "readiness";
 
 export type FeatureOverrideValue = boolean | "daily" | "weekly" | "interrupts_only";
@@ -292,6 +293,18 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     plainDescription: "Post-event certificate download for eligible attendees (organizer templates + batch issue).",
     category: "engagement",
     defaultOn: true,
+  },
+  {
+    // PAY-T0 (DESIGN_PHASE_J §Paid attendance). No plannedPhase: this is a
+    // normal organizer toggle. There is no payment processing behind it — the
+    // platform is never the merchant of record for attendee money — so off
+    // means the fee notice and the roster's Payment column simply do not exist.
+    key: "paid_attendance",
+    name: "Registration fees",
+    plainDescription:
+      "Track registration fees — show attendees how to pay (card link, PO, or check) and track who has paid. Payments happen on your own link or process; we never process, hold, or handle the money.",
+    category: "engagement",
+    defaultOn: false,
   },
   {
     // Event Readiness (ER1). plannedPhase keeps this off the organizer

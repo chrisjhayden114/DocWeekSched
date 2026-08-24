@@ -1,4 +1,5 @@
 import { brand } from "@event-app/config";
+import type { FeeNotice as FeeNoticeData } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import type { GetServerSideProps } from "next";
@@ -6,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../../components/AgendaFilterPanel";
 import { BrandLogo } from "../../components/BrandLogo";
 import { EventHero } from "../../components/EventHero";
+import { FeeNotice } from "../../components/FeeNotice";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../../components/ScheduleViewSwitcher";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../../components/ScheduleTimetable";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
@@ -35,6 +37,12 @@ export type PublicEventView = {
   venueAddress: string | null;
   organizationName?: string | null;
   showPoweredByBadge: boolean;
+  /**
+   * PAY-T0 — the organizer's registration fee, or null when the feature is off
+   * (or on with nothing filled in). Informational: there is no payment gate,
+   * and no attendee's payment status is ever public.
+   */
+  payment?: FeeNoticeData | null;
   sessions: Array<{
     id: string;
     title: string;
@@ -727,6 +735,15 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
                 <p className="text-body" style={{ whiteSpace: "pre-wrap", maxWidth: 720 }}>
                   {event.description}
                 </p>
+              ) : null}
+
+              {/* PAY-T0 — a calm notice above the join button, never a gate:
+                  joining works exactly as it did whether or not they pay
+                  first. */}
+              {event.payment ? (
+                <div style={{ margin: "16px 0 0", maxWidth: 560 }}>
+                  <FeeNotice payment={event.payment} />
+                </div>
               ) : null}
 
               <p style={{ margin: "16px 0 24px" }}>

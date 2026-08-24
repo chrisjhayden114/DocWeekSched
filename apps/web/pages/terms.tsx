@@ -14,6 +14,7 @@ const TOC = [
   { id: "service", label: "The service" },
   { id: "accounts", label: "Accounts and organizers" },
   { id: "billing", label: "Plans and billing" },
+  { id: "attendee-payments", label: "Attendee payments" },
   { id: "support", label: "Support hours" },
   { id: "acceptable-use", label: "Acceptable use and AI" },
   { id: "data", label: "Data and privacy" },
@@ -89,7 +90,18 @@ export default function TermsPage() {
               silently fail critical actions.
             </p>
 
-            <h2 id="support">5. Support hours and event-day policy</h2>
+            <h2 id="attendee-payments">5. Attendee payments</h2>
+            <p>
+              Organizers may charge attendees a registration fee and may collect it using their own
+              payment processes — their own card checkout link, purchase orders, invoices, or
+              checks. Where an event records fees in {brand.productName}, the price, payment link,
+              and payment instructions are the organizer&apos;s content, and payment status is the
+              organizer&apos;s record. {brand.legalEntity} does not process, hold, refund, or
+              guarantee attendee payments and is not a party to those transactions; any question,
+              dispute, or refund about a registration fee is between the attendee and the organizer.
+            </p>
+
+            <h2 id="support">6. Support hours and event-day policy</h2>
             <p>
               <strong>Support hours:</strong> {brand.supportHours}
             </p>
@@ -99,27 +111,27 @@ export default function TermsPage() {
               (read-only degradation when available). For live incidents, email {brand.supportEmail}.
             </p>
 
-            <h2 id="acceptable-use">6. Acceptable use and AI features</h2>
+            <h2 id="acceptable-use">7. Acceptable use and AI features</h2>
             <p>
               AI features draft content for your review. You remain responsible for what you publish or send.
               Do not use the service to spam attendees, scrape personal data, or circumvent security or plan
               limits.
             </p>
 
-            <h2 id="data">7. Data, privacy, and roles</h2>
+            <h2 id="data">8. Data, privacy, and roles</h2>
             <p>
               Our <Link href="/privacy">Privacy Policy</Link> describes how we process personal data. For
               attendee data inside an event, the organizer is typically the controller and{" "}
               {brand.legalEntity} is the processor — see the privacy policy for details.
             </p>
 
-            <h2 id="ip">8. Intellectual property</h2>
+            <h2 id="ip">9. Intellectual property</h2>
             <p>
               We own {brand.productName} and its software. You retain rights to content you upload. You grant
               us a limited license to host and process that content solely to operate the service.
             </p>
 
-            <h2 id="liability">9. Disclaimers and limitation of liability</h2>
+            <h2 id="liability">10. Disclaimers and limitation of liability</h2>
             <p>
               The service is provided &quot;as is&quot; to the extent permitted by law. We do not warrant
               uninterrupted or error-free operation. To the maximum extent permitted by law, our aggregate
@@ -127,20 +139,20 @@ export default function TermsPage() {
               twelve months before the claim (or USD $100 if you are on a free plan).
             </p>
 
-            <h2 id="termination">10. Termination</h2>
+            <h2 id="termination">11. Termination</h2>
             <p>
               You may stop using the service at any time. We may suspend or terminate accounts that breach
               these Terms or create risk to the service or other users. Export and deletion rights are
               described in the Privacy Policy and in-product account tools.
             </p>
 
-            <h2 id="changes">11. Changes</h2>
+            <h2 id="changes">12. Changes</h2>
             <p>
               We may update these Terms. Material changes will be posted on this page with an updated date.
               Continued use after the effective date constitutes acceptance.
             </p>
 
-            <h2 id="contact">12. Contact</h2>
+            <h2 id="contact">13. Contact</h2>
             <p>
               {brand.legalEntity}
               <br />

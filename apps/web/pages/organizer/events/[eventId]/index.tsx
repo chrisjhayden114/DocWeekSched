@@ -1,5 +1,10 @@
 import { brand, overviewCopy } from "@event-app/config";
-import { ASSISTANT_COPY } from "@event-app/shared";
+import {
+  ASSISTANT_COPY,
+  PAYMENT_REFERENCE_MAX_CHARS,
+  paidMarkSummaryLine,
+  paymentStatusSelectOptions,
+} from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -20,7 +25,9 @@ import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListS
 import { StatusChip } from "../../../../components/StatusChip";
 import { PageHeader, StatCard } from "../../../../components/kit";
 import { EventSettingsSlideOver } from "../../../../components/organizer/EventSettingsSlideOver";
+import { MarkPaidCsvCard } from "../../../../components/organizer/MarkPaidCsvCard";
 import { ParticipantLabelsEditor } from "../../../../components/organizer/ParticipantLabelsEditor";
+import { RegistrationFeeCard } from "../../../../components/organizer/RegistrationFeeCard";
 import { Select } from "../../../../components/Select";
 import { participantLabelSelectOptions, shouldShowParticipantLabelSelect } from "../../../../lib/participantLabels";
 import { ReadinessTab } from "../../../../components/organizer/ReadinessTab";
@@ -63,6 +70,10 @@ type EventDetail = {
   organizationId: string;
   seriesId?: string | null;
   participantLabels?: string[];
+  /** PAY-T0 — absent from the payload entirely while the feature is off. */
+  paymentPriceText?: string | null;
+  paymentUrl?: string | null;
+  paymentInstructions?: string | null;
 };
 
 type Speaker = { id: string; name: string; title?: string | null; affiliation?: string | null };
@@ -75,6 +86,12 @@ type ParticipantRow = {
   eventRole?: "ADMIN" | "ATTENDEE" | string;
   inviteStatus?: InviteStatus;
   participantLabel?: string | null;
+  /**
+   * PAY-T0 — organizer-only, and only present when paid_attendance is on for
+   * this event. null status = this event never tracked a fee for this person.
+   */
+  paymentStatus?: string | null;
+  paymentReference?: string | null;
 };
 
 type RosterAction = { kind: "make-admin" | "remove-admin" | "remove"; row: ParticipantRow };
@@ -297,6 +314,13 @@ export default function OrganizerEventPage() {
   const [rosterSelected, setRosterSelected] = useState<Record<string, boolean>>({});
   const [inviteRunBusy, setInviteRunBusy] = useState(false);
   const [inviteRun, setInviteRun] = useState<SendInvitesResult | null>(null);
+  // PAY-T0 — resolved server-side (plan AND organizer override), same as
+  // readiness: overrides alone are not the answer.
+  const [paidAttendanceEnabled, setPaidAttendanceEnabled] = useState(false);
+  const [payRunBusy, setPayRunBusy] = useState(false);
+  const [payRun, setPayRun] = useState<string | null>(null);
+  /** Reference edits are debounce-free: they save on blur, not per keystroke. */
+  const [referenceDrafts, setReferenceDrafts] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
@@ -325,6 +349,9 @@ export default function OrganizerEventPage() {
     // aren't enough (readiness needs the entitlement AND the override).
     setReadinessEnabled(
       Boolean(feats.features?.find((f) => f.key === "readiness")?.enabled),
+    );
+    setPaidAttendanceEnabled(
+      Boolean(feats.features?.find((f) => f.key === "paid_attendance")?.enabled),
     );
     setFeaturesDirty(false);
     setRegisteredCount(attendeeRows ? attendeeRows.length : null);
@@ -358,6 +385,89 @@ export default function OrganizerEventPage() {
       }
     },
     [eventId],
+  );
+
+  /**
+   * PAY-T0 — one member's payment status or reference. Status and reference
+   * share a route so a status change never silently drops the PO number
+   * beside it.
+   */
+  const setMemberPayment = useCallback(
+    async (
+      userId: string,
+      next: { paymentStatus: string | null; paymentReference?: string | null },
+    ) => {
+      if (!eventId) return;
+      setRosterError(null);
+      try {
+        const saved = await organizerFetch<{
+          paymentStatus: string | null;
+          paymentReference: string | null;
+        }>(`/attendees/${userId}/payment`, eventId, {
+          method: "PUT",
+          body: JSON.stringify(next),
+        });
+        setRoster((prev) =>
+          prev
+            ? prev.map((row) =>
+                row.id === userId
+                  ? {
+                      ...row,
+                      paymentStatus: saved.paymentStatus,
+                      paymentReference: saved.paymentReference,
+                    }
+                  : row,
+              )
+            : prev,
+        );
+        setReferenceDrafts((prev) => {
+          const rest = { ...prev };
+          delete rest[userId];
+          return rest;
+        });
+      } catch (err) {
+        setRosterError(err instanceof Error ? err.message : "Could not update payment");
+      }
+    },
+    [eventId],
+  );
+
+  /** PAY-T0 — the bulk bar's "Mark paid". Reports what actually changed. */
+  const markSelectedPaid = useCallback(
+    async (userIds: string[]) => {
+      if (!eventId || userIds.length === 0) return;
+      setPayRunBusy(true);
+      setRosterError(null);
+      setPayRun(null);
+      try {
+        const res = await organizerFetch<{
+          updatedCount: number;
+          unchangedCount: number;
+          notOnRoster: string[];
+        }>("/attendees/payment-bulk", eventId, {
+          method: "POST",
+          body: JSON.stringify({
+            paymentStatus: "PAID",
+            source: "roster_bulk",
+            members: userIds.map((userId) => ({ userId })),
+          }),
+        });
+        setPayRun(
+          paidMarkSummaryLine({
+            updatedCount: res.updatedCount,
+            unchangedCount: res.unchangedCount,
+            notOnRosterCount: res.notOnRoster.length,
+          }),
+        );
+        setRosterSelected({});
+        await refreshRoster().catch(() => undefined);
+      } catch (err) {
+        setRosterError(err instanceof Error ? err.message : "Could not mark these people as paid");
+      } finally {
+        setPayRunBusy(false);
+      }
+    },
+    [eventId, refreshRoster],
   );
 
   useEffect(() => {
@@ -1062,6 +1172,23 @@ export default function OrganizerEventPage() {
               onImported={() => refreshRoster().catch(() => undefined)}
             />
 
+            {/* PAY-T0 — off by default, so this whole section is absent
+                unless the organizer turned Registration fees on. */}
+            {event && paidAttendanceEnabled ? (
+              <RegistrationFeeCard
+                eventId={eventId}
+                event={event}
+                onSaved={(next) => setEvent((prev) => (prev ? { ...prev, ...next } : prev))}
+              />
+            ) : null}
+
+            {paidAttendanceEnabled ? (
+              <MarkPaidCsvCard
+                eventId={eventId}
+                onMarked={() => refreshRoster().catch(() => undefined)}
+              />
+            ) : null}
+
             {event ? (
               <ParticipantLabelsEditor
                 eventId={eventId}
@@ -1085,6 +1212,13 @@ export default function OrganizerEventPage() {
                 check-in code. Anyone marked <em>Not invited</em> is on the roster but hasn&apos;t
                 been emailed; you can invite them whenever you&apos;re ready.
               </p>
+              {paidAttendanceEnabled ? (
+                <p className="help-text" style={{ marginTop: 0 }}>
+                  <strong>Payment</strong> is yours to record: set a status when money (or a PO)
+                  arrives, and add the PO or check number beside it. Attendees never see anyone
+                  else&apos;s payment status — not even their own.
+                </p>
+              ) : null}
               {inviteRun ? (
                 <div role="status" style={{ marginBottom: 12 }}>
                   <p style={{ color: "var(--success)", margin: 0 }}>{inviteRun.summary}</p>
@@ -1113,6 +1247,11 @@ export default function OrganizerEventPage() {
                     </ul>
                   ) : null}
                 </div>
+              ) : null}
+              {payRun ? (
+                <p role="status" style={{ color: "var(--success)", marginTop: 0 }}>
+                  {payRun}
+                </p>
               ) : null}
               {rosterError ? (
                 <p role="alert" style={{ color: "var(--danger)", marginTop: 0 }}>
@@ -1183,6 +1322,17 @@ export default function OrganizerEventPage() {
                           >
                             {inviteRunBusy ? "Sending…" : "Send invites"}
                           </button>
+                          {/* PAY-T0 — records a payment you already received. */}
+                          {paidAttendanceEnabled ? (
+                            <button
+                              type="button"
+                              className="button secondary"
+                              disabled={payRunBusy}
+                              onClick={() => void markSelectedPaid(selectedIds)}
+                            >
+                              {payRunBusy ? "Marking…" : "Mark paid"}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="button secondary"
@@ -1220,6 +1370,7 @@ export default function OrganizerEventPage() {
                               {shouldShowParticipantLabelSelect(event?.participantLabels) ? (
                                 <th>Label</th>
                               ) : null}
+                              {paidAttendanceEnabled ? <th>Payment</th> : null}
                               <th aria-label="Actions" />
                             </tr>
                           </thead>
@@ -1262,6 +1413,51 @@ export default function OrganizerEventPage() {
                                       onChange={(v) => void setMemberLabel(p.id, v || null)}
                                       options={participantLabelSelectOptions(event?.participantLabels ?? [])}
                                     />
+                                  </td>
+                                ) : null}
+                                {/* PAY-T0 — status, then the PO / check number
+                                    it refers to. The reference only appears
+                                    once a status is set, because a reference
+                                    with no status describes nothing. */}
+                                {paidAttendanceEnabled ? (
+                                  <td>
+                                    <div style={{ display: "grid", gap: 6, minWidth: 160 }}>
+                                      <Select
+                                        aria-label={`Payment status for ${p.name}`}
+                                        value={p.paymentStatus || ""}
+                                        onChange={(v) =>
+                                          void setMemberPayment(p.id, { paymentStatus: v || null })
+                                        }
+                                        options={paymentStatusSelectOptions()}
+                                        className="select-compact"
+                                      />
+                                      {p.paymentStatus ? (
+                                        <input
+                                          className="input select-compact"
+                                          aria-label={`Payment reference for ${p.name}`}
+                                          placeholder="PO / check #"
+                                          maxLength={PAYMENT_REFERENCE_MAX_CHARS}
+                                          value={
+                                            referenceDrafts[p.id] ?? p.paymentReference ?? ""
+                                          }
+                                          onChange={(e) =>
+                                            setReferenceDrafts((prev) => ({
+                                              ...prev,
+                                              [p.id]: e.target.value,
+                                            }))
+                                          }
+                                          onBlur={() => {
+                                            const draft = referenceDrafts[p.id];
+                                            if (draft === undefined) return;
+                                            if (draft.trim() === (p.paymentReference ?? "")) return;
+                                            void setMemberPayment(p.id, {
+                                              paymentStatus: p.paymentStatus ?? null,
+                                              paymentReference: draft.trim() || null,
+                                            });
+                                          }}
+                                        />
+                                      ) : null}
+                                    </div>
                                   </td>
                                 ) : null}
                                 <td style={{ textAlign: "right" }}>

@@ -7,6 +7,7 @@ import {
   resolveFeatureEnabled,
   type FeatureKey,
   type FeatureOverrideValue,
+  type FeeNotice as FeeNoticeData,
 } from "@event-app/shared";
 import { CommunityPillIcon, MainNavIcon, type CommunityPillKey } from "../components/dashboardNavIcons";
 import { AppShell, type ShellNavGroup, type ShellNavItem } from "../components/AppShell";
@@ -398,6 +399,8 @@ export default function Dashboard() {
   const [welcomeMe, setWelcomeMe] = useState<{
     role: string;
     welcomeSeenAt: string | null;
+    /** PAY-T0 — feature-gated server-side; null when there is no fee. */
+    payment: FeeNoticeData | null;
   } | null>(null);
   const [welcomeMeResolved, setWelcomeMeResolved] = useState(false);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
@@ -678,10 +681,18 @@ export default function Dashboard() {
     }
     let cancelled = false;
     setWelcomeMeResolved(false);
-    apiFetch<{ role: string; welcomeSeenAt: string | null }>("/attendees/me", withEventHeaders(), token)
+    apiFetch<{ role: string; welcomeSeenAt: string | null; payment?: FeeNoticeData | null }>(
+      "/attendees/me",
+      withEventHeaders(),
+      token,
+    )
       .then((r) => {
         if (cancelled) return;
-        setWelcomeMe({ role: r.role, welcomeSeenAt: r.welcomeSeenAt ?? null });
+        setWelcomeMe({
+          role: r.role,
+          welcomeSeenAt: r.welcomeSeenAt ?? null,
+          payment: r.payment ?? null,
+        });
         setWelcomeMeResolved(true);
       })
       .catch(() => {
@@ -2283,6 +2294,7 @@ export default function Dashboard() {
           withEventHeaders={withEventHeaders}
           user={{ name: user.name, photoUrl: user.photoUrl, researchInterests: user.researchInterests }}
           participantLabels={event?.participantLabels ?? []}
+          payment={welcomeMe?.payment ?? null}
           onDone={() => {
             setWelcomeMe((prev) => (prev ? { ...prev, welcomeSeenAt: new Date().toISOString() } : prev));
             void refreshUser();

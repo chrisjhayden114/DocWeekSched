@@ -1,4 +1,6 @@
+import type { FeeNotice as FeeNoticeData } from "@event-app/shared";
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent } from "react";
+import { FeeNotice } from "./FeeNotice";
 import { Portal } from "./kit/Portal";
 import { initialsFor } from "./kit/kitHelpers";
 import { apiFetch } from "../lib/api";
@@ -13,6 +15,8 @@ export type WelcomeFlowProps = {
   withEventHeaders: (extra?: RequestInit) => RequestInit;
   user: { name: string; photoUrl?: string | null; researchInterests?: string | null };
   participantLabels?: string[];
+  /** PAY-T0 — the event's registration fee, or null when there isn't one. */
+  payment?: FeeNoticeData | null;
   onDone: () => void;
 };
 
@@ -27,6 +31,7 @@ export function WelcomeFlow({
   withEventHeaders,
   user,
   participantLabels = [],
+  payment = null,
   onDone,
 }: WelcomeFlowProps) {
   const titleId = useId();
@@ -172,6 +177,15 @@ export function WelcomeFlow({
               <span key={n} className={`welcome-flow-dot${n === step ? " is-active" : ""}`} aria-hidden />
             ))}
           </div>
+
+          {/* PAY-T0 — the fee sits outside the three steps on purpose: it is
+              something to know, not something to answer. Nothing here blocks
+              Skip or Finish. */}
+          {payment ? (
+            <div className="welcome-flow-body" style={{ paddingBottom: 0 }}>
+              <FeeNotice payment={payment} headingLevel="h3" />
+            </div>
+          ) : null}
 
           {step === 1 ? (
             <div className="welcome-flow-body">

@@ -12,7 +12,7 @@ import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { authRateLimit } from "../lib/rateLimit";
 import { randomBytes } from "crypto";
-import { requireFeature } from "../lib/features";
+import { featureEnabled, requireFeature } from "../lib/features";
 import { validationErrorBody } from "../lib/errors";
 import { deriveInviteStatus } from "../lib/inviteStatus";
 import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
@@ -21,6 +21,17 @@ import {
   parseParticipantLabels,
   setMembershipParticipantLabel,
 } from "../lib/participantLabels";
+import {
+  MARK_PAID_STATUS,
+  PAYMENT_REFERENCE_MAX_CHARS,
+  PAYMENT_STATUSES,
+  dryRunPaidCsv,
+  loadPaidCsvRoster,
+  setMembershipPayment,
+  setMembershipPaymentBulk,
+  validatePaymentWrite,
+} from "../lib/paidAttendance";
+import { hasFeeNotice, type FeeNotice } from "@event-app/shared";
 
 export const attendeesRouter = Router();
 
@@ -270,6 +281,11 @@ attendeesRouter.get(
       await requireFeature(event.id, "attendee_directory");
     }
     const { take, cursor } = parsePagination(req.query);
+    // PAY-T0: payment state is organizer-only. It is loaded for managers with
+    // the feature on and for nobody else — the attendee-directory branch below
+    // never sees the fields, so one attendee can't learn whether another paid.
+    const showPayment =
+      access.canManageEvent && (await featureEnabled(event.id, "paid_attendance"));
 
     let cursorMembershipId: string | undefined;
     if (cursor) {
@@ -344,6 +360,12 @@ attendeesRouter.get(
         directoryOptIn: m.directoryOptIn,
         inviteStatus,
         inviteExpiresAt: pending && expiresAt ? expiresAt.toISOString() : null,
+        ...(showPayment
+          ? {
+              paymentStatus: m.paymentStatus ?? null,
+              paymentReference: m.paymentReference ?? null,
+            }
+          : {}),
       };
     });
 
@@ -364,6 +386,23 @@ attendeesRouter.get(
     });
     if (!m) throw new HttpError(404, { error: "Not a member of this event" });
     const welcomeSeenAt = (m as { welcomeSeenAt?: Date | null }).welcomeSeenAt ?? null;
+    // PAY-T0: the attendee's own welcome surface gets the event's fee notice —
+    // price, the organizer's payment link, and their PO/check instructions.
+    // Their own paymentStatus is deliberately NOT here: this phase gates
+    // nothing on payment, so showing a status would only imply that it does.
+    let payment: FeeNotice | null = null;
+    if (await featureEnabled(event.id, "paid_attendance")) {
+      const row = await prisma.event.findUnique({
+        where: { id: event.id },
+        select: { paymentPriceText: true, paymentUrl: true, paymentInstructions: true },
+      });
+      const notice: FeeNotice = {
+        priceText: row?.paymentPriceText ?? null,
+        url: row?.paymentUrl ?? null,
+        instructions: row?.paymentInstructions ?? null,
+      };
+      if (hasFeeNotice(notice)) payment = notice;
+    }
     return res.json({
       directoryOptIn: m.directoryOptIn,
       matchMeEnabled: m.matchMeEnabled,
@@ -371,6 +410,7 @@ attendeesRouter.get(
       role: m.role,
       participantLabel: m.participantLabel ?? null,
       welcomeSeenAt: welcomeSeenAt ? welcomeSeenAt.toISOString() : null,
+      payment,
     });
   }),
 );
@@ -866,6 +906,115 @@ attendeesRouter.post(
       emailFallbackMessage: sentResults.some((r) => !r.emailDelivered)
         ? "Email delivery isn't set up — copy the invite links instead"
         : undefined,
+    });
+  }),
+);
+
+/* ------------------------------------------------------------------------- *
+ * PAY-T0 — payment status tracking. Every route here is manage-gated, gated
+ * on the paid_attendance feature (404 when off), and audited in the service
+ * layer. None of them move money: they record what the organizer collected
+ * through their own payment link or PO/check process.
+ * ------------------------------------------------------------------------- */
+
+const paymentSchema = z.object({
+  paymentStatus: z.string().max(20).nullable(),
+  paymentReference: z.string().max(PAYMENT_REFERENCE_MAX_CHARS).nullable().optional(),
+});
+
+/** Organizer set/override of one member's payment status at this event. */
+attendeesRouter.put(
+  "/:id/payment",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = paymentSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    await requireFeature(event.id, "paid_attendance");
+    const result = await setMembershipPayment({
+      eventId: event.id,
+      organizationId: event.organizationId,
+      userId: req.params.id,
+      actorUserId: req.user!.id,
+      write: validatePaymentWrite(parsed.data),
+    });
+    return res.json(result);
+  }),
+);
+
+const paymentBulkSchema = z.object({
+  paymentStatus: z.enum(PAYMENT_STATUSES),
+  members: z
+    .array(
+      z.object({
+        userId: z.string().min(1),
+        paymentReference: z.string().max(PAYMENT_REFERENCE_MAX_CHARS).nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(500),
+  /** Which surface started the run — recorded in the audit payload. */
+  source: z.enum(["roster_bulk", "csv_paid_list"]).optional(),
+});
+
+/** The roster bulk bar's "Mark paid" and the CSV paid-list confirm. */
+attendeesRouter.post(
+  "/payment-bulk",
+  requireAuth,
+  requireCsrf,
+  authRateLimit({ windowMs: 60_000, max: 10, keyBy: "user" }),
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = paymentBulkSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    await requireFeature(event.id, "paid_attendance");
+    const result = await setMembershipPaymentBulk({
+      eventId: event.id,
+      organizationId: event.organizationId,
+      actorUserId: req.user!.id,
+      status: parsed.data.paymentStatus,
+      members: parsed.data.members,
+      source: parsed.data.source ?? "roster_bulk",
+    });
+    return res.json({ ok: true, ...result });
+  }),
+);
+
+const paidDryRunSchema = z.object({
+  headers: z.array(z.string()).min(1),
+  rows: z.array(z.record(z.string())).max(500),
+  mapping: z.record(z.enum(["email", "reference", "skip"])).optional(),
+});
+
+/**
+ * "Mark paid from CSV", step one: match a paid list against the roster and
+ * report what a confirm would do — including every email that matched nobody.
+ * Writes nothing.
+ */
+attendeesRouter.post(
+  "/paid-dry-run",
+  requireAuth,
+  requireCsrf,
+  authRateLimit({ windowMs: 60_000, max: 10, keyBy: "user" }),
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = paidDryRunSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    await requireFeature(event.id, "paid_attendance");
+    const roster = await loadPaidCsvRoster(event.id);
+    return res.json({
+      ...dryRunPaidCsv({
+        headers: parsed.data.headers,
+        rows: parsed.data.rows,
+        mapping: parsed.data.mapping,
+        roster,
+      }),
+      /** What a confirm would set. Named so the UI never has to guess. */
+      marksAs: MARK_PAID_STATUS,
     });
   }),
 );

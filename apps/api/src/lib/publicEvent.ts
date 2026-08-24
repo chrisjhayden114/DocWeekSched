@@ -4,6 +4,7 @@
  */
 
 import { SessionPublishStatus, type EventStatus } from "@prisma/client";
+import { hasFeeNotice, type FeeNotice } from "@event-app/shared";
 import { can } from "./billing/entitlements";
 import { prisma } from "./db";
 import { featureEnabled } from "./features/featureEnabled";
@@ -27,6 +28,13 @@ export type PublicEventPayload = {
   /** Hosting organization name (name only — no other org fields). */
   organizationName: string;
   showPoweredByBadge: boolean;
+  /**
+   * PAY-T0: the organizer's own registration fee, or null when the
+   * paid_attendance feature is off for this event. Informational only — this
+   * phase adds no payment gate, and no attendee's payment status is ever
+   * public.
+   */
+  payment: FeeNotice | null;
   sessions: Array<{
     id: string;
     title: string;
@@ -94,6 +102,9 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
       venueName: true,
       venueAddress: true,
       onlineUrl: true,
+      paymentPriceText: true,
+      paymentUrl: true,
+      paymentInstructions: true,
       status: true,
       organizationId: true,
       organization: { select: { name: true } },
@@ -108,10 +119,21 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     return null;
   }
 
-  const [hideBadge, sponsorsOn] = await Promise.all([
+  const [hideBadge, sponsorsOn, paidAttendanceOn] = await Promise.all([
     can(event.organizationId, "hide_powered_by_badge"),
     featureEnabled(event.id, "sponsors"),
+    featureEnabled(event.id, "paid_attendance"),
   ]);
+
+  // PAY-T0: with the feature off, the fee columns never reach the public
+  // payload at all — and with it on but nothing filled in, `payment` stays
+  // null so the page renders no empty "how to pay" box.
+  const feeNotice: FeeNotice = {
+    priceText: event.paymentPriceText,
+    url: event.paymentUrl,
+    instructions: event.paymentInstructions,
+  };
+  const payment = paidAttendanceOn && hasFeeNotice(feeNotice) ? feeNotice : null;
 
   const [sessions, speakers, sponsors] = await Promise.all([
     prisma.session.findMany({
@@ -196,6 +218,7 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     onlineUrl: event.onlineUrl,
     organizationName: event.organization.name,
     showPoweredByBadge: !hideBadge,
+    payment,
     sessions: sessions.map((s) => ({
       id: s.id,
       title: s.title,

@@ -23,6 +23,13 @@ import { revokePortalAccessForEvent } from "../lib/readiness/portal";
 import { brandColorField } from "../lib/brandColor";
 import { patchFields, trimmedOrNull } from "../lib/patchFields";
 import { saveEventParticipantLabels, toEventClient } from "../lib/participantLabels";
+import {
+  PAYMENT_INSTRUCTIONS_MAX_CHARS,
+  PAYMENT_PRICE_TEXT_MAX_CHARS,
+  paymentUrlField,
+  stripEventPaymentFields,
+} from "../lib/paidAttendance";
+import { featureEnabled, requireFeature } from "../lib/features";
 
 export const eventRouter = Router();
 
@@ -43,7 +50,29 @@ const EVENT_PATCH_FIELDS = [
   "brandColor",
   "bannerUrl",
   "logoUrl",
+  // PAY-T0: same patch contract. paymentUrl arrives validated (or nulled) from
+  // paymentUrlField and is handled separately below.
+  "paymentPriceText",
+  "paymentInstructions",
 ] as const;
+
+/** PAY-T0 — the payment fields, for the feature gate on writes. */
+const EVENT_PAYMENT_PATCH_KEYS = [
+  "paymentPriceText",
+  "paymentUrl",
+  "paymentInstructions",
+] as const;
+
+/**
+ * PAY-T0 — the fee columns exist on the row for every event, so the payload is
+ * where "off means off" is enforced: with the feature off, an event payload
+ * carries no payment fields at all rather than nulls that a future UI might
+ * start reading.
+ */
+async function withPaymentVisibility<T extends object>(client: T, eventId: string) {
+  const on = await featureEnabled(eventId, "paid_attendance");
+  return on ? client : stripEventPaymentFields(client);
+}
 
 const slugField = z
   .string()
@@ -68,6 +97,11 @@ const eventSchema = z.object({
   organizationId: z.string().optional(),
   // PART-1 — patch-shaped: absent = untouched, null/[] = cleared.
   participantLabels: z.array(z.string()).nullable().optional(),
+  // PAY-T0 — the organizer's own registration fee. Writing any of these needs
+  // the paid_attendance feature to be on for this event.
+  paymentPriceText: z.string().max(PAYMENT_PRICE_TEXT_MAX_CHARS).optional().nullable(),
+  paymentUrl: paymentUrlField,
+  paymentInstructions: z.string().max(PAYMENT_INSTRUCTIONS_MAX_CHARS).optional().nullable(),
 });
 
 const publicEventSelect = {
@@ -193,7 +227,7 @@ eventRouter.get(
     const { can } = await import("../lib/billing");
     const hideBadge = await can(event.organizationId, "hide_powered_by_badge");
     return res.json({
-      ...toEventClient(event),
+      ...(await withPaymentVisibility(toEventClient(event), event.id)),
       uiStatus: uiEventStatus(event),
       showPoweredByBadge: !hideBadge,
     });
@@ -325,6 +359,15 @@ eventRouter.put(
     const event = await resolveEventFromRequest(req);
     await requireEventAccess(req.user!.id, event.id, { manage: true });
 
+    // PAY-T0: the fee fields only exist behind the feature. A save that omits
+    // them (every other settings surface) is untouched by this gate.
+    const paymentKeysSent = EVENT_PAYMENT_PATCH_KEYS.filter(
+      (key) => parsed.data[key] !== undefined,
+    );
+    if (paymentKeysSent.length > 0) {
+      await requireFeature(event.id, "paid_attendance");
+    }
+
     let slug = event.slug;
     if (parsed.data.slug !== undefined) {
       const next = parsed.data.slug.trim().toLowerCase();
@@ -337,11 +380,33 @@ eventRouter.put(
         name: parsed.data.name,
         slug,
         ...patchFields(parsed.data, EVENT_PATCH_FIELDS),
+        // paymentUrl is already validated http(s) or null from paymentUrlField,
+        // so it bypasses patchFields' string trimming but keeps its contract.
+        ...(parsed.data.paymentUrl === undefined ? {} : { paymentUrl: parsed.data.paymentUrl }),
         timezone: parsed.data.timezone,
         startDate: new Date(parsed.data.startDate),
         endDate: new Date(parsed.data.endDate),
       },
     });
+
+    if (paymentKeysSent.length > 0) {
+      const { writeAuditLog } = await import("../lib/ai/audit");
+      await writeAuditLog({
+        organizationId: event.organizationId,
+        eventId: event.id,
+        actorUserId: req.user!.id,
+        action: "OTHER",
+        entityType: "Event",
+        entityId: event.id,
+        payload: {
+          action: "registration_fee_settings_saved",
+          fields: paymentKeysSent,
+          hasPriceText: Boolean(parsed.data.paymentPriceText),
+          hasPaymentUrl: Boolean(parsed.data.paymentUrl),
+          hasInstructions: Boolean(parsed.data.paymentInstructions),
+        },
+      });
+    }
 
     // PART-1 — same patch contract as the nullable text columns: absent =
     // untouched; explicit null or [] clears the list (and NULLs memberships
@@ -354,7 +419,10 @@ eventRouter.put(
     }
 
     const fresh = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
-    return res.json({ ...toEventClient(fresh), uiStatus: uiEventStatus(fresh) });
+    return res.json({
+      ...(await withPaymentVisibility(toEventClient(fresh), event.id)),
+      uiStatus: uiEventStatus(fresh),
+    });
   }),
 );
 

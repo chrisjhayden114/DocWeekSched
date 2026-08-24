@@ -471,6 +471,13 @@ model EventMembership {
   /// W-2: seat created by roster import with NO invite email. Cleared when an
   /// invite is sent. Null on pre-W-2 rows, which derive their status as before.
   addedWithoutInviteAt DateTime?
+  /// PAY-T0: UNPAID | PO_ON_FILE | PAID | WAIVED | REFUNDED, validated in
+  /// application code (packages/shared paidAttendance.ts) — deliberately not a
+  /// DB enum. Null means this event never tracked a fee for this person, which
+  /// is NOT the same as UNPAID. Organizer-only; never shown to other attendees.
+  paymentStatus String? @db.VarChar(20)
+  /// PAY-T0: organizer-typed PO / check / invoice number for the payment above.
+  paymentReference String? @db.VarChar(80)
 
   @@unique([eventId, userId])
   @@unique([eventId, checkInCode])
@@ -683,6 +690,13 @@ model Event {
   participantLabelsJson String?
   /// CHAT-2 — organizer-configured Event assistant starter questions (JSON string[], max 3 × 80 chars). null = defaults.
   assistantStartersJson String?
+  /// PAY-T0 — the organizer's own registration fee, shown to attendees when the
+  /// `paid_attendance` feature is on. Free text price (e.g. "$120 · $95
+  /// members"), an http(s) link to THEIR payment page, and PO/check
+  /// instructions. Nothing here is processed or held by this platform.
+  paymentPriceText     String?              @db.VarChar(120)
+  paymentUrl           String?
+  paymentInstructions  String?
   sessions             Session[]
   tracks               Track[]
   rooms                Room[]
