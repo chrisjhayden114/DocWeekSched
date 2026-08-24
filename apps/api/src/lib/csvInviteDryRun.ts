@@ -3,7 +3,7 @@
  * Pure logic — shared by API dry-run endpoint and unit tests; UI ReviewChangeset renders the result.
  */
 
-export type CsvColumnKey = "email" | "name" | "description" | "bio" | "photoUrl" | "skip";
+export type CsvColumnKey = "email" | "name" | "description" | "bio" | "photoUrl" | "label" | "skip";
 
 export type CsvColumnMapping = Record<string, CsvColumnKey>;
 
@@ -19,6 +19,8 @@ export type CsvRowChange =
       researchInterests?: string;
       bio?: string;
       photoUrl?: string;
+      /** W-2: validated against the event's participant labels. */
+      participantLabel?: string;
     }
   | { kind: "error"; rowIndex: number; message: string; raw?: Record<string, string> };
 
@@ -34,12 +36,20 @@ const NAME_ALIASES = ["name", "full name", "fullname", "participant", "attendee"
 const DESC_ALIASES = ["description", "desc", "title", "role"];
 const BIO_ALIASES = ["bio", "biography", "about"];
 const PHOTO_ALIASES = ["photo_url", "photo", "photo url", "avatar", "image"];
+/** Deliberately narrow: an unrelated "department" column must not become a
+ *  wall of unknown-label row errors on an existing CSV. Anything else is
+ *  mapped by hand. */
+const LABEL_ALIASES = ["label", "participant label"];
 
 function normHeader(h: string): string {
   return h.trim().toLowerCase().replace(/_/g, " ");
 }
 
-export function suggestCsvMapping(headers: string[]): CsvColumnMapping {
+/**
+ * W-2: a `label` column is only ever suggested when the event actually defines
+ * participant labels — otherwise every value in it would be a row error.
+ */
+export function suggestCsvMapping(headers: string[], eventLabels: string[] = []): CsvColumnMapping {
   const mapping: CsvColumnMapping = {};
   const used = new Set<CsvColumnKey>();
   for (const h of headers) {
@@ -50,6 +60,7 @@ export function suggestCsvMapping(headers: string[]): CsvColumnMapping {
     else if (!used.has("description") && DESC_ALIASES.includes(n)) key = "description";
     else if (!used.has("bio") && BIO_ALIASES.includes(n)) key = "bio";
     else if (!used.has("photoUrl") && PHOTO_ALIASES.includes(n)) key = "photoUrl";
+    else if (!used.has("label") && eventLabels.length > 0 && LABEL_ALIASES.includes(n)) key = "label";
     if (key !== "skip") used.add(key);
     mapping[h] = key;
   }
@@ -58,14 +69,17 @@ export function suggestCsvMapping(headers: string[]): CsvColumnMapping {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function applyMapping(row: CsvInviteRowInput, mapping: CsvColumnMapping): {
+type MappedRow = {
   email?: string;
   name?: string;
   description?: string;
   bio?: string;
   photoUrl?: string;
-} {
-  const out: { email?: string; name?: string; description?: string; bio?: string; photoUrl?: string } = {};
+  label?: string;
+};
+
+function applyMapping(row: CsvInviteRowInput, mapping: CsvColumnMapping): MappedRow {
+  const out: MappedRow = {};
   for (const [header, key] of Object.entries(mapping)) {
     if (key === "skip") continue;
     const val = (row[header] ?? "").trim();
@@ -75,8 +89,36 @@ function applyMapping(row: CsvInviteRowInput, mapping: CsvColumnMapping): {
     else if (key === "description") out.description = val;
     else if (key === "bio") out.bio = val;
     else if (key === "photoUrl") out.photoUrl = val;
+    else if (key === "label") out.label = val;
   }
   return out;
+}
+
+/**
+ * W-2: a mapped label must be one of the event's participant labels, matched
+ * case-insensitively but stored in the event's own casing. Unknown values are
+ * a row error in the dry-run — never a silent drop, and never an invented label.
+ */
+export function matchEventLabel(
+  value: string,
+  eventLabels: string[],
+): { ok: true; label: string } | { ok: false; error: string } {
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: true, label: "" };
+  if (eventLabels.length === 0) {
+    return {
+      ok: false,
+      error: `Label “${trimmed}” — this event has no participant labels yet. Add it under Participant labels, or map this column to Skip.`,
+    };
+  }
+  const match = eventLabels.find((l) => l.toLowerCase() === trimmed.toLowerCase());
+  if (!match) {
+    return {
+      ok: false,
+      error: `Unknown label “${trimmed}” — this event's labels are: ${eventLabels.join(", ")}. Add it under Participant labels, or map this column to Skip.`,
+    };
+  }
+  return { ok: true, label: match };
 }
 
 export function dryRunCsvInvites(opts: {
@@ -84,8 +126,11 @@ export function dryRunCsvInvites(opts: {
   rows: CsvInviteRowInput[];
   mapping?: CsvColumnMapping;
   existingEmails?: Set<string> | string[];
+  /** W-2: the event's participant labels — the only accepted values for a mapped label column. */
+  eventLabels?: string[];
 }): CsvDryRunResult {
-  const mapping = opts.mapping ?? suggestCsvMapping(opts.headers);
+  const eventLabels = opts.eventLabels ?? [];
+  const mapping = opts.mapping ?? suggestCsvMapping(opts.headers, eventLabels);
   const existing = opts.existingEmails instanceof Set
     ? opts.existingEmails
     : new Set((opts.existingEmails || []).map((e) => e.toLowerCase()));
@@ -133,6 +178,16 @@ export function dryRunCsvInvites(opts: {
       });
       return;
     }
+    let participantLabel: string | undefined;
+    if (mapped.label) {
+      const matched = matchEventLabel(mapped.label, eventLabels);
+      if (!matched.ok) {
+        errors += 1;
+        changes.push({ kind: "error", rowIndex, message: matched.error, raw });
+        return;
+      }
+      participantLabel = matched.label || undefined;
+    }
     seen.add(mapped.email);
     creates += 1;
     changes.push({
@@ -144,6 +199,7 @@ export function dryRunCsvInvites(opts: {
       researchInterests: mapped.description || mapped.bio,
       bio: mapped.bio,
       photoUrl: mapped.photoUrl,
+      participantLabel,
     });
   });
 

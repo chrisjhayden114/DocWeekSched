@@ -71,7 +71,7 @@ type User = {
   bio?: string | null;
   participantLabel?: string | null;
   engagementPoints?: number;
-  inviteStatus?: "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED";
+  inviteStatus?: "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED" | "NOT_INVITED";
   inviteExpiresAt?: string | null;
   isEventAdmin?: boolean;
   orgRole?: "OWNER" | "ADMIN" | "STAFF" | null;
@@ -5257,6 +5257,8 @@ function inviteStatusLabel(attendee: User) {
   if (attendee.inviteStatus === "PENDING_SETUP") return "Pending — has not finished signup";
   if (attendee.inviteStatus === "INVITE_EXPIRED") return "Invite expired";
   if (attendee.inviteStatus === "ACTIVE") return "Joined";
+  // W-2: on the roster from a spreadsheet import, never emailed.
+  if (attendee.inviteStatus === "NOT_INVITED") return "Not invited — no email sent";
   return "—";
 }
 

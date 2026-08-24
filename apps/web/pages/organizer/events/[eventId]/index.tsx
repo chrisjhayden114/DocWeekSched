@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useMemo, useState, type SVGProps } from "react";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
-import { ReviewChangeset, parseCsvToTable } from "../../../../components/ReviewChangeset";
+import { RosterImportCard } from "../../../../components/organizer/RosterImportCard";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
 import { SetupAssistantPanel } from "../../../../components/SetupAssistantPanel";
 import { SetupCopilotChat } from "../../../../components/SetupCopilotChat";
@@ -35,11 +35,13 @@ import { formatEventDateRange } from "../../../../lib/dateFormat";
 import { openAttendeeApp, publicEventUrl } from "../../../../lib/organizerLinks";
 import { eventHeaders, organizerFetch } from "../../../../lib/organizerApi";
 import {
+  canBeInvited,
   filterParticipants,
   inviteStatusChipStatus,
   inviteStatusLabel,
   type InviteStatus,
 } from "../../../../lib/participants";
+import { sendInvitesSummaryLine } from "../../../../lib/rosterImport";
 import { buildSetupChecklist } from "../../../../lib/setupChecklist";
 
 type EventDetail = {
@@ -77,11 +79,10 @@ type ParticipantRow = {
 
 type RosterAction = { kind: "make-admin" | "remove-admin" | "remove"; row: ParticipantRow };
 
-type DryRun = {
-  headers: string[];
-  mapping: Record<string, string>;
-  rows: { kind: string; rowIndex: number; email?: string; name?: string; message?: string; researchInterests?: string; photoUrl?: string }[];
-  summary: { creates: number; errors: number; skipped: number };
+/** W-2 — per-item outcomes of a "Send invites" run, surfaced not swallowed. */
+type SendInvitesResult = {
+  summary: string;
+  items: { email: string | null; text: string; inviteUrl?: string }[];
 };
 
 type EventTab =
@@ -204,15 +205,6 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
   );
 }
 
-const MAPPING_OPTIONS = [
-  { value: "email", label: "Email" },
-  { value: "name", label: "Name" },
-  { value: "description", label: "Description / interests" },
-  { value: "bio", label: "Bio" },
-  { value: "photoUrl", label: "Photo URL" },
-  { value: "skip", label: "Skip" },
-];
-
 export default function OrganizerEventPage() {
   const router = useRouter();
   const eventId = typeof router.query.eventId === "string" ? router.query.eventId : "";
@@ -288,11 +280,6 @@ export default function OrganizerEventPage() {
   // Series
   const [nextStart, setNextStart] = useState("");
 
-  // CSV
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
-  const [csvMapping, setCsvMapping] = useState<Record<string, string>>({});
-  const [dryRun, setDryRun] = useState<DryRun | null>(null);
   const [inviteLinks, setInviteLinks] = useState<{ slugUrl?: string; joinUrl?: string | null } | null>(null);
 
   // INV-1 — Participants tab: single invite form + roster
@@ -306,6 +293,10 @@ export default function OrganizerEventPage() {
   const [rosterError, setRosterError] = useState<string | null>(null);
   const [rosterConfirm, setRosterConfirm] = useState<RosterAction | null>(null);
   const [rosterBusy, setRosterBusy] = useState(false);
+  // W-2 — roster bulk select + "Send invites".
+  const [rosterSelected, setRosterSelected] = useState<Record<string, boolean>>({});
+  const [inviteRunBusy, setInviteRunBusy] = useState(false);
+  const [inviteRun, setInviteRun] = useState<SendInvitesResult | null>(null);
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
@@ -468,67 +459,60 @@ export default function OrganizerEventPage() {
     }
   }
 
-  async function onCsvFile(file: File) {
-    const text = await file.text();
-    const parsed = parseCsvToTable(text);
-    if ("error" in parsed) {
-      setError(parsed.error);
-      return;
-    }
-    setCsvHeaders(parsed.headers);
-    setCsvRows(parsed.rows);
-    setDryRun(null);
-    const dry = await organizerFetch<DryRun>("/attendees/invite-dry-run", eventId, {
-      method: "POST",
-      body: JSON.stringify({ headers: parsed.headers, rows: parsed.rows }),
-    });
-    setCsvMapping(dry.mapping);
-    setDryRun(dry);
-  }
-
-  async function reDryRun(mapping: Record<string, string>) {
-    setCsvMapping(mapping);
-    if (!eventId || !csvHeaders.length) return;
-    const dry = await organizerFetch<DryRun>("/attendees/invite-dry-run", eventId, {
-      method: "POST",
-      body: JSON.stringify({ headers: csvHeaders, rows: csvRows, mapping }),
-    });
-    setDryRun(dry);
-  }
-
-  async function confirmInvites() {
-    if (!dryRun || !eventId) return;
-    setBusy(true);
+  /**
+   * W-2 — send invites to roster members the organizer picked. Every per-item
+   * outcome is kept and shown (J-A #13): failures, people who already finished
+   * setup, and links to share by hand when email isn't configured.
+   */
+  async function sendRosterInvites(userIds: string[]) {
+    if (!eventId || userIds.length === 0) return;
+    setInviteRunBusy(true);
+    setRosterError(null);
+    setInviteRun(null);
     try {
-      const invites = dryRun.rows
-        .filter((r) => r.kind === "create" && r.email && r.name)
-        .map((r) => ({
-          email: r.email!,
-          name: r.name!,
-          researchInterests: r.researchInterests,
-          photoUrl: r.photoUrl,
-        }));
-      const result = await organizerFetch<{
+      const res = await organizerFetch<{
         sentCount: number;
+        failedCount: number;
+        alreadyActiveCount: number;
+        results: {
+          userId: string;
+          email: string | null;
+          status: "sent" | "failed" | "already-active";
+          emailDelivered?: boolean;
+          inviteUrl?: string;
+          error?: string;
+        }[];
         emailFallbackMessage?: string;
-        sent: { inviteUrl: string; emailDelivered: boolean }[];
-      }>("/attendees/invite-bulk", eventId, {
+      }>("/attendees/send-invites", eventId, {
         method: "POST",
-        body: JSON.stringify({ invites }),
+        body: JSON.stringify({ userIds }),
       });
-      setMessage(
-        result.emailFallbackMessage
-          ? `${result.sentCount} invited. ${result.emailFallbackMessage}`
-          : `Invited ${result.sentCount} people.`,
-      );
-      setDryRun(null);
-      setCsvRows([]);
-      // INV-1 — the roster now lives on the same tab; keep it current.
+      setInviteRun({
+        summary: sendInvitesSummaryLine({
+          sentCount: res.sentCount,
+          failedCount: res.failedCount,
+          alreadyActiveCount: res.alreadyActiveCount,
+          undelivered: Boolean(res.emailFallbackMessage),
+        }),
+        items: res.results
+          .filter((r) => r.status !== "sent" || !r.emailDelivered)
+          .map((r) => ({
+            email: r.email,
+            text:
+              r.status === "failed"
+                ? r.error || "Invite failed"
+                : r.status === "already-active"
+                  ? "Already finished setup — no email sent"
+                  : "Email not delivered — share this link instead",
+            inviteUrl: r.inviteUrl,
+          })),
+      });
+      setRosterSelected({});
       await refreshRoster().catch(() => undefined);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invite failed");
+      setRosterError(err instanceof Error ? err.message : "Could not send invites");
     } finally {
-      setBusy(false);
+      setInviteRunBusy(false);
     }
   }
 
@@ -1070,44 +1054,13 @@ export default function OrganizerEventPage() {
               )}
             </div>
 
-            {/* INV-1 c) — the existing CSV bulk invite card, unchanged */}
-            <div className="console-panel">
-              <p className="console-panel-label">CSV bulk invite</p>
-              <p className="help-text" style={{ marginTop: 0 }}>
-                Upload a CSV, review the dry-run (errors per row), then confirm. If email isn&apos;t set up, you&apos;ll get
-                copyable invite links instead.
-              </p>
-              <input
-                className="input"
-                type="file"
-                accept=".csv,text/csv"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void onCsvFile(f).catch((err) => setError(err instanceof Error ? err.message : "CSV failed"));
-                }}
-              />
-              {dryRun ? (
-                <ReviewChangeset
-                  title="Review invite changeset"
-                  headers={csvHeaders}
-                  mapping={csvMapping}
-                  onMappingChange={(m) => void reDryRun(m)}
-                  mappingOptions={MAPPING_OPTIONS}
-                  rows={dryRun.rows as never}
-                  summary={dryRun.summary}
-                  confirmLabel={`Invite ${dryRun.summary.creates} people`}
-                  busy={busy}
-                  onConfirm={confirmInvites}
-                  onCancel={() => {
-                    setDryRun(null);
-                    setCsvRows([]);
-                  }}
-                  renderCreateSummary={(row) =>
-                    row.kind === "create" ? `${row.name || ""} <${row.email || ""}>` : ""
-                  }
-                />
-              ) : null}
-            </div>
+            {/* W-2 c) — spreadsheet import: add to the roster with no email,
+                or add and send invites. Both actions are explicit. */}
+            <RosterImportCard
+              eventId={eventId}
+              participantLabels={event?.participantLabels ?? []}
+              onImported={() => refreshRoster().catch(() => undefined)}
+            />
 
             {event ? (
               <ParticipantLabelsEditor
@@ -1123,9 +1076,44 @@ export default function OrganizerEventPage() {
               />
             ) : null}
 
-            {/* INV-1 d) — roster */}
+            {/* INV-1 d) — roster (W-2: bulk select + Send invites) */}
             <div className="console-panel">
               <p className="console-panel-label">Roster</p>
+              <p className="help-text" style={{ marginTop: 0 }}>
+                Tick people and choose <strong>Send invites</strong> to email them a personal setup
+                link — the email names the event, asks them to choose a password, and carries their
+                check-in code. Anyone marked <em>Not invited</em> is on the roster but hasn&apos;t
+                been emailed; you can invite them whenever you&apos;re ready.
+              </p>
+              {inviteRun ? (
+                <div role="status" style={{ marginBottom: 12 }}>
+                  <p style={{ color: "var(--success)", margin: 0 }}>{inviteRun.summary}</p>
+                  {inviteRun.items.length > 0 ? (
+                    <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 14 }}>
+                      {inviteRun.items.map((item, i) => (
+                        <li key={`${item.email ?? "row"}-${i}`}>
+                          {item.email ? `${item.email} — ` : null}
+                          {item.text}
+                          {item.inviteUrl ? (
+                            <span
+                              style={{
+                                display: "flex",
+                                gap: 8,
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                                marginTop: 4,
+                              }}
+                            >
+                              <code style={{ overflowWrap: "anywhere" }}>{item.inviteUrl}</code>
+                              <CopyButton value={item.inviteUrl} label="Copy invite link" />
+                            </span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
               {rosterError ? (
                 <p role="alert" style={{ color: "var(--danger)", marginTop: 0 }}>
                   {rosterError}
@@ -1160,11 +1148,72 @@ export default function OrganizerEventPage() {
                         </p>
                       );
                     }
+                    const selectedIds = visible.filter((p) => rosterSelected[p.id]).map((p) => p.id);
+                    const allSelected = visible.length > 0 && selectedIds.length === visible.length;
                     return (
+                      <>
+                      {/* W-2 — bulk bar: the deliberate "send invites" action. */}
+                      {selectedIds.length > 0 ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            marginBottom: 12,
+                          }}
+                        >
+                          <span className="text-meta">
+                            {selectedIds.length} selected
+                            {selectedIds.filter((id) =>
+                              canBeInvited(visible.find((p) => p.id === id)?.inviteStatus),
+                            ).length !== selectedIds.length
+                              ? ` · ${
+                                  selectedIds.filter((id) =>
+                                    canBeInvited(visible.find((p) => p.id === id)?.inviteStatus),
+                                  ).length
+                                } can be invited`
+                              : null}
+                          </span>
+                          <button
+                            type="button"
+                            className="button"
+                            disabled={inviteRunBusy}
+                            onClick={() => void sendRosterInvites(selectedIds)}
+                          >
+                            {inviteRunBusy ? "Sending…" : "Send invites"}
+                          </button>
+                          <button
+                            type="button"
+                            className="button secondary"
+                            disabled={inviteRunBusy}
+                            onClick={() => setRosterSelected({})}
+                          >
+                            Clear selection
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="console-table-wrap">
                         <table className="console-table">
                           <thead>
                             <tr>
+                              <th style={{ width: 32 }}>
+                                <input
+                                  type="checkbox"
+                                  aria-label="Select all participants"
+                                  checked={allSelected}
+                                  onChange={(e) =>
+                                    setRosterSelected((prev) => {
+                                      const next = { ...prev };
+                                      for (const p of visible) {
+                                        if (e.target.checked) next[p.id] = true;
+                                        else delete next[p.id];
+                                      }
+                                      return next;
+                                    })
+                                  }
+                                />
+                              </th>
                               <th>Name</th>
                               <th>Email</th>
                               <th>Status</th>
@@ -1177,6 +1226,21 @@ export default function OrganizerEventPage() {
                           <tbody>
                             {visible.map((p) => (
                               <tr key={p.id}>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Select ${p.name}`}
+                                    checked={Boolean(rosterSelected[p.id])}
+                                    onChange={(e) =>
+                                      setRosterSelected((prev) => {
+                                        const next = { ...prev };
+                                        if (e.target.checked) next[p.id] = true;
+                                        else delete next[p.id];
+                                        return next;
+                                      })
+                                    }
+                                  />
+                                </td>
                                 <td>
                                   {p.name}
                                   {p.eventRole === "ADMIN" ? (
@@ -1229,6 +1293,7 @@ export default function OrganizerEventPage() {
                           </tbody>
                         </table>
                       </div>
+                      </>
                     );
                   })()}
                 </>

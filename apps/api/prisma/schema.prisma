@@ -468,6 +468,9 @@ model EventMembership {
   welcomeSeenAt DateTime?
   /// This member's organizer-defined label at THIS event. Must match Event.participantLabelsJson at write time.
   participantLabel String? @db.VarChar(40)
+  /// W-2: seat created by roster import with NO invite email. Cleared when an
+  /// invite is sent. Null on pre-W-2 rows, which derive their status as before.
+  addedWithoutInviteAt DateTime?
 
   @@unique([eventId, userId])
   @@unique([eventId, checkInCode])

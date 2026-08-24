@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canBeInvited,
   filterParticipants,
   inviteStatusChipStatus,
   inviteStatusLabel,
@@ -10,10 +11,12 @@ import {
  * client-side name/email filter.
  */
 describe("INV-1 — inviteStatusLabel", () => {
-  it("maps the three roster statuses to customer copy", () => {
+  it("maps the roster statuses to customer copy", () => {
     expect(inviteStatusLabel("ACTIVE")).toBe("Active");
     expect(inviteStatusLabel("PENDING_SETUP")).toBe("Invite sent");
     expect(inviteStatusLabel("INVITE_EXPIRED")).toBe("Invite expired");
+    // W-2 — added from a spreadsheet, never emailed.
+    expect(inviteStatusLabel("NOT_INVITED")).toBe("Not invited");
   });
 
   it("falls back to an em dash when the status is missing", () => {
@@ -28,6 +31,20 @@ describe("INV-1 — inviteStatusChipStatus", () => {
     expect(inviteStatusChipStatus("PENDING_SETUP")).toBe("pending");
     expect(inviteStatusChipStatus("INVITE_EXPIRED")).toBe("archived");
     expect(inviteStatusChipStatus(undefined)).toBe("default");
+  });
+
+  it("W-2 — not-invited is a quiet resting state, not a fault", () => {
+    expect(inviteStatusChipStatus("NOT_INVITED")).toBe("draft");
+  });
+});
+
+describe("W-2 — canBeInvited", () => {
+  it("everyone except people who already finished setup", () => {
+    expect(canBeInvited("NOT_INVITED")).toBe(true);
+    expect(canBeInvited("INVITE_EXPIRED")).toBe(true);
+    expect(canBeInvited("PENDING_SETUP")).toBe(true);
+    expect(canBeInvited("ACTIVE")).toBe(false);
+    expect(canBeInvited(undefined)).toBe(false);
   });
 });
 

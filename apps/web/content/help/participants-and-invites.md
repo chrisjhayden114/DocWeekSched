@@ -17,24 +17,41 @@ They get a setup email with a personal link, and a starter profile is created fo
 
 If email delivery isn't configured for your installation, you'll get **Copy invite link** instead and can share it yourself.
 
-## Invite a group from a spreadsheet
+## Add a group from a spreadsheet
 
-1. Under **CSV bulk invite**, choose your CSV file.
-2. Check **Column mapping**. Headers like `email`, `name`, `description`, `bio`, and `photo_url` are detected automatically — common variants (`e-mail`, `full name`, `role`, `about`, `avatar`) are recognised too. Anything else you can map yourself, or set to **Skip**.
-3. Read the dry run. Every row is checked before anything happens, and problems are listed per row: **Missing email**, **Invalid email**, **Duplicate in file**, **Already on roster**.
-4. Choose **Invite N people**.
+Importing a spreadsheet does **not** email anyone until you say so. You see the whole list first, choose who's included, and then pick one of two actions.
 
-Only an email column is genuinely required — a row without a name still works. You can review up to 500 rows at a time and invite up to 200 people per upload, so split very large rosters into batches.
+1. Under **Add participants from a spreadsheet**, choose your CSV file.
+2. Check **Column mapping**. Headers like `email`, `name`, `description`, `bio`, and `photo_url` are detected automatically — common variants (`e-mail`, `full name`, `role`, `about`, `avatar`) are recognised too. A `label` column is picked up when your event defines participant labels. Anything else you can map yourself, or set to **Skip**.
+3. Read the review. Every row is checked before anything happens, and problems are listed per row: **Missing email**, **Invalid email**, **Duplicate in file**, **Already on roster**, and any label your event doesn't define.
+4. Untick anyone you don't want (**Select all** / **Select none** does the whole list), and set each person's label from the **Label** dropdown if you use labels.
+5. Choose either:
+   - **Add N to the roster** — creates everyone's place at the event and sends nothing. They show as **Not invited** until you invite them.
+   - **Add and send N invites** — does the same, then emails each person their setup link.
+
+Either way you get a summary that says exactly what happened, including anyone who was skipped and any invite that couldn't be sent.
+
+Only an email column is genuinely required — a row without a name still works. You can review up to 500 rows at a time and add up to 200 people per upload, so split very large rosters into batches.
+
+## Send invites later
+
+Because adding people and inviting them are separate steps, you can build the roster weeks early and invite when you're ready — all at once or a few people at a time.
+
+1. On the **Roster**, tick the people you want to invite (the box in the header ticks everyone shown).
+2. Choose **Send invites**.
+
+Each person gets an email that names your event, asks them to choose a password, and carries their check-in code. Anyone who has already finished setting up is reported instead of emailed, and any invite that fails is listed individually — the summary never claims an email that didn't go out. If email delivery isn't configured, each invite link is shown for you to copy and share.
 
 ## Manage the roster
 
 The **Roster** below shows everyone with their invite status:
 
+- **Not invited** — on the roster (usually from a spreadsheet), never emailed. Tick them and choose **Send invites** whenever you're ready.
 - **Invite sent** — invited, hasn't finished setting up.
 - **Active** — finished setup and can open the event.
-- **Invite expired** — their setup link lapsed. Invite them again to send a fresh one.
+- **Invite expired** — their setup link lapsed. Send invites again for a fresh one.
 
-Each row has a menu. Owners can **Make admin** or **Remove admin**; any organizer can **Remove participant**. There's no separate resend button — inviting the same email again refreshes their link.
+Each row has a menu. Owners can **Make admin** or **Remove admin**; any organizer can **Remove participant**. There's no separate resend button — sending invites again (or inviting the same email again) refreshes their link.
 
 ## Removing someone, and the 30 days
 
@@ -51,6 +68,6 @@ Labels let attendees say which department, cohort, or role they belong to, in wo
 
 Attendees then pick one — **Your label at this event (optional)** when they join, or **Participant label** on their profile afterwards. It's one label each, and it's optional.
 
-You can override anyone's pick from the **Label** column on the roster. Labels appear beside people in the attendee directory, for attendees who've chosen to appear there.
+You can also set labels yourself: per row while reviewing a spreadsheet import, or from the **Label** column on the roster afterwards. Labels appear beside people in the attendee directory, for attendees who've chosen to appear there.
 
 Removing a label from the list clears it from everyone who had picked it, so retire labels deliberately.

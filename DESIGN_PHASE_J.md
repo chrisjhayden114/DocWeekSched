@@ -1,0 +1,121 @@
+# DESIGN_PHASE_J — Organizer workflows, org entity, certificates, paid attendance
+
+Date: 2026-08-24. Method: 3 parallel research agents (J-A organizer-journey dead-end
+audit with file:line root causes; J-B paid-attendance decision memo with cited market
+research; J-C org-model + certificates design) triggered by founder live-testing the
+Northbridge demo build. Full agent reports summarized; chunk specs below are the
+build plan.
+
+## Founder-reported issues → root causes (J-A)
+
+1. Label select shows no options → NOT a data bug: custom Select popup renders
+   position:absolute inside .console-table-wrap (overflow-x:auto forces a clip
+   container); popup is clipped below short rosters (Select.tsx:238, globals.css:234/
+   6011). KebabMenu has the same latent bug. Fix: render popups via kit/Portal.
+2. CSV invite emails immediately, no add-silently/selection/labels →
+   createAndEmailInvite (attendees.ts:47-149) fuses seat-creation + email; dry-run
+   mapping has no label; no row checkboxes; inviteStatus derived from token hash so a
+   silent-add needs a NOT_INVITED state.
+3. Setup assistant conflicts → mergeSetupExtract overwrites any confirmed field with
+   any validated extract, silently (extractTypes.ts:239); document upload same
+   (setupCopilot.ts:279); wizard→AI re-entry blanket-reverts manual edits
+   (new.tsx:147-167); completeViaCopilot drops extracted day start/end times
+   (new.tsx:351); ingest never reconciles file event-dates vs event settings.
+4. Assistant hedges on feature state → organizerState.ts includes counts/checklist
+   only; resolved buildFeatureState, plan/entitlements, readiness counts absent.
+5. No event→org move → PUT /event silently ignores organizationId (event.ts:68 vs
+   315-359). 17 models denormalize organizationId; full transfer would corrupt
+   billing/metering/audit. Verdict: draft-only restricted transfer + "duplicate into
+   other org"; never general transfer.
+
+Other findings (ranked): re-import creates duplicates for cross-day/retitled sessions
+(changeset.ts:74-143); ingest delete rows omit attendee blast radius; solo-owner
+account deletion demands org close/transfer endpoints that don't exist; Speakers tab
+is add-only (no edit/delete UI); unarchive → DRAFT + portal tokens not restored,
+unannounced; bulk-invite partial-failure detail dropped by UI; certificate-ready
+email links WEB_BASE_URL/verify/{id} — no such web page exists (likely 404 in prod).
+Verified good: feature toggles truly preserve data; program deletes have honest
+blast-radius confirms; wizard drafts per-tab-only is a documented tradeoff.
+
+## Org entity (J-C)
+
+Organization is a billing shell: no PUT route at all (name uneditable), no identity
+fields. Public surface: "Hosted by <name>" text on /e/[slug] only. Org picker renders
+even for single-org users (dashboard + wizard).
+Build (ORG-1): additive columns websiteUrl, supportEmail, logoUrl, description;
+PUT /organizations/:orgId (OWNER/ADMIN, patchFields contract); /organizer/org/settings
+page; hosted-by becomes a link + contact mailto on /e/[slug]; org logo as fallback
+event logo + wizard prefill (prefill-not-seed per BRAND-2 doctrine); editable name;
+hide org picker when memberships.length === 1, quiet "Creating in X · change" line
+otherwise.
+Defer: public /o/<slug> org page (marketplace feature; we're invite-driven), promo
+media gallery (violates identity-not-billboard), server-side default-org pref.
+ORG-2 (later): transfer-ownership + close-empty-org endpoints (unblocks the account-
+deletion dead-end); draft-only event transfer (DRAFT + no purchases/certs/AI-usage/
+series → single safe transaction), else recommend re-create + re-import.
+
+## Certificates (J-C)
+
+Today: built-in pdfkit layout only (platform colors — BRAND-3 unshipped for certs);
+merge fields {attendeeName}{eventName}{dates}{hours}{signatureImage}{certificateId};
+eligibility ANY_CHECKIN/MIN_SESSIONS/REQUIRED_SESSIONS (registration-based, honest
+copy exists); batch job w/ progress; email = link notification (idempotent, opt-in),
+NOT attachment (correct — keep); BUG: email's /verify/{id} link has no web page.
+CERT-1 (S): BRAND-3 for certificates (event accent + optional logo into pdf.ts) +
+web /verify/[id] page calling the existing API verify route.
+CERT-2 (M): CertificateTemplate.kind = TEXT | IMAGE_BACKGROUND (+backgroundImageUrl,
+nameBox JSON {xPct,yPct,widthPct,fontSize,color,align}, orientation). Organizer
+uploads PNG/JPG of their finished design (the Canva-export reality), draggable name
+box (v1: vertical slider + centered), renderer branches, all existing eligibility/
+batch/storage/email machinery untouched.
+Don't build: DOCX→PDF (needs LibreOffice — infeasible on Render native runtime),
+full WYSIWYG designer, PDF attachments.
+
+## Paid attendance (J-B) — decision
+
+NEVER platform-as-MoR for attendee money (money-transmitter licensing, dispute/fraud
+liability, pre-event fund-holding tail risk). Education reality: POs/invoices/checks
+are first-class — many districts cannot card-pay; every education conference offers a
+PO path. Competitor take rates: Eventbrite ~3.7%+$1.79+processing (effective 10-14%
+on cheap tickets); Tito 3%; Humanitix 2.1%+$0.99 (schools 1%); Whova 3%+$0.99 atop
+license. Sched has no ticketing (Eventbrite sync) — schedule-platform + external
+ticketing is a validated shape.
+PAY-T0 (days of work, ships whenever): per-event toggle "This event charges a
+registration fee" (off = zero UI change). On: price text + payment URL (Stripe
+Payment Link/PayPal/school store/"PO instructions" free text) shown at registration;
+EventMembership.paymentStatus (UNPAID/PO_ON_FILE/PAID/WAIVED/REFUNDED) + optional
+reference; organizer marks paid manually or via CSV paid-list import (doubles as the
+Eventbrite/Humanitix "integration"); optional gate/badge on paid status. ToS line:
+UKEDL doesn't process off-platform payments.
+PAY-T1 (post-pilot, 4-8 wks part-time, only after T0 demand): Stripe Connect
+STANDARD, hosted onboarding, DIRECT charges on the organizer's own account (organizer
+= merchant: their refunds/disputes/1099-K; zero Connect fees on direct charges),
+optional application_fee (start 0%; ticketing gated to paid plans instead), webhook
+flips the same paymentStatus, mandatory refund-policy field before enabling, ToS
+organizer-terms update (attorney pass), PO path stays visible beside card checkout.
+Marketing line: "your Stripe account, your money, POs welcome" vs Eventbrite's
+effective 10%+.
+Don't build: seat maps, promo codes, group carts, installments, Express/Custom,
+bespoke Eventbrite API sync.
+
+## Chunk sequence
+
+Pre-outreach (P0/P1):
+  W-1 SELECT-PORTAL (S): Select + KebabMenu popups via kit/Portal (fixes label bug
+      everywhere).
+  W-2 ROSTER-IMPORT (M): split ensureRosterSeat/sendInvite; POST /attendees/import
+      (no email) + /attendees/send-invites {userIds}; NOT_INVITED status chip; label
+      column in dry-run mapping + per-row label & checkboxes; roster bulk-select
+      "Send invites".
+  W-3 STATE-FEATURES (S): FEATURES (resolved) + PLAN + readiness counts into
+      buildOrganizerStateText.
+  W-4 SETUP-CONFLICT (M): pre-merge diff in runCreateTurn → deterministic conflict
+      question + pendingConflict card (reuse diff-card UX); old→new highlight in aside.
+  W-5 AI-DRAFT-MERGE (S): field-wise wizard→AI restore (wizard-wins for later edits);
+      stop slicing day times in completeViaCopilot.
+  W-6 SMALL-COPY (S): org-picker "can't change later" + reject organizationId on PUT;
+      ingest delete rows show joined counts; bulk-invite partial breakdown; hide org
+      picker for single-org users.
+  CERT-1 (S): cert branding + web verify page (fixes live 404).
+Post-outreach / as demand dictates:
+  W-7 REIMPORT-MATCH (M); ORG-1 (M); PAY-T0 (M); CERT-2 (M); ORG-2 (M); PAY-T1 (L).

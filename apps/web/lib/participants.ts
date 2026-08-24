@@ -4,25 +4,34 @@
  * and StatusChip tones, and backs the client-side roster filter.
  */
 
-export type InviteStatus = "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED";
+export type InviteStatus = "ACTIVE" | "PENDING_SETUP" | "INVITE_EXPIRED" | "NOT_INVITED";
 
 /** Status pill label. Rows without inviteStatus (shouldn't happen for managers) get an em dash. */
 export function inviteStatusLabel(status?: InviteStatus | null): string {
   if (status === "ACTIVE") return "Active";
   if (status === "PENDING_SETUP") return "Invite sent";
   if (status === "INVITE_EXPIRED") return "Invite expired";
+  // W-2: on the roster from a spreadsheet import, never emailed.
+  if (status === "NOT_INVITED") return "Not invited";
   return "—";
 }
 
 /**
  * The `status` string handed to StatusChip so its toneFor() picks the right
- * token: green for joined, warning for anything still needing action.
+ * token: green for joined, warning for anything still needing action, and the
+ * quiet draft tone for "not invited" — a legitimate resting state, not a fault.
  */
 export function inviteStatusChipStatus(status?: InviteStatus | null): string {
   if (status === "ACTIVE") return "active";
   if (status === "PENDING_SETUP") return "pending";
   if (status === "INVITE_EXPIRED") return "archived";
+  if (status === "NOT_INVITED") return "draft";
   return "default";
+}
+
+/** W-2: who a "Send invites" run would actually email. */
+export function canBeInvited(status?: InviteStatus | null): boolean {
+  return status === "NOT_INVITED" || status === "INVITE_EXPIRED" || status === "PENDING_SETUP";
 }
 
 /** Case-insensitive substring filter over name and email. Blank query keeps everything. */

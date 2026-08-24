@@ -65,10 +65,21 @@ export type ReviewChangesetProps = {
   summary?: { creates?: number; errors?: number; skipped?: number; updates?: number; deletes?: number };
   confirmLabel?: string;
   onConfirm?: () => void | Promise<void>;
+  /**
+   * W-2: a second, equally explicit confirm beside the primary one — the
+   * roster import offers "Add to roster" (no email) and "Add and send invites".
+   */
+  secondaryConfirmLabel?: string;
+  onSecondaryConfirm?: () => void | Promise<void>;
   onCancel?: () => void;
   busy?: boolean;
   /** Render primary fields for a create/update row */
   renderCreateSummary?: (row: ReviewChangeRow) => string;
+  /**
+   * W-2: an extra control rendered beside a create row — the roster import
+   * puts each row's participant-label select here.
+   */
+  renderCreateExtra?: (row: ReviewChangeRow) => ReactNode;
   /** Toggle accept for update/delete/create rows (ingest). */
   onAcceptChange?: (rowIndex: number, accepted: boolean) => void;
   /**
@@ -102,6 +113,11 @@ export type ReviewChangesetProps = {
    * the CSV/invite/CFP callers keep the flat list.
    */
   groupCreates?: boolean;
+  /**
+   * Select all / none above a flat create list. Implied by groupCreates;
+   * W-2's roster import opts in without grouping.
+   */
+  selectAll?: boolean;
 };
 
 function rowAccepted(row: ReviewChangeRow): boolean {
@@ -138,9 +154,12 @@ export function ReviewChangeset({
   summary,
   confirmLabel = "Confirm",
   onConfirm,
+  secondaryConfirmLabel,
+  onSecondaryConfirm,
   onCancel,
   busy,
   renderCreateSummary,
+  renderCreateExtra,
   onAcceptChange,
   onRemovalChange,
   assumptions,
@@ -149,6 +168,7 @@ export function ReviewChangeset({
   sourceInfo,
   sourceLayout = "column",
   groupCreates = false,
+  selectAll = false,
 }: ReviewChangesetProps) {
   const creates = useMemo(
     () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "create" }> => r.kind === "create"),
@@ -178,9 +198,9 @@ export function ReviewChangeset({
   // ≤12 rows: everything visible at once. More: closed groups keep the page scannable.
   const groupsDefaultOpen = creates.length <= 12;
 
-  /** Select all / none for a section — opt-in with grouping (agenda ingest only). */
+  /** Select all / none for a section — opt-in (agenda ingest, roster import). */
   const selectAllControls = (sectionRows: { rowIndex: number }[]) =>
-    groupCreates && onAcceptChange && sectionRows.length > 1 ? (
+    (groupCreates || selectAll) && onAcceptChange && sectionRows.length > 1 ? (
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <button
           type="button"
@@ -215,6 +235,7 @@ export function ReviewChangeset({
         {low ? ` (confidence ${row.confidence!.toFixed(2)})` : null}
       </>
     );
+    const extra = renderCreateExtra?.(row);
     return (
       <li
         key={`create-${row.rowIndex}`}
@@ -224,20 +245,26 @@ export function ReviewChangeset({
         }}
       >
         {onAcceptChange ? (
-          <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-            <input
-              type="checkbox"
-              checked={row.accepted !== false}
-              onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
-            />
-            <span>
-              {/* Grouped rows live under a day/time header — no per-row day prefix. */}
-              {!enriched && row.day ? <span className="help-text">{row.day} · </span> : null}
-              {line}
-            </span>
-          </label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", flex: "1 1 auto" }}>
+              <input
+                type="checkbox"
+                checked={row.accepted !== false}
+                onChange={(e) => onAcceptChange(row.rowIndex, e.target.checked)}
+              />
+              <span>
+                {/* Grouped rows live under a day/time header — no per-row day prefix. */}
+                {!enriched && row.day ? <span className="help-text">{row.day} · </span> : null}
+                {line}
+              </span>
+            </label>
+            {extra}
+          </div>
         ) : (
-          line
+          <>
+            {line}
+            {extra}
+          </>
         )}
       </li>
     );
@@ -503,10 +530,20 @@ export function ReviewChangeset({
         <p className="help-text">Nothing valid to create yet. Fix errors or adjust column mapping.</p>
       ) : null}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
         {onConfirm ? (
           <button type="button" className="button" disabled={!canConfirm} onClick={() => void onConfirm()}>
             {busy ? "Working…" : confirmLabel}
+          </button>
+        ) : null}
+        {onSecondaryConfirm && secondaryConfirmLabel ? (
+          <button
+            type="button"
+            className="button secondary"
+            disabled={acceptedCount === 0 || busy}
+            onClick={() => void onSecondaryConfirm()}
+          >
+            {secondaryConfirmLabel}
           </button>
         ) : null}
         {onCancel ? (
