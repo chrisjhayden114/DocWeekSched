@@ -231,12 +231,13 @@ a:hover {
   transform: rotate(45deg);
 }
 
+/* Rendered through kit/Portal into document.body and positioned from the
+   trigger's rect (lib/popupAnchor) — top/left/width/max-height all arrive as
+   inline style. The z-index clears the slide-over panel (1001) so a select
+   inside a drawer still opens over it. */
 .select-popup {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  position: fixed;
+  z-index: 1100;
   max-height: 260px;
   overflow-y: auto;
   padding: var(--space-1);
@@ -303,11 +304,10 @@ a:hover {
   padding: 2px 8px;
 }
 
-.select-control.select-compact .select-popup {
-  right: auto;
-  min-width: 100%;
+/* The compact popup is a portal sibling, not a descendant of .select-compact,
+   so it carries its own class; min-width/max-width come from the anchor. */
+.select-popup.is-compact {
   width: max-content;
-  max-width: 320px;
 }
 
 .input:focus,
@@ -3819,7 +3819,6 @@ button.schedule-meta-chip:hover {
 }
 
 .kebab-menu {
-  position: relative;
   display: inline-flex;
 }
 
@@ -3840,19 +3839,20 @@ button.schedule-meta-chip:hover {
   background: var(--surface-alt);
 }
 
+/* Portal-rendered like .select-popup: position comes from lib/popupAnchor as
+   inline style, and the z-index clears the slide-over panel (1001). */
 .kebab-panel {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
+  position: fixed;
   min-width: 180px;
   margin: 0;
   padding: var(--space-1);
   list-style: none;
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-3);
-  z-index: 50;
+  z-index: 1100;
 }
 
 .kebab-item {

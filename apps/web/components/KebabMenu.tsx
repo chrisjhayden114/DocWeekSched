@@ -1,4 +1,6 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Portal } from "./kit/Portal";
+import { useAnchoredPopup } from "./kit/useAnchoredPopup";
 
 export type KebabItem = {
   id: string;
@@ -9,15 +11,30 @@ export type KebabItem = {
   title?: string;
 };
 
+const PANEL_MAX_HEIGHT = 320;
+
+/**
+ * Row-level overflow actions. The panel renders through kit/Portal as a
+ * fixed-position layer anchored to the trigger (W-1) — inside the scrolling
+ * table wrappers it lives in, an absolutely positioned panel was clipped.
+ */
 export function KebabMenu({ items, label = "Actions" }: { items: KebabItem[]; label?: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLUListElement>(null);
   const menuId = useId();
+
+  const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // The panel is in a portal, so it is outside the wrapper but still part of
+      // the menu for the purposes of closing on an outside click.
+      if (wrapRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -30,9 +47,19 @@ export function KebabMenu({ items, label = "Actions" }: { items: KebabItem[]; la
     };
   }, [open]);
 
+  const panelStyle = useAnchoredPopup({
+    open,
+    triggerRef,
+    popupRef: panelRef,
+    align: "end",
+    maxHeight: PANEL_MAX_HEIGHT,
+    onClose: close,
+  });
+
   return (
     <div className="kebab-menu" ref={wrapRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="kebab-trigger"
         aria-haspopup="menu"
@@ -43,26 +70,28 @@ export function KebabMenu({ items, label = "Actions" }: { items: KebabItem[]; la
       >
         ⋯
       </button>
-      {open ? (
-        <ul id={menuId} className="kebab-panel" role="menu">
-          {items.map((item) => (
-            <li key={item.id} role="none">
-              <button
-                type="button"
-                role="menuitem"
-                className={`kebab-item${item.tone === "danger" ? " is-danger" : ""}`}
-                disabled={item.disabled}
-                title={item.title}
-                onClick={() => {
-                  setOpen(false);
-                  item.onSelect();
-                }}
-              >
-                {item.label}
-              </button>
-            </li>
-          ))}
-        </ul>
+      {open && panelStyle ? (
+        <Portal>
+          <ul id={menuId} ref={panelRef} className="kebab-panel" role="menu" style={panelStyle}>
+            {items.map((item) => (
+              <li key={item.id} role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`kebab-item${item.tone === "danger" ? " is-danger" : ""}`}
+                  disabled={item.disabled}
+                  title={item.title}
+                  onClick={() => {
+                    setOpen(false);
+                    item.onSelect();
+                  }}
+                >
+                  {item.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Portal>
       ) : null}
     </div>
   );

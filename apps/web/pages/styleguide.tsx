@@ -284,7 +284,9 @@ export default function StyleguidePage() {
               ARIA 1.2 select-only combobox — focus stays on the trigger; options announce via{" "}
               <code>aria-activedescendant</code>. Supports <code>name</code> (hidden input for forms)
               and <code>required</code> (native validation). Compact variant:{" "}
-              <code>className=&quot;select-compact&quot;</code>.
+              <code>className=&quot;select-compact&quot;</code>. The listbox renders in a portal,
+              anchored to the trigger, so scrolling containers can&apos;t clip it; an outside
+              scroll or a resize closes it.
             </p>
             <label className="text-label" style={{ display: "grid", gap: 6 }}>
               Textarea

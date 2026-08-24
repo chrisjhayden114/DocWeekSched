@@ -14,6 +14,8 @@ import {
   moveActiveIndex,
   typeaheadIndex,
 } from "../lib/selectControl";
+import { Portal } from "./kit/Portal";
+import { useAnchoredPopup } from "./kit/useAnchoredPopup";
 
 export type SelectOption = {
   value: string;
@@ -49,6 +51,9 @@ type Props = {
 };
 
 const TYPEAHEAD_RESET_MS = 500;
+const POPUP_MAX_HEIGHT = 260;
+/** The compact variant sizes to its longest label rather than to the trigger. */
+const COMPACT_MAX_WIDTH = 320;
 
 /**
  * The one Select control (chunk E17): a styled, accessible replacement for
@@ -56,6 +61,10 @@ const TYPEAHEAD_RESET_MS = 500;
  * the trigger; the active option is conveyed via aria-activedescendant.
  * Keyboard: arrows, Home/End, type-ahead, Enter/Space commit, Esc closes,
  * Tab commits and moves on.
+ *
+ * The listbox renders through kit/Portal as a fixed-position layer anchored to
+ * the trigger (W-1): as an absolutely positioned child it was clipped by any
+ * scrolling ancestor, which left the roster's label dropdown showing a sliver.
  */
 export function Select({
   options,
@@ -93,9 +102,11 @@ export function Select({
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      // The listbox lives in a portal, so it is outside the root but still
+      // inside the control as far as "click outside to close" is concerned.
+      if (rootRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -196,6 +207,17 @@ export function Select({
     }
   }
 
+  const compact = (className ?? "").split(/\s+/).includes("select-compact");
+  const popupStyle = useAnchoredPopup({
+    open,
+    triggerRef,
+    popupRef: listRef,
+    align: compact ? "start" : "stretch",
+    maxHeight: POPUP_MAX_HEIGHT,
+    maxWidth: compact ? COMPACT_MAX_WIDTH : undefined,
+    onClose: closeList,
+  });
+
   return (
     <div ref={rootRef} className={`select-control${className ? ` ${className}` : ""}`} style={style}>
       <button
@@ -235,42 +257,50 @@ export function Select({
           onFocus={() => triggerRef.current?.focus()}
         />
       ) : null}
-      {open ? (
-        <div id={listboxId} ref={listRef} role="listbox" className="select-popup">
-          {options.length === 0 ? (
-            <div className="select-option" aria-disabled="true">
-              No options
-            </div>
-          ) : (
-            options.map((opt, i) => (
-              <div
-                key={`${opt.value}-${i}`}
-                id={optionId(i)}
-                role="option"
-                aria-selected={i === selectedIndex}
-                aria-disabled={opt.disabled || undefined}
-                className={`select-option${i === activeIndex ? " is-active" : ""}${
-                  i === selectedIndex ? " is-selected" : ""
-                }`}
-                onMouseDown={(e) => {
-                  // Keep focus on the trigger; commit on the same gesture.
-                  e.preventDefault();
-                  if (!opt.disabled) commit(i);
-                }}
-                onMouseEnter={() => {
-                  if (!opt.disabled) setActiveIndex(i);
-                }}
-              >
-                <span className="select-option-label">{opt.label}</span>
-                {i === selectedIndex ? (
-                  <span className="select-option-check" aria-hidden>
-                    ✓
-                  </span>
-                ) : null}
+      {open && popupStyle ? (
+        <Portal>
+          <div
+            id={listboxId}
+            ref={listRef}
+            role="listbox"
+            className={`select-popup${compact ? " is-compact" : ""}`}
+            style={popupStyle}
+          >
+            {options.length === 0 ? (
+              <div className="select-option" aria-disabled="true">
+                No options
               </div>
-            ))
-          )}
-        </div>
+            ) : (
+              options.map((opt, i) => (
+                <div
+                  key={`${opt.value}-${i}`}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === selectedIndex}
+                  aria-disabled={opt.disabled || undefined}
+                  className={`select-option${i === activeIndex ? " is-active" : ""}${
+                    i === selectedIndex ? " is-selected" : ""
+                  }`}
+                  onMouseDown={(e) => {
+                    // Keep focus on the trigger; commit on the same gesture.
+                    e.preventDefault();
+                    if (!opt.disabled) commit(i);
+                  }}
+                  onMouseEnter={() => {
+                    if (!opt.disabled) setActiveIndex(i);
+                  }}
+                >
+                  <span className="select-option-label">{opt.label}</span>
+                  {i === selectedIndex ? (
+                    <span className="select-option-check" aria-hidden>
+                      ✓
+                    </span>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+        </Portal>
       ) : null}
     </div>
   );
