@@ -1,4 +1,4 @@
-import { brand, marketingSeo, speakerReadinessPilotMailto } from "@event-app/config";
+import { brand, marketingSeo } from "@event-app/config";
 import { formatDisplayPrice, PLAN_BY_SKU, publicPricingPlans } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
@@ -152,7 +152,6 @@ export default function LandingPage() {
   const title = marketingSeo.pages.home.title;
   const description = marketingSeo.pages.home.description;
   const ogImage = `${brand.primaryUrl}/icons/icon-512.png`;
-  const readinessMailto = speakerReadinessPilotMailto();
 
   // schema.org SoftwareApplication with offers straight from the plan catalog (E25.4).
   const softwareJsonLd = {
@@ -335,14 +334,18 @@ export default function LandingPage() {
                   <strong>Reminders you don’t send.</strong> Polite automatic emails at 7 days, 2 days, and once
                   when overdue — so nobody on your team has to write them.
                 </li>
+                <li>
+                  <strong>In every plan, Free included.</strong> Turn it on under Features when you want it —
+                  there is nothing to ask for.
+                </li>
               </ul>
               <div className="mkt-hero-cta" style={{ marginTop: 28, marginBottom: 0 }}>
                 <Link className="button" href="/speaker-readiness">
                   See Speaker Readiness
                 </Link>
-                <a className="button secondary" href={readinessMailto}>
-                  Ask about a Speaker Readiness pilot
-                </a>
+                <Link className="button secondary" href="/pricing">
+                  Open pricing
+                </Link>
               </div>
             </div>
           </section>

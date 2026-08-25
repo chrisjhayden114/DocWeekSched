@@ -1,10 +1,10 @@
 /**
  * MKT-3 — pricing-page copy derived from the plan catalog.
- * Amounts stay in plans.ts / speakerReadinessPilot. This module only names
+ * Amounts stay in plans.ts / speakerReadinessService. This module only names
  * features the registry actually grants (or does not gate).
  */
 
-import { speakerReadinessPilot } from "@event-app/config";
+import { speakerReadinessService } from "@event-app/config";
 import {
   ASSISTANT_COPY,
   PRICE_LOCK,
@@ -20,12 +20,15 @@ export const FULL_AI_SUITE_BULLET = `Full AI suite (${FULL_AI_SUITE_DETAIL})`;
 
 export const CONCIERGE_CROSS_LINK = {
   lead: "Running one big event and want it done with you?",
-  linkLabel: "See the concierge pilot",
+  linkLabel: "See the concierge rates",
   href: "/speaker-readiness",
 } as const;
 
-export function formatPilotUsd(n: number): string {
-  return `$${n.toLocaleString("en-US")}`;
+/** One sentence of "{scale} — {rate}" clauses, joined; amounts stay in config. */
+function conciergeRateSentence(): string {
+  return speakerReadinessService.tiers
+    .map((tier) => `${tier.scale} — ${tier.price}${tier.priceNote ? ` (${tier.priceNote})` : ""}`)
+    .join("; ");
 }
 
 function entitled(plan: PlanDefinition, key: EntitlementKey): boolean {
@@ -37,7 +40,8 @@ function entitled(plan: PlanDefinition, key: EntitlementKey): boolean {
  * `resolveEntitlement`. CFP and announcements are organizer-visible and are
  * not differentially granted in the public catalog — listing them on every
  * public plan is the honest reading (do not invent Pro-only CFP).
- * `readiness` is granted on INTERNAL only; it does not appear here.
+ * `readiness` is granted on every tier (ER-GA, 2026-08-26); Free names its
+ * presenter cap so the bullet cannot promise more than the API allows.
  */
 export function planFeatureBullets(plan: PlanDefinition): string[] {
   const events =
@@ -52,7 +56,12 @@ export function planFeatureBullets(plan: PlanDefinition): string[] {
     rows.push("Agenda import (Excel, PDF, Word, paste, or describe)");
   }
   if (entitled(plan, "readiness")) {
-    rows.push("Speaker Readiness");
+    const presenters = plan.limits.readinessPresentersPerEvent;
+    rows.push(
+      presenters == null
+        ? "Speaker Readiness"
+        : `Speaker Readiness (up to ${presenters.toLocaleString()} presenters)`,
+    );
   }
   // CFP is an event-level toggle (`defaultOn: false`) and is absent from every
   // public entitlements map — not a paid-tier gate in the catalog.
@@ -117,8 +126,8 @@ export const PRICING_FAQ = [
   },
   {
     q: "Is there a done-for-you option?",
-    a: `Yes — a Speaker Readiness concierge pilot: ${formatPilotUsd(speakerReadinessPilot.small.priceUsd)} per event up to about ${speakerReadinessPilot.small.presentersApprox} presenters, or ${formatPilotUsd(speakerReadinessPilot.medium.priceUsd)} up to about ${speakerReadinessPilot.medium.presentersApprox}. Larger events are scoped individually.`,
+    a: `Yes. Speaker Readiness itself is included in every plan, so this is a service, not a licence: we run the setup and stay hands-on through your event. Rates by scale — ${conciergeRateSentence()}.`,
     href: "/speaker-readiness",
-    linkLabel: "See the concierge pilot",
+    linkLabel: "See the concierge rates",
   },
 ] as const;

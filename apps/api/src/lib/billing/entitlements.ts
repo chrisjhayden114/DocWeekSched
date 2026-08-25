@@ -203,6 +203,43 @@ export async function assertCanAddAttendee(eventId: string): Promise<void> {
   }
 }
 
+/**
+ * Speaker Readiness presenter cap (ER-GA, founder decision 2026-08-26).
+ * Readiness itself is entitled on every tier; Free caps how many presenters
+ * one event can track. A presenter counts once, however many requirements
+ * they carry, and session-subject assignments never count. `addingSpeakerIds`
+ * is the set about to be assigned — already-tracked ids are free.
+ */
+export async function assertReadinessPresenterCap(
+  eventId: string,
+  organizationId: string,
+  addingSpeakerIds: string[],
+): Promise<void> {
+  const max = await limit(organizationId, "readinessPresentersPerEvent");
+  if (max == null) return;
+
+  const tracked = await prisma.readinessAssignment.findMany({
+    where: { eventId, speakerId: { not: null } },
+    distinct: ["speakerId"],
+    select: { speakerId: true },
+  });
+  const current = new Set(tracked.map((row) => row.speakerId as string));
+  const after = new Set(current);
+  for (const id of addingSpeakerIds) after.add(id);
+  if (after.size <= max) return;
+
+  throw new HttpError(402, {
+    error: `Your plan tracks ${max} presenter${max === 1 ? "" : "s"} per event in Speaker Readiness. This would make ${after.size}. Upgrade to track your whole roster.`,
+    upgrade: upgradePayload({
+      code: "PLAN_LIMIT",
+      message: `Readiness presenter limit reached (${current.size}/${max}).`,
+      limitKey: "readinessPresentersPerEvent",
+      current: current.size,
+      max,
+    }),
+  });
+}
+
 /** Apply SKU entitlements onto an organization (webhooks + tests). */
 export async function applyPlanSkuToOrg(
   orgId: string,

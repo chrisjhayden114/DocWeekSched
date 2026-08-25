@@ -9,8 +9,8 @@
  * - event-scoped hrefs use the tab ids from
  *   pages/organizer/events/[eventId]/index.tsx (overview, program,
  *   people = Speakers, invites = Participants — ?tab=participants also
- *   resolves, maps, announcements, ops, readiness — pilot, only when the
- *   event's resolved features enable it, features, recap), the
+ *   resolves, maps, announcements, ops, readiness — only when the event's
+ *   resolved features enable it, features, recap), the
  *   ?settings=1 slide-over, or the sibling pages (ingest, sponsors,
  *   scanner, analytics). "{eventId}" is substituted server-side via
  *   resolveOrganizerGuideHref before a link is ever attached.
@@ -84,7 +84,7 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     id: "readiness-tab",
     topic: "Readiness",
     href: "/organizer/events/{eventId}?tab=readiness",
-    text: "Pilot preview — if enabled for this event, the Readiness tab tracks what every speaker and session still needs before show day. Create a template (a named set of requirements like bio, headshot, slides, AV needs), assign it to speakers or sessions, and follow per-requirement status, due dates, and waivers from the readiness table. For a speaker, send a presenter portal invite from their detail panel — they get a 30-day link to submit materials without creating an account; you can resend or revoke that link, then approve or reject what they send. Chasing is automatic and needs nothing from you: an invited presenter is emailed once when a due date is 7 days away, once at 2 days, and once when it has passed — one email covering all of their open items, and never a fourth. Each reminder carries a fresh portal link: resending sends a new 30-day link while the presenter's previous link keeps working until its own expiry, and revoking kills every link at once. Approved and waived items are never chased, and the reminders appear in the activity history so you can see what went out.",
+    text: "Included in every plan — enable “Speaker & Session Readiness” on the Features tab and this event grows a Readiness tab (the Free plan tracks up to 10 presenters per event). The Readiness tab tracks what every speaker and session still needs before show day. Create a template (a named set of requirements like bio, headshot, slides, AV needs), assign it to speakers or sessions, and follow per-requirement status, due dates, and waivers from the readiness table. For a speaker, send a presenter portal invite from their detail panel — they get a 30-day link to submit materials without creating an account; you can resend or revoke that link, then approve or reject what they send. Chasing is automatic and needs nothing from you: an invited presenter is emailed once when a due date is 7 days away, once at 2 days, and once when it has passed — one email covering all of their open items, and never a fourth. Each reminder carries a fresh portal link: resending sends a new 30-day link while the presenter's previous link keeps working until its own expiry, and revoking kills every link at once. Approved and waived items are never chased, and the reminders appear in the activity history so you can see what went out.",
   },
   {
     id: "recap-tab",

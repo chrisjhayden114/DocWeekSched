@@ -271,9 +271,8 @@ export default function OrganizerEventPage() {
   );
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
-  /** ER3a — resolved (plan AND override) readiness flag from /event/features.
-      The key stays plannedPhase-hidden from the Features toggles; an
-      eventFeatureConfig override enables it per event for pilots. */
+  /** Resolved (plan AND override) readiness flag from /event/features. Every
+      plan grants readiness, so this follows the organizer's Features toggle. */
   const [readinessEnabled, setReadinessEnabled] = useState(false);
   const [featuresDirty, setFeaturesDirty] = useState(false);
   const [featuresSaving, setFeaturesSaving] = useState(false);
@@ -807,8 +806,8 @@ export default function OrganizerEventPage() {
               ["maps", "Maps"],
               ["announcements", "Announcements"],
               ["ops", "Ops Inbox"],
-              // ER3a — pilot surface: only when the event's RESOLVED features
-              // include readiness (plan entitlement + per-event override).
+              // Only when the event's RESOLVED features include readiness
+              // (plan entitlement + the organizer's per-event override).
               ...(readinessEnabled ? ([["readiness", "Readiness"]] as const) : []),
               ["recap", "Recap"],
               ["features", "Features"],
@@ -1507,8 +1506,8 @@ export default function OrganizerEventPage() {
         {tab === "ops" && eventId ? <OpsInboxPanel eventId={eventId} /> : null}
         {tab === "recap" && eventId ? <RecapPanel eventId={eventId} /> : null}
 
-        {/* ER3a — deep links (?tab=readiness) land here even when the pilot
-            feature is off; say so honestly instead of rendering nothing. */}
+        {/* Deep links (?tab=readiness) land here even when the feature is off;
+            say so, and say where the switch is, instead of rendering nothing. */}
         {tab === "readiness" && event ? (
           readinessEnabled ? (
             <ReadinessTab
@@ -1517,7 +1516,10 @@ export default function OrganizerEventPage() {
               sessions={sessions.map((s) => ({ id: s.id, title: s.title }))}
             />
           ) : (
-            <p className="help-text">Readiness isn&apos;t enabled for this event.</p>
+            <p className="help-text">
+              Readiness isn&apos;t enabled for this event. Turn on “Speaker &amp; Session
+              Readiness” on the Features tab.
+            </p>
           )
         ) : null}
 

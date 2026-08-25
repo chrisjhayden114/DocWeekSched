@@ -265,7 +265,11 @@ order: 5
 
 **Speaker Readiness** replaces the tracker spreadsheet and the mail merge. You define what every presenter owes you once, assign it, and the reminders go out on a cadence without you doing anything. Your job shrinks to approving what lands.
 
-Readiness runs as a hands-on pilot rather than a self-serve switch: email [{{support}}](mailto:{{support}}) with your presenter count and event date and we turn it on for your event. See [Speaker Readiness](/speaker-readiness) for what the pilot includes. Once it's on, the event grows a **Readiness** tab.
+Readiness is included in every plan, Free included. Turn it on yourself: open your event, go to the **Features** tab, and enable **Speaker & Session Readiness**. The event then grows a **Readiness** tab.
+
+On the Free plan you can track up to 10 presenters in one event; every paid plan tracks as many as your programme has. Assigning a template to more presenters than your plan covers is refused with an upgrade prompt rather than half-applied.
+
+If you'd rather not run it yourself, there's a concierge service — we map your data, build the templates, send the invites, and stay hands-on through your event. Rates by scale are on the [Speaker Readiness](/speaker-readiness) page; the software is in your plan either way.
 
 ## 1. Build a template of requirements
 

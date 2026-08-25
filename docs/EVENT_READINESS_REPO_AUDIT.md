@@ -764,64 +764,46 @@ Q19→none exist §6, Q20→CFP/tenancy/features fixtures §13). Genuinely open:
   `plannedPhase` at ER8 (visible to everyone but plan-blocked for non-entitled orgs — the
   existing `blockedReason` UX) or keep it hidden and activate via support. Recommendation:
   the former; it reuses the registry's plan-lock display path.
+  **Superseded 2026-08-26 — see §16 (ER-GA).** There is no plan-blocked state to reveal:
+  readiness is entitled on every tier, so the toggle is simply visible to everyone.
 - **O10 — File formats/size limits per requirement type** (Q15): product call; CFP's
   10 MB / PDF-DOCX-image allowlist is the sane default, decks likely need more (R2 cap is
   configurable via `STORAGE_MAX_UPLOAD_BYTES`, default 20 MB).
 
 ---
 
-*End of ER0. No application code, schema, environment, or data was changed. The next step,
-after human review of this audit (plan §19.4 checklist), is ER1.*
+---
+
+## 16. Amendments
+
+### ER-GA — general availability on every plan (founder decision, 2026-08-26)
+
+Supersedes **O9** (and the ER8/ER9 sequencing that assumed a pilot-then-attach path). Speaker
+Readiness ships to everyone now; there is no migration and no data change.
+
+| ER0 said | Founder decision 2026-08-26 |
+|---|---|
+| `plannedPhase` hides the toggle until pilots; drop it at ER8 (§14 ER1, §15 O9) | `plannedPhase` removed now. Normal Features-tab toggle for every organizer, still `defaultOn: false` |
+| "No public tier grants the entitlement; INTERNAL only is the pilot gate" (§0, §3, §14 ER1) | `readiness: true` on **every** tier including FREE, via `CORE_ATTENDEE_FEATURES` in `plans.ts` |
+| ER9 attaches readiness to Stripe products/SKUs (§14 ER9) | No SKU, no add-on purchase. Metering is a plan limit instead: new `LimitKey` `readinessPresentersPerEvent` — FREE = 10, per-event/PRO/ENTERPRISE = `null` (unlimited), INTERNAL unchanged (`limit()` short-circuits) |
+| Pilot entitlement via comped `INTERNAL` orgs (§15 O4) | Moot for access. `INTERNAL` remains the comp mechanism for everything else |
+| Concierge pilot: two rates, $750 / $1,250 (plan §13.2) | Four **service** rates in `packages/config` (`speakerReadinessService`), $150 / $350 / $750 / from $1,250. These price *my time*, not the software — the software is in every plan, Free included |
+
+**Enforcement point.** The presenter cap is checked in `assignTemplate`
+(`lib/readiness/service.ts`) via `assertReadinessPresenterCap`
+(`lib/billing/entitlements.ts`), before any row is written: a roster that would cross the cap
+is refused whole with the house 402 + `upgradePayload({ code: "PLAN_LIMIT" })` shape, never
+half-applied. A presenter counts once regardless of how many requirements they carry; session
+subjects never consume the cap. Everything else about the feature — `requireFeature` 404 when
+off, manage-level authorization, tenant re-scoping — is unchanged.
+
+**Surfaces updated in the same session** (per `.cursor/rules` rule 12): pricing bullets and the
+done-for-you FAQ (`apps/web/lib/pricingCopy.ts`), `/speaker-readiness`, the homepage flagship
+section, and the help article `content/help/speaker-readiness.md` plus its bundled mirror
+(`lib/help/helpContent.ts`, regenerated with `npm run gen:help`).
 
 ---
 
-## §15 (addendum) — O1–O10 RESOLVED by founder, 2026-08-16
-
-- O1 RESOLVED: portal tokens expire 30 days; remint on demand; auto-revoke on event archive.
-- O2 RESOLVED (amended at ER2): presenter email lives on `ReadinessPortalAccess.email`, NOT `Speaker.contactEmail` — Speaker rows are member-readable via GET /speakers and must not leak contact emails.
-- O3 RESOLVED: sensitive-field visibility is manage-level for MVP; no per-organizer allowlist.
-- O4 RESOLVED: first 3–5 pilots run as comped INTERNAL-plan orgs (zero entitlement code).
-- O5 RESOLVED: private files are API-proxied (auth-checked streaming); no signed URLs. Unblocks ER4.
-- O6 RESOLVED: exceptions are derived, not stored; WAIVERS are persisted (join the ER2 models).
-- O7 RESOLVED: readiness files retained for the life of the event, removed on event deletion; privacy-draft sentence to be added; tiered retention revisited at ER9.
-- O8 RESOLVED: image dimension rules dropped from MVP.
-- O9 RESOLVED: at ER8, remove `plannedPhase` from the readiness key; rely on plan-lock blockedReason UX for non-entitled orgs.
-- O10 RESOLVED: default file rules = CFP allowlist (PDF/DOCX/images, 10 MB); deck-type requirements up to the 20 MB storage cap; configured per requirement type.
-
-Sequencing (founder, 2026-08-16): full pre-pilot build — ER2 → ER3 → ER4 (then reassess
-ER5–ER7) after AGENT-1/AGENT-2 (real conversational concierge + setup copilot).
-
-### ER4 / ER6 — template evolution after portal invites (founder, 2026-08-17)
-
-Founder requirement (2026-08-17): when the presenter portal exists, requirement changes made
-after portal invites must surface to presenters (calm 'your checklist changed' notice via
-the ER6 reminder machinery — no immediate push).
-
-### ER5.1 — O1 amended: portal link grace on remint (founder, 2026-08-17)
-
-O1 said "remint on demand", and ER4/ER5 read that as "each new link kills every older one".
-In practice presenters open whichever invite or reminder email is nearest to hand, so every
-reminder turned an already-emailed link into a support ticket.
-
-Amendment: `ReadinessPortalAccess` keeps ONE previous token beside the current one
-(`previousTokenHash` + `previousExpiresAt`, both nullable; additive migration
-`20260820120000_er51_portal_link_grace`). On remint — organizer resend AND the ER5 reminder
-sweep — the outgoing token moves into that slot carrying its ORIGINAL expiry, which is never
-extended; a second remint retires the oldest. Token lookup accepts either hash and stamps
-`lastUsedAt` either way.
-
-Unchanged: 30 days per token, auto-revoke on archive, and revocation as the absolute answer —
-neither slot opens the portal once `revokedAt` is set, and a revoked token is never carried
-into grace by the remint that clears `revokedAt`.
-
-### ER5.3 — revoke keeps the hashes it kills (founder, 2026-08-17)
-
-ER5.1 had revoke empty the grace slot, so the link in the presenter's older email matched no
-row at all and the portal answered with the generic "this link is not valid" — the same words
-a typo gets. Revoke (organizer button and archive bulk-revoke) now stamps `revokedAt` and
-leaves both hashes in place. `matchPortalToken` reads `revokedAt` before it reads either hash,
-so neither link opens anything; the presenter is told the link was revoked and to ask the
-organizer for a fresh one. No schema change — the honest answer was always one stored hash
-away. The no-resurrection guard is untouched: reminting a revoked row clears `revokedAt`, mints
-fresh, and writes `null` over the pre-revoke grace slot rather than honoring it.
-
+*End of ER0. No application code, schema, environment, or data was changed by the audit itself.
+The next step, after human review of this audit (plan §19.4 checklist), is ER1. Later decisions
+that overrule this document are recorded in §16.*

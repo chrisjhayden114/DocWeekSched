@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "../ai";
 import { HttpError } from "../authorization";
+import { assertReadinessPresenterCap } from "../billing/entitlements";
 import { prisma } from "../db";
 import {
   deriveAssignmentState,
@@ -389,6 +390,9 @@ export async function deleteRequirement(eventId: string, requirementId: string) 
  * Create one assignment per (requirement × subject), skipping pairs that
  * already exist (idempotent re-run — audit §10.2). Subjects must belong to
  * the SAME event; a real id from another event is a 400, not a silent skip.
+ *
+ * The plan's presenter cap is checked before anything is written, so a
+ * roster that would cross it is refused whole rather than half-assigned.
  */
 export async function assignTemplate(
   eventId: string,
@@ -424,6 +428,10 @@ export async function assignTemplate(
 
   const requirementIds = template.requirements.map((r) => r.id);
   if (requirementIds.length === 0) return { created: 0, skipped: 0 };
+
+  if (speakerIds.length > 0) {
+    await assertReadinessPresenterCap(eventId, organizationId, speakerIds);
+  }
 
   // The DB unique key can't dedupe rows whose optional subject columns are
   // NULL (Postgres NULLs are distinct), so dedupe here against existing rows.

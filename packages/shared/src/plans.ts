@@ -18,7 +18,13 @@ export type PlanSkuKey =
   | "enterprise"
   | "internal";
 
-export type LimitKey = "activeEvents" | "attendees" | "aiIngestPerEvent" | "aiConciergePerEvent";
+export type LimitKey =
+  | "activeEvents"
+  | "attendees"
+  | "aiIngestPerEvent"
+  | "aiConciergePerEvent"
+  /** Presenters (speakers) that can be tracked by Speaker Readiness in one event. */
+  | "readinessPresentersPerEvent";
 
 /** Extra plan flags beyond the event feature registry. */
 export type PlanFlagKey =
@@ -89,6 +95,11 @@ const CORE_ATTENDEE_FEATURES: Partial<Record<EntitlementKey, boolean>> = {
   // paid. Charging for the ability to say "here's how to pay" would be a
   // gate on honesty, not on value.
   paid_attendance: true,
+  // ER-GA (founder decision 2026-08-26): Speaker Readiness is generally
+  // available on every tier, Free included. Free is capped by
+  // `readinessPresentersPerEvent`; the concierge rates in
+  // packages/config are a service, not a licence for the software.
+  readiness: true,
   badges: false,
   ai_ingest: true,
   ai_full_suite: false,
@@ -146,7 +157,13 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     displayPriceCents: 0,
     currency: "usd",
     interval: null,
-    limits: { activeEvents: 1, attendees: 50, aiIngestPerEvent: 1, aiConciergePerEvent: 50 },
+    limits: {
+      activeEvents: 1,
+      attendees: 50,
+      aiIngestPerEvent: 1,
+      aiConciergePerEvent: 50,
+      readinessPresentersPerEvent: 10,
+    },
     entitlements: { ...CORE_ATTENDEE_FEATURES, ai_ingest: true },
     public: true,
   },
@@ -158,7 +175,13 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     displayPriceCents: 14900,
     currency: "usd",
     interval: "one_time",
-    limits: { activeEvents: 1, attendees: 250, aiIngestPerEvent: 5, aiConciergePerEvent: 500 },
+    limits: {
+      activeEvents: 1,
+      attendees: 250,
+      aiIngestPerEvent: 5,
+      aiConciergePerEvent: 500,
+      readinessPresentersPerEvent: null,
+    },
     entitlements: { ...BASELINE_ALL },
     public: true,
   },
@@ -170,7 +193,13 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     displayPriceCents: 24900,
     currency: "usd",
     interval: "one_time",
-    limits: { activeEvents: 1, attendees: 500, aiIngestPerEvent: 10, aiConciergePerEvent: 1000 },
+    limits: {
+      activeEvents: 1,
+      attendees: 500,
+      aiIngestPerEvent: 10,
+      aiConciergePerEvent: 1000,
+      readinessPresentersPerEvent: null,
+    },
     entitlements: { ...BASELINE_ALL },
     public: true,
   },
@@ -182,7 +211,13 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     displayPriceCents: 39900,
     currency: "usd",
     interval: "one_time",
-    limits: { activeEvents: 1, attendees: 1000, aiIngestPerEvent: 20, aiConciergePerEvent: 2000 },
+    limits: {
+      activeEvents: 1,
+      attendees: 1000,
+      aiIngestPerEvent: 20,
+      aiConciergePerEvent: 2000,
+      readinessPresentersPerEvent: null,
+    },
     entitlements: { ...BASELINE_ALL },
     public: true,
   },
@@ -194,7 +229,13 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     displayPriceCents: 7900,
     currency: "usd",
     interval: "month",
-    limits: { activeEvents: null, attendees: 2000, aiIngestPerEvent: null, aiConciergePerEvent: 5000 },
+    limits: {
+      activeEvents: null,
+      attendees: 2000,
+      aiIngestPerEvent: null,
+      aiConciergePerEvent: 5000,
+      readinessPresentersPerEvent: null,
+    },
     entitlements: { ...PRO_ENTITLEMENTS },
     public: true,
   },
@@ -206,7 +247,13 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     displayPriceCents: 79000,
     currency: "usd",
     interval: "year",
-    limits: { activeEvents: null, attendees: 2000, aiIngestPerEvent: null, aiConciergePerEvent: 5000 },
+    limits: {
+      activeEvents: null,
+      attendees: 2000,
+      aiIngestPerEvent: null,
+      aiConciergePerEvent: 5000,
+      readinessPresentersPerEvent: null,
+    },
     entitlements: { ...PRO_ENTITLEMENTS },
     public: true,
   },
@@ -218,7 +265,13 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     displayPriceCents: null,
     currency: "usd",
     interval: null,
-    limits: { activeEvents: null, attendees: null, aiIngestPerEvent: null, aiConciergePerEvent: null },
+    limits: {
+      activeEvents: null,
+      attendees: null,
+      aiIngestPerEvent: null,
+      aiConciergePerEvent: null,
+      readinessPresentersPerEvent: null,
+    },
     entitlements: { ...INTERNAL_ENTITLEMENTS },
     public: true,
     contactOnly: true,
@@ -231,7 +284,13 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     displayPriceCents: null,
     currency: "usd",
     interval: null,
-    limits: { activeEvents: null, attendees: null, aiIngestPerEvent: null, aiConciergePerEvent: null },
+    limits: {
+      activeEvents: null,
+      attendees: null,
+      aiIngestPerEvent: null,
+      aiConciergePerEvent: null,
+      readinessPresentersPerEvent: null,
+    },
     entitlements: { ...INTERNAL_ENTITLEMENTS },
     public: false,
   },

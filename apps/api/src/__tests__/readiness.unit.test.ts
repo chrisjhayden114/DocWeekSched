@@ -18,38 +18,52 @@ import {
 } from "../lib/readiness/status";
 
 /**
- * ER1 — hidden entitlement. The `readiness` key must exist, default off,
- * stay invisible to organizers, and be granted by no public plan tier.
+ * ER-GA (founder decision 2026-08-26) — Speaker Readiness is generally
+ * available: a normal organizer toggle, entitled on every tier, still off
+ * until the organizer switches it on. Free is capped by presenter count.
  */
-describe("readiness feature key (ER1)", () => {
-  it("is registered, off by default, and marked as a planned phase", () => {
+describe("readiness feature key (ER-GA)", () => {
+  it("is registered, off by default, and no longer phase-gated", () => {
     const def = FEATURE_BY_KEY.readiness;
     expect(def).toBeDefined();
     expect(def.defaultOn).toBe(false);
-    expect(def.plannedPhase).toBeTruthy();
+    expect(def.plannedPhase).toBeUndefined();
     expect(def.retired).toBeUndefined();
   });
 
-  it("is hidden from the organizer Features tab and wizard", () => {
+  it("is a normal toggle on the organizer Features tab and wizard", () => {
     const visible = getOrganizerVisibleFeatures();
-    expect(visible.some((f) => f.key === "readiness")).toBe(false);
+    expect(visible.some((f) => f.key === "readiness")).toBe(true);
   });
 
-  it("resolves off by default and stays off when the plan disallows it", () => {
+  it("resolves off until the organizer enables it, and honors the plan gate", () => {
     expect(resolveFeatureEnabled("readiness", {})).toBe(false);
     // Organizer override alone is not enough: effective = plan AND override.
     expect(resolveFeatureEnabled("readiness", { readiness: true }, { planAllows: false })).toBe(false);
-    // Entitled org (INTERNAL) that explicitly enables it: on.
     expect(resolveFeatureEnabled("readiness", { readiness: true }, { planAllows: true })).toBe(true);
     // Entitled but not enabled: still off (defaultOn false).
     expect(resolveFeatureEnabled("readiness", {}, { planAllows: true })).toBe(false);
   });
 
-  it("is granted by no public plan tier — INTERNAL only", () => {
-    for (const plan of PLAN_CATALOG.filter((p) => p.tier !== "INTERNAL")) {
-      expect(resolveEntitlement(plan, "readiness"), `tier ${plan.sku}`).toBe(false);
+  it("is granted on every tier, Free included", () => {
+    for (const plan of PLAN_CATALOG) {
+      expect(resolveEntitlement(plan, "readiness"), `tier ${plan.sku}`).toBe(true);
     }
-    expect(resolveEntitlement(PLAN_BY_SKU.internal, "readiness")).toBe(true);
+  });
+
+  it("caps Free at 10 presenters per event and leaves paid tiers uncapped", () => {
+    expect(PLAN_BY_SKU.free.limits.readinessPresentersPerEvent).toBe(10);
+    for (const sku of [
+      "per_event_250",
+      "per_event_500",
+      "per_event_1000",
+      "pro_monthly",
+      "pro_annual",
+      "enterprise",
+      "internal",
+    ] as const) {
+      expect(PLAN_BY_SKU[sku].limits.readinessPresentersPerEvent, sku).toBeNull();
+    }
   });
 
   it("is not flipped on by any wizard preset", () => {

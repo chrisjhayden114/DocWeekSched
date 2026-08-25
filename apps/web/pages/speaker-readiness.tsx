@@ -2,9 +2,10 @@ import {
   brand,
   marketingSeo,
   readinessReminderCopy,
-  speakerReadinessPilot,
-  speakerReadinessPilotMailto,
+  speakerReadinessService,
+  speakerReadinessServiceMailto,
 } from "@event-app/config";
+import { PLAN_BY_SKU } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import { SiteFooter } from "../components/marketing/SiteFooter";
@@ -75,8 +76,9 @@ const MOCK_ITEMS = [
   { label: "Signed agreement", due: readinessReminderCopy.itemNoDue },
 ] as const;
 
-function formatPilotUsd(n: number): string {
-  return `$${n.toLocaleString("en-US")}`;
+/** Config quotes rates as display strings ("from $1,250"); schema.org wants a number. */
+function offerPrice(price: string): string {
+  return price.replace(/[^\d.]/g, "");
 }
 
 export default function SpeakerReadinessPage() {
@@ -84,8 +86,9 @@ export default function SpeakerReadinessPage() {
   const description = marketingSeo.pages.speakerReadiness.description;
   const url = `${brand.primaryUrl}/speaker-readiness`;
   const ogImage = `${brand.primaryUrl}/icons/icon-512.png`;
-  const mailto = speakerReadinessPilotMailto();
+  const mailto = speakerReadinessServiceMailto();
   const ctaLabel = `Email ${brand.supportEmail} with your presenter count and event date`;
+  const freePresenterCap = PLAN_BY_SKU.free.limits.readinessPresentersPerEvent;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -98,20 +101,13 @@ export default function SpeakerReadinessPage() {
       name: brand.productName,
       url: brand.primaryUrl,
     },
-    offers: [
-      {
-        "@type": "Offer",
-        name: `Concierge pilot — up to about ${speakerReadinessPilot.small.presentersApprox} presenters`,
-        price: speakerReadinessPilot.small.priceUsd.toFixed(2),
-        priceCurrency: "USD",
-      },
-      {
-        "@type": "Offer",
-        name: `Concierge pilot — up to about ${speakerReadinessPilot.medium.presentersApprox} presenters`,
-        price: speakerReadinessPilot.medium.priceUsd.toFixed(2),
-        priceCurrency: "USD",
-      },
-    ],
+    // The software ships with every plan; these offers are the concierge service.
+    offers: speakerReadinessService.tiers.map((tier) => ({
+      "@type": "Offer",
+      name: `Concierge — ${tier.scale}`,
+      price: offerPrice(tier.price),
+      priceCurrency: "USD",
+    })),
   };
 
   return (
@@ -148,14 +144,46 @@ export default function SpeakerReadinessPage() {
                 </h1>
                 <p className="mkt-hero-sub">
                   Every presenter ready — bios, slides, forms, agreements — with nobody on your team
-                  sending reminder emails.
+                  sending reminder emails. Included in every plan, Free included.
                 </p>
                 <div className="mkt-hero-cta">
-                  <a className="button" href={mailto}>
-                    {ctaLabel}
-                  </a>
+                  <Link className="button" href="/login?intent=create-event">
+                    Create your event
+                  </Link>
+                  <Link className="button secondary" href="/pricing">
+                    Open pricing
+                  </Link>
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section className="mkt-section mkt-section--alt" aria-labelledby="sr-included">
+            <div className="mkt-section-inner">
+              <p className="mkt-eyebrow">How you get it</p>
+              <h2 id="sr-included" className="mkt-h2">
+                Included in every plan. Switch it on yourself.
+              </h2>
+              <p className="mkt-standfirst">
+                No add-on, no sales call, no email to unlock it.
+              </p>
+              <ul className="mkt-trust-list">
+                <li>
+                  <strong>Every plan has it.</strong> Free, per-event, Pro and Enterprise all include
+                  Speaker Readiness.
+                </li>
+                <li>
+                  <strong>Turn it on under Features.</strong> Open your event, go to the{" "}
+                  <strong>Features</strong> tab, and enable{" "}
+                  <strong>Speaker &amp; Session Readiness</strong>. The event grows a Readiness tab.
+                </li>
+                {freePresenterCap == null ? null : (
+                  <li>
+                    <strong>Free tracks up to {freePresenterCap} presenters per event.</strong> Paid
+                    plans track your whole roster, however long it is.
+                  </li>
+                )}
+              </ul>
             </div>
           </section>
 
@@ -297,19 +325,30 @@ export default function SpeakerReadinessPage() {
             </div>
           </section>
 
-          <section className="mkt-section mkt-section--alt" aria-labelledby="sr-pilot">
+          <section className="mkt-section mkt-section--alt" aria-labelledby="sr-concierge">
             <div className="mkt-section-inner">
-              <p className="mkt-eyebrow">The concierge pilot</p>
-              <h2 id="sr-pilot" className="mkt-h2">
-                Price on the page. No quote gate.
+              <p className="mkt-eyebrow">The concierge service</p>
+              <h2 id="sr-concierge" className="mkt-h2">
+                Want it done with you?
               </h2>
               <p className="mkt-standfirst">
-                {`${formatPilotUsd(speakerReadinessPilot.small.priceUsd)} per event up to ~${speakerReadinessPilot.small.presentersApprox} presenters · ${formatPilotUsd(speakerReadinessPilot.medium.priceUsd)} up to ~${speakerReadinessPilot.medium.presentersApprox} · larger events individually scoped.`}
+                The software is already in your plan. This is my time: rates on the page, by scale,
+                no quote gate.
               </p>
               <p className="mkt-feature-body" style={{ maxWidth: "40rem" }}>
-                We map your data, build your templates, send the invites, and stay hands-on through
-                your event — direct founder support.
+                {speakerReadinessService.promise}
               </p>
+              <ul className="mkt-trust-list">
+                {speakerReadinessService.tiers.map((tier) => (
+                  <li key={tier.id}>
+                    <strong>
+                      {tier.name} · {tier.scale}
+                    </strong>{" "}
+                    — {tier.price}
+                    {tier.priceNote ? `, ${tier.priceNote}` : ""}
+                  </li>
+                ))}
+              </ul>
               <div className="mkt-hero-cta" style={{ marginTop: 28, marginBottom: 0 }}>
                 <a className="button" href={mailto}>
                   {ctaLabel}
@@ -341,15 +380,16 @@ export default function SpeakerReadinessPage() {
                 The two months before your event, without the chasing.
               </h2>
               <p className="mkt-standfirst" style={{ marginBottom: 20 }}>
-                Tell me your presenter count and event date. I&apos;ll reply.
+                Create your event and switch Readiness on under Features. Want it done with you?
+                Tell me your presenter count and event date and I&apos;ll reply.
               </p>
               <div className="mkt-hero-cta" style={{ marginBottom: 0 }}>
-                <a className="button" href={mailto}>
+                <Link className="button" href="/login?intent=create-event">
+                  Create your event
+                </Link>
+                <a className="button secondary" href={mailto}>
                   {ctaLabel}
                 </a>
-                <Link className="button secondary" href="/pricing">
-                  Open pricing
-                </Link>
               </div>
             </div>
           </section>

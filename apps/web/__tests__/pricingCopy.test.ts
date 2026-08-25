@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { speakerReadinessPilot } from "@event-app/config";
+import { speakerReadinessService } from "@event-app/config";
 import {
   ASSISTANT_COPY,
   PLAN_BY_SKU,
@@ -14,7 +14,6 @@ import {
   FULL_AI_SUITE_BULLET,
   FULL_AI_SUITE_DETAIL,
   PRICING_FAQ,
-  formatPilotUsd,
   planFeatureBullets,
 } from "../lib/pricingCopy";
 
@@ -66,12 +65,19 @@ describe("pricing copy (MKT-3) — entitlement-driven bullets", () => {
     }
   });
 
-  it("does not invent Speaker Readiness on public plans (INTERNAL only)", () => {
-    expect(hasBullet("free", "Speaker Readiness")).toBe(false);
-    expect(hasBullet("per_event_250", "Speaker Readiness")).toBe(false);
-    expect(hasBullet("pro_monthly", "Speaker Readiness")).toBe(false);
-    expect(hasBullet("enterprise", "Speaker Readiness")).toBe(false);
-    expect(hasBullet("internal", "Speaker Readiness")).toBe(true);
+  it("lists Speaker Readiness on every card, and names the Free presenter cap (ER-GA)", () => {
+    for (const plan of publicPricingPlans()) {
+      expect(hasBullet(plan.sku, "Speaker Readiness"), plan.sku).toBe(true);
+    }
+    const freeCap = PLAN_BY_SKU.free.limits.readinessPresentersPerEvent;
+    expect(freeCap).not.toBeNull();
+    expect(planFeatureBullets(PLAN_BY_SKU.free)).toContain(
+      `Speaker Readiness (up to ${freeCap} presenters)`,
+    );
+    // Uncapped tiers must not imply a cap they do not have.
+    for (const sku of ["per_event_250", "pro_monthly", "enterprise"] as const) {
+      expect(planFeatureBullets(PLAN_BY_SKU[sku]), sku).toContain("Speaker Readiness");
+    }
   });
 
   it("keeps paid-only majors off Free and on per-event / Pro", () => {
@@ -135,16 +141,18 @@ describe("pricing copy (MKT-3) — FAQ and concierge cross-link", () => {
     expect(item?.a.toLowerCase()).toContain("minutes");
   });
 
-  it("links the done-for-you answer to /speaker-readiness with pilot amounts from config", () => {
+  it("links the done-for-you answer to /speaker-readiness with every service rate from config", () => {
     const item = PRICING_FAQ.find((f) => f.q === "Is there a done-for-you option?");
     expect(item && "href" in item ? item.href : null).toBe("/speaker-readiness");
-    expect(item?.a).toContain(formatPilotUsd(speakerReadinessPilot.small.priceUsd));
-    expect(item?.a).toContain(String(speakerReadinessPilot.small.presentersApprox));
-    expect(item?.a).toContain(formatPilotUsd(speakerReadinessPilot.medium.priceUsd));
-    expect(item?.a).toContain(String(speakerReadinessPilot.medium.presentersApprox));
+    // A service, not a licence: the answer must not imply the software is bought.
+    expect(item?.a).toContain("included in every plan");
+    for (const tier of speakerReadinessService.tiers) {
+      expect(item?.a, tier.id).toContain(tier.scale);
+      expect(item?.a, tier.id).toContain(tier.price);
+    }
   });
 
-  it("the page imports the shared copy and cross-links the concierge pilot", () => {
+  it("the page imports the shared copy and cross-links the concierge rates", () => {
     const page = readFileSync(PAGE, "utf8");
     const copy = readFileSync(join(__dirname, "../lib/pricingCopy.ts"), "utf8");
     expect(page).toContain("planFeatureBullets");
@@ -152,9 +160,10 @@ describe("pricing copy (MKT-3) — FAQ and concierge cross-link", () => {
     expect(page).toContain("CONCIERGE_CROSS_LINK");
     expect(CONCIERGE_CROSS_LINK.href).toBe("/speaker-readiness");
     expect(CONCIERGE_CROSS_LINK.lead).toContain("Running one big event");
-    expect(copy).toContain("speakerReadinessPilot.small.priceUsd");
-    expect(copy).toContain("speakerReadinessPilot.medium.priceUsd");
-    expect(copy).not.toMatch(/\$750/);
-    expect(copy).not.toMatch(/\$1,?250/);
+    // Every amount comes from config — no rate is typed into this module.
+    expect(copy).toContain("speakerReadinessService.tiers");
+    for (const tier of speakerReadinessService.tiers) {
+      expect(copy, tier.id).not.toContain(tier.price);
+    }
   });
 });

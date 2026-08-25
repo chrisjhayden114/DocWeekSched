@@ -154,18 +154,75 @@ export function marketingArticleTitle(articleTitle: string): string {
 }
 
 /**
- * Speaker Readiness concierge-pilot prices.
- * Source: EVENT_READINESS_PLAN.md §13.2. Manually granted for the first pilots —
- * these amounts are not Stripe SKUs and are not in packages/shared/src/plans.ts.
+ * Speaker Readiness concierge rates (founder decision 2026-08-26).
+ *
+ * These are SERVICE prices for hands-on setup and event-week support. The
+ * software itself is included in every plan — Free included — so nobody has
+ * to buy a service to get the feature. Rates are strings on purpose: they are
+ * quoted, not charged through Stripe, and are not SKUs in
+ * packages/shared/src/plans.ts.
  */
-export const speakerReadinessPilot = {
-  small: { priceUsd: 750, presentersApprox: 50 },
-  medium: { priceUsd: 1250, presentersApprox: 150 },
-  mailtoSubject: "Speaker Readiness pilot",
-} as const;
+const READINESS_SERVICE_PROMISE =
+  "We map your data, build your templates, send the invites, and stay hands-on through your event — direct founder support.";
 
-export function speakerReadinessPilotMailto(): string {
-  return `mailto:${brand.supportEmail}?subject=${encodeURIComponent(speakerReadinessPilot.mailtoSubject)}`;
+export type ReadinessServiceTier = {
+  id: string;
+  /** Who the rate is for. */
+  name: string;
+  /** The scale it covers — the thing a buyer matches themselves against. */
+  scale: string;
+  price: string;
+  /** Only the top tier is scoped rather than fixed; null elsewhere. */
+  priceNote: string | null;
+  description: string;
+};
+
+export const speakerReadinessService: {
+  mailtoSubject: string;
+  /** Identical to every tier's `description` — rendered once above the table. */
+  promise: string;
+  tiers: readonly ReadinessServiceTier[];
+} = {
+  mailtoSubject: "Speaker Readiness concierge",
+  promise: READINESS_SERVICE_PROMISE,
+  tiers: [
+    {
+      id: "education_small",
+      name: "Education & community",
+      scale: "Schools, PD days, TEDx-style — under 50 presenters",
+      price: "$150",
+      priceNote: null,
+      description: READINESS_SERVICE_PROMISE,
+    },
+    {
+      id: "education_large",
+      name: "Education & community",
+      scale: "50–150 presenters",
+      price: "$350",
+      priceNote: null,
+      description: READINESS_SERVICE_PROMISE,
+    },
+    {
+      id: "standard",
+      name: "Standard concierge",
+      scale: "150–500 presenters",
+      price: "$750",
+      priceNote: null,
+      description: READINESS_SERVICE_PROMISE,
+    },
+    {
+      id: "large",
+      name: "Large or complex",
+      scale: "500+ presenters, multi-track associations",
+      price: "from $1,250",
+      priceNote: "individually scoped",
+      description: READINESS_SERVICE_PROMISE,
+    },
+  ],
+};
+
+export function speakerReadinessServiceMailto(): string {
+  return `mailto:${brand.supportEmail}?subject=${encodeURIComponent(speakerReadinessService.mailtoSubject)}`;
 }
 
 /**

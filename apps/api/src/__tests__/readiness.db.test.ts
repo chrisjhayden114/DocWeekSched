@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { EventMemberRole, OrgRole, PrismaClient } from "@prisma/client";
+import { PLAN_BY_SKU } from "@event-app/shared";
 import { hashPassword } from "../lib/auth";
 import { HttpError, requireEventAccess } from "../lib/authorization";
 import { featureEnabled, requireFeature, upsertFeatureOverrides } from "../lib/features";
@@ -418,5 +419,135 @@ describe("readiness data layer (DB, ER2)", () => {
 
   it("existing event/speaker/session data is untouched by the whole workflow", async () => {
     expect(await snapshotUntouched()).toBe(untouchedSnapshot);
+  }, 60_000);
+});
+
+/**
+ * ER-GA — the Free presenter cap. Readiness is entitled on every tier, so the
+ * only thing standing between a Free org and an unlimited roster is
+ * `readinessPresentersPerEvent`, enforced before any row is written.
+ */
+describe("readiness presenter cap on Free (DB, ER-GA)", () => {
+  const prisma = new PrismaClient();
+  const cap = PLAN_BY_SKU.free.limits.readinessPresentersPerEvent!;
+  let userId = "";
+  let orgId = "";
+  let eventId = "";
+  let templateId = "";
+  const speakerIds: string[] = [];
+
+  beforeAll(async () => {
+    const stamp = Date.now();
+    const passwordHash = await hashPassword("TestPass12!x");
+    const user = await prisma.user.create({
+      data: { email: `rdy-cap-${stamp}@example.com`, name: "Readiness Cap Owner", passwordHash, role: "ADMIN" },
+    });
+    userId = user.id;
+    const org = await prisma.organization.create({
+      data: {
+        name: `Readiness Cap Org ${stamp}`,
+        slug: `rdy-cap-${stamp}`,
+        plan: "FREE",
+        memberships: { create: { userId: user.id, role: OrgRole.OWNER } },
+      },
+    });
+    orgId = org.id;
+    const event = await prisma.event.create({
+      data: {
+        name: `Readiness Cap Event ${stamp}`,
+        slug: `rdy-cap-evt-${stamp}`,
+        timezone: "UTC",
+        startDate: new Date("2027-05-01T12:00:00Z"),
+        endDate: new Date("2027-05-02T12:00:00Z"),
+        organizationId: org.id,
+        createdById: user.id,
+        memberships: { create: { userId: user.id, role: EventMemberRole.ADMIN } },
+      },
+    });
+    eventId = event.id;
+
+    // One more presenter than the Free plan covers.
+    for (let i = 0; i < cap + 1; i += 1) {
+      const speaker = await prisma.speaker.create({
+        data: { eventId: event.id, name: `Cap Presenter ${i + 1}` },
+      });
+      speakerIds.push(speaker.id);
+    }
+
+    await upsertFeatureOverrides(event.id, { readiness: true });
+    const template = await createTemplate(event.id, org.id, { name: "Presenter pack" });
+    templateId = template.id;
+    await createRequirement(event.id, template.id, { label: "Short bio", kind: "short_text" });
+  }, 60_000);
+
+  afterAll(async () => {
+    if (eventId) {
+      await prisma.auditLog.deleteMany({ where: { eventId } });
+      await prisma.readinessAssignment.deleteMany({ where: { eventId } });
+      await prisma.readinessRequirement.deleteMany({ where: { eventId } });
+      await prisma.readinessTemplate.deleteMany({ where: { eventId } });
+      await prisma.speaker.deleteMany({ where: { eventId } });
+      await prisma.eventFeatureConfig.deleteMany({ where: { eventId } });
+      await prisma.eventMembership.deleteMany({ where: { eventId } });
+      await prisma.event.deleteMany({ where: { id: eventId } });
+    }
+    if (orgId) {
+      await prisma.orgMembership.deleteMany({ where: { organizationId: orgId } });
+      await prisma.organization.deleteMany({ where: { id: orgId } });
+    }
+    if (userId) await prisma.user.deleteMany({ where: { id: userId } });
+    await prisma.$disconnect();
+  }, 60_000);
+
+  it("Free orgs get the feature at all — GA is not a paid gate", async () => {
+    expect(await featureEnabled(eventId, "readiness")).toBe(true);
+  }, 60_000);
+
+  it("assigns right up to the cap", async () => {
+    const result = await assignTemplate(eventId, orgId, templateId, {
+      speakerIds: speakerIds.slice(0, cap),
+    });
+    expect(result).toEqual({ created: cap, skipped: 0 });
+  }, 60_000);
+
+  it("refuses the presenter past the cap with a 402 upgrade payload, writing nothing", async () => {
+    await expect(
+      assignTemplate(eventId, orgId, templateId, { speakerIds: [speakerIds[cap]!] }),
+    ).rejects.toMatchObject({
+      status: 402,
+      body: {
+        upgrade: {
+          code: "PLAN_LIMIT",
+          limitKey: "readinessPresentersPerEvent",
+          current: cap,
+          max: cap,
+        },
+      },
+    });
+    expect(await prisma.readinessAssignment.count({ where: { eventId } })).toBe(cap);
+  }, 60_000);
+
+  it("keeps working for presenters already tracked, and for session subjects", async () => {
+    // Re-assigning inside the cap is still the idempotent no-op.
+    const again = await assignTemplate(eventId, orgId, templateId, {
+      speakerIds: speakerIds.slice(0, cap),
+    });
+    expect(again).toEqual({ created: 0, skipped: cap });
+
+    // Sessions are not presenters — they never consume the cap.
+    const session = await prisma.session.create({
+      data: {
+        eventId,
+        title: "Capped Event Plenary",
+        startsAt: new Date("2027-05-01T14:00:00Z"),
+        endsAt: new Date("2027-05-01T15:00:00Z"),
+      },
+    });
+    const sessionResult = await assignTemplate(eventId, orgId, templateId, {
+      sessionIds: [session.id],
+    });
+    expect(sessionResult).toEqual({ created: 1, skipped: 0 });
+    await prisma.readinessAssignment.deleteMany({ where: { sessionId: session.id } });
+    await prisma.session.delete({ where: { id: session.id } });
   }, 60_000);
 });

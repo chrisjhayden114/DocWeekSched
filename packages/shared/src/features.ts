@@ -307,16 +307,16 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     defaultOn: false,
   },
   {
-    // Event Readiness (ER1). plannedPhase keeps this off the organizer
-    // Features tab until pilots (ER8); no public plan tier grants the
-    // entitlement, so it resolves off everywhere except INTERNAL orgs.
+    // Event Readiness — generally available (ER-GA, founder decision
+    // 2026-08-26). A normal organizer toggle on every plan: no plannedPhase,
+    // still off until the organizer turns it on. Free is capped at
+    // `readinessPresentersPerEvent` presenters (plans.ts).
     key: "readiness",
     name: "Speaker & Session Readiness",
     plainDescription:
       "Track what every accepted speaker, paper, presentation and session still needs before it is show-ready.",
     category: "sessions",
     defaultOn: false,
-    plannedPhase: "ER",
   },
 ];
 
