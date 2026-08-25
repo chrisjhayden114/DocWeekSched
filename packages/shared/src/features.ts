@@ -324,7 +324,7 @@ export const FEATURE_BY_KEY: Record<FeatureKey, FeatureDefinition> = Object.from
   FEATURE_REGISTRY.map((f) => [f.key, f]),
 ) as Record<FeatureKey, FeatureDefinition>;
 
-export type FeaturePresetId = "everything" | "focused" | "academic" | "pd_day";
+export type FeaturePresetId = "everything" | "focused" | "academic" | "pd_day" | "talk_showcase";
 
 export type FeaturePreset = {
   id: FeaturePresetId;
@@ -472,6 +472,44 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       ops_agent: true,
       recap_agent: true,
       certificates: true,
+    },
+  },
+  {
+    id: "talk_showcase",
+    name: "Talk showcase",
+    plainDescription:
+      "Single-stage short-talk events — TEDx-style showcases, storytelling nights, lightning-talk days.",
+    overrides: {
+      community: true,
+      community_meetups: false,
+      community_moments: true,
+      community_local: true,
+      community_icebreakers: true,
+      community_general: true,
+      messaging_dms: true,
+      messaging_requests: true,
+      messaging_groups: true,
+      session_qa: false,
+      session_likes: true,
+      engagement_points: false,
+      public_leaderboard: false,
+      timezone_toggle: false,
+      breakout_style: false,
+      attendee_directory: true,
+      matchmaker: false,
+      waitlist_visibility: true,
+      venue_maps: true,
+      daily_digest: "interrupts_only",
+      cfp: false,
+      concierge: true,
+      session_polls: false,
+      session_feedback: true,
+      sponsors: true,
+      checkin: true,
+      ops_agent: true,
+      recap_agent: true,
+      certificates: true,
+      paid_attendance: true,
     },
   },
 ];

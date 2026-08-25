@@ -119,3 +119,31 @@ Pre-outreach (P0/P1):
   CERT-1 (S): cert branding + web verify page (fixes live 404).
 Post-outreach / as demand dictates:
   W-7 REIMPORT-MATCH (M); ORG-1 (M); PAY-T0 (M); CERT-2 (M); ORG-2 (M); PAY-T1 (L).
+
+## Talk showcase / TEDx-style preset (J-D research, 2026-08-25)
+
+Research verdict: build the light preset now (all S, config/seed data); TEDx is the
+cleanest public showcase of Speaker Readiness — TED's own organizer guide prescribes
+the exact multi-draft deadline cadence (rough/1st/2nd/final draft, rehearsals) that
+the reminder sweep automates; no dedicated TEDx-organizer software exists (Sessionize
+covers applications only); ~3,000+ events/yr, tight organizer community. Volunteer
+nonprofit budgets → word-of-mouth niche, not a pricing pillar.
+Event anatomy (cited in agent memo): Community license = ≤100 in-person attendees,
+≤$150 ticket, one day, single-track stage (no panels/stage Q&A), talks ≤18 min,
+speakers unpaid, sponsors never on stage or homepage, ALL talks recorded + TED
+Speaker Release signed BEFORE rehearsals, organizer keeps releases on file.
+TRADEMARK RULES (strict): in-product name "Talk showcase" — TEDx appears only
+descriptively ("TEDx-style, storytelling nights, lightning talks"); marketing may say
+"built for TEDx-style talk events" with footer "TED and TEDx are trademarks of TED
+Conferences, LLC. UKEDL is not affiliated with or endorsed by TED."; NEVER "TEDx
+preset", never TED logo/trade dress.
+TALK-1 spec (S): SetupEventType talk_showcase + keywords (tedx, talk showcase,
+storytelling, lightning talks, pecha kucha) + feature preset (breakout_style off,
+cfp off-by-default, session polls/Q&A off, sponsors on, checkin on, certificates on,
+paid_attendance on, engagement theatre off) + attendeeCap prefill 100 w/ helper copy
++ single-track one-day agenda skeleton (doors → intro-video slot → 3 talk sessions
+w/ breaks → closing) + seeded readiness template "Talk showcase speaker pack"
+(headshot, bio ≤100w, title+description, rough outline, draft 1/2/final script,
+slides, SIGNED release as file-with-approval, copyright-clearance confirm, AV needs
+select, dress-rehearsal confirm, organizer-only internal items). Deferred (M):
+rehearsal slot scheduler, milestone-chain visual, relative template due dates.

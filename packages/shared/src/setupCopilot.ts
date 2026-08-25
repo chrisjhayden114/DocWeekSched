@@ -11,7 +11,8 @@ export type SetupEventType =
   | "academic_program"
   | "meetup"
   | "internal"
-  | "pd_day";
+  | "pd_day"
+  | "talk_showcase";
 
 export const SETUP_EVENT_TYPES: readonly SetupEventType[] = [
   "conference",
@@ -19,6 +20,7 @@ export const SETUP_EVENT_TYPES: readonly SetupEventType[] = [
   "meetup",
   "internal",
   "pd_day",
+  "talk_showcase",
 ];
 
 /** Human-readable names — the raw enum token is never shown to an organizer. */
@@ -28,10 +30,58 @@ export const SETUP_EVENT_TYPE_LABEL: Record<SetupEventType, string> = {
   meetup: "Meetup",
   internal: "Internal",
   pd_day: "PD day / Training",
+  talk_showcase: "Talk showcase",
 };
+
+/**
+ * TALK-1 — size guidance when the event is a Talk showcase. Descriptive
+ * TEDx mention only (license fact); the in-product name stays Talk showcase.
+ */
+export const TALK_SHOWCASE_SIZE_HELPER =
+  "Standard TEDx licenses cap in-person attendance at 100";
 
 export function setupEventTypeLabel(type: SetupEventType | ""): string {
   return type ? SETUP_EVENT_TYPE_LABEL[type] : "";
+}
+
+/**
+ * Order matters: Talk showcase (tedx / lightning talk / speaker series)
+ * wins over conference/internal so those phrases do not land on a generic
+ * type. PD wins over the academic patterns so "PD program" and
+ * "training program" route to pd_day. Bare "program" is only academic when
+ * it is academically qualified ("academic program", "doctoral program") —
+ * on its own it is too generic to route anywhere.
+ */
+const TYPE_PATTERNS: Array<{ type: SetupEventType; re: RegExp }> = [
+  {
+    type: "talk_showcase",
+    re: /\b(tedx|talk showcase|storytelling|lightning talks?|pecha[\s-]?kucha|speaker series)\b/i,
+  },
+  {
+    type: "pd_day",
+    re: /\b(pd|p\.d\.|professional development|professional learning|in-?service|inset|training|staff development)\b/i,
+  },
+  {
+    type: "academic_program",
+    re: /\b(academic|doctoral|phd|graduate|seminar series)\b|\b(?:academic|doctoral|phd|graduate|masters|master'?s|research)\s+program\b/i,
+  },
+  { type: "meetup", re: /\b(meetup|meet-up|casual|community hangout)\b/i },
+  { type: "internal", re: /\b(internal|company|offsite|all-?hands|team)\b/i },
+  { type: "conference", re: /\b(conference|summit|symposium|forum)\b/i },
+];
+
+export function parseEventType(text: string): SetupEventType | null {
+  for (const p of TYPE_PATTERNS) {
+    if (p.re.test(text)) return p.type;
+  }
+  const t = text.trim().toLowerCase();
+  if (t === "1" || t === "a") return "conference";
+  if (t === "2" || t === "b") return "academic_program";
+  if (t === "3" || t === "c") return "meetup";
+  if (t === "4" || t === "d") return "internal";
+  if (t === "5" || t === "e") return "pd_day";
+  if (t === "6" || t === "f") return "talk_showcase";
+  return null;
 }
 
 export type SetupCopilotMode = "create" | "settings";
@@ -125,7 +175,15 @@ export const EVENT_TYPE_PRESET: Record<SetupEventType, FeaturePresetId> = {
   meetup: "everything",
   internal: "focused",
   pd_day: "pd_day",
+  talk_showcase: "talk_showcase",
 };
+
+/** Prefill ≤100 when Talk showcase is chosen and the organizer has not sized it yet. */
+export function applyTalkShowcaseSizePrefill(form: SetupCopilotFormState): SetupCopilotFormState {
+  if (form.eventType !== "talk_showcase") return form;
+  if (form.estimatedSize.trim()) return form;
+  return { ...form, estimatedSize: "100" };
+}
 
 /** Event-details label: honest that the pre-fill is the organizer's local zone. */
 export function setupTimezoneFieldLabel(explicit: boolean): string {

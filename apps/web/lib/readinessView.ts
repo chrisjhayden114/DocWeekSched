@@ -138,6 +138,8 @@ export type ReadinessOverview = {
   templates: OverviewTemplate[];
   assignments: OverviewAssignment[];
   subjects: Array<OverviewSubjectRef & { rollup: SubjectRollup }>;
+  /** TALK-1 — Talk showcase events with no templates yet may start from Speaker pack. */
+  offerSpeakerPackTemplate?: boolean;
 };
 
 // ---------------------------------------------------------------------------

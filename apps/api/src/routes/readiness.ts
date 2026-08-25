@@ -28,6 +28,10 @@ import {
   updateRequirement,
   updateTemplate,
 } from "../lib/readiness/service";
+import {
+  createSpeakerPackTemplate,
+  speakerPackOfferForEvent,
+} from "../lib/readiness/speakerPack";
 import { deriveAssignmentState } from "../lib/readiness/status";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 
@@ -61,7 +65,11 @@ readinessRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const { event } = await requireReadinessManage(req);
     const overview = await getReadinessOverview(event.id);
-    return res.json({ eventId: event.id, ...overview });
+    const offerSpeakerPackTemplate = await speakerPackOfferForEvent(
+      event.id,
+      overview.templates.length,
+    );
+    return res.json({ eventId: event.id, offerSpeakerPackTemplate, ...overview });
   }),
 );
 
@@ -98,6 +106,17 @@ readinessRouter.post(
     if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
     const { event } = await requireReadinessManage(req);
     const template = await createTemplate(event.id, event.organizationId, parsed.data);
+    return res.status(201).json(template);
+  }),
+);
+
+readinessRouter.post(
+  "/templates/from-speaker-pack",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { event } = await requireReadinessManage(req);
+    const template = await createSpeakerPackTemplate(event.id, event.organizationId);
     return res.status(201).json(template);
   }),
 );

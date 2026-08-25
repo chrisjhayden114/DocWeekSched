@@ -66,6 +66,7 @@ const TRACKS_BY_TYPE: Record<SetupEventType, SkeletonTrack[]> = {
     { name: "Workshops", color: "#1E7A34", aiGenerated: true },
     { name: "Grade-level breakouts", color: "#7A5A00", aiGenerated: true },
   ],
+  talk_showcase: [{ name: "Main stage", color: "#0033A0", aiGenerated: true }],
 };
 
 function dayCount(form: SetupCopilotFormState): number {
@@ -76,59 +77,141 @@ function dayCount(form: SetupCopilotFormState): number {
   return Math.min(days, 5);
 }
 
-export function buildSkeleton(form: SetupCopilotFormState, icebreakersEnabled: boolean): SkeletonBundle {
-  const type: SetupEventType = form.eventType || "conference";
-  const days = dayCount(form);
-  const sessions: SkeletonSession[] = [];
-
-  for (let d = 0; d < days; d++) {
-    const dayLabel = days > 1 ? `Day ${d + 1}: ` : "";
-    sessions.push({
-      title: `${dayLabel}Welcome`.trim(),
-      description: `Opening welcome for ${form.name || "the event"}. ${AI_GENERATED_CHIP_LABEL}`,
-      dayOffset: d,
-      startHm: "09:00",
-      endHm: "09:30",
+function talkShowcaseSessions(form: SetupCopilotFormState): SkeletonSession[] {
+  const chip = AI_GENERATED_CHIP_LABEL;
+  const name = form.name || "the event";
+  return [
+    {
+      title: "Doors & registration",
+      description: `Doors open and registration for ${name}. ${chip}`,
+      dayOffset: 0,
+      startHm: "08:30",
+      endHm: "09:00",
       blockKind: "welcome",
       aiGenerated: true,
-    });
-    sessions.push({
-      title: `${dayLabel}Keynote`.trim(),
-      description: `Flagship keynote block. ${AI_GENERATED_CHIP_LABEL}`,
-      dayOffset: d,
-      startHm: "09:30",
-      endHm: "10:30",
-      blockKind: "keynote",
+    },
+    {
+      title: "Intro video",
+      description: `Intro video slot before the first talks. ${chip}`,
+      dayOffset: 0,
+      startHm: "09:00",
+      endHm: "09:15",
+      blockKind: "session",
       aiGenerated: true,
-    });
-    sessions.push({
-      title: `${dayLabel}Morning break`.trim(),
-      description: `Coffee / networking break. ${AI_GENERATED_CHIP_LABEL}`,
-      dayOffset: d,
+    },
+    {
+      title: "Talk session 1",
+      description: `Four to five 15-minute talks. ${chip}`,
+      dayOffset: 0,
+      startHm: "09:15",
+      endHm: "10:30",
+      blockKind: "session",
+      aiGenerated: true,
+    },
+    {
+      title: "Break",
+      description: `Coffee / networking break. ${chip}`,
+      dayOffset: 0,
       startHm: "10:30",
       endHm: "11:00",
       blockKind: "break",
       aiGenerated: true,
-    });
-    sessions.push({
-      title: `${dayLabel}Lunch`.trim(),
-      description: `Meal break. ${AI_GENERATED_CHIP_LABEL}`,
-      dayOffset: d,
-      startHm: "12:30",
-      endHm: "13:30",
+    },
+    {
+      title: "Talk session 2",
+      description: `Four to five 15-minute talks. ${chip}`,
+      dayOffset: 0,
+      startHm: "11:00",
+      endHm: "12:15",
+      blockKind: "session",
+      aiGenerated: true,
+    },
+    {
+      title: "Lunch",
+      description: `Meal break. ${chip}`,
+      dayOffset: 0,
+      startHm: "12:15",
+      endHm: "13:15",
       blockKind: "meal",
       aiGenerated: true,
-    });
-    if (d === days - 1) {
+    },
+    {
+      title: "Talk session 3",
+      description: `Four to five 15-minute talks. ${chip}`,
+      dayOffset: 0,
+      startHm: "13:15",
+      endHm: "14:30",
+      blockKind: "session",
+      aiGenerated: true,
+    },
+    {
+      title: "Closing",
+      description: `Closing remarks. ${chip}`,
+      dayOffset: 0,
+      startHm: "14:30",
+      endHm: "15:00",
+      blockKind: "wrap",
+      aiGenerated: true,
+    },
+  ];
+}
+
+export function buildSkeleton(form: SetupCopilotFormState, icebreakersEnabled: boolean): SkeletonBundle {
+  const type: SetupEventType = form.eventType || "conference";
+  const days = dayCount(form);
+  const sessions: SkeletonSession[] =
+    type === "talk_showcase" ? talkShowcaseSessions(form) : [];
+
+  if (type !== "talk_showcase") {
+    for (let d = 0; d < days; d++) {
+      const dayLabel = days > 1 ? `Day ${d + 1}: ` : "";
       sessions.push({
-        title: `${dayLabel}Wrap-up`.trim(),
-        description: `Closing remarks and next steps. ${AI_GENERATED_CHIP_LABEL}`,
+        title: `${dayLabel}Welcome`.trim(),
+        description: `Opening welcome for ${form.name || "the event"}. ${AI_GENERATED_CHIP_LABEL}`,
         dayOffset: d,
-        startHm: "16:00",
-        endHm: "16:30",
-        blockKind: "wrap",
+        startHm: "09:00",
+        endHm: "09:30",
+        blockKind: "welcome",
         aiGenerated: true,
       });
+      sessions.push({
+        title: `${dayLabel}Keynote`.trim(),
+        description: `Flagship keynote block. ${AI_GENERATED_CHIP_LABEL}`,
+        dayOffset: d,
+        startHm: "09:30",
+        endHm: "10:30",
+        blockKind: "keynote",
+        aiGenerated: true,
+      });
+      sessions.push({
+        title: `${dayLabel}Morning break`.trim(),
+        description: `Coffee / networking break. ${AI_GENERATED_CHIP_LABEL}`,
+        dayOffset: d,
+        startHm: "10:30",
+        endHm: "11:00",
+        blockKind: "break",
+        aiGenerated: true,
+      });
+      sessions.push({
+        title: `${dayLabel}Lunch`.trim(),
+        description: `Meal break. ${AI_GENERATED_CHIP_LABEL}`,
+        dayOffset: d,
+        startHm: "12:30",
+        endHm: "13:30",
+        blockKind: "meal",
+        aiGenerated: true,
+      });
+      if (d === days - 1) {
+        sessions.push({
+          title: `${dayLabel}Wrap-up`.trim(),
+          description: `Closing remarks and next steps. ${AI_GENERATED_CHIP_LABEL}`,
+          dayOffset: d,
+          startHm: "16:00",
+          endHm: "16:30",
+          blockKind: "wrap",
+          aiGenerated: true,
+        });
+      }
     }
   }
 

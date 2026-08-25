@@ -9,6 +9,7 @@
 import {
   EVENT_TYPE_PRESET,
   applyPreset,
+  applyTalkShowcaseSizePrefill,
   type SetupCopilotFormState,
   type SetupCopilotStep,
   type SetupEventType,
@@ -263,11 +264,11 @@ export function mergeSetupExtract(
   if (valid.eventType) {
     next.eventType = valid.eventType;
     const preset = EVENT_TYPE_PRESET[valid.eventType];
-    next = {
+    next = applyTalkShowcaseSizePrefill({
       ...next,
       suggestedPreset: preset,
       featureOverrides: { ...next.featureOverrides, ...applyPreset(preset) },
-    };
+    });
   }
   if (valid.networkingChoice === "full") {
     next = {

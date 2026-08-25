@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  SPEAKER_PACK_BUTTON_HELPER,
+  SPEAKER_PACK_BUTTON_LABEL,
+} from "@event-app/shared";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { KebabMenu } from "../KebabMenu";
 import { ListEmpty, ListError, ListSkeleton } from "../ListState";
@@ -186,6 +190,7 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
   const [tplDescription, setTplDescription] = useState("");
   const [tplBusy, setTplBusy] = useState(false);
   const [tplError, setTplError] = useState<string | null>(null);
+  const [speakerPackBusy, setSpeakerPackBusy] = useState(false);
   const [reqDraft, setReqDraft] = useState<RequirementDraft | null>(null);
   const [reqBusy, setReqBusy] = useState(false);
 
@@ -348,6 +353,22 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
     setTplError(null);
     setBackfillForId(null);
     setBackfillResult(null);
+  }
+
+  async function startSpeakerPack() {
+    setSpeakerPackBusy(true);
+    setActionError(null);
+    try {
+      await organizerFetch("/readiness/templates/from-speaker-pack", eventId, {
+        method: "POST",
+        body: "{}",
+      });
+      await load();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not create the Speaker pack");
+    } finally {
+      setSpeakerPackBusy(false);
+    }
   }
 
   async function saveTemplate() {
@@ -1071,6 +1092,21 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
               A template is a named set of requirements. Assign it to speakers or sessions to
               start tracking them below.
             </p>
+            {overview?.offerSpeakerPackTemplate ? (
+              <div style={{ margin: "0 0 var(--space-3)" }}>
+                <button
+                  type="button"
+                  className="button"
+                  disabled={speakerPackBusy}
+                  onClick={() => void startSpeakerPack()}
+                >
+                  {speakerPackBusy ? "Creating…" : SPEAKER_PACK_BUTTON_LABEL}
+                </button>
+                <p className="help-text" style={{ marginTop: "var(--space-2)" }}>
+                  {SPEAKER_PACK_BUTTON_HELPER}
+                </p>
+              </div>
+            ) : null}
             {/* overflow:visible so the row kebab panel isn't clipped by
                 console-table-wrap's overflow-x:auto (CSS pairs that to
                 overflow-y:auto) — live-observed: Edit was unreachable on

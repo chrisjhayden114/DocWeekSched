@@ -327,6 +327,84 @@ describe("Setup Copilot A2 (unit, mock provider)", () => {
     }
   });
 
+  it("TALK-1 — TEDx-style wording maps to the Talk showcase preset", () => {
+    for (const phrase of [
+      "tedx",
+      "talk showcase",
+      "storytelling night",
+      "lightning talk",
+      "pecha kucha",
+      "speaker series",
+    ]) {
+      expect(parseEventType(phrase), phrase).toBe("talk_showcase");
+    }
+    expect(EVENT_TYPE_PRESET.talk_showcase).toBe("talk_showcase");
+    expect(setupEventTypeLabel("talk_showcase")).toBe("Talk showcase");
+  });
+
+  it("TALK-1 — Talk showcase skeleton is one-day single-track with talk sessions", () => {
+    const skeleton = buildSkeleton(
+      {
+        ...emptySetupFormState("UTC"),
+        name: "City Talks",
+        startDate: "2027-03-12",
+        endDate: "2027-03-12",
+        eventType: "talk_showcase" as const,
+      },
+      false,
+    );
+    expect(skeleton.tracks.map((t) => t.name)).toEqual(["Main stage"]);
+    expect(skeleton.sessions.map((s) => s.title)).toEqual([
+      "Doors & registration",
+      "Intro video",
+      "Talk session 1",
+      "Break",
+      "Talk session 2",
+      "Lunch",
+      "Talk session 3",
+      "Closing",
+    ]);
+    expect(skeleton.sessions[2]?.description).toMatch(/15-minute/);
+  });
+
+  it("TALK-1 — the type question offers Talk showcase and the copilot routes to it", () => {
+    let state = initialDialogue("create", "UTC");
+    let turn = runCreateTurn(state, "City Talks");
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "2027-03-12, America/New_York");
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "Town Hall");
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "about 80 people");
+    expect(turn.assistantMessage).toContain("6) Talk showcase");
+
+    state = { step: turn.step, form: turn.form, messages: turn.messages };
+    turn = runCreateTurn(state, "tedx");
+    expect(turn.form.eventType).toBe("talk_showcase");
+    expect(turn.form.suggestedPreset).toBe("talk_showcase");
+    expect(turn.form.featureOverrides.session_qa).toBe(false);
+    expect(turn.form.estimatedSize).toBe("80");
+    expect(turn.assistantMessage).toContain("Standard TEDx licenses cap in-person attendance at 100");
+  });
+
+  it("TALK-1 — empty size is prefilled to 100 when Talk showcase is chosen", () => {
+    const state = {
+      ...initialDialogue("create", "UTC"),
+      step: "type" as const,
+      form: {
+        ...emptySetupFormState("UTC"),
+        name: "City Talks",
+        startDate: "2027-03-12",
+        endDate: "2027-03-12",
+        venueName: "Town Hall",
+      },
+    };
+    const turn = runCreateTurn(state, "talk showcase");
+    expect(turn.form.eventType).toBe("talk_showcase");
+    expect(turn.form.estimatedSize).toBe("100");
+    expect(turn.assistantMessage).toContain("Standard TEDx licenses cap in-person attendance at 100");
+  });
+
   it("parseDatesAndTimezone — ISO range, month range + PT, or null", () => {
     expect(parseDatesAndTimezone("2027-07-20 to 2027-07-22, America/New_York", "UTC")).toEqual({
       startDate: "2027-07-20",

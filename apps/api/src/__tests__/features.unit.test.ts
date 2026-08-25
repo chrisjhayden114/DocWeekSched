@@ -97,4 +97,20 @@ describe("wizard presets", () => {
     expect(resolveFeatureEnabled("community_moments", o)).toBe(false);
     expect(resolveFeatureEnabled("community_meetups", o)).toBe(true);
   });
+
+  it("TALK-1 — Talk showcase is single-stage: Q&A/polls/breakouts off, sponsors and paid attendance on", () => {
+    const o = applyPreset("talk_showcase");
+    expect(o.breakout_style).toBe(false);
+    expect(o.cfp).toBe(false);
+    expect(o.session_qa).toBe(false);
+    expect(o.session_polls).toBe(false);
+    expect(o.engagement_points).toBe(false);
+    expect(o.timezone_toggle).toBe(false);
+    expect(o.sponsors).toBe(true);
+    expect(o.checkin).toBe(true);
+    expect(o.certificates).toBe(true);
+    expect(o.paid_attendance).toBe(true);
+    expect(o.community).toBe(true);
+    expect(resolveFeatureEnabled("session_qa", o)).toBe(false);
+  });
 });

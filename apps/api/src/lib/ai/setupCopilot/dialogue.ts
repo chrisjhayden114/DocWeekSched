@@ -8,7 +8,9 @@
 
 import {
   EVENT_TYPE_PRESET,
+  TALK_SHOWCASE_SIZE_HELPER,
   applyPreset,
+  applyTalkShowcaseSizePrefill,
   emptySetupFormState,
   type ConciergeLink,
   type ConfigDiffCard,
@@ -106,15 +108,32 @@ export function looksLikeQuestion(text: string): boolean {
 function applyTypePreset(form: SetupCopilotFormState): SetupCopilotFormState {
   if (!form.eventType) return form;
   const preset = EVENT_TYPE_PRESET[form.eventType];
-  return {
+  return applyTalkShowcaseSizePrefill({
     ...form,
     suggestedPreset: preset,
     featureOverrides: { ...form.featureOverrides, ...applyPreset(preset) },
-  };
+  });
 }
 
 const EVENT_TYPE_QUESTION =
-  "What kind of event is this?\n1) Conference\n2) Academic program\n3) Meetup\n4) Internal\n5) PD day / Training";
+  "What kind of event is this?\n1) Conference\n2) Academic program\n3) Meetup\n4) Internal\n5) PD day / Training\n6) Talk showcase";
+
+const NETWORKING_QUESTION =
+  "Want the full networking experience — community spaces, ice-breakers, photo sharing — or keep it focused on the schedule? You can also say something specific like “no ice-breakers, and everyone's local so don't show timezone conversion.”";
+
+function sizeQuestion(form: SetupCopilotFormState): string {
+  if (form.eventType === "talk_showcase") {
+    return `Roughly how many people? ${TALK_SHOWCASE_SIZE_HELPER}. (A number is fine.)`;
+  }
+  return "Roughly how many people? (A number is fine.)";
+}
+
+function afterTypeReply(form: SetupCopilotFormState): string {
+  if (form.eventType === "talk_showcase") {
+    return `${TALK_SHOWCASE_SIZE_HELPER}. ${NETWORKING_QUESTION}`;
+  }
+  return NETWORKING_QUESTION;
+}
 
 const AGENDA_INGEST_NOTE =
   "After you create the event, upload this same file in Agenda ingest and the AI will draft the full agenda.";
@@ -156,11 +175,11 @@ function cannedReplyForStep(
     case "venue":
       return `Where is it — a venue name, online, or hybrid?${ingestNote}`;
     case "size":
-      return `Roughly how many people? (A number is fine.)${ingestNote}`;
+      return `${sizeQuestion(form)}${ingestNote}`;
     case "type":
       return `${EVENT_TYPE_QUESTION}${ingestNote}`;
     case "networking":
-      return `Want the full networking experience — community spaces, ice-breakers, photo sharing — or keep it focused on the schedule? You can also say something specific like “no ice-breakers, and everyone's local so don't show timezone conversion.”${ingestNote}`;
+      return `${afterTypeReply(form)}${ingestNote}`;
     case "document":
       return `Do you already have a program document (PDF, Word, spreadsheet, or photo of the schedule)?${ingestNote}`;
     case "ready": {
@@ -291,7 +310,7 @@ export function runCreateTurn(
       const v = parseVenue(text);
       form = { ...form, ...v };
       step = "size";
-      reply = "Roughly how many people? (A number is fine.)";
+      reply = sizeQuestion(form);
       break;
     }
     case "size": {
@@ -309,13 +328,12 @@ export function runCreateTurn(
       const eventType = parseEventType(text);
       if (!eventType) {
         reply =
-          "Pick one: conference, academic program, meetup, internal, or PD day / training.";
+          "Pick one: conference, academic program, meetup, internal, PD day / training, or talk showcase.";
         break;
       }
       form = applyTypePreset({ ...form, eventType });
       step = "networking";
-      reply =
-        "Want the full networking experience — community spaces, ice-breakers, photo sharing — or keep it focused on the schedule? You can also say something specific like “no ice-breakers, and everyone's local so don't show timezone conversion.”";
+      reply = afterTypeReply(form);
       break;
     }
     case "networking": {

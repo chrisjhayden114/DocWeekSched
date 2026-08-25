@@ -72,10 +72,11 @@ const formStateSchema = z.object({
     z.literal("meetup"),
     z.literal("internal"),
     z.literal("pd_day"),
+    z.literal("talk_showcase"),
   ]),
   hasProgramDocument: z.boolean().nullable(),
   featureOverrides: z.record(z.union([z.boolean(), z.enum(["daily", "weekly", "interrupts_only"])])),
-  suggestedPreset: z.enum(["everything", "focused", "academic", "pd_day"]).nullable(),
+  suggestedPreset: z.enum(["everything", "focused", "academic", "pd_day", "talk_showcase"]).nullable(),
   networkingChoice: z.enum(["full", "focused", "custom"]).nullable(),
 });
 
