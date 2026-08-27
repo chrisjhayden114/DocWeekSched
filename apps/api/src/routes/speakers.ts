@@ -29,6 +29,10 @@ speakersRouter.get(
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       include: {
         sessions: { select: { sessionId: true, sortOrder: true } },
+        // SPK-1: the console's CFP badge. The link lives on CfpSubmission, so
+        // a count is the only way to answer "did this speaker come from the
+        // CFP?" without a second round trip per row.
+        _count: { select: { cfpConversions: true } },
       },
     });
     return res.json(speakers);

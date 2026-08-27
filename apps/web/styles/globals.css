@@ -6142,6 +6142,57 @@ button.schedule-meta-chip:hover {
   color: var(--event-accent);
 }
 
+/* SPK-1 — Speakers table identity cell: headshot (or initials) beside the
+   name, with the title/affiliation as a quiet second line. */
+.speaker-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.speaker-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+  background: var(--gray-100);
+}
+
+.speaker-avatar--initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
+  font: 600 12px/1 var(--font-body);
+}
+
+.speaker-avatar--lg {
+  width: 64px;
+  height: 64px;
+  font-size: 20px;
+}
+
+/* Matches .console-table a so the row's one action reads like every other
+   link in the console, not like a form control. */
+.speaker-name-button {
+  color: var(--gray-900);
+  text-align: left;
+}
+
+.speaker-name-button:hover {
+  color: var(--event-accent);
+}
+
+.speaker-subtitle {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .status-chip {
   display: inline-flex;
   align-items: center;

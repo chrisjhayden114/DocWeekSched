@@ -32,6 +32,8 @@ import { RegistrationFeeCard } from "../../../../components/organizer/Registrati
 import { Select } from "../../../../components/Select";
 import { participantLabelSelectOptions, shouldShowParticipantLabelSelect } from "../../../../lib/participantLabels";
 import { ReadinessTab } from "../../../../components/organizer/ReadinessTab";
+import { SpeakersTab } from "../../../../components/organizer/SpeakersTab";
+import type { SpeakerRow } from "../../../../lib/speakersView";
 import {
   ProgramTab,
   type ProgramSession,
@@ -77,7 +79,12 @@ type EventDetail = {
   paymentInstructions?: string | null;
 };
 
-type Speaker = { id: string; name: string; title?: string | null; affiliation?: string | null };
+/**
+ * SPK-1 — the console holds the whole GET /speakers/ row now (bio, photoUrl
+ * and the session links were always returned; the old local type dropped
+ * them, so the Speakers tab could only ever list names).
+ */
+type Speaker = SpeakerRow;
 
 /** INV-1 — roster row from GET /attendees (managers get inviteStatus). */
 type ParticipantRow = {
@@ -270,6 +277,24 @@ export default function OrganizerEventPage() {
     },
     [router, eventId, tab],
   );
+
+  /**
+   * SPK-1 — one `?speaker=<id>` param, read by whichever tab is showing: on
+   * Speakers it opens SpeakerDetail, on Readiness the subject panel. Same F2
+   * contract as ?settings=1, so Back closes the panel and the deep link
+   * "?tab=readiness&speaker=<id>" survives a refresh.
+   */
+  const speakerParam =
+    router.isReady && typeof router.query.speaker === "string" ? router.query.speaker : null;
+  const setSpeakerParam = useCallback(
+    (next: string | null) => {
+      const query: Record<string, string> = { eventId };
+      if (tab !== "overview") query.tab = tab;
+      if (next) query.speaker = next;
+      void router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+    },
+    [router, eventId, tab],
+  );
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   /** Resolved (plan AND override) readiness flag from /event/features. Every
@@ -290,9 +315,6 @@ export default function OrganizerEventPage() {
   const [publishConfirm, setPublishConfirm] = useState(false);
   /** F2 stat row — registered count; null while unknown (card hidden). */
   const [registeredCount, setRegisteredCount] = useState<number | null>(null);
-
-  // People form
-  const [speakerName, setSpeakerName] = useState("");
 
   // Series
   const [nextStart, setNextStart] = useState("");
@@ -501,17 +523,6 @@ export default function OrganizerEventPage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function addSpeaker(e: FormEvent) {
-    e.preventDefault();
-    if (!eventId || !speakerName.trim()) return;
-    await organizerFetch("/speakers/", eventId, {
-      method: "POST",
-      body: JSON.stringify({ name: speakerName.trim() }),
-    });
-    setSpeakerName("");
-    await refresh();
   }
 
   async function createNextEdition(e: FormEvent) {
@@ -1031,39 +1042,15 @@ export default function OrganizerEventPage() {
         ) : null}
 
         {tab === "people" ? (
-          <section className="console-panel">
-            <p className="console-panel-label">Speakers</p>
-            <p className="help-text" style={{ marginTop: 0 }}>
-              Speakers present sessions and appear on the public schedule. Authors and presenters are listed under each
-              paper or presentation inside a session (Program tab) — a person can be both.
-            </p>
-            {speakers.length === 0 ? (
-              <ListEmpty title="No speakers yet" body="Add speakers to assign them to sessions, papers, and presentations." />
-            ) : (
-              <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
-                {speakers.map((s) => (
-                  <li key={s.id}>
-                    {s.name}
-                    {s.title || s.affiliation ? (
-                      <span className="help-text">
-                        {" "}
-                        — {[s.title, s.affiliation].filter(Boolean).join(", ")}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <form onSubmit={addSpeaker} className="console-form" style={{ gridTemplateColumns: "1fr auto", alignItems: "end" }}>
-              <label style={{ margin: 0 }}>
-                Speaker name
-                <input className="input" placeholder="Speaker name" value={speakerName} onChange={(e) => setSpeakerName(e.target.value)} />
-              </label>
-              <button className="button" type="submit">
-                Add speaker
-              </button>
-            </form>
-          </section>
+          <SpeakersTab
+            eventId={eventId}
+            speakers={speakers}
+            sessions={sessions.map((s) => ({ id: s.id, title: s.title, startsAt: s.startsAt }))}
+            readinessEnabled={readinessEnabled}
+            openSpeakerId={speakerParam}
+            onOpenSpeaker={setSpeakerParam}
+            onChanged={refresh}
+          />
         ) : null}
 
         {tab === "invites" ? (
@@ -1507,6 +1494,10 @@ export default function OrganizerEventPage() {
               eventId={eventId}
               speakers={speakers}
               sessions={sessions.map((s) => ({ id: s.id, title: s.title }))}
+              // SPK-1 — "Open in Readiness" from a SpeakerDetail panel lands
+              // on the matching subject instead of the bare table.
+              openSpeakerId={speakerParam}
+              onSubjectClosed={() => setSpeakerParam(null)}
             />
           ) : (
             <p className="help-text">

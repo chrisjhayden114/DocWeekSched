@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SPEAKER_PACK_BUTTON_HELPER,
   SPEAKER_PACK_BUTTON_LABEL,
@@ -54,6 +54,14 @@ type Props = {
   eventId: string;
   speakers: { id: string; name: string; title?: string | null; affiliation?: string | null }[];
   sessions: { id: string; title: string }[];
+  /**
+   * SPK-1 — the ?tab=readiness&speaker=<id> deep link from a SpeakerDetail
+   * panel. Opens that speaker's subject SlideOver once the overview has
+   * loaded; ignored when the speaker has nothing assigned to them.
+   */
+  openSpeakerId?: string | null;
+  /** Clears the deep-link param so Back and the ✕ agree. */
+  onSubjectClosed?: () => void;
 };
 
 type TemplateEditorState = { templateId: string | null };
@@ -177,7 +185,13 @@ const emptyRequirementDraft = (): RequirementDraft => ({
   dueAt: "",
 });
 
-export function ReadinessTab({ eventId, speakers, sessions }: Props) {
+export function ReadinessTab({
+  eventId,
+  speakers,
+  sessions,
+  openSpeakerId,
+  onSubjectClosed,
+}: Props) {
   const [overview, setOverview] = useState<ReadinessOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -644,16 +658,42 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
   }, [eventId]);
 
   /** Shared by the table's Details button and the needs-attention Open. */
-  function openSubjectDetail(key: string) {
-    setDetailKey(key);
-    setDetailError(null);
-    setDueDrafts({});
-    setMintedUrl(null);
-    setCopied(false);
-    const speakerId = key.startsWith("speaker:") ? key.slice("speaker:".length) : "";
-    const existing = portalAccesses.find((p) => p.speakerId === speakerId);
-    setPortalEmail(existing?.email ?? "");
-  }
+  const openSubjectDetail = useCallback(
+    (key: string) => {
+      setDetailKey(key);
+      setDetailError(null);
+      setDueDrafts({});
+      setMintedUrl(null);
+      setCopied(false);
+      const speakerId = key.startsWith("speaker:") ? key.slice("speaker:".length) : "";
+      const existing = portalAccesses.find((p) => p.speakerId === speakerId);
+      setPortalEmail(existing?.email ?? "");
+    },
+    [portalAccesses],
+  );
+
+  /**
+   * SPK-1 deep link. Fires once per speaker id: `rows` gets a new identity on
+   * every refetch, and without the guard each write would yank the panel back
+   * open after the organizer closed it.
+   */
+  const deepLinkHandled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!openSpeakerId) {
+      deepLinkHandled.current = null;
+      return;
+    }
+    if (deepLinkHandled.current === openSpeakerId) return;
+    const key = `speaker:${openSpeakerId}`;
+    if (!rows.some((r) => r.key === key)) return;
+    deepLinkHandled.current = openSpeakerId;
+    openSubjectDetail(key);
+  }, [openSpeakerId, rows, openSubjectDetail]);
+
+  const closeSubjectDetail = useCallback(() => {
+    setDetailKey(null);
+    onSubjectClosed?.();
+  }, [onSubjectClosed]);
 
   function portalForSpeaker(speakerId: string): PortalAccessRow | undefined {
     return portalAccesses.find((p) => p.speakerId === speakerId);
@@ -1732,7 +1772,7 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         open={detailRow != null}
         wide
         title={detailRow?.name ?? "Details"}
-        onClose={() => setDetailKey(null)}
+        onClose={closeSubjectDetail}
       >
         {detailRow ? (
           <div style={{ display: "grid", gap: 12 }}>
