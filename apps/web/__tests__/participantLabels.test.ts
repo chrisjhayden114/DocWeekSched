@@ -9,6 +9,7 @@ import {
 
 const webDir = join(__dirname, "..");
 const dashboardSrc = readFileSync(join(webDir, "pages", "dashboard.tsx"), "utf8");
+const profileEditorSrc = readFileSync(join(webDir, "components", "ProfileEditor.tsx"), "utf8");
 const welcomeSrc = readFileSync(join(webDir, "components", "WelcomeFlow.tsx"), "utf8");
 
 describe("participantLabelSelectOptions — event labels, not the legacy enum", () => {
@@ -37,19 +38,22 @@ describe("participantLabelSelectOptions — event labels, not the legacy enum", 
 
 describe("profile editor renders event labels not the legacy enum", () => {
   it("dashboard profile no longer hardcodes the old participantType options", () => {
-    for (const legacy of LEGACY_PARTICIPANT_TYPE_VALUES) {
-      expect(dashboardSrc).not.toContain(legacy);
+    for (const src of [dashboardSrc, profileEditorSrc]) {
+      for (const legacy of LEGACY_PARTICIPANT_TYPE_VALUES) {
+        expect(src).not.toContain(legacy);
+      }
+      expect(src).not.toContain("participantTypeLabel");
+      expect(src).not.toContain("Grad Student");
+      expect(src).not.toContain("EdD Student");
     }
-    expect(dashboardSrc).not.toContain("participantTypeLabel");
-    expect(dashboardSrc).not.toContain("Grad Student");
-    expect(dashboardSrc).not.toContain("EdD Student");
   });
 
   it("profile editor binds the select to event labels and membership.participantLabel", () => {
-    expect(dashboardSrc).toContain("participantLabelSelectOptions(participantLabels)");
-    expect(dashboardSrc).toContain("shouldShowParticipantLabelSelect(participantLabels)");
-    expect(dashboardSrc).toContain('name="participantLabel"');
-    expect(dashboardSrc).toContain('"/attendees/me"');
+    expect(profileEditorSrc).toContain("participantLabelSelectOptions(participantLabels)");
+    expect(profileEditorSrc).toContain("shouldShowParticipantLabelSelect(participantLabels)");
+    expect(profileEditorSrc).toContain('name="participantLabel"');
+    expect(profileEditorSrc).toContain('"/attendees/me"');
+    expect(dashboardSrc).toContain("<ProfileEditor");
   });
 
   it("directory chips render participantLabel, not participantType", () => {

@@ -2,19 +2,30 @@ import { brand } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { AccountEmailPasswordCard } from "../components/account/AccountEmailPasswordCard";
+import { AccountNotificationDefaultsCard } from "../components/account/AccountNotificationDefaultsCard";
+import { AccountOrganizationsCard, AccountPlanBillingCard } from "../components/account/AccountOrgSections";
 import { BrandLogo } from "../components/BrandLogo";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ProfileEditor, type ProfileUser } from "../components/ProfileEditor";
 import { apiFetch, clearAuthClientState } from "../lib/api";
+import type { AccountOrg, AccountPlanRow } from "../lib/accountSettings";
+import type { OrgSummary } from "../lib/organizerApi";
 
 type DeletionStatus =
   | { pending: false }
   | { pending: true; scheduledFor: string; requestedAt: string };
 
+type MeUser = ProfileUser & { email: string };
+
 /**
- * Account self-service: GDPR JSON export + account deletion (7-day grace).
+ * Account self-service: profile, credentials, notification defaults, orgs,
+ * GDPR JSON export + account deletion (7-day grace).
  */
 export default function AccountPage() {
-  const [email, setEmail] = useState<string | null>(null);
+  const [user, setUser] = useState<MeUser | null>(null);
+  const [orgs, setOrgs] = useState<AccountOrg[]>([]);
+  const [plans, setPlans] = useState<AccountPlanRow[]>([]);
   // Each card reports its own failure: a refused deletion used to surface up in
   // the export card, nowhere near the button that was pressed.
   const [exportError, setExportError] = useState<string | null>(null);
@@ -41,13 +52,39 @@ export default function AccountPage() {
     let cancelled = false;
     (async () => {
       try {
-        const me = await apiFetch<{ id: string; email: string; name: string }>("/auth/me");
+        const me = await apiFetch<MeUser>("/auth/me");
         if (!cancelled) {
-          setEmail(me.email);
+          setUser(me);
           setDeleteEmail(me.email);
           window.localStorage.setItem("user", JSON.stringify(me));
         }
         await refreshDeletion();
+        try {
+          const mine = await apiFetch<OrgSummary[]>("/organizations/mine");
+          if (cancelled) return;
+          const memberships = mine.map((o) => ({ id: o.id, name: o.name, role: o.role }));
+          setOrgs(memberships);
+          if (memberships.length) {
+            const summaries = await Promise.all(
+              memberships.map(async (org) => {
+                try {
+                  const s = await apiFetch<{ planName: string }>(
+                    `/billing/summary?organizationId=${encodeURIComponent(org.id)}`,
+                  );
+                  return { orgId: org.id, orgName: org.name, planName: s.planName };
+                } catch {
+                  return { orgId: org.id, orgName: org.name, planName: "" };
+                }
+              }),
+            );
+            if (!cancelled) setPlans(summaries);
+          }
+        } catch {
+          if (!cancelled) {
+            setOrgs([]);
+            setPlans([]);
+          }
+        }
       } catch {
         if (!cancelled) {
           clearAuthClientState();
@@ -136,6 +173,8 @@ export default function AccountPage() {
     }
   }, [refreshDeletion]);
 
+  const email = user?.email ?? null;
+
   return (
     <>
       <Head>
@@ -171,12 +210,41 @@ export default function AccountPage() {
           )}
         </p>
 
+        {user ? (
+          <div style={{ marginTop: 24 }}>
+            <ProfileEditor
+              surface="account"
+              token=""
+              user={user}
+              adminEvents={[]}
+              activeEventId={null}
+              participantLabels={[]}
+              withEventHeaders={(extra) => extra ?? {}}
+              onSaved={(updated) => {
+                const next = { ...user, ...updated };
+                setUser(next);
+                window.localStorage.setItem("user", JSON.stringify(next));
+              }}
+              onEventSelected={() => undefined}
+              onEventCreated={() => undefined}
+            />
+          </div>
+        ) : null}
+
+        <AccountEmailPasswordCard email={email} />
+        <AccountNotificationDefaultsCard ready={Boolean(email)} />
+        <AccountPlanBillingCard orgs={orgs} plans={plans} />
+        <AccountOrganizationsCard orgs={orgs} />
+
         {/* The export sits directly above the danger zone: it is the thing to do
             BEFORE deleting, and deletion stays last on the page. */}
         <section className="card" style={{ marginTop: 24, padding: 20 }}>
           <h2 className="text-display-sm" style={{ marginTop: 0 }}>
-            Download your data
+            Data &amp; privacy
           </h2>
+          <h3 className="text-display-sm" style={{ marginTop: 0 }}>
+            Download your data
+          </h3>
           <p className="text-body-md" style={{ color: "var(--ink-secondary)" }}>
             Export a JSON file with your profile, memberships, attendance, check-ins, and message
             metadata (your messages only — no other users&apos; PII). See the{" "}

@@ -1,25 +1,19 @@
 import { Router } from "express";
-import { z } from "zod";
 import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
 import { validationErrorBody } from "../lib/errors";
-import { DEFAULT_PREFS } from "../lib/notifications/types";
+import {
+  getAccountNotificationPreference,
+  notificationPrefsSchema,
+  preferenceWriteData,
+  resolvedPrefs,
+  upsertAccountNotificationPreference,
+} from "../lib/notifications/accountPrefs";
 
 export const notificationsRouter = Router();
-
-const notificationPrefsSchema = z.object({
-  quietHoursStart: z.string().regex(/^\d{1,2}:\d{2}$/).optional(),
-  quietHoursEnd: z.string().regex(/^\d{1,2}:\d{2}$/).optional(),
-  digestLocalTime: z.string().regex(/^\d{1,2}:\d{2}$/).optional(),
-  digestEmail: z.boolean().optional(),
-  messageEmail: z.boolean().optional(),
-  readReceipts: z.boolean().optional(),
-  mutedCategories: z.array(z.string()).optional(),
-  timezone: z.string().nullable().optional(),
-});
 
 notificationsRouter.get(
   "/",
@@ -42,31 +36,6 @@ notificationsRouter.get(
     return res.json(page.items);
   }),
 );
-
-function resolvedPrefs(
-  row: {
-    quietHoursStart: string;
-    quietHoursEnd: string;
-    digestLocalTime: string;
-    digestEmail: boolean;
-    messageEmail?: boolean;
-    readReceipts?: boolean;
-    mutedCategories: string[];
-    timezone: string | null;
-  } | null,
-  eventTimezone: string,
-) {
-  return {
-    quietHoursStart: row?.quietHoursStart ?? DEFAULT_PREFS.quietHoursStart,
-    quietHoursEnd: row?.quietHoursEnd ?? DEFAULT_PREFS.quietHoursEnd,
-    digestLocalTime: row?.digestLocalTime ?? DEFAULT_PREFS.digestLocalTime,
-    digestEmail: row?.digestEmail ?? DEFAULT_PREFS.digestEmail,
-    messageEmail: row?.messageEmail ?? true,
-    readReceipts: row?.readReceipts ?? false,
-    mutedCategories: row?.mutedCategories ?? DEFAULT_PREFS.mutedCategories,
-    timezone: row?.timezone || eventTimezone || "UTC",
-  };
-}
 
 notificationsRouter.get(
   "/preferences",
@@ -97,22 +66,33 @@ notificationsRouter.put(
     const existing = await prisma.notificationPreference.findFirst({
       where: { userId, eventId: event.id },
     });
-    const data = {
-      ...(parsed.data.quietHoursStart !== undefined ? { quietHoursStart: parsed.data.quietHoursStart } : {}),
-      ...(parsed.data.quietHoursEnd !== undefined ? { quietHoursEnd: parsed.data.quietHoursEnd } : {}),
-      ...(parsed.data.digestLocalTime !== undefined ? { digestLocalTime: parsed.data.digestLocalTime } : {}),
-      ...(parsed.data.digestEmail !== undefined ? { digestEmail: parsed.data.digestEmail } : {}),
-      ...(parsed.data.messageEmail !== undefined ? { messageEmail: parsed.data.messageEmail } : {}),
-      ...(parsed.data.readReceipts !== undefined ? { readReceipts: parsed.data.readReceipts } : {}),
-      ...(parsed.data.mutedCategories !== undefined ? { mutedCategories: parsed.data.mutedCategories } : {}),
-      ...(parsed.data.timezone !== undefined ? { timezone: parsed.data.timezone } : {}),
-    };
+    const data = preferenceWriteData(parsed.data);
     const row = existing
       ? await prisma.notificationPreference.update({ where: { id: existing.id }, data })
       : await prisma.notificationPreference.create({
           data: { userId, eventId: event.id, ...data },
         });
     return res.json(resolvedPrefs(row, event.timezone));
+  }),
+);
+
+/** Account-level defaults: the eventId-null row. GET /preferences already falls back to it. */
+notificationsRouter.get(
+  "/preferences/account",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    return res.json(await getAccountNotificationPreference(req.user!.id));
+  }),
+);
+
+notificationsRouter.put(
+  "/preferences/account",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = notificationPrefsSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    return res.json(await upsertAccountNotificationPreference(req.user!.id, parsed.data));
   }),
 );
 
