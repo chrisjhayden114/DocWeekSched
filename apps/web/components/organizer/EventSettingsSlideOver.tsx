@@ -1,7 +1,7 @@
 import { overviewCopy } from "@event-app/config";
 import { FormEvent, useEffect, useId, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { SlideOver, SlideOverMoreOptions } from "../kit";
+import { AutoGrowTextarea, SlideOver, SlideOverMoreOptions } from "../kit";
 import { TimezoneSelect } from "../TimezoneSelect";
 import { EventBrandingFields } from "./EventBrandingFields";
 import { toLocalInputValueInTimeZone, zonedDateTimeLocalToIso } from "../../lib/eventTimezone";
@@ -201,9 +201,9 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
           </label>
           <label>
             Description
-            <textarea
+            <AutoGrowTextarea
               className="input"
-              rows={4}
+              minRows={4}
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
             />

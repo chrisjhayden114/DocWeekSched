@@ -67,6 +67,22 @@ a:hover {
   box-shadow: none;
 }
 
+/* UX-3 #3 — irreversible actions are visually quarantined so nobody wanders
+   into one: a danger-tinted border and a labelled zone, never a card that
+   looks like the settings above it. Used by /account; ACCT-1 keeps it. */
+.card.danger-zone {
+  border-color: var(--danger);
+  background: var(--danger-50);
+}
+
+.danger-zone-label {
+  margin: 0 0 8px;
+  color: var(--danger);
+  font: 600 12px/16px var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 /* F1.5.1 — the app's primary action is NEAR-NEUTRAL (--action-* tokens map to
    the gray ramp). The marketing site and event-branded surfaces re-point the
    tokens (see the .mkt-page / .event-branded overrides near the end). */
@@ -164,6 +180,16 @@ a:hover {
 .input::placeholder,
 .textarea::placeholder {
   color: var(--gray-400);
+}
+
+/* UX-3 #1 — a multi-line field is never fixed and never horizontal-only:
+   AutoGrowTextarea sizes the box to the content and this keeps the native
+   handle so the writer can overrule it. `resize: none` is banned on
+   multi-line fields; vertical-only stops a drag from breaking the layout. */
+.textarea,
+textarea.input,
+.textarea-autogrow {
+  resize: vertical;
 }
 
 /* ——— Shared Select control (components/Select.tsx) ———
@@ -377,6 +403,66 @@ a:hover {
 
 .nav button.active .nav-tab-inner svg {
   opacity: 1;
+}
+
+/* ——— UX-3 #2: organizer console tab strip (components/organizer/ConsoleTabStrip) ———
+   .nav wraps by design; a ten-tab console strip wrapping left one orphan tab on
+   a second row. Here the row never wraps: it scrolls, the scrollbar is hidden,
+   and the wrapper fades whichever edge still has tabs behind it. */
+.console-tabstrip {
+  margin: 0 0 16px;
+}
+
+.console-event-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* The keyboard focus ring sits 4px outside a tab and `overflow` would shear
+     it off, so the scroller carries that much padding and gives it back as
+     negative margin — the tabs still line up with the content above. */
+  padding: 4px;
+  margin: -4px;
+}
+
+.console-event-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.console-event-tabs button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* The edge fade is a mask on the tabs themselves, not a gradient overlay, so it
+   reads correctly on any surface the strip is dropped onto. Only the edges that
+   have tabs behind them are masked — ConsoleTabStrip toggles the classes. */
+.console-tabstrip.has-fade-start .console-event-tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px);
+  mask-image: linear-gradient(to right, transparent 0, #000 28px);
+}
+
+.console-tabstrip.has-fade-end .console-event-tabs {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 28px);
+  mask-image: linear-gradient(to left, transparent 0, #000 28px);
+}
+
+.console-tabstrip.has-fade-start.has-fade-end .console-event-tabs {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
 }
 
 .nav-tab-unread:not(.active) {
@@ -4438,20 +4524,14 @@ button.schedule-meta-chip:hover {
     padding-top: 4px;
   }
 
-  /* Organizer event console: single-row horizontal chip tabs. */
-  .console-event-tabs {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 6px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+  /* Organizer event console: the single scroll row is now the base rule; phones
+     only tighten the chips. */
+  .console-tabstrip {
     margin: 0 0 12px;
-    padding: 0 0 4px;
   }
 
-  .console-event-tabs::-webkit-scrollbar {
-    display: none;
+  .console-event-tabs {
+    gap: 6px;
   }
 
   .console-event-tabs button {
@@ -5460,22 +5540,27 @@ button.schedule-meta-chip:hover {
   border-top: 1px solid var(--gray-100);
 }
 
-.mkt-screenshot-ph {
+/* UX-3 #4 — the real product screenshot that replaced the placeholder box on
+   /speaker-readiness. Bordered and rounded like the email mock above it. */
+.mkt-screenshot {
   margin: 28px 0 0;
-  min-height: 220px;
-  border: 1px dashed var(--gray-300);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
-  background: var(--gray-50);
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  text-align: center;
-  color: var(--gray-500);
-  font: 400 15px/22px var(--font-body);
+  background: #ffffff;
+  overflow: hidden;
 }
 
-.mkt-screenshot-ph p {
-  margin: 0;
+.mkt-screenshot-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.mkt-screenshot-caption {
+  display: block;
+  padding: 12px 16px 16px;
+  background: #ffffff;
+  border-top: 1px solid var(--gray-100);
 }
 
 .mkt-draft-banner {

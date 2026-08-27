@@ -5,6 +5,7 @@ import {
   type SentAnnouncement,
 } from "../lib/announcementDisplay";
 import { organizerFetch } from "../lib/organizerApi";
+import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 import { ListSkeleton } from "./ListState";
 import { Select } from "./Select";
 
@@ -143,7 +144,7 @@ export function AnnouncementComposer({ eventId, sessions }: Props) {
         </label>
         <label>
           Body
-          <textarea className="input" rows={5} value={body} onChange={(e) => setBody(e.target.value)} required />
+          <AutoGrowTextarea className="input" minRows={5} value={body} onChange={(e) => setBody(e.target.value)} required />
         </label>
         <label>
           Audience

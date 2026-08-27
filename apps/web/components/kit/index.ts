@@ -3,6 +3,8 @@
  * primitives F2–F6 build every screen from: token-driven, reduced-motion
  * safe, keyboard accessible. Demoed on /styleguide.
  */
+export { AutoGrowTextarea } from "./AutoGrowTextarea";
+export type { AutoGrowTextareaProps } from "./AutoGrowTextarea";
 export { Composer } from "./Composer";
 export type { ComposerDraft, ComposerProps } from "./Composer";
 export { EmptyState } from "./EmptyState";

@@ -299,12 +299,18 @@ export default function SpeakerReadinessPage() {
                   change request — a committee can see who did what, and when.
                 </li>
               </ul>
-              <figure className="mkt-screenshot-ph" aria-label="Dashboard screenshot placeholder">
-                <p>
-                  Organizer dashboard screenshot
-                  <br />
-                  <span className="text-meta">Founder will supply</span>
-                </p>
+              <figure className="mkt-screenshot">
+                <img
+                  className="mkt-screenshot-img"
+                  src="/marketing/readiness-dashboard.png"
+                  alt="Readiness dashboard: every presenter at a glance"
+                  width={1744}
+                  height={520}
+                  loading="lazy"
+                />
+                <figcaption className="text-meta mkt-screenshot-caption">
+                  See the five who are missing something — not the hundred who aren&apos;t.
+                </figcaption>
               </figure>
             </div>
           </section>

@@ -2,6 +2,7 @@ import { programCopy } from "@event-app/config";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { AutoGrowTextarea } from "../kit";
 import { ListEmpty } from "../ListState";
 import { Select } from "../Select";
 import { timeZoneAbbrev } from "../../lib/dateFormat";
@@ -1268,9 +1269,9 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                                     </label>
                                     <label>
                                       Authors
-                                      <textarea
+                                      <AutoGrowTextarea
                                         className="input"
-                                        rows={3}
+                                        minRows={3}
                                         value={editPaper.authorsText}
                                         onChange={(e) =>
                                           setEditPaper({ ...editPaper, authorsText: e.target.value })
@@ -1362,9 +1363,9 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                                   </label>
                                   <label>
                                     Authors
-                                    <textarea
+                                    <AutoGrowTextarea
                                       className="input"
-                                      rows={3}
+                                      minRows={3}
                                       value={paperDraft.authorsText}
                                       onChange={(e) =>
                                         setPaperDraft((d) => ({ ...d, authorsText: e.target.value }))

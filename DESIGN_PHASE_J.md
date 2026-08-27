@@ -147,3 +147,56 @@ w/ breaks → closing) + seeded readiness template "Talk showcase speaker pack"
 slides, SIGNED release as file-with-approval, copyright-clearance confirm, AV needs
 select, dress-rehearsal confirm, organizer-only internal items). Deferred (M):
 rehearsal slot scheduler, milestone-chain visual, relative template due dates.
+
+## Console polish round (founder live-test 2026-08-26) + Speakers/Account designs
+
+Founder-reported: (1) single-line inputs for multi-sentence content (portal bio was an
+<input> — unreadable past a few words) → all long-text entry becomes auto-growing,
+user-resizable textareas sitewide; (2) console tab strip wraps to an orphan second row
+→ single scrollable row; (3) /account: back-nav buried, Delete prominent, no confirm
+dialog; (4) Speakers tab is a bare name list.
+
+SPK-1 design (agent-researched vs Whova Speaker Center/Sched/Sessionize/Swapcard/
+Sessionboard; effort M, FRONTEND-ONLY — PUT/DELETE /speakers/:id already exist,
+sessions + readiness rollups (GET /readiness/overview subjects[].rollup) + portal rows
+(GET /readiness/portal-access) already served):
+- Table replaces the <ul>: photo+name+title/affiliation (CFP badge if converted),
+  sessions count w/ first title, readiness chip "3/4 ready (+1 late)" counts-only,
+  portal email + state (Invited/Opened/Revoked/Expired/No invite). Name filter >10.
+- Row → SpeakerDetail SlideOver (wide): editable profile (name/title/affiliation/bio/
+  photo via existing PUT), contact (portal email read-only + dates, mint stays in
+  Readiness tab), sessions list linking to Program, readiness one-liner linking to
+  the Readiness subject SlideOver (?tab=readiness&speaker= deep link), footer
+  Save/Delete/Close.
+- Delete via ConfirmDialog danger with honest cascade copy (sessions unlinked; N
+  readiness assignments + submitted materials incl. files deleted; portal access
+  revoked; CFP submission kept but unlinked). Counts from client-side data.
+- NOT: engagement stats, progress bars, approve/reject, reminders, bulk actions,
+  featured flags.
+
+ACCT-1 design (norms: uxpatterns.dev account-settings anatomy, GitHub/Buttondown
+danger-zone-last, Stripe hosted portal for billing; effort M):
+Single page, sections: prominent "← Back to dashboard" top-left; Profile (extract
+dashboard ProfileEditor to shared component); Email (read-only + honest
+"contact support to change" — change-email route does NOT exist, defer L) & password
+(form → existing POST /auth/change-password); Notification account defaults (writes
+the eventId:null row — needs small account-level PUT; J-A #6); Plan & billing card
+(plan name + link /organizer/billing; no upsell copy); Your organizations (read-only
+list); Data & privacy (export, directly above danger zone); Danger zone LAST,
+visually quarantined, existing email+password re-auth PLUS ConfirmDialog(tone danger)
+with concrete-consequences copy, CTA "Schedule deletion" never "Confirm".
+
+UX-3 shipped (S, frontend-only): (1) components/kit/AutoGrowTextarea — grows from
+`minRows`, keeps `resize: vertical`, and a drag of the handle disables auto-grow so
+typing can't undo it; every prose field in the app now uses it (39 textareas + the
+portal's short_text input, which is where the founder's bio actually landed —
+long_text was already a textarea) and consolePolish.test pins that no page may
+hand-roll a `<textarea>` again. (2) components/organizer/ConsoleTabStrip — one
+nowrap row, hidden scrollbar, mask-based fade on whichever edge has tabs behind it,
+active tab scrolled into view; the single-row rules moved out of the phone media
+query and are now the base. (3) /account: "← Back to dashboard" above the heading
+(footer duplicate dropped), delete card = .card.danger-zone with a "Danger zone"
+label, ConfirmDialog on top of the re-auth, export directly above; export and
+deletion errors no longer share one slot. (4) /speaker-readiness placeholder box →
+public/marketing/readiness-dashboard.png in a bordered .mkt-screenshot figure.
+Still open here: SPK-1 and the full ACCT-1 redesign.

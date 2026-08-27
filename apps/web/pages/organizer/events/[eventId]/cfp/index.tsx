@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { AutoGrowTextarea } from "../../../../../components/kit";
 import { OrganizerShell } from "../../../../../components/OrganizerShell";
 import { ReviewChangeset, type ReviewChangeRow } from "../../../../../components/ReviewChangeset";
 import { Select } from "../../../../../components/Select";
@@ -190,7 +191,7 @@ export default function OrganizerCfpPage() {
             </label>
             <label>
               Rubric JSON
-              <textarea className="input" rows={4} value={rubricJson} onChange={(e) => setRubricJson(e.target.value)} />
+              <AutoGrowTextarea className="input" minRows={4} value={rubricJson} onChange={(e) => setRubricJson(e.target.value)} />
             </label>
             <button className="button" type="submit" disabled={busy}>
               Create &amp; open

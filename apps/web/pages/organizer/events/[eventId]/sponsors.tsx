@@ -6,6 +6,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { brand } from "@event-app/config";
+import { AutoGrowTextarea } from "../../../../components/kit";
 import { ListEmpty } from "../../../../components/ListState";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
@@ -164,7 +165,7 @@ export default function EventSponsorsPage() {
           </label>
           <label>
             Short description
-            <textarea className="textarea" name="description" rows={2} />
+            <AutoGrowTextarea className="textarea" name="description" minRows={2} />
           </label>
           <button type="submit" className="button" disabled={busy} style={{ justifySelf: "start" }}>
             Add sponsor

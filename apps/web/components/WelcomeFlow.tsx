@@ -1,6 +1,7 @@
 import type { FeeNotice as FeeNoticeData } from "@event-app/shared";
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import { FeeNotice } from "./FeeNotice";
+import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 import { Portal } from "./kit/Portal";
 import { initialsFor } from "./kit/kitHelpers";
 import { apiFetch } from "../lib/api";
@@ -211,9 +212,9 @@ export function WelcomeFlow({
               </div>
               <label className="help-text" style={{ margin: 0, display: "grid", gap: 6 }}>
                 Interests (optional)
-                <textarea
+                <AutoGrowTextarea
                   className="textarea"
-                  rows={4}
+                  minRows={4}
                   value={researchInterests}
                   onChange={(e) => setResearchInterests(e.target.value)}
                   placeholder="Interests / topics you care about"

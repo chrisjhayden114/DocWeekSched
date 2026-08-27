@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AiGeneratedChip } from "./AiGeneratedChip";
+import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 import { ListEmpty, ListError } from "./ListState";
 import { opsActionLabel, opsDetectorLabel } from "../lib/opsLabels";
 import { organizerFetch } from "../lib/organizerApi";
@@ -230,9 +231,9 @@ export function OpsInboxPanel({ eventId }: { eventId: string }) {
                 {editing ? (
                   <div style={{ display: "grid", gap: 8 }}>
                     <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                    <textarea
+                    <AutoGrowTextarea
                       className="textarea"
-                      rows={5}
+                      minRows={5}
                       value={editBody}
                       onChange={(e) => setEditBody(e.target.value)}
                     />

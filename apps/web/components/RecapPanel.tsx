@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AiGeneratedChip } from "./AiGeneratedChip";
+import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 import { ListEmpty, ListError } from "./ListState";
 import { StatusChip } from "./StatusChip";
 import { organizerFetch } from "../lib/organizerApi";
@@ -206,9 +207,9 @@ export function RecapPanel({ eventId }: { eventId: string }) {
             ))}
           </ul>
           <div>
-            <textarea
+            <AutoGrowTextarea
               className="input"
-              rows={18}
+              minRows={18}
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
               style={{ width: "100%", fontFamily: "ui-monospace, monospace", fontSize: 13 }}

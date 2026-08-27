@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BrandLogo } from "../components/BrandLogo";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { apiFetch, clearAuthClientState } from "../lib/api";
 
 type DeletionStatus =
@@ -14,7 +15,10 @@ type DeletionStatus =
  */
 export default function AccountPage() {
   const [email, setEmail] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Each card reports its own failure: a refused deletion used to surface up in
+  // the export card, nowhere near the button that was pressed.
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [deletion, setDeletion] = useState<DeletionStatus | null>(null);
   const [deleteEmail, setDeleteEmail] = useState("");
@@ -22,6 +26,7 @@ export default function AccountPage() {
   const [deleting, setDeleting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const refreshDeletion = useCallback(async () => {
     try {
@@ -57,7 +62,7 @@ export default function AccountPage() {
 
   const downloadExport = useCallback(async () => {
     setExporting(true);
-    setError(null);
+    setExportError(null);
     try {
       const data = await apiFetch<Record<string, unknown>>("/account/export");
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -68,7 +73,7 @@ export default function AccountPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Export failed");
+      setExportError(e instanceof Error ? e.message : "Export failed");
     } finally {
       setExporting(false);
     }
@@ -76,8 +81,9 @@ export default function AccountPage() {
 
   const requestDeletion = useCallback(async () => {
     setDeleting(true);
-    setError(null);
+    setDeleteError(null);
     setDeleteMessage(null);
+    setConfirmOpen(false);
     try {
       const res = await apiFetch<{
         ok: boolean;
@@ -101,11 +107,11 @@ export default function AccountPage() {
     } catch (e) {
       const err = e as Error & { body?: { code?: string; organizationIds?: string[]; error?: string } };
       if (err.body?.code === "SOLE_OWNER") {
-        setError(
+        setDeleteError(
           "You are the only owner of one or more organizations. Transfer ownership or close those orgs before deleting your account.",
         );
       } else {
-        setError(err instanceof Error ? err.message : "Deletion request failed");
+        setDeleteError(err instanceof Error ? err.message : "Deletion request failed");
       }
     } finally {
       setDeleting(false);
@@ -114,7 +120,7 @@ export default function AccountPage() {
 
   const cancelDeletion = useCallback(async () => {
     setCancelling(true);
-    setError(null);
+    setDeleteError(null);
     setDeleteMessage(null);
     try {
       const res = await apiFetch<{ ok: boolean; message: string }>("/account/deletion/cancel", {
@@ -124,7 +130,7 @@ export default function AccountPage() {
       setDeleteMessage(res.message || "Account deletion cancelled.");
       await refreshDeletion();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cancel failed");
+      setDeleteError(e instanceof Error ? e.message : "Cancel failed");
     } finally {
       setCancelling(false);
     }
@@ -137,6 +143,13 @@ export default function AccountPage() {
         <meta name="robots" content="noindex" />
       </Head>
       <div className="container" style={{ paddingTop: 32, maxWidth: 640 }}>
+        {/* UX-3 #3 — the way out sits above the heading, not in the footer
+            underneath a delete form (founder live-test: back-nav buried). */}
+        <p style={{ margin: "0 0 20px" }}>
+          <Link className="button secondary" href="/dashboard">
+            ← Back to dashboard
+          </Link>
+        </p>
         <div className="login-brand" style={{ marginBottom: 16 }}>
           <BrandLogo size={40} />
           <div>
@@ -158,6 +171,8 @@ export default function AccountPage() {
           )}
         </p>
 
+        {/* The export sits directly above the danger zone: it is the thing to do
+            BEFORE deleting, and deletion stays last on the page. */}
         <section className="card" style={{ marginTop: 24, padding: 20 }}>
           <h2 className="text-display-sm" style={{ marginTop: 0 }}>
             Download your data
@@ -170,10 +185,11 @@ export default function AccountPage() {
           <button type="button" className="button" disabled={exporting || !email} onClick={() => void downloadExport()}>
             {exporting ? "Preparing…" : "Download JSON export"}
           </button>
-          {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
+          {exportError ? <p style={{ color: "var(--danger-700)" }}>{exportError}</p> : null}
         </section>
 
-        <section className="card" style={{ marginTop: 24, padding: 20 }}>
+        <section className="card danger-zone" style={{ marginTop: 24, padding: 20 }}>
+          <p className="danger-zone-label">Danger zone</p>
           <h2 className="text-display-sm" style={{ marginTop: 0 }}>
             Delete account
           </h2>
@@ -206,7 +222,9 @@ export default function AccountPage() {
                 style={{ gap: 10 }}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void requestDeletion();
+                  // Re-auth first (the fields are `required`, so the browser has
+                  // already checked them), then the consequences, then the act.
+                  setConfirmOpen(true);
                 }}
               >
                 <label className="text-meta">
@@ -237,12 +255,27 @@ export default function AccountPage() {
               </form>
             </>
           )}
+          {deleteError ? (
+            <p role="alert" style={{ color: "var(--danger-700)" }}>
+              {deleteError}
+            </p>
+          ) : null}
           {deleteMessage ? <p className="text-body-md">{deleteMessage}</p> : null}
         </section>
 
+        <ConfirmDialog
+          open={confirmOpen}
+          tone="danger"
+          title="Schedule deletion of your account?"
+          body="Deactivates immediately; permanently deleted after 7 days including profile, memberships, and messages. Sign in during the 7 days to cancel."
+          confirmLabel="Schedule deletion"
+          cancelLabel="Keep my account"
+          busy={deleting}
+          onConfirm={() => void requestDeletion()}
+          onCancel={() => setConfirmOpen(false)}
+        />
+
         <p className="text-meta" style={{ marginTop: 24 }}>
-          <Link href="/dashboard">Back to dashboard</Link>
-          {" · "}
           <Link href="/security">Security</Link>
           {" · "}
           <Link href="/privacy">Privacy</Link>

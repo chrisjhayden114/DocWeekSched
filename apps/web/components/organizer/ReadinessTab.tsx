@@ -9,7 +9,7 @@ import { ListEmpty, ListError, ListSkeleton } from "../ListState";
 import { SearchableMultiSelect } from "../SearchableMultiSelect";
 import { Select } from "../Select";
 import { StatusChip } from "../StatusChip";
-import { SlideOver } from "../kit";
+import { AutoGrowTextarea, SlideOver } from "../kit";
 import { formatRelativeTime } from "../../lib/dateFormat";
 import { API_URL } from "../../lib/api";
 import { organizerFetch } from "../../lib/organizerApi";
@@ -905,8 +905,9 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
         </label>
         <label style={{ margin: 0 }}>
           Help text <span className="text-meta">(optional)</span>
-          <input
+          <AutoGrowTextarea
             className="input"
+            minRows={1}
             placeholder="Shown next to the requirement"
             value={reqDraft.helpText}
             onChange={(e) => setReqDraft({ ...reqDraft, helpText: e.target.value })}
@@ -1505,9 +1506,9 @@ export function ReadinessTab({ eventId, speakers, sessions }: Props) {
           </label>
           <label style={{ margin: 0 }}>
             Description <span className="text-meta">(optional)</span>
-            <textarea
+            <AutoGrowTextarea
               className="input"
-              rows={2}
+              minRows={2}
               placeholder="What this template collects and who it's for"
               value={tplDescription}
               onChange={(e) => setTplDescription(e.target.value)}

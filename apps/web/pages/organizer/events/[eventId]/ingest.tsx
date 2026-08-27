@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AutoGrowTextarea } from "../../../../components/kit";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import {
   ReviewChangeset,
@@ -709,9 +710,9 @@ export default function AgendaIngestPage() {
               <form onSubmit={onPaste} className="console-form">
                 <label>
                   Program text
-                  <textarea
+                  <AutoGrowTextarea
                     className="input"
-                    rows={6}
+                    minRows={6}
                     value={paste}
                     onChange={(e) => setPaste(e.target.value)}
                     placeholder="Paste agenda text…"
@@ -964,9 +965,9 @@ export default function AgendaIngestPage() {
 
                 <label>
                   Rooms (one name per line)
-                  <textarea
+                  <AutoGrowTextarea
                     className="input"
-                    rows={3}
+                    minRows={3}
                     value={genRoomsText}
                     onChange={(e) => setGenRoomsText(e.target.value)}
                     placeholder={"Main Hall\nRoom 2\nRoom 3"}
@@ -1045,9 +1046,9 @@ export default function AgendaIngestPage() {
 
                 <label>
                   Anything else the draft should honor? (optional)
-                  <textarea
+                  <AutoGrowTextarea
                     className="input"
-                    rows={3}
+                    minRows={3}
                     maxLength={2000}
                     value={genNotes}
                     onChange={(e) => setGenNotes(e.target.value)}

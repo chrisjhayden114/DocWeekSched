@@ -5,6 +5,7 @@ import {
   normalizePaymentUrl,
 } from "@event-app/shared";
 import { FormEvent, useEffect, useState } from "react";
+import { AutoGrowTextarea } from "../kit";
 import { organizerFetch } from "../../lib/organizerApi";
 
 export type RegistrationFeeEvent = {
@@ -153,9 +154,9 @@ export function RegistrationFeeCard({ eventId, event, onSaved }: Props) {
         </label>
         <label>
           How to pay (optional)
-          <textarea
+          <AutoGrowTextarea
             className="input"
-            rows={4}
+            minRows={4}
             value={form.instructions}
             maxLength={PAYMENT_INSTRUCTIONS_MAX_CHARS}
             placeholder={

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -103,9 +104,9 @@ export function ConfirmDialog({
         {promptLabel ? (
           <label style={{ display: "grid", gap: 6, margin: "0 0 var(--space-5)" }}>
             <span className="text-body-md">{promptLabel}</span>
-            <textarea
+            <AutoGrowTextarea
               className="input"
-              rows={3}
+              minRows={3}
               value={promptValue ?? ""}
               placeholder={promptPlaceholder}
               required={promptRequired}

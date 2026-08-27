@@ -2,6 +2,7 @@ import { brand } from "@event-app/config";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { AutoGrowTextarea } from "../../../../../components/kit";
 import { OrganizerShell } from "../../../../../components/OrganizerShell";
 import { organizerFetch } from "../../../../../lib/organizerApi";
 
@@ -144,9 +145,9 @@ export default function CfpReviewerPage() {
               ))}
               <label>
                 Comment
-                <textarea
+                <AutoGrowTextarea
                   className="input"
-                  rows={2}
+                  minRows={2}
                   value={comments[a.reviewId] || ""}
                   onChange={(e) => setComments((c) => ({ ...c, [a.reviewId]: e.target.value }))}
                 />

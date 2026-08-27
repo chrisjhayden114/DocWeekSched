@@ -2,6 +2,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { EventHero } from "../../components/EventHero";
+import { AutoGrowTextarea } from "../../components/kit";
 import { StatusChip } from "../../components/StatusChip";
 import { API_URL } from "../../lib/api";
 import { eventAccentStyle } from "../../lib/eventAccent";
@@ -339,9 +340,9 @@ function RequirementInput({
 
   if (kind === "long_text") {
     return (
-      <textarea
+      <AutoGrowTextarea
         className="input"
-        rows={5}
+        minRows={5}
         disabled={disabled}
         value={typeof draft === "string" ? draft : ""}
         onChange={(e) => onChange(e.target.value)}
@@ -455,10 +456,14 @@ function RequirementInput({
       />
     );
   }
+  // short_text (and any kind the API adds before this page knows about it).
+  // 500 characters is several sentences — the founder's bio arrived here and a
+  // single-line input showed about six words of it — so this grows from one
+  // line rather than starting as one.
   return (
-    <input
+    <AutoGrowTextarea
       className="input"
-      type="text"
+      minRows={1}
       disabled={disabled}
       value={typeof draft === "string" ? draft : ""}
       onChange={(e) => onChange(e.target.value)}

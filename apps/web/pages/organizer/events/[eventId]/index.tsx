@@ -24,6 +24,7 @@ import { KebabMenu } from "../../../../components/KebabMenu";
 import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListState";
 import { StatusChip } from "../../../../components/StatusChip";
 import { PageHeader, StatCard } from "../../../../components/kit";
+import { ConsoleTabStrip } from "../../../../components/organizer/ConsoleTabStrip";
 import { EventSettingsSlideOver } from "../../../../components/organizer/EventSettingsSlideOver";
 import { MarkPaidCsvCard } from "../../../../components/organizer/MarkPaidCsvCard";
 import { ParticipantLabelsEditor } from "../../../../components/organizer/ParticipantLabelsEditor";
@@ -796,33 +797,25 @@ export default function OrganizerEventPage() {
         {error && event ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
         {event ? (
-        <nav className="nav console-event-tabs" aria-label="Event sections" style={{ margin: "0 0 16px" }}>
-          {(
-            [
-              ["overview", "Overview"],
-              ["program", "Program"],
-              ["people", "Speakers"],
-              ["invites", "Participants"],
-              ["maps", "Maps"],
-              ["announcements", "Announcements"],
-              ["ops", "Ops Inbox"],
+          <ConsoleTabStrip
+            ariaLabel="Event sections"
+            activeId={tab}
+            onSelect={selectTab}
+            tabs={[
+              { id: "overview", label: "Overview" },
+              { id: "program", label: "Program" },
+              { id: "people", label: "Speakers" },
+              { id: "invites", label: "Participants" },
+              { id: "maps", label: "Maps" },
+              { id: "announcements", label: "Announcements" },
+              { id: "ops", label: "Ops Inbox" },
               // Only when the event's RESOLVED features include readiness
               // (plan entitlement + the organizer's per-event override).
-              ...(readinessEnabled ? ([["readiness", "Readiness"]] as const) : []),
-              ["recap", "Recap"],
-              ["features", "Features"],
-            ] as readonly (readonly [EventTab, string])[]
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={tab === id ? "active" : ""}
-              onClick={() => selectTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+              ...(readinessEnabled ? [{ id: "readiness" as EventTab, label: "Readiness" }] : []),
+              { id: "recap", label: "Recap" },
+              { id: "features", label: "Features" },
+            ]}
+          />
         ) : null}
 
         {/* E28.3 — keyed by tab, so switching tabs remounts the wrapper and

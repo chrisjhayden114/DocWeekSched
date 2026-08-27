@@ -6,7 +6,7 @@ import { DELETED_PARTICIPANT_LABEL, resolveFeatureEnabled, type FeatureKey, type
 import { AppShell, type ShellNavGroup } from "../../components/AppShell";
 import { MainNavIcon } from "../../components/dashboardNavIcons";
 import { ListSkeleton } from "../../components/ListState";
-import { Composer, EmptyState, FilterPills } from "../../components/kit";
+import { AutoGrowTextarea, Composer, EmptyState, FilterPills } from "../../components/kit";
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { SegmentedToggle } from "../../components/SegmentedToggle";
 import { ConciergeChat } from "../../components/ConciergeChat";
@@ -973,7 +973,7 @@ export default function SessionPage() {
                         form?.reset();
                       }}
                     >
-                      <textarea className="textarea" name="body" placeholder="Reply to this conversation…" required rows={2} />
+                      <AutoGrowTextarea className="textarea" name="body" placeholder="Reply to this conversation…" required minRows={2} />
                       <button type="submit" className="button secondary">Reply</button>
                     </form>
                   </div>
@@ -1336,11 +1336,11 @@ export default function SessionPage() {
                   }}
                 >
                   <input className="input" name="question" placeholder="Poll question" required />
-                  <textarea
+                  <AutoGrowTextarea
                     className="textarea"
                     name="options"
                     placeholder={"Option A\nOption B\nOption C"}
-                    rows={3}
+                    minRows={3}
                     required
                   />
                   <button type="submit" className="button secondary">
@@ -1384,7 +1384,7 @@ export default function SessionPage() {
                       </button>
                     ))}
                   </div>
-                  <textarea className="textarea" name="comment" placeholder="Optional comment" rows={2} />
+                  <AutoGrowTextarea className="textarea" name="comment" placeholder="Optional comment" minRows={2} />
                   <button type="submit" className="button">
                     Submit feedback
                   </button>

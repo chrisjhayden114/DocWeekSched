@@ -10,6 +10,7 @@ import {
   setupEventTypeLabel,
   setupTimezoneFieldLabel,
 } from "@event-app/shared";
+import { AutoGrowTextarea } from "../../../components/kit";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../components/FeatureConfigPanel";
 import { OrganizerShell } from "../../../components/OrganizerShell";
 import { SetupCopilotChat } from "../../../components/SetupCopilotChat";
@@ -660,7 +661,7 @@ export default function NewEventWizard() {
                 </label>
                 <label>
                   Description
-                  <textarea className="input" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
+                  <AutoGrowTextarea className="input" minRows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
                 </label>
                 <label>
                   Public slug

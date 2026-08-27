@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ASSISTANT_COPY, CONCIERGE_STARTER_CHIPS } from "@event-app/shared";
+import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 import { organizerFetch } from "../lib/organizerApi";
 
 const STARTER_DEFAULTS = CONCIERGE_STARTER_CHIPS.map((c) => c.label);
@@ -187,9 +188,9 @@ export function EventFaqEditor({ eventId }: { eventId: string }) {
         </label>
         <label className="field-label">
           <span className="field-label-text">Answer</span>
-          <textarea
+          <AutoGrowTextarea
             className="input"
-            rows={3}
+            minRows={3}
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="Network: EventGuest · Password: …"

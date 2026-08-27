@@ -1,5 +1,6 @@
 import { kitCopy } from "@event-app/config";
 import { FormEvent, KeyboardEvent, ReactNode, useEffect, useReducer, useRef } from "react";
+import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { composerCanSubmit, composerInitialState, composerReduce } from "./composerState";
 
 /** The live draft, passed to function children so context fields can read it. */
@@ -13,6 +14,7 @@ export type ComposerProps = {
   /** Placeholder inside the expanded textarea; defaults to the collapsed label. */
   placeholder?: string;
   cancelLabel?: string;
+  /** Height floor for the body field, which grows past it as the draft does. */
   rows?: number;
   /** Disables the actions and swaps the submit label while a send is in flight. */
   busy?: boolean;
@@ -169,10 +171,10 @@ export function Composer({
           onKeyDown={onFieldKeyDown}
         />
       ) : null}
-      <textarea
+      <AutoGrowTextarea
         ref={textareaRef}
         className="textarea"
-        rows={rows}
+        minRows={rows}
         placeholder={placeholder ?? collapsedLabel}
         aria-label={placeholder ?? collapsedLabel}
         value={state.value}

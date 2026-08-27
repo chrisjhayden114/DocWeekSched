@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 import { Portal } from "./kit/Portal";
 import { apiFetch } from "../lib/api";
 import { MAX_BREAK_THE_ICE, personalizeOpener } from "../lib/breakTheIce";
@@ -165,9 +166,9 @@ export function BreakTheIceCarousel({ people, token, withEventHeaders, eventName
               </div>
               <label className="help-text" style={{ margin: "0 0 var(--space-4)", display: "grid", gap: 6 }}>
                 Your opener — <code>{"{name}"}</code> becomes each person&apos;s name
-                <textarea
+                <AutoGrowTextarea
                   className="textarea"
-                  rows={3}
+                  minRows={3}
                   value={opener}
                   onChange={(e) => setOpener(e.target.value)}
                   disabled={sending}

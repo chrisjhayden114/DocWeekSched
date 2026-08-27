@@ -8,6 +8,7 @@ import { KebabMenu } from "../components/KebabMenu";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { Select } from "../components/Select";
 import {
+  AutoGrowTextarea,
   Composer,
   EmptyState,
   FeedCard,
@@ -290,8 +291,14 @@ export default function StyleguidePage() {
             </p>
             <label className="text-label" style={{ display: "grid", gap: 6 }}>
               Textarea
-              <textarea className="textarea" rows={2} placeholder="Notes…" />
+              <AutoGrowTextarea minRows={2} placeholder="Notes…" />
             </label>
+            <p className="text-meta" style={{ margin: 0 }}>
+              Every field where a user writes sentences is an <code>AutoGrowTextarea</code> (UX-3):
+              it grows with the content from <code>minRows</code> and keeps the native resize
+              handle, and a drag of that handle turns auto-grow off so typing can&apos;t undo it.
+              Single-line <code>.input</code> stays for names, titles, URLs and emails.
+            </p>
           </div>
         </Section>
 
@@ -565,7 +572,7 @@ export default function StyleguidePage() {
               </label>
               <label className="text-label" style={{ display: "grid", gap: 6 }}>
                 Internal notes
-                <textarea className="textarea" rows={2} placeholder="Only organizers see these." />
+                <AutoGrowTextarea minRows={2} placeholder="Only organizers see these." />
               </label>
             </SlideOverMoreOptions>
           </div>

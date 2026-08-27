@@ -29,7 +29,7 @@ import {
 import { AutolinkText } from "./AutolinkText";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSkeleton } from "./ListState";
-import { EmptyState, PageHeader } from "./kit";
+import { AutoGrowTextarea, EmptyState, PageHeader } from "./kit";
 import { Portal } from "./kit/Portal";
 import { KebabMenu } from "./KebabMenu";
 import { SearchableMultiSelect, type SelectablePerson } from "./SearchableMultiSelect";
@@ -1077,11 +1077,11 @@ export function MessagesPanel({
                                   }
                                 }}
                               >
-                                <textarea
+                                <AutoGrowTextarea
                                   className="textarea"
                                   value={editingMessageBody}
                                   onChange={(e) => setEditingMessageBody(e.target.value)}
-                                  rows={3}
+                                  minRows={3}
                                   required
                                 />
                                 <div style={{ display: "flex", gap: 8 }}>
@@ -1212,12 +1212,12 @@ export function MessagesPanel({
               <label className="sr-only" htmlFor="message-composer-body">
                 Write a message to {activeOther?.name ?? activeTitle ?? "this conversation"}
               </label>
-              <textarea
+              <AutoGrowTextarea
                 id="message-composer-body"
                 ref={composerRef}
                 className="textarea msg-composer-textarea"
                 placeholder="Write a message…"
-                rows={2}
+                minRows={2}
                 value={composerBody}
                 onChange={(e) => updateComposerBody(e.target.value)}
                 onKeyDown={(e) => {
@@ -1299,9 +1299,9 @@ export function MessagesPanel({
               </label>
               <label className="help-text" style={{ display: "grid", gap: 6, marginBottom: 12 }}>
                 Details (optional)
-                <textarea
+                <AutoGrowTextarea
                   className="textarea"
-                  rows={3}
+                  minRows={3}
                   value={reportDetails}
                   onChange={(e) => setReportDetails(e.target.value)}
                   disabled={reportSubmitting}

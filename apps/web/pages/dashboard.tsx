@@ -36,7 +36,7 @@ import { SegmentedToggle } from "../components/SegmentedToggle";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
 import { SessionPeekSheet } from "../components/SessionPeekSheet";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
-import { Composer, EmptyState, FeedCard, FilterPills, Lightbox, PageHeader } from "../components/kit";
+import { AutoGrowTextarea, Composer, EmptyState, FeedCard, FilterPills, Lightbox, PageHeader } from "../components/kit";
 import { galleryPreview } from "../lib/gallery";
 import { formatEventTimeRange, formatEventDateTime, formatEventDateRange, formatDayHeading, formatRelativeTime } from "../lib/dateFormat";
 import { EventHero } from "../components/EventHero";
@@ -2910,11 +2910,11 @@ function AdminParticipantInviteCard({
         </label>
         <label>
           Description / interests
-          <textarea
+          <AutoGrowTextarea
             className="textarea"
             name="inviteBio"
             placeholder="Optional"
-            rows={3}
+            minRows={3}
             disabled={!canInvite || inviteBusy}
           />
         </label>
@@ -3447,21 +3447,21 @@ function ProfileEditor({
           />
         </label>
       ) : null}
-      <textarea
+      <AutoGrowTextarea
         className="textarea"
         name="bio"
         value={bio}
         onChange={(e) => setBio(e.target.value)}
         placeholder="Short bio"
-        rows={3}
+        minRows={3}
       />
-      <textarea
+      <AutoGrowTextarea
         className="textarea"
         name="researchInterests"
         value={researchInterests}
         onChange={(e) => setResearchInterests(e.target.value)}
         placeholder="Interests / topics you care about"
-        rows={4}
+        minRows={4}
       />
       {activeEventId ? (
         <>
@@ -3860,7 +3860,7 @@ function SessionForm({
         <section className="session-form-section">
           <h4>{sessionEditorCopy.sections.basics}</h4>
           <input className="input" name="title" placeholder="Session title" required defaultValue={editing?.title || ""} />
-          <textarea className="textarea" name="description" placeholder="Description" defaultValue={editing?.description || ""} />
+          <AutoGrowTextarea className="textarea" name="description" placeholder="Description" minRows={3} defaultValue={editing?.description || ""} />
           <input className="input" name="location" placeholder="Location / room" defaultValue={editing?.location || ""} />
         </section>
 
@@ -5090,7 +5090,7 @@ function CommunityBoard({
                       }}
                     >
                       <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
-                      <textarea className="textarea" rows={4} value={editBody} onChange={(e) => setEditBody(e.target.value)} required />
+                      <AutoGrowTextarea className="textarea" minRows={4} value={editBody} onChange={(e) => setEditBody(e.target.value)} required />
                       <div style={{ display: "flex", gap: 8 }}>
                         <button className="button" type="submit">
                           Save post
@@ -5218,7 +5218,7 @@ function CommunityBoard({
                           }
                         }}
                       >
-                        <textarea className="textarea" name="body" placeholder="Write a reply…" required rows={2} />
+                        <AutoGrowTextarea className="textarea" name="body" placeholder="Write a reply…" required minRows={2} />
                         <button className="button secondary" type="submit" disabled={replyingToId === t.id}>
                           {replyingToId === t.id ? "Sending…" : "Reply"}
                         </button>

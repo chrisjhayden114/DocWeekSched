@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 import { apiFetch } from "../lib/api";
 
 type Slot = { id: string; startsAt: string; endsAt: string; sortOrder: number };
@@ -227,7 +228,7 @@ export function MeetingRequestModal({
         <form onSubmit={(e) => void submit(e)} style={{ display: "grid", gap: 10 }}>
           <label className="help-text">
             Message (optional)
-            <textarea className="input" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} />
+            <AutoGrowTextarea className="input" minRows={3} value={message} onChange={(e) => setMessage(e.target.value)} />
           </label>
           <label className="help-text">
             Proposed start

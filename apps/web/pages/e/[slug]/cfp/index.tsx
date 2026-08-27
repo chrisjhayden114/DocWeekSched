@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { AutoGrowTextarea } from "../../../../components/kit";
 import { API_URL } from "../../../../lib/api";
 
 type PublicCfp = {
@@ -187,16 +188,16 @@ export default function PublicCfpPage() {
             </label>
             <label>
               Abstract
-              <textarea className="input" required rows={8} value={abstract} onChange={(e) => setAbstract(e.target.value)} />
+              <AutoGrowTextarea className="input" required minRows={8} value={abstract} onChange={(e) => setAbstract(e.target.value)} />
             </label>
             {(data.form.customFields || []).map((f) => (
               <label key={f.id}>
                 {f.label}
                 {f.type === "textarea" ? (
-                  <textarea
+                  <AutoGrowTextarea
                     className="input"
                     required={!!f.required}
-                    rows={3}
+                    minRows={3}
                     value={answers[f.id] || ""}
                     onChange={(e) => setAnswers((a) => ({ ...a, [f.id]: e.target.value }))}
                   />

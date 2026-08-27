@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { AutoGrowTextarea } from "../kit/AutoGrowTextarea";
 
 /** Fixture sample program — client-only mock extract (no AI metering). */
 const SAMPLE_PROGRAM = `Whole-Staff PD Day — Lincoln Middle School
@@ -64,7 +65,7 @@ export function HeroIngestDemo() {
       <label className="text-meta" htmlFor="mkt-ingest-input">
         Sample program
       </label>
-      <textarea
+      <AutoGrowTextarea
         id="mkt-ingest-input"
         className="mkt-ingest-textarea"
         value={text}
@@ -72,7 +73,7 @@ export function HeroIngestDemo() {
           setText(e.target.value);
           setRan(false);
         }}
-        rows={8}
+        minRows={8}
         spellCheck={false}
       />
       <div className="mkt-ingest-actions">
