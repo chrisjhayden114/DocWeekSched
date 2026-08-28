@@ -37,12 +37,17 @@ describe("K-2.1 — Feature Guide completeness", () => {
   });
 
   it("each section is 2–4 sentences", () => {
+    const sections = ["whatItDoes", "experience", "goodToKnow"] as const;
     for (const key of KEYS) {
       const guide = FEATURE_GUIDE[key];
-      for (const [name, text] of Object.entries(guide)) {
+      for (const name of sections) {
+        const text = guide[name];
         const count = sentences(text).length;
         expect(count, `${key}.${name} (${count}): ${text}`).toBeGreaterThanOrEqual(2);
         expect(count, `${key}.${name} (${count}): ${text}`).toBeLessThanOrEqual(4);
+      }
+      if (guide.imageSrc != null) {
+        expect(guide.imageSrc.trim(), `${key}.imageSrc`).not.toBe("");
       }
     }
   });

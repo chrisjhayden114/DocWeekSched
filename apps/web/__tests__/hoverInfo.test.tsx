@@ -7,8 +7,13 @@
 
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { HoverInfo } from "../components/kit/HoverInfo";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  HoverInfo,
+  HOVER_INFO_CLOSE_GRACE_MS,
+  HOVER_INFO_OPEN_DELAY_MS,
+  isFadeClipped,
+} from "../components/kit/HoverInfo";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -141,5 +146,141 @@ describe("HoverInfo trigger=label", () => {
     press(window, "Escape");
     expect(tooltip()).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe("isFadeClipped", () => {
+  it("is true only when the extract overflows the 6-line window", () => {
+    expect(isFadeClipped({ scrollHeight: 80, clientHeight: 80 })).toBe(false);
+    expect(isFadeClipped({ scrollHeight: 81, clientHeight: 80 })).toBe(false);
+    expect(isFadeClipped({ scrollHeight: 82, clientHeight: 80 })).toBe(true);
+    expect(isFadeClipped({ scrollHeight: 200, clientHeight: 135 })).toBe(true);
+  });
+});
+
+describe("HoverInfo Wikipedia persistence + fade", () => {
+  function mockHoverMedia(matches: boolean) {
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: query.includes("hover: hover") ? matches : false,
+        media: query,
+        onchange: null,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        dispatchEvent: () => false,
+      })) as typeof window.matchMedia;
+  }
+
+  function fire(target: EventTarget, type: "mouseover" | "mouseout") {
+    act(() => {
+      target.dispatchEvent(
+        new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          relatedTarget: type === "mouseout" ? document.body : null,
+        }),
+      );
+    });
+  }
+
+  beforeEach(() => {
+    mockHoverMedia(true);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function mountPreview() {
+    render(
+      <HoverInfo
+        trigger="label"
+        title="Community"
+        body={"Community is the shared event board. ".repeat(12)}
+        image={<svg className="feature-art" viewBox="0 0 400 225" />}
+      >
+        <strong>Community</strong>
+      </HoverInfo>,
+    );
+    return clipper.querySelector<HTMLElement>(".hover-info")!;
+  }
+
+  it("stays open when the pointer travels trigger → card within the grace gap", () => {
+    const wrap = mountPreview();
+    fire(wrap, "mouseover");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_OPEN_DELAY_MS - 1);
+    });
+    expect(tooltip()).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    const card = tooltip();
+    expect(card).not.toBeNull();
+
+    fire(wrap, "mouseout");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_CLOSE_GRACE_MS - 1);
+    });
+    expect(tooltip()).not.toBeNull();
+
+    fire(card!, "mouseover");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_CLOSE_GRACE_MS + 50);
+    });
+    expect(tooltip()).not.toBeNull();
+    expect(tooltip()!.className).toContain("hover-info-popover--has-image");
+  });
+
+  it("closes after the grace gap if the pointer never reaches the card", () => {
+    const wrap = mountPreview();
+    fire(wrap, "mouseover");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_OPEN_DELAY_MS);
+    });
+    expect(tooltip()).not.toBeNull();
+
+    fire(wrap, "mouseout");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_CLOSE_GRACE_MS);
+    });
+    expect(tooltip()).toBeNull();
+  });
+
+  it("applies the fade-clip class when the extract overflows", () => {
+    const proto = HTMLElement.prototype;
+    const prevScroll = Object.getOwnPropertyDescriptor(proto, "scrollHeight");
+    const prevClient = Object.getOwnPropertyDescriptor(proto, "clientHeight");
+    Object.defineProperty(proto, "scrollHeight", {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).classList.contains("hover-info-body") ? 220 : 0;
+      },
+    });
+    Object.defineProperty(proto, "clientHeight", {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).classList.contains("hover-info-body") ? 135 : 0;
+      },
+    });
+    try {
+      const wrap = mountPreview();
+      fire(wrap, "mouseover");
+      act(() => {
+        vi.advanceTimersByTime(HOVER_INFO_OPEN_DELAY_MS);
+      });
+      const body = tooltip()!.querySelector<HTMLElement>(".hover-info-body")!;
+      expect(isFadeClipped(body)).toBe(true);
+      expect(body.classList.contains("is-clipped")).toBe(true);
+    } finally {
+      if (prevScroll) Object.defineProperty(proto, "scrollHeight", prevScroll);
+      else delete (proto as { scrollHeight?: unknown }).scrollHeight;
+      if (prevClient) Object.defineProperty(proto, "clientHeight", prevClient);
+      else delete (proto as { clientHeight?: unknown }).clientHeight;
+    }
   });
 });

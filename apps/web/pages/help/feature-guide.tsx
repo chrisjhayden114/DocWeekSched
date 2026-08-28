@@ -2,6 +2,7 @@ import { brand, marketingSeo } from "@event-app/config";
 import { FEATURE_BY_KEY, featureGuideGroups } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
+import { FeatureArt } from "../../components/featureArt";
 import { FeatureGuideSections } from "../../components/kit/GuidePanel";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { SiteHeader } from "../../components/marketing/SiteHeader";
@@ -52,6 +53,9 @@ export default function FeatureGuidePage() {
             {groups.map((group) => (
               <section key={group.category} id={group.category} aria-labelledby={`guide-cat-${group.category}`}>
                 <h2 id={`guide-cat-${group.category}`}>{group.label}</h2>
+                <div className="feature-guide-cat-art">
+                  <FeatureArt category={group.category} />
+                </div>
                 {group.keys.map((key) => {
                   const def = FEATURE_BY_KEY[key];
                   return (

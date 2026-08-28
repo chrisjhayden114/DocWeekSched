@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
@@ -12,8 +13,15 @@ import {
 import { Portal } from "./Portal";
 import { useAnchoredPopup } from "./useAnchoredPopup";
 
-const OPEN_DELAY_MS = 400;
-const POPOVER_MAX_WIDTH = 320;
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/** Wikipedia Page Previews: a short intent pause, then the card. */
+export const HOVER_INFO_OPEN_DELAY_MS = 250;
+/** Travel time between the trigger and the portaled card — do not close in this gap. */
+export const HOVER_INFO_CLOSE_GRACE_MS = 150;
+/** Extract height before the fade-out clip (15px × 1.5 × 6). */
+export const HOVER_INFO_BODY_LINES = 6;
+export const HOVER_INFO_CARD_WIDTH = 400;
 
 export type HoverInfoTrigger = "icon" | "label";
 
@@ -21,7 +29,10 @@ export type HoverInfoProps = {
   title: string;
   body: string;
   appearsIn?: string;
+  /** Future screenshot override; wins over `image` when set. */
   imageSrc?: string;
+  /** Category art (or any decorative node) for the 16:9 top slot. */
+  image?: ReactNode;
   children?: ReactNode;
   /**
    * `label` — the wrapped title is the trigger (cursor: help, dotted underline
@@ -29,7 +40,7 @@ export type HoverInfoProps = {
    * `icon` — K-1 default: a visible ⓘ button beside the children.
    */
   trigger?: HoverInfoTrigger;
-  /** Extra popover row (e.g. “Read the full guide →”). */
+  /** Extra popover row (e.g. “How to use this feature →”). */
   action?: ReactNode;
   /** Never render ⓘ (Features page). Implied by trigger="label". */
   hideIcon?: boolean;
@@ -50,50 +61,89 @@ function isInteractiveElement(node: ReactNode): boolean {
   return props.href != null || typeof props.onClick === "function";
 }
 
+/** True when the extract is taller than the 6-line window — Wikipedia fade. */
+export function isFadeClipped(el: { scrollHeight: number; clientHeight: number }): boolean {
+  return el.scrollHeight > el.clientHeight + 1;
+}
+
 /**
- * K-1 / K-2.1 — calm info popover. Opens on hover (400ms) or keyboard focus
- * (immediate). `trigger="label"` makes the title itself the trigger.
+ * K-2.1 — Wikipedia-style page preview. Opens on hover (250ms) or keyboard
+ * focus (immediate). Stays open while the pointer is over the trigger or the
+ * card, with a 150ms grace gap between them. `trigger="label"` makes the
+ * title itself the trigger.
  */
 export function HoverInfo({
   title,
   body,
   appearsIn,
   imageSrc,
+  image,
   children,
   trigger = "icon",
   action,
   hideIcon,
 }: HoverInfoProps) {
   const [open, setOpen] = useState(false);
+  const [clipped, setClipped] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLElement>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLParagraphElement>(null);
+  const [bodyEl, setBodyEl] = useState<HTMLParagraphElement | null>(null);
   const openTimer = useRef<number | null>(null);
+  const closeTimer = useRef<number | null>(null);
   const tooltipId = useId();
   const labelMode = trigger === "label";
   const showIcon = !hideIcon && !labelMode;
+  const hasImage = Boolean(imageSrc || image);
+
+  const clearTimers = useCallback(() => {
+    if (openTimer.current) window.clearTimeout(openTimer.current);
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    openTimer.current = null;
+    closeTimer.current = null;
+  }, []);
 
   const close = useCallback(() => {
-    if (openTimer.current) window.clearTimeout(openTimer.current);
+    clearTimers();
     setOpen(false);
-  }, []);
+  }, [clearTimers]);
 
   const openNow = useCallback(() => {
-    if (openTimer.current) window.clearTimeout(openTimer.current);
+    clearTimers();
     setOpen(true);
-  }, []);
+  }, [clearTimers]);
 
   const scheduleOpen = useCallback(() => {
+    if (closeTimer.current) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
     if (openTimer.current) window.clearTimeout(openTimer.current);
-    openTimer.current = window.setTimeout(() => setOpen(true), OPEN_DELAY_MS);
+    openTimer.current = window.setTimeout(() => {
+      openTimer.current = null;
+      setOpen(true);
+    }, HOVER_INFO_OPEN_DELAY_MS);
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    if (openTimer.current) {
+      window.clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      setOpen(false);
+    }, HOVER_INFO_CLOSE_GRACE_MS);
   }, []);
 
   useEffect(
     () => () => {
-      if (openTimer.current) window.clearTimeout(openTimer.current);
+      clearTimers();
     },
-    [],
+    [clearTimers],
   );
 
   useEffect(() => {
@@ -109,12 +159,33 @@ export function HoverInfo({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
 
+  const attachBody = useCallback((el: HTMLParagraphElement | null) => {
+    bodyRef.current = el;
+    setBodyEl(el);
+  }, []);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!bodyEl) {
+      setClipped(false);
+      return;
+    }
+    const measure = () => setClipped(isFadeClipped(bodyEl));
+    measure();
+    window.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(bodyEl);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, [bodyEl]);
+
   const popupStyle = useAnchoredPopup({
     open,
     triggerRef,
     popupRef,
     align: "start",
-    maxWidth: POPOVER_MAX_WIDTH,
+    maxWidth: HOVER_INFO_CARD_WIDTH,
     onClose: close,
   });
 
@@ -140,7 +211,7 @@ export function HoverInfo({
         if (canHover()) scheduleOpen();
       }}
       onMouseLeave={() => {
-        if (canHover()) close();
+        if (canHover()) scheduleClose();
       }}
       onFocusCapture={labelMode ? openNow : undefined}
     >
@@ -154,7 +225,7 @@ export function HoverInfo({
           onFocus={openNow}
           onBlur={onBlur}
           onClick={() => {
-            if (openTimer.current) window.clearTimeout(openTimer.current);
+            clearTimers();
             setOpen((value) => !value);
           }}
         >
@@ -181,7 +252,7 @@ export function HoverInfo({
           onFocus={openNow}
           onBlur={onBlur}
           onClick={() => {
-            if (openTimer.current) window.clearTimeout(openTimer.current);
+            clearTimers();
             setOpen((value) => !value);
           }}
         >
@@ -194,27 +265,42 @@ export function HoverInfo({
             id={tooltipId}
             ref={popupRef}
             role="tooltip"
-            className="hover-info-popover"
+            className={["hover-info-popover", hasImage ? "hover-info-popover--has-image" : ""]
+              .filter(Boolean)
+              .join(" ")}
             style={popupStyle}
-            onMouseEnter={openNow}
+            onMouseEnter={() => {
+              if (canHover()) openNow();
+            }}
             onMouseLeave={() => {
-              if (canHover()) close();
+              if (canHover()) scheduleClose();
             }}
           >
-            <p className="hover-info-title">{title}</p>
-            <p className="hover-info-body">{body}</p>
-            {appearsIn ? <p className="hover-info-appears">Appears in: {appearsIn}</p> : null}
-            {imageSrc ? <img className="hover-info-image" src={imageSrc} alt="" /> : null}
-            {action ? (
-              <div
-                className="hover-info-action"
-                onClick={() => {
-                  close();
-                }}
-              >
-                {action}
+            {hasImage ? (
+              <div className="hover-info-art" aria-hidden>
+                {imageSrc ? <img className="hover-info-image" src={imageSrc} alt="" /> : image}
               </div>
             ) : null}
+            <div className="hover-info-inner">
+              <p className="hover-info-title">{title}</p>
+              <p
+                ref={attachBody}
+                className={["hover-info-body", clipped ? "is-clipped" : ""].filter(Boolean).join(" ")}
+              >
+                {body}
+              </p>
+              {appearsIn ? <p className="hover-info-appears">Appears in: {appearsIn}</p> : null}
+              {action ? (
+                <div
+                  className="hover-info-action"
+                  onClick={() => {
+                    close();
+                  }}
+                >
+                  {action}
+                </div>
+              ) : null}
+            </div>
           </div>
         </Portal>
       ) : null}

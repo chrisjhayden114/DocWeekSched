@@ -81,7 +81,7 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
     expect(popover.textContent).toContain(FEATURE_GUIDE.community.whatItDoes.slice(0, 40));
     expect(popover.textContent).not.toContain(FEATURE_BY_KEY.community.plainDescription);
     expect(popover.textContent).not.toContain("Appears in");
-    expect(popover.textContent).toContain("Read the full guide");
+    expect(popover.textContent).toContain("How to use this feature");
 
     const readGuide = popover.querySelector("button")!;
     act(() => readGuide.click());
@@ -126,8 +126,13 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
     expect(help).toContain('href="/help/feature-guide"');
     expect(page).toContain("featureGuideGroups");
     expect(page).toContain("FeatureGuideSections");
+    expect(page).toContain("FeatureArt");
     expect(page).not.toContain("helpContent");
     expect(page).not.toContain("getHelpArticle");
+    const shell = read("components", "AppShell.tsx");
+    expect(shell).toContain('trigger="label"');
+    expect(shell).toContain("appearsIn={item.appearsIn}");
+    expect(shell).not.toContain("ⓘ");
   });
 
   it("FeatureConfigPanel popovers use the guide, never appearsIn or plainDescription", () => {
@@ -136,6 +141,8 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
     expect(src).toContain('trigger="label"');
     expect(src).toContain("hideIcon");
     expect(src).toContain("GuidePanel");
+    expect(src).toContain("FeatureArt");
+    expect(src).toContain("How to use this feature");
     expect(src).not.toMatch(/HoverInfo[^>]*appearsIn/);
     expect(src).not.toMatch(/HoverInfo[^>]*body=\{f\.plainDescription\}/);
   });

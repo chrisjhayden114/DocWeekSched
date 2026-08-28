@@ -6415,7 +6415,7 @@ button.schedule-meta-chip:hover {
 }
 
 .hover-info-action {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .hover-info-action button,
@@ -6425,13 +6425,14 @@ button.schedule-meta-chip:hover {
   border: 0;
   background: transparent;
   font: var(--text-meta);
-  color: var(--event-accent, var(--gray-700));
+  color: var(--gray-600);
   cursor: pointer;
   text-decoration: none;
 }
 
 .hover-info-action button:hover,
 .hover-info-action a:hover {
+  color: var(--gray-800);
   text-decoration: underline;
 }
 
@@ -6449,41 +6450,91 @@ button.schedule-meta-chip:hover {
   list-style: none;
 }
 
+.feature-guide-cat-art {
+  width: min(100%, 400px);
+  aspect-ratio: 16 / 9;
+  margin: 0 0 16px;
+  overflow: hidden;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-card);
+  background: var(--gray-50);
+}
+
+.feature-guide-cat-art .feature-art,
+.hover-info-art .feature-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .hover-info-popover {
   position: fixed;
   z-index: 1100;
-  width: min(320px, calc(100vw - 16px));
-  padding: 12px 14px;
+  width: min(400px, calc(100vw - 16px));
+  padding: 18px 20px;
+  overflow: hidden;
   background: var(--surface-card);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-3);
 }
 
+.hover-info-popover--has-image {
+  padding: 0;
+}
+
+.hover-info-art {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--gray-50);
+}
+
+.hover-info-image,
+.hover-info-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hover-info-inner {
+  padding: 16px 20px 18px;
+}
+
+.hover-info-popover:not(.hover-info-popover--has-image) .hover-info-inner {
+  padding: 0;
+}
+
 .hover-info-title {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   font: var(--text-h3);
   color: var(--gray-900);
 }
 
 .hover-info-body {
+  position: relative;
   margin: 0;
-  font: var(--text-body);
+  max-height: calc(15px * 1.5 * 6);
+  overflow: hidden;
+  font: 400 15px/1.5 var(--font-body);
   color: var(--gray-700);
 }
 
-.hover-info-appears {
-  margin: 8px 0 0;
-  font: var(--text-meta);
-  color: var(--gray-500);
+.hover-info-body.is-clipped::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2.25em;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--surface-card));
 }
 
-.hover-info-image {
-  display: block;
-  width: 100%;
-  margin-top: 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--gray-200);
+.hover-info-appears {
+  margin: 10px 0 0;
+  font: var(--text-meta);
+  color: var(--gray-500);
 }
 
 .onboarding-panel {

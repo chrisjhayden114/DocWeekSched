@@ -10,6 +10,8 @@ export type FeatureGuideEntry = {
   whatItDoes: string;
   experience: string;
   goodToKnow: string;
+  /** Optional screenshot for the page-preview card; category art is the default. */
+  imageSrc?: string;
 };
 
 export const FEATURE_GUIDE_CATEGORY_LABEL: Record<FeatureCategory, string> = {

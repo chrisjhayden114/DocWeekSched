@@ -9,6 +9,7 @@ import {
   type FeatureOverrideValue,
   type FeaturePresetId,
 } from "@event-app/shared";
+import { FeatureArt } from "./featureArt";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { GuidePanel } from "./kit/GuidePanel";
 import { HoverInfo } from "./kit/HoverInfo";
@@ -144,9 +145,11 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
                         hideIcon
                         title={f.name}
                         body={FEATURE_GUIDE[f.key].whatItDoes}
+                        imageSrc={FEATURE_GUIDE[f.key].imageSrc}
+                        image={<FeatureArt category={f.category} />}
                         action={
                           <button type="button" onClick={() => setGuideKey(f.key)}>
-                            Read the full guide →
+                            How to use this feature →
                           </button>
                         }
                       >
