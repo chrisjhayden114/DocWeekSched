@@ -4,6 +4,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { ConsoleSubpageHeader } from "../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../components/OrganizerShell";
 import { Select } from "../../components/Select";
 import { apiFetch, clearAuthClientState } from "../../lib/api";
@@ -120,14 +121,10 @@ export default function OrganizerBillingPage() {
         <title>{`Billing — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="billing">
-        <header className="console-page-header">
-          <div>
-            <h1>Billing</h1>
-            <p className="text-meta" style={{ margin: "4px 0 0" }}>
-              <Link href="/pricing">Public pricing</Link>
-            </p>
-          </div>
-        </header>
+        <ConsoleSubpageHeader title="Billing" backTo={{ href: "/account", label: "Account" }} />
+        <p className="text-meta" style={{ margin: "0 0 20px" }}>
+          <Link href="/pricing">Public pricing</Link>
+        </p>
 
         {orgs.length > 1 ? (
           <section className="console-panel">

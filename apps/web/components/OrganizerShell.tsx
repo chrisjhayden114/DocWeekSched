@@ -1,8 +1,20 @@
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState, type ReactNode, type SVGProps } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode, type SVGProps } from "react";
 import { apiFetch, type AuthResponse } from "../lib/api";
 import { eventAccentStyle } from "../lib/eventAccent";
 import { AppShell, type ShellEventOption, type ShellNavGroup } from "./AppShell";
+
+type OrganizerEventContextValue = {
+  eventId: string | null;
+  eventName: string | null;
+};
+
+const OrganizerEventContext = createContext<OrganizerEventContextValue>({ eventId: null, eventName: null });
+
+/** Event id/name already loaded by the shell — subpage headers must not refetch. */
+export function useOrganizerEvent(): OrganizerEventContextValue {
+  return useContext(OrganizerEventContext);
+}
 
 /**
  * Shell wrapper for organizer console pages (pages/organizer/**).
@@ -196,23 +208,28 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
     void router.push(`/organizer/events/${id}`);
   }
 
+  const resolvedEventName = eventName || (eventId ? events.find((ev) => ev.id === eventId)?.name : null) || null;
+
   return (
-    <AppShell
-      title={eventName || "Organizer"}
-      nav={nav}
-      mobilePrimaryIds={organizeItems.slice(0, 3).map((i) => i.id)}
-      userName={userName || me?.name}
-      userPhotoUrl={userPhotoUrl ?? me?.photoUrl}
-      events={events}
-      activeEventId={eventId || null}
-      onSelectEvent={switchEvent}
-      accentStyle={accentStyle}
-      accountMenu={[
-        { id: "attendee-app", label: "Open attendee app", href: "/dashboard" },
-        { id: "account", label: "Account settings", href: "/account" },
-      ]}
-    >
-      {children}
-    </AppShell>
+    <OrganizerEventContext.Provider value={{ eventId: eventId || null, eventName: resolvedEventName }}>
+      <AppShell
+        title={resolvedEventName || "Organizer"}
+        nav={nav}
+        mobilePrimaryIds={organizeItems.slice(0, 3).map((i) => i.id)}
+        userName={userName || me?.name}
+        userPhotoUrl={userPhotoUrl ?? me?.photoUrl}
+        events={events}
+        activeEventId={eventId || null}
+        onSelectEvent={switchEvent}
+        accentStyle={accentStyle}
+        modeBadge="Organizer mode"
+        accountMenu={[
+          { id: "attendee-app", label: "Open attendee app", href: "/dashboard" },
+          { id: "account", label: "Account settings", href: "/account" },
+        ]}
+      >
+        {children}
+      </AppShell>
+    </OrganizerEventContext.Provider>
   );
 }

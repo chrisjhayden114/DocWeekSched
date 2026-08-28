@@ -318,6 +318,32 @@ describe("UX-3 #2 — console tab strip stays one row", () => {
     expect(page).toContain("<ConsoleTabStrip");
     expect(page).not.toContain('className="nav console-event-tabs"');
   });
+
+  it("applies the compact 13px tier at desktop widths at or below 1200px", () => {
+    const at = globalsCss.indexOf("@media (max-width: 1200px)");
+    expect(at).toBeGreaterThan(-1);
+    const body = blockBody(globalsCss, at);
+    expect(body).toContain("font: 500 13px/18px var(--font-body)");
+    expect(body).toContain(".console-event-tabs button");
+  });
+});
+
+describe("K-1 — console subpage chrome", () => {
+  it("the five event subpages and billing use ConsoleSubpageHeader", () => {
+    const files = [
+      ["pages", "organizer", "events", "[eventId]", "ingest.tsx"],
+      ["pages", "organizer", "events", "[eventId]", "cfp", "index.tsx"],
+      ["pages", "organizer", "events", "[eventId]", "cfp", "review.tsx"],
+      ["pages", "organizer", "events", "[eventId]", "scanner.tsx"],
+      ["pages", "organizer", "events", "[eventId]", "sponsors.tsx"],
+      ["pages", "organizer", "events", "[eventId]", "analytics.tsx"],
+      ["pages", "organizer", "billing.tsx"],
+    ];
+    for (const parts of files) {
+      expect(read(...parts), parts.join("/")).toContain("ConsoleSubpageHeader");
+    }
+    expect(read("pages", "organizer", "billing.tsx")).toContain('label: "Account"');
+  });
 });
 
 describe("UX-3 #3 — /account quick fixes", () => {

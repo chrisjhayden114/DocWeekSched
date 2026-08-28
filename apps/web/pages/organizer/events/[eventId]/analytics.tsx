@@ -10,6 +10,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { brand } from "@event-app/config";
 import { ListSkeleton } from "../../../../components/ListState";
+import { ConsoleSubpageHeader } from "../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 
@@ -118,7 +119,7 @@ export default function EventAnalyticsPage() {
         <title>{`Analytics — ${data?.eventName || "Event"} — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="analytics" eventId={eventId} eventName={data?.eventName}>
-        <h1 style={{ margin: "0 0 4px", font: "var(--text-h1)" }}>Analytics</h1>
+        <ConsoleSubpageHeader title="Analytics" />
         <p className="help-text" style={{ marginTop: 0 }}>
           These numbers count what people did at this event — no public leaderboard unless you enable it.
         </p>

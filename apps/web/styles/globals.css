@@ -410,10 +410,62 @@ textarea.input,
    a second row. Here the row never wraps: it scrolls, the scrollbar is hidden,
    and the wrapper fades whichever edge still has tabs behind it. */
 .console-tabstrip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 16px;
 }
 
+/* Off-flow clone used only to measure tab + More widths (K-1 overflow). */
+.console-tabstrip-metrics {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
+}
+
+.console-tabstrip-metrics-row {
+  flex-wrap: nowrap;
+  width: max-content;
+}
+
+.console-tabstrip-more {
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) 14px;
+  cursor: pointer;
+  font: var(--text-body);
+  font-weight: 500;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+
+.console-tabstrip-more:hover,
+.console-tabstrip-more.is-open {
+  background: var(--gray-50);
+}
+
+.console-tabstrip-more-panel {
+  position: fixed;
+  min-width: 180px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-3);
+  z-index: 1100;
+}
+
 .console-event-tabs {
+  flex: 1;
+  min-width: 0;
   flex-wrap: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
@@ -433,6 +485,16 @@ textarea.input,
 .console-event-tabs button {
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+/* K-1 D5 — compact 13px tier at desktop widths ≤~1200px delays overflow. */
+@media (max-width: 1200px) {
+  .console-event-tabs button,
+  .console-tabstrip-metrics-row button,
+  .console-tabstrip-more {
+    font: 500 13px/18px var(--font-body);
+    padding: 6px 12px;
+  }
 }
 
 /* The edge fade is a mask on the tabs themselves, not a gradient overlay, so it
@@ -5873,6 +5935,21 @@ button.schedule-meta-chip:hover {
   border-bottom: 1px solid var(--gray-200);
 }
 
+.shell[data-shell-mode="organizer"] .shell-topbar {
+  border-top: 2px solid var(--event-accent);
+}
+
+.shell-topbar-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.shell-topbar-identity .status-chip {
+  flex-shrink: 0;
+}
+
 .shell-topbar-title {
   display: inline-flex;
   align-items: center;
@@ -5943,10 +6020,30 @@ button.schedule-meta-chip:hover {
   margin-bottom: 20px;
 }
 
-.console-page-header h1 {
+.console-page-header h1,
+.console-subpage-header h1 {
   margin: 0;
   font: var(--text-h1);
   color: var(--gray-900);
+}
+
+.console-subpage-header {
+  margin-bottom: 20px;
+}
+
+.console-subpage-back {
+  margin: 0 0 8px;
+  font: var(--text-meta);
+}
+
+.console-subpage-back a {
+  color: var(--gray-600);
+  text-decoration: none;
+}
+
+.console-subpage-back a:hover {
+  color: var(--gray-900);
+  text-decoration: underline;
 }
 
 .console-page-actions {
@@ -6233,6 +6330,69 @@ button.schedule-meta-chip:hover {
 .status-chip--progress {
   background: var(--event-accent-tint);
   color: var(--event-accent);
+}
+
+.hover-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.hover-info-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--gray-500);
+  font: 500 13px/1 var(--font-body);
+  cursor: help;
+}
+
+.hover-info-trigger:hover {
+  color: var(--gray-700);
+}
+
+.hover-info-popover {
+  position: fixed;
+  z-index: 1100;
+  width: min(320px, calc(100vw - 16px));
+  padding: 12px 14px;
+  background: var(--surface-card);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-3);
+}
+
+.hover-info-title {
+  margin: 0 0 6px;
+  font: var(--text-h3);
+  color: var(--gray-900);
+}
+
+.hover-info-body {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--gray-700);
+}
+
+.hover-info-appears {
+  margin: 8px 0 0;
+  font: var(--text-meta);
+  color: var(--gray-500);
+}
+
+.hover-info-image {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
 }
 
 .onboarding-panel {

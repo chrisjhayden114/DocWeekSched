@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { AutoGrowTextarea } from "../../../../../components/kit";
+import { ConsoleSubpageHeader } from "../../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../../components/OrganizerShell";
 import { organizerFetch } from "../../../../../lib/organizerApi";
 
@@ -100,10 +101,10 @@ export default function CfpReviewerPage() {
         <title>{`CFP review — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="cfp" eventId={eventId}>
+        <ConsoleSubpageHeader title="Assigned reviews" />
         <p className="help-text" style={{ marginTop: 0 }}>
           Reviewer workspace (no billing, rosters, or settings)
         </p>
-        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Assigned reviews</h1>
         {blindReview ? <p className="help-text">Blind review is on — submitter identity is hidden.</p> : null}
         {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
         {message ? <p className="help-text">{message}</p> : null}

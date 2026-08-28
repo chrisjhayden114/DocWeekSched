@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AutoGrowTextarea } from "../../../../../components/kit";
+import { ConsoleSubpageHeader } from "../../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../../components/OrganizerShell";
 import { ReviewChangeset, type ReviewChangeRow } from "../../../../../components/ReviewChangeset";
 import { Select } from "../../../../../components/Select";
@@ -165,12 +166,12 @@ export default function OrganizerCfpPage() {
         <title>{`CFP — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="cfp" eventId={eventId}>
+        <ConsoleSubpageHeader title="Call for proposals" />
         {eventId ? (
           <p className="help-text" style={{ marginTop: 0 }}>
             <Link href={`/organizer/events/${eventId}/cfp/review`}>Reviewer UI</Link>
           </p>
         ) : null}
-        <h1 style={{ margin: "0 0 8px", font: "var(--text-h1)" }}>Call for proposals</h1>
         {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
         {message ? <p className="help-text">{message}</p> : null}
 

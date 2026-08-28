@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { initialsFor } from "./kit/kitHelpers";
+import { StatusChip } from "./StatusChip";
 
 /**
  * Phase D app shell (DESIGN_PHASE_D.md Part 2 "Layout architecture").
@@ -73,6 +74,11 @@ type AppShellProps = {
    * (selected nav, tabs, links, focus) wears that event's color.
    */
   accentStyle?: CSSProperties;
+  /**
+   * K-1 — optional mode pill beside the topbar title (OrganizerShell passes
+   * "Organizer mode"). When set, the root also gets data-shell-mode="organizer".
+   */
+  modeBadge?: string;
   children: ReactNode;
 };
 
@@ -287,6 +293,7 @@ export function AppShell({
   activeEventId,
   onSelectEvent,
   accentStyle,
+  modeBadge,
   children,
 }: AppShellProps) {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -307,7 +314,7 @@ export function AppShell({
   );
 
   return (
-    <div className="shell" style={accentStyle}>
+    <div className="shell" style={accentStyle} data-shell-mode={modeBadge ? "organizer" : undefined}>
       <aside className="shell-sidebar" aria-label="Main navigation">
         <Link href="/dashboard" className="shell-sidebar-brand">
           {logoUrl ? <img src={logoUrl} alt="" className="shell-topbar-logo" /> : null}
@@ -327,20 +334,23 @@ export function AppShell({
 
       <div className="shell-main">
         <header className="shell-topbar">
-          {switcherEnabled && onSelectEvent ? (
-            <EventSwitcher
-              title={title}
-              logoUrl={logoUrl}
-              events={events || []}
-              activeEventId={activeEventId}
-              onSelectEvent={onSelectEvent}
-            />
-          ) : (
-            <span className="shell-topbar-title">
-              {logoUrl ? <img src={logoUrl} alt="" className="shell-topbar-logo" /> : null}
-              <span className="shell-topbar-title-text">{title}</span>
-            </span>
-          )}
+          <div className="shell-topbar-identity">
+            {switcherEnabled && onSelectEvent ? (
+              <EventSwitcher
+                title={title}
+                logoUrl={logoUrl}
+                events={events || []}
+                activeEventId={activeEventId}
+                onSelectEvent={onSelectEvent}
+              />
+            ) : (
+              <span className="shell-topbar-title">
+                {logoUrl ? <img src={logoUrl} alt="" className="shell-topbar-logo" /> : null}
+                <span className="shell-topbar-title-text">{title}</span>
+              </span>
+            )}
+            {modeBadge ? <StatusChip status="default" label={modeBadge} /> : null}
+          </div>
           {/* F0.3: no top-bar search until real search exists — a dead
               readOnly control promises a feature the product doesn't have. */}
           <div className="shell-topbar-actions">

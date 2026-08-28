@@ -9,6 +9,7 @@ import {
   type FeaturePresetId,
 } from "@event-app/shared";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { HoverInfo } from "./kit/HoverInfo";
 
 export type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -135,10 +136,14 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
                 >
                   <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <strong className="text-body-md" style={{ display: "block", color: "var(--ink-900)" }} id={`feature-name-${f.key}`}>
-                        {f.name}
-                      </strong>
-                      <span className="text-meta">{f.plainDescription}</span>
+                      <HoverInfo title={f.name} body={f.plainDescription}>
+                        <strong className="text-body-md" style={{ color: "var(--ink-900)" }} id={`feature-name-${f.key}`}>
+                          {f.name}
+                        </strong>
+                      </HoverInfo>
+                      <span className="text-meta" style={{ display: "block" }}>
+                        {f.plainDescription}
+                      </span>
                       {blocked ? (
                         <span className="text-meta" style={{ display: "block", color: "var(--ink-secondary)", marginTop: "var(--space-1)" }}>
                           {blocked}

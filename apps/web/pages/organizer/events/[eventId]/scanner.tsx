@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { ConsoleSubpageHeader } from "../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 
@@ -280,10 +281,10 @@ export default function CheckInScannerPage() {
 
   return (
     <OrganizerShell active="scanner" eventId={eventId}>
+      <ConsoleSubpageHeader title="Check-in" />
       <div className="scanner-page">
         <header className="scanner-status-bar">
           <div>
-            <h1 className="scanner-title">Check-in</h1>
             <p className="scanner-meta">
               <span className={`scanner-online-dot${online ? " is-on" : ""}`} aria-hidden />
               {online ? "Online" : "Offline"}

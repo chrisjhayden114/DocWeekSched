@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutoGrowTextarea } from "../../../../components/kit";
+import { ConsoleSubpageHeader } from "../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import {
   ReviewChangeset,
@@ -551,7 +552,7 @@ export default function AgendaIngestPage() {
         {/* E15.3: one column of work — the input panel and the review area
             share this width and left edge. */}
         <div className="ingest-work">
-        <h1 style={{ marginTop: 0, font: "var(--text-h1)" }}>Agenda ingest</h1>
+        <ConsoleSubpageHeader title="Agenda ingest" />
         <p className="help-text">
           Upload a program (≤20 MB), paste text, or fetch a URL. Review the changeset, then confirm to create{" "}
           <strong>DRAFT</strong> sessions only.

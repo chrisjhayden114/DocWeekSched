@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { brand } from "@event-app/config";
 import { AutoGrowTextarea } from "../../../../components/kit";
 import { ListEmpty } from "../../../../components/ListState";
+import { ConsoleSubpageHeader } from "../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 
@@ -131,7 +132,7 @@ export default function EventSponsorsPage() {
         <title>{`Sponsors — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="sponsors" eventId={eventId}>
-        <h1 style={{ margin: 0, font: "var(--text-h1)" }}>Sponsors</h1>
+        <ConsoleSubpageHeader title="Sponsors" />
         <p className="help-text">Shown to attendees by tier / sort order. Capture leads at the booth and export CSV.</p>
         {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
