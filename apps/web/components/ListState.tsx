@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 export function ListSkeleton({ rows = 4 }: { rows?: number }) {
   return (
@@ -15,14 +16,26 @@ export function ListEmpty({
   body,
   actionLabel,
   onAction,
+  actionHref,
   icon,
 }: {
   title: string;
   body: string;
   actionLabel?: string;
   onAction?: () => void;
+  actionHref?: string;
   icon?: ReactNode;
 }) {
+  const action =
+    actionLabel && actionHref ? (
+      <Link href={actionHref} className="button secondary">
+        {actionLabel}
+      </Link>
+    ) : actionLabel && onAction ? (
+      <button type="button" className="button secondary" onClick={onAction}>
+        {actionLabel}
+      </button>
+    ) : null;
   return (
     <div className="list-empty">
       <span className="list-empty-icon" aria-hidden>
@@ -39,11 +52,7 @@ export function ListEmpty({
       <p className="text-body" style={{ margin: "0 0 var(--space-4)", color: "var(--meta-color)" }}>
         {body}
       </p>
-      {actionLabel && onAction ? (
-        <button type="button" className="button secondary" onClick={onAction}>
-          {actionLabel}
-        </button>
-      ) : null}
+      {action}
     </div>
   );
 }

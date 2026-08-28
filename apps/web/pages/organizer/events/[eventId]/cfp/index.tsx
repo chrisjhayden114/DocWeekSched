@@ -49,6 +49,7 @@ export default function OrganizerCfpPage() {
   const [convertMode, setConvertMode] = useState<"standalone_session" | "session_item">("standalone_session");
   const [changeset, setChangeset] = useState<ReviewChangeRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cfpLabel, setCfpLabel] = useState<string | null>(null);
@@ -90,7 +91,15 @@ export default function OrganizerCfpPage() {
   }, [eventId, formId]);
 
   useEffect(() => {
-    void refresh().catch((err) => setError(err instanceof Error ? err.message : "Load failed"));
+    // /cfp/manage is not feature-gated (creating a form turns CFP on). The
+    // load-error-but-render-form shape still applies: if the list fails, do
+    // not show the empty-state create form next to the error.
+    void refresh()
+      .then(() => setLoadFailed(false))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Load failed");
+        setLoadFailed(true);
+      });
   }, [refresh]);
 
   useEffect(() => {
@@ -186,7 +195,7 @@ export default function OrganizerCfpPage() {
         {error ? <p style={{ color: "var(--danger-700)" }}>{error}</p> : null}
         {message ? <p className="help-text">{message}</p> : null}
 
-        {!forms.length ? (
+        {!forms.length && !loadFailed ? (
           <form onSubmit={(e) => void createForm(e)} className="console-form">
             <h2>Create {heading}</h2>
             <label>
@@ -209,7 +218,7 @@ export default function OrganizerCfpPage() {
               Create &amp; open
             </button>
           </form>
-        ) : (
+        ) : forms.length ? (
           <>
             <label className="help-text">
               Form{" "}
@@ -435,7 +444,7 @@ export default function OrganizerCfpPage() {
               ) : null}
             </section>
           </>
-        )}
+        ) : null}
       </OrganizerShell>
     </>
   );

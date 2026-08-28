@@ -11,6 +11,7 @@ import { ListEmpty } from "../../../../components/ListState";
 import { ConsoleSubpageHeader } from "../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
+import { organizerFetch } from "../../../../lib/organizerApi";
 
 type Sponsor = {
   id: string;
@@ -30,6 +31,9 @@ export default function EventSponsorsPage() {
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Resolved plan+override flag from /event/features — same source as the console index. */
+  const [sponsorsEnabled, setSponsorsEnabled] = useState<boolean | null>(null);
+  const [featuresError, setFeaturesError] = useState<string | null>(null);
 
   const headers = useCallback(
     (extra?: RequestInit): RequestInit => ({
@@ -52,7 +56,7 @@ export default function EventSponsorsPage() {
   }, []);
 
   const load = useCallback(async () => {
-    if (!token || !eventId) return;
+    if (!token || !eventId || sponsorsEnabled !== true) return;
     try {
       const rows = await apiFetch<Sponsor[]>("/sponsors", headers(), token);
       setSponsors(rows);
@@ -60,11 +64,30 @@ export default function EventSponsorsPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load sponsors");
     }
-  }, [token, eventId, headers]);
+  }, [token, eventId, headers, sponsorsEnabled]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!eventId) return;
+    let cancelled = false;
+    void organizerFetch<{ features?: { key: string; enabled: boolean }[] }>("/event/features", eventId)
+      .then((feats) => {
+        if (cancelled) return;
+        setSponsorsEnabled(Boolean(feats.features?.find((f) => f.key === "sponsors")?.enabled));
+        setFeaturesError(null);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setSponsorsEnabled(null);
+        setFeaturesError(e instanceof Error ? e.message : "Could not load features");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
+  useEffect(() => {
+    if (sponsorsEnabled === true) void load();
+  }, [load, sponsorsEnabled]);
 
   async function createSponsor(form: HTMLFormElement) {
     if (!token) return;
@@ -133,87 +156,100 @@ export default function EventSponsorsPage() {
       </Head>
       <OrganizerShell active="sponsors" eventId={eventId}>
         <ConsoleSubpageHeader title="Sponsors" />
-        <p className="help-text">Shown to attendees by tier / sort order. Capture leads at the booth and export CSV.</p>
-        {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
+        {sponsorsEnabled === false ? (
+          <ListEmpty
+            title="Sponsors is turned off for this event"
+            body="Turn it on from the Features tab to manage logos, tiers, and booth leads."
+            actionLabel="Open Features"
+            actionHref={`/organizer/events/${eventId}?tab=features`}
+          />
+        ) : sponsorsEnabled !== true ? (
+          featuresError ? <p style={{ color: "var(--danger)" }}>{featuresError}</p> : null
+        ) : (
+          <>
+            <p className="help-text">Shown to attendees by tier / sort order. Capture leads at the booth and export CSV.</p>
+            {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
-        <form
-          className="console-form console-panel"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void createSponsor(e.currentTarget);
-          }}
-        >
-          <p className="console-panel-label">Add sponsor</p>
-          <label>
-            Sponsor name
-            <input className="input" name="name" required />
-          </label>
-          <label>
-            Tier
-            <input className="input" name="tier" placeholder="e.g. Gold" defaultValue="Standard" />
-          </label>
-          <label>
-            Website URL
-            <input className="input" name="url" />
-          </label>
-          <label>
-            Booth label
-            <input className="input" name="boothLabel" />
-          </label>
-          <label>
-            Sort order
-            <input className="input" name="sortOrder" type="number" defaultValue={0} />
-          </label>
-          <label>
-            Short description
-            <AutoGrowTextarea className="textarea" name="description" minRows={2} />
-          </label>
-          <button type="submit" className="button" disabled={busy} style={{ justifySelf: "start" }}>
-            Add sponsor
-          </button>
-        </form>
-
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {sponsors.map((s) => (
-            <li
-              key={s.id}
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid var(--gray-200)",
-                display: "grid",
-                gap: 6,
+            <form
+              className="console-form console-panel"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void createSponsor(e.currentTarget);
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                <div>
-                  <strong>{s.name}</strong>
-                  <span className="help-text">
-                    {" "}
-                    · {s.tier}
-                    {s.boothLabel ? ` · ${s.boothLabel}` : ""}
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" className="button secondary" onClick={() => void downloadLeads(s.id, s.name)}>
-                    Leads CSV
-                  </button>
-                  <button type="button" className="button secondary" onClick={() => void removeSponsor(s.id)}>
-                    Remove
-                  </button>
-                </div>
-              </div>
-              {s.url ? (
-                <a href={s.url} target="_blank" rel="noreferrer">
-                  {s.url}
-                </a>
-              ) : null}
-              {s.description ? <p className="help-text" style={{ margin: 0 }}>{s.description}</p> : null}
-            </li>
-          ))}
-        </ul>
-        {sponsors.length === 0 ? (
-          <ListEmpty title="No sponsors yet" body="Add a sponsor above to show them on the public event page." />
-        ) : null}
+              <p className="console-panel-label">Add sponsor</p>
+              <label>
+                Sponsor name
+                <input className="input" name="name" required />
+              </label>
+              <label>
+                Tier
+                <input className="input" name="tier" placeholder="e.g. Gold" defaultValue="Standard" />
+              </label>
+              <label>
+                Website URL
+                <input className="input" name="url" />
+              </label>
+              <label>
+                Booth label
+                <input className="input" name="boothLabel" />
+              </label>
+              <label>
+                Sort order
+                <input className="input" name="sortOrder" type="number" defaultValue={0} />
+              </label>
+              <label>
+                Short description
+                <AutoGrowTextarea className="textarea" name="description" minRows={2} />
+              </label>
+              <button type="submit" className="button" disabled={busy} style={{ justifySelf: "start" }}>
+                Add sponsor
+              </button>
+            </form>
+
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {sponsors.map((s) => (
+                <li
+                  key={s.id}
+                  style={{
+                    padding: "12px 0",
+                    borderBottom: "1px solid var(--gray-200)",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                    <div>
+                      <strong>{s.name}</strong>
+                      <span className="help-text">
+                        {" "}
+                        · {s.tier}
+                        {s.boothLabel ? ` · ${s.boothLabel}` : ""}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button type="button" className="button secondary" onClick={() => void downloadLeads(s.id, s.name)}>
+                        Leads CSV
+                      </button>
+                      <button type="button" className="button secondary" onClick={() => void removeSponsor(s.id)}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                  {s.url ? (
+                    <a href={s.url} target="_blank" rel="noreferrer">
+                      {s.url}
+                    </a>
+                  ) : null}
+                  {s.description ? <p className="help-text" style={{ margin: 0 }}>{s.description}</p> : null}
+                </li>
+              ))}
+            </ul>
+            {sponsors.length === 0 ? (
+              <ListEmpty title="No sponsors yet" body="Add a sponsor above to show them on the public event page." />
+            ) : null}
+          </>
+        )}
       </OrganizerShell>
     </>
   );

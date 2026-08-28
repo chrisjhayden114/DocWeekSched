@@ -6,9 +6,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { ListEmpty } from "../../../../components/ListState";
 import { ConsoleSubpageHeader } from "../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
+import { organizerFetch } from "../../../../lib/organizerApi";
 
 type RosterAttendee = {
   userId: string;
@@ -56,6 +58,10 @@ export default function CheckInScannerPage() {
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<FlashKind>(null);
   const [resultName, setResultName] = useState<string | null>(null);
+  /** Resolved plan+override flag from /event/features — same source as the console index. */
+  const [checkinEnabled, setCheckinEnabled] = useState<boolean | null>(null);
+  const [featuresError, setFeaturesError] = useState<string | null>(null);
+  const [scanUnsupported, setScanUnsupported] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lastScanRef = useRef<string>("");
@@ -103,8 +109,32 @@ export default function CheckInScannerPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!eventId) return;
+    let cancelled = false;
+    void organizerFetch<{ features?: { key: string; enabled: boolean }[] }>("/event/features", eventId)
+      .then((feats) => {
+        if (cancelled) return;
+        setCheckinEnabled(Boolean(feats.features?.find((f) => f.key === "checkin")?.enabled));
+        setFeaturesError(null);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setCheckinEnabled(null);
+        setFeaturesError(e instanceof Error ? e.message : "Could not load features");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
+  useEffect(() => {
+    const BD = (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector;
+    setScanUnsupported(!BD);
+  }, []);
+
   const refreshRoster = useCallback(async () => {
-    if (!token || !eventId) return;
+    if (!token || !eventId || checkinEnabled !== true) return;
     try {
       const data = await apiFetch<{ attendees: RosterAttendee[] }>(
         "/checkins/roster",
@@ -123,15 +153,15 @@ export default function CheckInScannerPage() {
         setError(e instanceof Error ? e.message : "Could not load roster");
       }
     }
-  }, [token, eventId, headers]);
+  }, [token, eventId, headers, checkinEnabled]);
 
   useEffect(() => {
-    if (!eventId || !token) return;
+    if (!eventId || !token || checkinEnabled !== true) return;
     setQueue(loadJson<PendingScan[]>(QUEUE_KEY(eventId), []));
     const cached = loadJson<RosterAttendee[]>(CACHE_KEY(eventId), []);
     if (cached.length) setAttendees(cached);
     void refreshRoster();
-  }, [eventId, token, refreshRoster]);
+  }, [eventId, token, refreshRoster, checkinEnabled]);
 
   const flushQueue = useCallback(async () => {
     if (!token || !eventId || !online) return;
@@ -227,6 +257,7 @@ export default function CheckInScannerPage() {
   useEffect(() => {
     let cancelled = false;
     async function startCamera() {
+      if (checkinEnabled !== true) return;
       if (!navigator.mediaDevices?.getUserMedia) return;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -260,6 +291,8 @@ export default function CheckInScannerPage() {
             if (!cancelled) requestAnimationFrame(() => void tick());
           };
           requestAnimationFrame(() => void tick());
+        } else if (!BD) {
+          setScanUnsupported(true);
         }
       } catch {
         setMessage("Camera unavailable — enter the check-in code manually (same as QR payload).");
@@ -271,7 +304,7 @@ export default function CheckInScannerPage() {
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId]);
+  }, [eventId, checkinEnabled]);
 
   const checkedInCount = attendees.filter((a) => a.checkedIn).length;
 
@@ -282,89 +315,130 @@ export default function CheckInScannerPage() {
   return (
     <OrganizerShell active="scanner" eventId={eventId}>
       <ConsoleSubpageHeader title="Check-in" />
-      <div className="scanner-page">
-        <header className="scanner-status-bar">
-          <div>
-            <p className="scanner-meta">
-              <span className={`scanner-online-dot${online ? " is-on" : ""}`} aria-hidden />
-              {online ? "Online" : "Offline"}
-              {" · "}
-              {checkedInCount}/{attendees.length}
-              {queue.length ? ` · ${queue.length} queued` : ""}
-              {syncing ? " · Syncing…" : ""}
-            </p>
-          </div>
-        </header>
-
-        <div className={`scanner-stage${flash === "success" ? " is-success" : ""}${flash === "danger" ? " is-danger" : ""}`}>
-          <video ref={videoRef} className="scanner-video" playsInline muted />
-          <div className="scanner-viewfinder" aria-hidden />
-          {flash ? (
-            <div className={`scanner-flash scanner-flash--${flash}`} role="status">
-              <p className="scanner-flash-label">{flash === "success" ? "Checked in" : "Not checked in"}</p>
-              {resultName ? <p className="scanner-flash-name">{resultName}</p> : null}
-            </div>
-          ) : null}
-        </div>
-
-        {message && !flash ? (
-          <p className="scanner-result scanner-result--ok" role="status">
-            {message}
-          </p>
-        ) : null}
-        {error && !flash ? (
+      {checkinEnabled === false ? (
+        <ListEmpty
+          title="Check-in is turned off for this event"
+          body="Turn it on from the Features tab if staff should scan attendee QR codes at the door."
+          actionLabel="Open Features"
+          actionHref={`/organizer/events/${eventId}?tab=features`}
+        />
+      ) : checkinEnabled !== true ? (
+        featuresError ? (
           <p className="scanner-result scanner-result--err" role="alert">
-            {error}
+            {featuresError}
           </p>
-        ) : null}
+        ) : null
+      ) : (
+        <div className="scanner-page">
+          <details className="console-panel scanner-how">
+            <summary>How check-in works</summary>
+            <div className="scanner-how-body">
+              <p>
+                Each attendee&apos;s check-in QR lives in their app profile (Event check-in QR). The QR
+                encodes that person&apos;s per-event check-in code — the same value you can type or paste
+                below.
+              </p>
+              <p>
+                Open this page on any phone with a camera. Staff need organizer access. Scanning works
+                offline: this device queues scans and syncs them when it is back online. The same code is
+                ignored for a few seconds so a second read of the same QR does not double-submit.
+              </p>
+              <p>
+                If the camera is blocked, or this browser cannot detect QR codes, type or paste the code
+                in the field below.
+              </p>
+            </div>
+          </details>
 
-        <form
-          className="scanner-manual"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void recordScan(manualCode);
-            setManualCode("");
-          }}
-        >
-          <label className="scanner-manual-label" htmlFor="scanner-manual-code">
-            Check-in code
-            <input
-              id="scanner-manual-code"
-              className="input"
-              value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
-              placeholder="Paste or type QR payload"
-              autoComplete="off"
-            />
-          </label>
-          <button type="submit" className="button scanner-manual-submit">
-            Check in
-          </button>
-        </form>
+          <header className="scanner-status-bar">
+            <div>
+              <p className="scanner-meta">
+                <span className={`scanner-online-dot${online ? " is-on" : ""}`} aria-hidden />
+                {online ? "Online" : "Offline"}
+                {" · "}
+                {checkedInCount}/{attendees.length}
+                {queue.length ? ` · ${queue.length} queued` : ""}
+                {syncing ? " · Syncing…" : ""}
+              </p>
+            </div>
+          </header>
 
-        <div className="scanner-toolbar">
-          <button type="button" className="button secondary" onClick={() => void refreshRoster()}>
-            Refresh roster
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            disabled={!online || !queue.length}
-            onClick={() => void flushQueue()}
+          <div className={`scanner-stage${flash === "success" ? " is-success" : ""}${flash === "danger" ? " is-danger" : ""}`}>
+            <video ref={videoRef} className="scanner-video" playsInline muted />
+            <div className="scanner-viewfinder" aria-hidden />
+            {flash ? (
+              <div className={`scanner-flash scanner-flash--${flash}`} role="status">
+                <p className="scanner-flash-label">{flash === "success" ? "Checked in" : "Not checked in"}</p>
+                {resultName ? <p className="scanner-flash-name">{resultName}</p> : null}
+              </div>
+            ) : null}
+          </div>
+
+          {scanUnsupported ? (
+            <p className="scanner-unsupported" role="status">
+              Scanning isn&apos;t supported in this browser — use manual entry
+            </p>
+          ) : null}
+
+          {message && !flash ? (
+            <p className="scanner-result scanner-result--ok" role="status">
+              {message}
+            </p>
+          ) : null}
+          {error && !flash ? (
+            <p className="scanner-result scanner-result--err" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <form
+            className="scanner-manual"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void recordScan(manualCode);
+              setManualCode("");
+            }}
           >
-            Sync queue
-          </button>
-        </div>
+            <label className="scanner-manual-label" htmlFor="scanner-manual-code">
+              Check-in code
+              <input
+                id="scanner-manual-code"
+                className="input"
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value)}
+                placeholder="Paste or type QR payload"
+                autoComplete="off"
+              />
+            </label>
+            <button type="submit" className="button scanner-manual-submit">
+              Check in
+            </button>
+          </form>
 
-        <ul className="scanner-roster">
-          {attendees.slice(0, 40).map((a) => (
-            <li key={a.userId} className={`scanner-roster-row${a.checkedIn ? " is-in" : ""}`}>
-              <span className="scanner-roster-name">{a.name}</span>
-              <span className="scanner-roster-state">{a.checkedIn ? "In" : "—"}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+          <div className="scanner-toolbar">
+            <button type="button" className="button secondary" onClick={() => void refreshRoster()}>
+              Refresh roster
+            </button>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={!online || !queue.length}
+              onClick={() => void flushQueue()}
+            >
+              Sync queue
+            </button>
+          </div>
+
+          <ul className="scanner-roster">
+            {attendees.slice(0, 40).map((a) => (
+              <li key={a.userId} className={`scanner-roster-row${a.checkedIn ? " is-in" : ""}`}>
+                <span className="scanner-roster-name">{a.name}</span>
+                <span className="scanner-roster-state">{a.checkedIn ? "In" : "—"}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </OrganizerShell>
   );
 }

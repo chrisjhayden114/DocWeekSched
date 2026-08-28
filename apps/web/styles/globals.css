@@ -6140,6 +6140,17 @@ button.schedule-meta-chip:hover {
   max-width: 560px;
 }
 
+/* K-4 — Program tab tracks/rooms: wrap to columns; inline edit spans the row. */
+.program-meta-grid {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.program-meta-edit {
+  grid-column: 1 / -1;
+}
+
 /* —— Agenda ingest (Chunk E15.3): one column of work, one input panel —— */
 .ingest-work {
   max-width: 960px;
@@ -7040,6 +7051,54 @@ button.schedule-meta-chip:hover {
   color: var(--danger);
 }
 
+.scanner-how {
+  margin: 0;
+}
+
+.scanner-how > summary {
+  list-style: none;
+  cursor: pointer;
+  font: 600 11px/16px var(--font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+}
+
+.scanner-how > summary::-webkit-details-marker {
+  display: none;
+}
+
+.scanner-how > summary::after {
+  content: "▸";
+  margin-left: 6px;
+}
+
+.scanner-how[open] > summary::after {
+  content: "▾";
+}
+
+.scanner-how-body {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.scanner-how-body p {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--gray-700);
+}
+
+.scanner-unsupported {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font: var(--text-body);
+  background: var(--warning-50, #fffaeb);
+  color: var(--warning, #b54708);
+  border: 1px solid var(--gray-200);
+}
+
 .scanner-manual {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -7125,7 +7184,9 @@ button.schedule-meta-chip:hover {
   .scanner-manual,
   .scanner-toolbar,
   .scanner-result,
-  .scanner-roster {
+  .scanner-roster,
+  .scanner-how,
+  .scanner-unsupported {
     margin-left: 12px;
     margin-right: 12px;
   }

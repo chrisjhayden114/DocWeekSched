@@ -742,11 +742,12 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
             No tracks yet. Tracks color-code sessions on the schedule.
           </p>
         ) : null}
-        <div style={{ display: "grid", gap: 4 }}>
+        <div className="program-meta-grid">
           {tracks.map((t) =>
             editTrack?.id === t.id ? (
               <form
                 key={t.id}
+                className="program-meta-edit"
                 onSubmit={(e) => void submitEditTrack(e)}
                 style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "4px 0" }}
               >
@@ -862,11 +863,12 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
             No rooms yet. Rooms power the by-room schedule view.
           </p>
         ) : null}
-        <div style={{ display: "grid", gap: 4 }}>
+        <div className="program-meta-grid">
           {rooms.map((r) =>
             editRoom?.id === r.id ? (
               <form
                 key={r.id}
+                className="program-meta-edit"
                 onSubmit={(e) => void submitEditRoom(e)}
                 style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "4px 0" }}
               >
