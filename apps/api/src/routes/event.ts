@@ -54,6 +54,8 @@ const EVENT_PATCH_FIELDS = [
   // paymentUrlField and is handled separately below.
   "paymentPriceText",
   "paymentInstructions",
+  // K-2 — custom CFP display name. Absent = keep, null/blank = default label.
+  "cfpLabel",
 ] as const;
 
 /** PAY-T0 — the payment fields, for the feature gate on writes. */
@@ -102,6 +104,8 @@ const eventSchema = z.object({
   paymentPriceText: z.string().max(PAYMENT_PRICE_TEXT_MAX_CHARS).optional().nullable(),
   paymentUrl: paymentUrlField,
   paymentInstructions: z.string().max(PAYMENT_INSTRUCTIONS_MAX_CHARS).optional().nullable(),
+  // K-2 — organizer-facing CFP name. Empty/null clears back to the default.
+  cfpLabel: z.string().max(60).optional().nullable(),
 });
 
 const publicEventSelect = {

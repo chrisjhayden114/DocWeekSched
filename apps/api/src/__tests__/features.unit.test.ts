@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { FEATURE_REGISTRY } from "@event-app/shared";
 import {
   applyPreset,
   normalizeOverridesForSave,
   resolveFeatureEnabled,
 } from "../lib/features/registry";
+
+describe("K-2 — appearsIn on every registry key", () => {
+  it("every FeatureDefinition has a non-empty appearsIn line", () => {
+    expect(FEATURE_REGISTRY.length).toBeGreaterThan(0);
+    for (const def of FEATURE_REGISTRY) {
+      expect(def.appearsIn, def.key).toEqual(expect.any(String));
+      expect(def.appearsIn?.trim(), def.key).not.toBe("");
+    }
+  });
+});
 
 describe("featureEnabled precedence (resolveFeatureEnabled)", () => {
   it("uses registry defaults when overrides are empty", () => {

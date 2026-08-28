@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { initialsFor } from "./kit/kitHelpers";
+import { HoverInfo } from "./kit/HoverInfo";
 import { StatusChip } from "./StatusChip";
 
 /**
@@ -18,6 +19,8 @@ import { StatusChip } from "./StatusChip";
 export type ShellNavItem = {
   id: string;
   label: string;
+  /** K-2 — HoverInfo body. Navigation on click is unchanged. */
+  description?: string;
   icon?: ReactNode;
   href?: string;
   onSelect?: () => void;
@@ -91,19 +94,16 @@ function NavItemView({ item, onNavigate }: { item: ShellNavItem; onNavigate?: ()
       {item.badge ? <span className="nav-unread-badge">{item.badge}</span> : null}
     </>
   );
-  if (item.href) {
-    return (
-      <Link
-        href={item.href}
-        className={className}
-        aria-current={item.active ? "page" : undefined}
-        onClick={onNavigate}
-      >
-        {inner}
-      </Link>
-    );
-  }
-  return (
+  const control = item.href ? (
+    <Link
+      href={item.href}
+      className={className}
+      aria-current={item.active ? "page" : undefined}
+      onClick={onNavigate}
+    >
+      {inner}
+    </Link>
+  ) : (
     <button
       type="button"
       className={className}
@@ -115,6 +115,12 @@ function NavItemView({ item, onNavigate }: { item: ShellNavItem; onNavigate?: ()
     >
       {inner}
     </button>
+  );
+  if (!item.description) return control;
+  return (
+    <HoverInfo title={item.label} body={item.description}>
+      {control}
+    </HoverInfo>
   );
 }
 

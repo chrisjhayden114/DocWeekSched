@@ -1,9 +1,17 @@
 import { brand, invoiceStatusLabel, subscriptionStatusLine } from "@event-app/config";
-import { PRICE_LOCK, type PlanSkuKey } from "@event-app/shared";
+import {
+  formatDisplayPrice,
+  PLAN_BY_SKU,
+  PLAN_CATALOG,
+  PRICE_LOCK,
+  type PlanDefinition,
+  type PlanSkuKey,
+} from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
+import { HoverInfo } from "../../components/kit/HoverInfo";
 import { ConsoleSubpageHeader } from "../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../components/OrganizerShell";
 import { Select } from "../../components/Select";
@@ -29,13 +37,27 @@ type BillingSummary = {
   invoices: Array<{ id: string; status: string; amountCents: number; currency: string; createdAt: string; url?: string }>;
 };
 
-const UPGRADE_SKUS: { key: PlanSkuKey; label: string }[] = [
-  { key: "per_event_250", label: "Per-event 250" },
-  { key: "per_event_500", label: "Per-event 500" },
-  { key: "per_event_1000", label: "Per-event 1,000" },
-  { key: "pro_monthly", label: "Pro monthly" },
-  { key: "pro_annual", label: "Pro annual" },
-];
+const UPGRADE_PLANS: PlanDefinition[] = PLAN_CATALOG.filter(
+  (p) => p.public && !p.contactOnly && p.sku !== "free" && PLAN_BY_SKU[p.sku],
+);
+
+function planButtonLabel(plan: PlanDefinition): string {
+  return `${plan.name} — ${formatDisplayPrice(plan.displayPriceCents, plan.currency, plan.interval)}`;
+}
+
+function planHoverBody(plan: PlanDefinition): string {
+  const attendees =
+    plan.limits.attendees == null ? "Unlimited attendees/event" : `${plan.limits.attendees.toLocaleString()} attendees/event`;
+  const events =
+    plan.limits.activeEvents == null
+      ? "Unlimited active events"
+      : `${plan.limits.activeEvents} active event${plan.limits.activeEvents === 1 ? "" : "s"}`;
+  const ingest =
+    plan.limits.aiIngestPerEvent == null
+      ? "Unlimited AI ingests"
+      : `${plan.limits.aiIngestPerEvent} AI ingest${plan.limits.aiIngestPerEvent === 1 ? "" : "s"}`;
+  return `${plan.plainDescription} ${attendees}. ${events}. ${ingest}.`;
+}
 
 export default function OrganizerBillingPage() {
   const router = useRouter();
@@ -229,17 +251,18 @@ export default function OrganizerBillingPage() {
               <p className="console-panel-label">Upgrade / change plan</p>
               <p className="help-text" style={{ marginTop: 0 }}>{PRICE_LOCK.body}</p>
               {summary.billingConfigured ? (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {UPGRADE_SKUS.map((s) => (
-                    <button
-                      key={s.key}
-                      type="button"
-                      className="button secondary"
-                      disabled={busy}
-                      onClick={() => void startCheckout(s.key)}
-                    >
-                      {s.label}
-                    </button>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {UPGRADE_PLANS.map((plan) => (
+                    <HoverInfo key={plan.sku} title={plan.name} body={planHoverBody(plan)}>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        disabled={busy}
+                        onClick={() => void startCheckout(plan.sku)}
+                      >
+                        {planButtonLabel(plan)}
+                      </button>
+                    </HoverInfo>
                   ))}
                 </div>
               ) : (

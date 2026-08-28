@@ -1,3 +1,4 @@
+import { cfpDisplayLabel } from "@event-app/shared";
 import { useRouter } from "next/router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode, type SVGProps } from "react";
 import { apiFetch, type AuthResponse } from "../lib/api";
@@ -7,9 +8,14 @@ import { AppShell, type ShellEventOption, type ShellNavGroup } from "./AppShell"
 type OrganizerEventContextValue = {
   eventId: string | null;
   eventName: string | null;
+  cfpLabel: string | null;
 };
 
-const OrganizerEventContext = createContext<OrganizerEventContextValue>({ eventId: null, eventName: null });
+const OrganizerEventContext = createContext<OrganizerEventContextValue>({
+  eventId: null,
+  eventName: null,
+  cfpLabel: null,
+});
 
 /** Event id/name already loaded by the shell — subpage headers must not refetch. */
 export function useOrganizerEvent(): OrganizerEventContextValue {
@@ -105,7 +111,27 @@ type MineEvent = {
   endDate?: string;
   uiStatus?: string;
   brandColor?: string | null;
+  cfpLabel?: string | null;
 };
+
+const NAV_BLURB = {
+  overview:
+    "Home for this event — publish state, setup checklist, and counts of sessions, speakers, and people. Settings and publish live here.",
+  ingest:
+    "Turn a program document or spreadsheet into a draft schedule you review before it goes live.",
+  cfp: "Open a public call, collect submissions, assign reviewers, and convert accepted work into draft sessions.",
+  sponsors: "Manage sponsor logos by tier and optional exhibitor lead capture. Logos show on attendee pages.",
+  analytics: "Attendance and engagement numbers for this event.",
+  scanner:
+    "Scan attendee QR codes at the door. Works offline and syncs when you’re back online. Each person’s code is on their profile in the attendee app.",
+  events: "Every event you organize — switch, open, or start another.",
+  newEvent: "Start a draft event with the setup wizard.",
+  allEvents: "Leave this event and see every event you organize.",
+  billing: "Plan, invoices, and upgrades for this organization.",
+  aiUsage: "How many AI ingest and assistant runs this organization has used.",
+  attendeeApp: "See the event the way a participant does — agenda, messages, and community.",
+  settings: "Your account, email, and notification defaults.",
+} as const;
 
 type OrganizerShellProps = {
   /** Active nav item id (see item ids below). */
@@ -123,6 +149,7 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
   const isActive = (id: string) => active === id;
   const [events, setEvents] = useState<ShellEventOption[]>([]);
   const [brandColors, setBrandColors] = useState<Record<string, string | null>>({});
+  const [cfpLabels, setCfpLabels] = useState<Record<string, string | null>>({});
   const [me, setMe] = useState<Pick<AuthResponse["user"], "name" | "photoUrl"> | null>(null);
 
   const loadEvents = useCallback(async () => {
@@ -136,9 +163,11 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
         })),
       );
       setBrandColors(Object.fromEntries(mine.map((ev) => [ev.id, ev.brandColor ?? null])));
+      setCfpLabels(Object.fromEntries(mine.map((ev) => [ev.id, ev.cfpLabel ?? null])));
     } catch {
       setEvents([]);
       setBrandColors({});
+      setCfpLabels({});
     }
   }, []);
 
@@ -162,18 +191,76 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
     [eventId, brandColors],
   );
 
+  const resolvedCfpLabel = eventId ? cfpDisplayLabel({ cfpLabel: cfpLabels[eventId] }) : cfpDisplayLabel({});
+
   const organizeItems = eventId
     ? [
-        { id: "overview", label: "Overview", href: `/organizer/events/${eventId}`, icon: icons.overview, active: isActive("overview") },
-        { id: "ingest", label: "Agenda ingest", href: `/organizer/events/${eventId}/ingest`, icon: icons.ingest, active: isActive("ingest") },
-        { id: "cfp", label: "CFP", href: `/organizer/events/${eventId}/cfp`, icon: icons.cfp, active: isActive("cfp") },
-        { id: "sponsors", label: "Sponsors", href: `/organizer/events/${eventId}/sponsors`, icon: icons.sponsors, active: isActive("sponsors") },
-        { id: "analytics", label: "Analytics", href: `/organizer/events/${eventId}/analytics`, icon: icons.analytics, active: isActive("analytics") },
-        { id: "scanner", label: "Check-in", href: `/organizer/events/${eventId}/scanner`, icon: icons.scanner, active: isActive("scanner") },
+        {
+          id: "overview",
+          label: "Overview",
+          description: NAV_BLURB.overview,
+          href: `/organizer/events/${eventId}`,
+          icon: icons.overview,
+          active: isActive("overview"),
+        },
+        {
+          id: "ingest",
+          label: "Agenda ingest",
+          description: NAV_BLURB.ingest,
+          href: `/organizer/events/${eventId}/ingest`,
+          icon: icons.ingest,
+          active: isActive("ingest"),
+        },
+        {
+          id: "cfp",
+          label: resolvedCfpLabel,
+          description: NAV_BLURB.cfp,
+          href: `/organizer/events/${eventId}/cfp`,
+          icon: icons.cfp,
+          active: isActive("cfp"),
+        },
+        {
+          id: "sponsors",
+          label: "Sponsors",
+          description: NAV_BLURB.sponsors,
+          href: `/organizer/events/${eventId}/sponsors`,
+          icon: icons.sponsors,
+          active: isActive("sponsors"),
+        },
+        {
+          id: "analytics",
+          label: "Analytics",
+          description: NAV_BLURB.analytics,
+          href: `/organizer/events/${eventId}/analytics`,
+          icon: icons.analytics,
+          active: isActive("analytics"),
+        },
+        {
+          id: "scanner",
+          label: "Check-in",
+          description: NAV_BLURB.scanner,
+          href: `/organizer/events/${eventId}/scanner`,
+          icon: icons.scanner,
+          active: isActive("scanner"),
+        },
       ]
     : [
-        { id: "events", label: "Events", href: "/organizer", icon: icons.events, active: isActive("events") },
-        { id: "new-event", label: "New event", href: "/organizer/events/new", icon: icons.ai, active: isActive("new-event") },
+        {
+          id: "events",
+          label: "Events",
+          description: NAV_BLURB.events,
+          href: "/organizer",
+          icon: icons.events,
+          active: isActive("events"),
+        },
+        {
+          id: "new-event",
+          label: "New event",
+          description: NAV_BLURB.newEvent,
+          href: "/organizer/events/new",
+          icon: icons.ai,
+          active: isActive("new-event"),
+        },
       ];
 
   const nav: ShellNavGroup[] = [
@@ -183,18 +270,53 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
       label: "Workspace",
       items: [
         ...(eventId
-          ? [{ id: "events", label: "All events", href: "/organizer", icon: icons.events, active: isActive("events") }]
+          ? [
+              {
+                id: "events",
+                label: "All events",
+                description: NAV_BLURB.allEvents,
+                href: "/organizer",
+                icon: icons.events,
+                active: isActive("events"),
+              },
+            ]
           : []),
-        { id: "billing", label: "Billing", href: "/organizer/billing", icon: icons.billing, active: isActive("billing") },
-        { id: "ai-usage", label: "AI usage", href: "/organizer/ai-usage", icon: icons.ai, active: isActive("ai-usage") },
+        {
+          id: "billing",
+          label: "Billing",
+          description: NAV_BLURB.billing,
+          href: "/organizer/billing",
+          icon: icons.billing,
+          active: isActive("billing"),
+        },
+        {
+          id: "ai-usage",
+          label: "AI usage",
+          description: NAV_BLURB.aiUsage,
+          href: "/organizer/ai-usage",
+          icon: icons.ai,
+          active: isActive("ai-usage"),
+        },
       ],
     },
     {
       id: "account",
       label: "Account",
       items: [
-        { id: "attendee-app", label: "Attendee app", href: "/dashboard", icon: icons.app },
-        { id: "account-settings", label: "Settings", href: "/account", icon: icons.app },
+        {
+          id: "attendee-app",
+          label: "Attendee app",
+          description: NAV_BLURB.attendeeApp,
+          href: "/dashboard",
+          icon: icons.app,
+        },
+        {
+          id: "account-settings",
+          label: "Settings",
+          description: NAV_BLURB.settings,
+          href: "/account",
+          icon: icons.app,
+        },
       ],
     },
   ];
@@ -211,7 +333,13 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
   const resolvedEventName = eventName || (eventId ? events.find((ev) => ev.id === eventId)?.name : null) || null;
 
   return (
-    <OrganizerEventContext.Provider value={{ eventId: eventId || null, eventName: resolvedEventName }}>
+    <OrganizerEventContext.Provider
+      value={{
+        eventId: eventId || null,
+        eventName: resolvedEventName,
+        cfpLabel: eventId ? cfpLabels[eventId] ?? null : null,
+      }}
+    >
       <AppShell
         title={resolvedEventName || "Organizer"}
         nav={nav}

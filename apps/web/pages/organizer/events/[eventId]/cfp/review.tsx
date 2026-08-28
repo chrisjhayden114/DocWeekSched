@@ -1,4 +1,5 @@
 import { brand } from "@event-app/config";
+import { cfpDisplayLabel } from "@event-app/shared";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
@@ -36,9 +37,13 @@ export default function CfpReviewerPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, Record<string, number>>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
+  const [cfpLabel, setCfpLabel] = useState<string | null>(null);
+  const heading = cfpDisplayLabel({ cfpLabel });
 
   const load = useCallback(async () => {
     if (!eventId) return;
+    const ev = await organizerFetch<{ cfpLabel?: string | null }>("/event/", eventId).catch(() => null);
+    if (ev) setCfpLabel(ev.cfpLabel ?? null);
     // Resolve form id via manage (managers) or try stored; reviewers need formId in query
     let fid = typeof router.query.formId === "string" ? router.query.formId : formId;
     if (!fid) {
@@ -98,10 +103,10 @@ export default function CfpReviewerPage() {
   return (
     <>
       <Head>
-        <title>{`CFP review — ${brand.productName}`}</title>
+        <title>{`${heading} review — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="cfp" eventId={eventId}>
-        <ConsoleSubpageHeader title="Assigned reviews" />
+        <ConsoleSubpageHeader title={`${heading} — assigned reviews`} />
         <p className="help-text" style={{ marginTop: 0 }}>
           Reviewer workspace (no billing, rosters, or settings)
         </p>

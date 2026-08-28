@@ -551,6 +551,27 @@ export const overviewCopy = {
     discardTitle: "Discard changes?",
     discardBody: "You have unsaved event settings. Close without saving?",
     discardConfirm: "Discard",
+    fields: {
+      name: "The name attendees and organizers see everywhere — the public page, the attendee app, and the console.",
+      description:
+        "A short public summary of the event. Shown on the public page and in some invite emails.",
+      timezone:
+        "The event’s wall-clock zone. Changing it keeps the start and end times below as typed and reinterprets them in the new zone — a 9:00 start stays 9:00, in the new timezone.",
+      dates:
+        "Start and end in event time. These bound the published agenda and what attendees see as “during the event.”",
+      venueName: "Building or site name shown on the public page and in the attendee app.",
+      venueAddress: "Street address for in-person events. Optional if you only have a venue name.",
+      onlineUrl: "Join link for a virtual or hybrid event. Shown to attendees when you publish it.",
+      slug: "The public URL path: /e/your-slug. Lowercase letters, numbers, and single hyphens.",
+      brandColor:
+        "Accent for buttons and highlights in the console, the public page, and the attendee app. Leave empty for the neutral platform look.",
+      logo: "Small mark next to the event name in the console and on the public page. Square images work best.",
+      banner: "Wide header image on the public event page. Optional.",
+      participantLabels:
+        "Labels attendees can pick for this event — departments, cohorts, roles. You can override a person’s label on the roster. Removing a label clears it from anyone who had it.",
+      cfpLabel:
+        "What you call the public call — Call for Presentations, Call for Papers, Call for Workshops. This name is used in the organizer sidebar and console headings. Public pages still show each form’s own title.",
+    },
   },
 } as const;
 

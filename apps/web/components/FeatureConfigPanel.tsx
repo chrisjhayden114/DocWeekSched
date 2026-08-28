@@ -136,7 +136,7 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
                 >
                   <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <HoverInfo title={f.name} body={f.plainDescription}>
+                      <HoverInfo title={f.name} body={f.plainDescription} appearsIn={f.appearsIn}>
                         <strong className="text-body-md" style={{ color: "var(--ink-900)" }} id={`feature-name-${f.key}`}>
                           {f.name}
                         </strong>

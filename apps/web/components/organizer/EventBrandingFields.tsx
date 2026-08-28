@@ -1,4 +1,6 @@
+import { overviewCopy } from "@event-app/config";
 import { ColorSwatchInput } from "../ColorSwatchInput";
+import { HoverInfo } from "../kit/HoverInfo";
 import { UploadDropzone } from "../UploadDropzone";
 import { NEUTRAL_EVENT_ACCENT } from "../../lib/eventAccent";
 
@@ -75,7 +77,9 @@ export function EventBrandingFields({ value, onChange }: Props) {
   return (
     <>
       <label>
-        Brand color
+        <HoverInfo title="Brand color" body={overviewCopy.settings.fields.brandColor}>
+          Brand color
+        </HoverInfo>
         <ColorSwatchInput
           label="Brand color"
           value={value.brandColor}
@@ -97,7 +101,9 @@ export function EventBrandingFields({ value, onChange }: Props) {
       ) : null}
 
       <label>
-        Logo URL
+        <HoverInfo title="Logo URL" body={overviewCopy.settings.fields.logo}>
+          Logo URL
+        </HoverInfo>
         <input
           className="input"
           value={value.logoUrl}
@@ -116,7 +122,9 @@ export function EventBrandingFields({ value, onChange }: Props) {
       />
 
       <label>
-        Banner URL
+        <HoverInfo title="Banner URL" body={overviewCopy.settings.fields.banner}>
+          Banner URL
+        </HoverInfo>
         <input
           className="input"
           value={value.bannerUrl}

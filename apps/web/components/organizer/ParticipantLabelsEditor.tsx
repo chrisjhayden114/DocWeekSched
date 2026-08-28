@@ -1,4 +1,6 @@
+import { overviewCopy } from "@event-app/config";
 import { FormEvent, useEffect, useState, type KeyboardEvent } from "react";
+import { HoverInfo } from "../kit/HoverInfo";
 import { organizerFetch } from "../../lib/organizerApi";
 
 const MAX_LABELS = 20;
@@ -90,7 +92,11 @@ export function ParticipantLabelsEditor({ eventId, event, labels, onSaved }: Pro
 
   return (
     <div className="console-panel">
-      <p className="console-panel-label">Participant labels</p>
+      <p className="console-panel-label">
+        <HoverInfo title="Participant labels" body={overviewCopy.settings.fields.participantLabels}>
+          Participant labels
+        </HoverInfo>
+      </p>
       <p className="help-text" style={{ marginTop: 0 }}>
         Define labels that fit your event — departments, cohorts, roles. Attendees pick one; you can
         override.

@@ -5864,6 +5864,18 @@ button.schedule-meta-chip:hover {
   color: var(--gray-400);
 }
 
+.shell-nav-group .hover-info {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  align-items: center;
+}
+
+.shell-nav-group .hover-info .shell-nav-item {
+  flex: 1;
+  min-width: 0;
+}
+
 .shell-nav-item {
   position: relative;
   display: flex;
@@ -6095,6 +6107,10 @@ button.schedule-meta-chip:hover {
   gap: var(--space-1);
   font: var(--text-label);
   color: var(--gray-700);
+}
+
+.console-form label > .hover-info {
+  justify-self: start;
 }
 
 /* Forms that also use console-panel keep the 560px column. */

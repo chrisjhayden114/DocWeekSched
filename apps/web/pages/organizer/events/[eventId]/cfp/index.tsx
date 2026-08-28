@@ -1,4 +1,5 @@
 import { brand } from "@event-app/config";
+import { cfpDisplayLabel } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -50,9 +51,11 @@ export default function OrganizerCfpPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cfpLabel, setCfpLabel] = useState<string | null>(null);
+  const heading = cfpDisplayLabel({ cfpLabel });
 
-  // create form
-  const [title, setTitle] = useState("Call for proposals");
+  // create form — default title from the event's CFP label
+  const [title, setTitle] = useState(() => cfpDisplayLabel({}));
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
   const [rubricJson, setRubricJson] = useState(
@@ -62,7 +65,11 @@ export default function OrganizerCfpPage() {
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
-    const list = await organizerFetch<{ forms: FormRow[] }>("/cfp/manage", eventId);
+    const [list, ev] = await Promise.all([
+      organizerFetch<{ forms: FormRow[] }>("/cfp/manage", eventId),
+      organizerFetch<{ cfpLabel?: string | null }>("/event/", eventId),
+    ]);
+    setCfpLabel(ev.cfpLabel ?? null);
     setForms(list.forms);
     const fid = formId || list.forms[0]?.id || "";
     if (fid && fid !== formId) setFormId(fid);
@@ -85,6 +92,10 @@ export default function OrganizerCfpPage() {
   useEffect(() => {
     void refresh().catch((err) => setError(err instanceof Error ? err.message : "Load failed"));
   }, [refresh]);
+
+  useEffect(() => {
+    setTitle((prev) => (prev === cfpDisplayLabel({}) ? heading : prev));
+  }, [heading]);
 
   async function createForm(e: FormEvent) {
     e.preventDefault();
@@ -163,10 +174,10 @@ export default function OrganizerCfpPage() {
   return (
     <>
       <Head>
-        <title>{`CFP — ${brand.productName}`}</title>
+        <title>{`${heading} — ${brand.productName}`}</title>
       </Head>
       <OrganizerShell active="cfp" eventId={eventId}>
-        <ConsoleSubpageHeader title="Call for proposals" />
+        <ConsoleSubpageHeader title={heading} />
         {eventId ? (
           <p className="help-text" style={{ marginTop: 0 }}>
             <Link href={`/organizer/events/${eventId}/cfp/review`}>Reviewer UI</Link>
@@ -177,7 +188,7 @@ export default function OrganizerCfpPage() {
 
         {!forms.length ? (
           <form onSubmit={(e) => void createForm(e)} className="console-form">
-            <h2>Create CFP</h2>
+            <h2>Create {heading}</h2>
             <label>
               Title
               <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />

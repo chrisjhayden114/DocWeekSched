@@ -70,6 +70,7 @@ type EventDetail = {
   brandColor?: string | null;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  cfpLabel?: string | null;
   organizationId: string;
   seriesId?: string | null;
   participantLabels?: string[];

@@ -1,7 +1,8 @@
 import { overviewCopy } from "@event-app/config";
-import { FormEvent, useEffect, useId, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { AutoGrowTextarea, SlideOver, SlideOverMoreOptions } from "../kit";
+import { HoverInfo } from "../kit/HoverInfo";
 import { TimezoneSelect } from "../TimezoneSelect";
 import { EventBrandingFields } from "./EventBrandingFields";
 import { toLocalInputValueInTimeZone, zonedDateTimeLocalToIso } from "../../lib/eventTimezone";
@@ -21,7 +22,16 @@ export type EventSettingsEvent = {
   brandColor?: string | null;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  cfpLabel?: string | null;
 };
+
+function FieldHelp({ title, help, children }: { title: string; help: string; children?: ReactNode }) {
+  return (
+    <HoverInfo title={title} body={help}>
+      {children ?? title}
+    </HoverInfo>
+  );
+}
 
 type Props = {
   open: boolean;
@@ -44,6 +54,7 @@ type FormState = {
   brandColor: string;
   logoUrl: string;
   bannerUrl: string;
+  cfpLabel: string;
 };
 
 function initialForm(event: EventSettingsEvent): FormState {
@@ -62,6 +73,7 @@ function initialForm(event: EventSettingsEvent): FormState {
     brandColor: event.brandColor || "",
     logoUrl: event.logoUrl || "",
     bannerUrl: event.bannerUrl || "",
+    cfpLabel: event.cfpLabel || "",
   };
 }
 
@@ -152,6 +164,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
           brandColor: form.brandColor.trim() || null,
           logoUrl: form.logoUrl.trim() || null,
           bannerUrl: form.bannerUrl.trim() || null,
+          cfpLabel: form.cfpLabel.trim() || null,
           timezone: form.timezone,
           startDate: startIso,
           endDate: endIso,
@@ -196,11 +209,11 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
         </p>
         <form id={formId} onSubmit={(e) => void onSubmit(e)} className="console-form">
           <label>
-            Event name
+            <FieldHelp title="Event name" help={overviewCopy.settings.fields.name} />
             <input className="input" required value={form.name} onChange={(e) => set("name", e.target.value)} />
           </label>
           <label>
-            Description
+            <FieldHelp title="Description" help={overviewCopy.settings.fields.description} />
             <AutoGrowTextarea
               className="input"
               minRows={4}
@@ -209,11 +222,11 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
             />
           </label>
           <label>
-            Timezone
+            <FieldHelp title="Timezone" help={overviewCopy.settings.fields.timezone} />
             <TimezoneSelect value={form.timezone} onChange={(tz) => set("timezone", tz)} required />
           </label>
           <label>
-            Starts (event time)
+            <FieldHelp title="Starts (event time)" help={overviewCopy.settings.fields.dates} />
             <input
               className="input"
               type="datetime-local"
@@ -223,7 +236,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
             />
           </label>
           <label>
-            Ends (event time)
+            <FieldHelp title="Ends (event time)" help={overviewCopy.settings.fields.dates} />
             <input
               className="input"
               type="datetime-local"
@@ -233,11 +246,11 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
             />
           </label>
           <label>
-            Venue name
+            <FieldHelp title="Venue name" help={overviewCopy.settings.fields.venueName} />
             <input className="input" value={form.venueName} onChange={(e) => set("venueName", e.target.value)} />
           </label>
           <label>
-            Venue address
+            <FieldHelp title="Venue address" help={overviewCopy.settings.fields.venueAddress} />
             <input
               className="input"
               value={form.venueAddress}
@@ -245,7 +258,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
             />
           </label>
           <label>
-            Online URL
+            <FieldHelp title="Online URL" help={overviewCopy.settings.fields.onlineUrl} />
             <input
               className="input"
               value={form.onlineUrl}
@@ -257,7 +270,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
           <SlideOverMoreOptions>
             <div className="console-form" style={{ maxWidth: "none" }}>
               <label>
-                Public slug
+                <FieldHelp title="Public slug" help={overviewCopy.settings.fields.slug} />
                 <input
                   className="input"
                   value={form.slug}
@@ -266,6 +279,17 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
                   onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
                 />
                 <span className="help-text">Public link: /e/{form.slug || "…"}</span>
+              </label>
+              <label>
+                <FieldHelp title="What do you call it?" help={overviewCopy.settings.fields.cfpLabel} />
+                <input
+                  className="input"
+                  value={form.cfpLabel}
+                  maxLength={60}
+                  placeholder="Call for Papers"
+                  onChange={(e) => set("cfpLabel", e.target.value)}
+                />
+                <span className="help-text">e.g. Call for Papers</span>
               </label>
               <EventBrandingFields
                 value={{
