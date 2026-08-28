@@ -1,4 +1,5 @@
 export * from "./features";
+export * from "./featureGuide";
 export * from "./cfp";
 export * from "./readinessSpeakerPack";
 export * from "./paidAttendance";

@@ -21,6 +21,8 @@ export type ShellNavItem = {
   label: string;
   /** K-2 — HoverInfo body. Navigation on click is unchanged. */
   description?: string;
+  /** K-2.1 — shown only on sidebar popovers (useful off the Features page). */
+  appearsIn?: string;
   icon?: ReactNode;
   href?: string;
   onSelect?: () => void;
@@ -118,7 +120,7 @@ function NavItemView({ item, onNavigate }: { item: ShellNavItem; onNavigate?: ()
   );
   if (!item.description) return control;
   return (
-    <HoverInfo title={item.label} body={item.description}>
+    <HoverInfo trigger="label" title={item.label} body={item.description} appearsIn={item.appearsIn}>
       {control}
     </HoverInfo>
   );

@@ -18,6 +18,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     "/compare/sched",
     "/compare/whova",
     "/help",
+    "/help/feature-guide",
     ...helpArticlePaths(),
     `/e/${brand.demoEventSlug}`,
   ];

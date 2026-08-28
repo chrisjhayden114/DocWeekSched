@@ -93,7 +93,7 @@ export function ParticipantLabelsEditor({ eventId, event, labels, onSaved }: Pro
   return (
     <div className="console-panel">
       <p className="console-panel-label">
-        <HoverInfo title="Participant labels" body={overviewCopy.settings.fields.participantLabels}>
+        <HoverInfo trigger="label" title="Participant labels" body={overviewCopy.settings.fields.participantLabels}>
           Participant labels
         </HoverInfo>
       </p>

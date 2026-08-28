@@ -77,7 +77,7 @@ export function EventBrandingFields({ value, onChange }: Props) {
   return (
     <>
       <label>
-        <HoverInfo title="Brand color" body={overviewCopy.settings.fields.brandColor}>
+        <HoverInfo trigger="label" title="Brand color" body={overviewCopy.settings.fields.brandColor}>
           Brand color
         </HoverInfo>
         <ColorSwatchInput
@@ -101,7 +101,7 @@ export function EventBrandingFields({ value, onChange }: Props) {
       ) : null}
 
       <label>
-        <HoverInfo title="Logo URL" body={overviewCopy.settings.fields.logo}>
+        <HoverInfo trigger="label" title="Logo URL" body={overviewCopy.settings.fields.logo}>
           Logo URL
         </HoverInfo>
         <input
@@ -122,7 +122,7 @@ export function EventBrandingFields({ value, onChange }: Props) {
       />
 
       <label>
-        <HoverInfo title="Banner URL" body={overviewCopy.settings.fields.banner}>
+        <HoverInfo trigger="label" title="Banner URL" body={overviewCopy.settings.fields.banner}>
           Banner URL
         </HoverInfo>
         <input

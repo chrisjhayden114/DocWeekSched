@@ -1512,7 +1512,8 @@ export default function OrganizerEventPage() {
           <section>
             <h2 style={{ marginTop: 0 }}>Features</h2>
             <p className="help-text">
-              Turn capabilities on or off for attendees. Existing data is preserved when a feature is disabled.
+              Turn capabilities on or off for attendees. Existing data is preserved when a feature is disabled.{" "}
+              <Link href="/help/feature-guide">Read the Feature Guide</Link>
             </p>
             <div style={{ marginBottom: 16 }}>
               <button

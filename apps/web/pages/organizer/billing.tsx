@@ -253,7 +253,7 @@ export default function OrganizerBillingPage() {
               {summary.billingConfigured ? (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   {UPGRADE_PLANS.map((plan) => (
-                    <HoverInfo key={plan.sku} title={plan.name} body={planHoverBody(plan)}>
+                    <HoverInfo key={plan.sku} trigger="label" title={plan.name} body={planHoverBody(plan)}>
                       <button
                         type="button"
                         className="button secondary"

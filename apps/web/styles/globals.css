@@ -6374,6 +6374,81 @@ button.schedule-meta-chip:hover {
   color: var(--gray-700);
 }
 
+.hover-info--label {
+  cursor: help;
+}
+
+.hover-info-label {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: help;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+.hover-info-label-slot {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  cursor: help;
+}
+
+@media (hover: hover) {
+  .hover-info-label:hover,
+  .hover-info--label:hover .hover-info-label {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--gray-400);
+  }
+
+  .hover-info--label:hover .shell-nav-item > span:not(.nav-unread-badge) {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--gray-400);
+    text-underline-offset: 3px;
+  }
+}
+
+.hover-info-action {
+  margin-top: 10px;
+}
+
+.hover-info-action button,
+.hover-info-action a {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: var(--text-meta);
+  color: var(--event-accent, var(--gray-700));
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.hover-info-action button:hover,
+.hover-info-action a:hover {
+  text-decoration: underline;
+}
+
+.feature-guide-sections {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.feature-guide-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 32px;
+  padding: 0;
+  list-style: none;
+}
+
 .hover-info-popover {
   position: fixed;
   z-index: 1100;

@@ -27,7 +27,7 @@ export type EventSettingsEvent = {
 
 function FieldHelp({ title, help, children }: { title: string; help: string; children?: ReactNode }) {
   return (
-    <HoverInfo title={title} body={help}>
+    <HoverInfo trigger="label" title={title} body={help}>
       {children ?? title}
     </HoverInfo>
   );

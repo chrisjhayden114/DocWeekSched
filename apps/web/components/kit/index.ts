@@ -17,6 +17,8 @@ export type { LightboxProps } from "./Lightbox";
 export type { FilterPillOption, FilterPillsProps } from "./FilterPills";
 export { PageHeader } from "./PageHeader";
 export type { IconTone, PageHeaderProps } from "./PageHeader";
+export { GuidePanel, FeatureGuideSections } from "./GuidePanel";
+export type { GuidePanelProps } from "./GuidePanel";
 export { SlideOver, SlideOverMoreOptions } from "./SlideOver";
 export type { SlideOverProps } from "./SlideOver";
 export { StatCard } from "./StatCard";

@@ -145,6 +145,11 @@ export const marketingSeo = {
       description:
         "Speaker management and content collection for conferences and PD days: bios, slides, forms, and agreements — automatic reminders, no presenter account.",
     },
+    featureGuide: {
+      title: `Feature guide for conference and PD day software — ${brand.productName}`,
+      description:
+        "What each event feature does, where attendees and organizers see it, and what stays when you turn a toggle off.",
+    },
   },
 } as const;
 

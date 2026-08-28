@@ -108,3 +108,38 @@ describe("HoverInfo", () => {
     expect(tooltip()).toBeNull();
   });
 });
+
+describe("HoverInfo trigger=label", () => {
+  function mountLabel() {
+    render(
+      <HoverInfo trigger="label" hideIcon title="Community" body="Channels, who can post, and how it differs from Messages.">
+        <strong>Community</strong>
+      </HoverInfo>,
+    );
+    return clipper.querySelector<HTMLButtonElement>(".hover-info-label")!;
+  }
+
+  it("uses the title as the trigger — no ⓘ in the tree", () => {
+    const trigger = mountLabel();
+    expect(trigger).not.toBeNull();
+    expect(trigger.textContent).toContain("Community");
+    expect(clipper.textContent).not.toContain("ⓘ");
+    expect(clipper.querySelector(".hover-info-trigger")).toBeNull();
+  });
+
+  it("opens on focus and closes on Escape, restoring focus to the title", () => {
+    const trigger = mountLabel();
+    expect(tooltip()).toBeNull();
+
+    act(() => trigger.focus());
+    const popover = tooltip()!;
+    expect(popover).not.toBeNull();
+    expect(popover.textContent).toContain("Channels, who can post");
+    expect(popover.textContent).not.toContain("Appears in");
+    expect(trigger.getAttribute("aria-describedby")).toBe(popover.id);
+
+    press(window, "Escape");
+    expect(tooltip()).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+});

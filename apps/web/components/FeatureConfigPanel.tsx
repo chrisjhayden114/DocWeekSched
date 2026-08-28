@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  FEATURE_GUIDE,
   FEATURE_PRESETS,
   getOrganizerVisibleFeatures,
   normalizeOverridesForSave,
@@ -9,6 +10,7 @@ import {
   type FeaturePresetId,
 } from "@event-app/shared";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { GuidePanel } from "./kit/GuidePanel";
 import { HoverInfo } from "./kit/HoverInfo";
 
 export type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
@@ -46,6 +48,7 @@ type Props = {
 export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, showPresets = true }: Props) {
   const visible = useMemo(() => getOrganizerVisibleFeatures(), []);
   const [pendingOff, setPendingOff] = useState<FeatureKey | null>(null);
+  const [guideKey, setGuideKey] = useState<FeatureKey | null>(null);
 
   const grouped = useMemo(() => {
     const map = new Map<string, typeof visible>();
@@ -136,7 +139,17 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
                 >
                   <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <HoverInfo title={f.name} body={f.plainDescription} appearsIn={f.appearsIn}>
+                      <HoverInfo
+                        trigger="label"
+                        hideIcon
+                        title={f.name}
+                        body={FEATURE_GUIDE[f.key].whatItDoes}
+                        action={
+                          <button type="button" onClick={() => setGuideKey(f.key)}>
+                            Read the full guide →
+                          </button>
+                        }
+                      >
                         <strong className="text-body-md" style={{ color: "var(--ink-900)" }} id={`feature-name-${f.key}`}>
                           {f.name}
                         </strong>
@@ -166,6 +179,8 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
           </ul>
         </section>
       ))}
+
+      <GuidePanel featureKey={guideKey} open={guideKey !== null} onClose={() => setGuideKey(null)} />
 
       <ConfirmDialog
         open={Boolean(pendingOff && pendingDef)}

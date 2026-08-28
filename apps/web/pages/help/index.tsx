@@ -36,6 +36,15 @@ export default function HelpIndexPage({ articles }: Props) {
             <p className="mkt-eyebrow">Resources</p>
             <h1>Help</h1>
             <p>Guides for organizers and attendees.</p>
+            <p style={{ marginTop: 24 }}>
+              <Link href="/help/feature-guide">
+                <strong>Feature Guide</strong>
+              </Link>
+              <span className="text-meta" style={{ display: "block", marginTop: 2 }}>
+                What each event feature does, where people see it, and what stays when you turn it
+                off.
+              </span>
+            </p>
             <ul style={{ paddingLeft: 20, marginTop: 24 }}>
               {articles.map((a) => (
                 <li key={a.slug} style={{ marginBottom: 12 }}>
