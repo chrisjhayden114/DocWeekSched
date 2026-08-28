@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { apiFetch, type AuthResponse } from "../lib/api";
 import { eventAccentStyle } from "../lib/eventAccent";
 import { AppShell, type ShellEventOption, type ShellNavGroup } from "./AppShell";
+import { OrganizerAssistantDock } from "./OrganizerAssistantDock";
 
 type OrganizerEventContextValue = {
   eventId: string | null;
@@ -112,6 +113,7 @@ type MineEvent = {
   uiStatus?: string;
   brandColor?: string | null;
   cfpLabel?: string | null;
+  organizationId?: string;
 };
 
 const NAV_BLURB = {
@@ -150,6 +152,7 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
   const [events, setEvents] = useState<ShellEventOption[]>([]);
   const [brandColors, setBrandColors] = useState<Record<string, string | null>>({});
   const [cfpLabels, setCfpLabels] = useState<Record<string, string | null>>({});
+  const [orgIds, setOrgIds] = useState<Record<string, string>>({});
   const [me, setMe] = useState<Pick<AuthResponse["user"], "name" | "photoUrl"> | null>(null);
 
   const loadEvents = useCallback(async () => {
@@ -164,10 +167,16 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
       );
       setBrandColors(Object.fromEntries(mine.map((ev) => [ev.id, ev.brandColor ?? null])));
       setCfpLabels(Object.fromEntries(mine.map((ev) => [ev.id, ev.cfpLabel ?? null])));
+      setOrgIds(
+        Object.fromEntries(
+          mine.filter((ev) => ev.organizationId).map((ev) => [ev.id, ev.organizationId as string]),
+        ),
+      );
     } catch {
       setEvents([]);
       setBrandColors({});
       setCfpLabels({});
+      setOrgIds({});
     }
   }, []);
 
@@ -358,6 +367,9 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
       >
         {children}
       </AppShell>
+      {eventId ? (
+        <OrganizerAssistantDock eventId={eventId} organizationId={orgIds[eventId]} />
+      ) : null}
     </OrganizerEventContext.Provider>
   );
 }

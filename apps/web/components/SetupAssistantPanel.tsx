@@ -1,45 +1,29 @@
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { overviewCopy } from "@event-app/config";
-import { ASSISTANT_COPY, type SetupCopilotFormState } from "@event-app/shared";
 import { buildSetupChecklist, nextSetupStep, type SetupChecklistInput } from "../lib/setupChecklist";
-import { SetupCopilotChat } from "./SetupCopilotChat";
+import { AskSetupAssistantLink } from "./OrganizerAssistantDock";
 
 /**
- * E19.3 (restyled in F2) — the "Before you publish" checklist, the seed of
- * the content-first Overview. Reads live event state, names the next
+ * E19.3 (restyled in F2; K-3 dock) — the "Before you publish" checklist, the
+ * seed of the content-first Overview. Reads live event state, names the next
  * incomplete step, and deep-links to the tab that fixes it. Each item is
- * done (✓) / attention (the next step, highlighted) / todo (○). The chat
- * is secondary and opt-in; the checklist is the assistant.
+ * done (✓) / attention (the next step, highlighted) / todo (○). Chat lives
+ * in OrganizerAssistantDock; this card only links to it.
  */
 type Props = {
   input: SetupChecklistInput;
-  organizationId?: string;
-  /** Forwarded to the embedded chat so feature confirmations behave the same everywhere. */
-  onFeaturesApplied?: (overrides: SetupCopilotFormState["featureOverrides"]) => void;
 };
 
-export function SetupAssistantPanel({ input, organizationId, onFeaturesApplied }: Props) {
-  const [chatOpen, setChatOpen] = useState(false);
+export function SetupAssistantPanel({ input }: Props) {
   const items = useMemo(() => buildSetupChecklist(input), [input]);
   const next = nextSetupStep(items);
 
-  // AGENT-3.1 — close chat on event soft-nav so a prior event's open panel
-  // does not briefly show another console's transcript.
-  useEffect(() => {
-    setChatOpen(false);
-  }, [input.eventId]);
-
   return (
     <div className="console-panel setup-assistant-panel">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-        <p className="console-panel-label">
-          {input.status === "ACTIVE" ? overviewCopy.checklist.titleLive : overviewCopy.checklist.title}
-        </p>
-        <button type="button" className="button secondary" onClick={() => setChatOpen((v) => !v)}>
-          {chatOpen ? "Hide chat" : `Ask the ${ASSISTANT_COPY.organizer.name.toLowerCase()}`}
-        </button>
-      </div>
+      <p className="console-panel-label">
+        {input.status === "ACTIVE" ? overviewCopy.checklist.titleLive : overviewCopy.checklist.title}
+      </p>
 
       {next ? (
         <p className="help-text" style={{ margin: "0 0 12px" }}>
@@ -82,19 +66,9 @@ export function SetupAssistantPanel({ input, organizationId, onFeaturesApplied }
         })}
       </ul>
 
-      {chatOpen ? (
-        <div style={{ marginTop: 12 }}>
-          <SetupCopilotChat
-            key={input.eventId}
-            mode="settings"
-            eventId={input.eventId}
-            organizationId={organizationId}
-            onFormChange={() => {}}
-            onFeaturesApplied={onFeaturesApplied}
-            compact
-          />
-        </div>
-      ) : null}
+      <p className="help-text" style={{ margin: "12px 0 0" }}>
+        <AskSetupAssistantLink />
+      </p>
     </div>
   );
 }

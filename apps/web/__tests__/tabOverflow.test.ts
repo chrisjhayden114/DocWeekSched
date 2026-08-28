@@ -74,6 +74,19 @@ describe("planTabOverflow", () => {
     expect(zeroBox.overflowIds).toEqual([]);
   });
 
+  it("a narrower available width (dock push of 384px) overflows more tabs", () => {
+    const base = {
+      ids: IDS,
+      widths: widths(80),
+      moreWidth: 72,
+      activeId: "overview" as const,
+      gap: 12,
+    };
+    const before = planTabOverflow({ ...base, available: 1000 });
+    const after = planTabOverflow({ ...base, available: 1000 - 384 });
+    expect(after.overflowIds.length).toBeGreaterThan(before.overflowIds.length);
+  });
+
   it("keeps at least the active tab when nothing else fits beside More", () => {
     const plan = planTabOverflow({
       ids: IDS,

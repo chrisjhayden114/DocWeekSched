@@ -1,6 +1,5 @@
 import { brand, overviewCopy } from "@event-app/config";
 import {
-  ASSISTANT_COPY,
   PAYMENT_REFERENCE_MAX_CHARS,
   paidMarkSummaryLine,
   paymentStatusSelectOptions,
@@ -12,8 +11,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useState, type SVGProps } f
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { RosterImportCard } from "../../../../components/organizer/RosterImportCard";
 import { FeatureConfigPanel, type FeatureOverridesMap } from "../../../../components/FeatureConfigPanel";
+import { AskSetupAssistantLink, SETUP_COPILOT_FEATURES_APPLIED } from "../../../../components/OrganizerAssistantDock";
 import { SetupAssistantPanel } from "../../../../components/SetupAssistantPanel";
-import { SetupCopilotChat } from "../../../../components/SetupCopilotChat";
 import { VenueMapEditor } from "../../../../components/VenueMapEditor";
 import { AnnouncementComposer } from "../../../../components/AnnouncementComposer";
 import { AssistantStartersEditor, EventFaqEditor } from "../../../../components/EventFaqEditor";
@@ -303,7 +302,6 @@ export default function OrganizerEventPage() {
   const [readinessEnabled, setReadinessEnabled] = useState(false);
   const [featuresDirty, setFeaturesDirty] = useState(false);
   const [featuresSaving, setFeaturesSaving] = useState(false);
-  const [askAssistant, setAskAssistant] = useState(false);
   /** H1 — brief inline "Copied" after Copy link on the publish success block. */
   const [linkCopied, setLinkCopied] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -495,11 +493,22 @@ export default function OrganizerEventPage() {
 
   useEffect(() => {
     if (!eventId) return;
-    setAskAssistant(false);
     void refresh().catch((err) => {
       setError(err instanceof Error ? err.message : "Failed to load event");
     });
   }, [eventId, refresh]);
+
+  useEffect(() => {
+    const onApplied = (e: Event) => {
+      const overrides = (e as CustomEvent<FeatureOverridesMap>).detail;
+      if (!overrides) return;
+      setFeatureOverrides(overrides);
+      setFeaturesDirty(false);
+      setMessage("Feature settings updated");
+    };
+    window.addEventListener(SETUP_COPILOT_FEATURES_APPLIED, onApplied);
+    return () => window.removeEventListener(SETUP_COPILOT_FEATURES_APPLIED, onApplied);
+  }, []);
 
   async function runStatus(path: string) {
     if (!eventId) return;
@@ -878,17 +887,7 @@ export default function OrganizerEventPage() {
 
             {/* E19.3 / F2 #3 — the "Before you publish" checklist: live event
                 state, done/attention/todo, deep links to the fixing tab. */}
-            {checklistInput ? (
-              <SetupAssistantPanel
-                input={checklistInput}
-                organizationId={event.organizationId}
-                onFeaturesApplied={(overrides) => {
-                  setFeatureOverrides(overrides);
-                  setFeaturesDirty(false);
-                  setMessage("Feature settings updated");
-                }}
-              />
-            ) : null}
+            {checklistInput ? <SetupAssistantPanel input={checklistInput} /> : null}
 
             {/* F2 #4 — quick actions, deep-linking to the existing screens. */}
             <div className="overview-quick-actions" aria-label={overviewCopy.quickActions.label}>
@@ -1515,35 +1514,9 @@ export default function OrganizerEventPage() {
               Turn capabilities on or off for attendees. Existing data is preserved when a feature is disabled.{" "}
               <Link href="/help/feature-guide">Read the Feature Guide</Link>
             </p>
-            <div style={{ marginBottom: 16 }}>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setAskAssistant((v) => !v)}
-              >
-                {askAssistant ? "Hide assistant" : `Ask the ${ASSISTANT_COPY.organizer.name.toLowerCase()}`}
-              </button>
-            </div>
-            {askAssistant && eventId ? (
-              <div style={{ marginBottom: 20 }}>
-                <SetupCopilotChat
-                  key={eventId}
-                  mode="settings"
-                  eventId={eventId}
-                  organizationId={event?.organizationId}
-                  compact
-                  onFormChange={(form) => {
-                    setFeatureOverrides(form.featureOverrides);
-                    setFeaturesDirty(true);
-                  }}
-                  onFeaturesApplied={(overrides) => {
-                    setFeatureOverrides(overrides);
-                    setFeaturesDirty(false);
-                    setMessage("Feature settings updated");
-                  }}
-                />
-              </div>
-            ) : null}
+            <p className="help-text" style={{ margin: "0 0 16px" }}>
+              <AskSetupAssistantLink />
+            </p>
             <FeatureConfigPanel
               overrides={featureOverrides}
               onChange={(next) => {

@@ -4716,8 +4716,9 @@ button.schedule-meta-chip:hover {
   }
 }
 
-/* —— Concierge (A3) —— */
-.concierge-fab {
+/* —— Concierge (A3) + organizer setup-assistant dock (K-3 / D6) —— */
+.concierge-fab,
+.copilot-fab {
   position: fixed;
   right: 20px;
   bottom: 20px;
@@ -4737,18 +4738,22 @@ button.schedule-meta-chip:hover {
   cursor: pointer;
   transition: var(--transition);
 }
-.concierge-fab:hover {
+.concierge-fab:hover,
+.copilot-fab:hover {
   background: var(--event-accent-hover);
 }
 /* B1 — the AssistantMark shows beside the label (icon-only below 1024px). */
-.concierge-fab-icon {
+.concierge-fab-icon,
+.copilot-fab-icon {
   display: inline-flex;
   line-height: 0;
 }
-.concierge-fab-label {
+.concierge-fab-label,
+.copilot-fab-label {
   display: inline;
 }
-.concierge-sheet-backdrop {
+.concierge-sheet-backdrop,
+.copilot-sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -4758,7 +4763,8 @@ button.schedule-meta-chip:hover {
   justify-content: center;
   animation: concierge-fade-in var(--motion) var(--ease-out) both;
 }
-.concierge-sheet {
+.concierge-sheet,
+.copilot-sheet {
   width: min(480px, 100%);
   max-height: min(92vh, 720px);
   background: #ffffff;
@@ -4770,11 +4776,13 @@ button.schedule-meta-chip:hover {
   animation: concierge-sheet-up var(--motion-slow) var(--ease-out) both;
 }
 @media (min-width: 720px) {
-  .concierge-sheet-backdrop {
+  .concierge-sheet-backdrop,
+  .copilot-sheet-backdrop {
     align-items: center;
     padding: 24px;
   }
-  .concierge-sheet {
+  .concierge-sheet,
+  .copilot-sheet {
     border-radius: var(--radius-lg);
     max-height: min(80vh, 640px);
     /* Centered on desktop: fade + scale-from-98% reads better than a sheet
@@ -4859,7 +4867,8 @@ button.schedule-meta-chip:hover {
 /* Desktop docked panel (CHAT-1): agenda stays interactive beside the assistant.
    CHAT-2 (B4): distinct-but-calm — sheet/modal elevation + a subtly accented
    header band; the body stays var(--surface). */
-.concierge-panel {
+.concierge-panel,
+.copilot-panel {
   position: fixed;
   right: 0;
   top: var(--shell-topbar-height, 0);
@@ -4875,9 +4884,19 @@ button.schedule-meta-chip:hover {
 }
 
 /* Header band: accent-tinted at low opacity + 2px accent top edge (tokens only). */
-.concierge-panel .concierge-sheet-header {
+.concierge-panel .concierge-sheet-header,
+.copilot-panel .concierge-sheet-header {
   border-top: 2px solid var(--event-accent);
   background: var(--event-accent-tint);
+}
+
+/* SetupCopilotChat fills the dock; drop its standalone card chrome. */
+.copilot-panel .setup-copilot-chat,
+.copilot-sheet .setup-copilot-chat {
+  flex: 1;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
 }
 
 .concierge-header-mark {
@@ -4904,11 +4923,13 @@ button.schedule-meta-chip:hover {
     transition: var(--transition);
   }
 
-  body.concierge-docked .shell-content {
+  body.concierge-docked .shell-content,
+  body.copilot-docked .shell-content {
     margin-right: 384px;
   }
 
-  body.concierge-docked .concierge-fab {
+  body.concierge-docked .concierge-fab,
+  body.copilot-docked .copilot-fab {
     display: none;
   }
 
@@ -6806,7 +6827,8 @@ button.schedule-meta-chip:hover {
    * Compact Concierge: clear of bottom tabs + card action row text.
    * Extra right/bottom margin so it only sits over empty canvas.
    */
-  .concierge-fab {
+  .concierge-fab,
+  .copilot-fab {
     right: 16px;
     bottom: calc(56px + 20px + env(safe-area-inset-bottom, 0px));
     z-index: 35;
@@ -6819,11 +6841,13 @@ button.schedule-meta-chip:hover {
     box-shadow: var(--shadow-1);
   }
 
-  .concierge-fab-icon {
+  .concierge-fab-icon,
+  .copilot-fab-icon {
     display: inline-flex;
   }
 
-  .concierge-fab-label {
+  .concierge-fab-label,
+  .copilot-fab-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -7607,6 +7631,8 @@ button.schedule-meta-chip:hover {
   .agenda-schedule-tools,
   .concierge-fab,
   .concierge-panel,
+  .copilot-fab,
+  .copilot-panel,
   .no-print,
   .schedule-grid,
   .schedule-layout > .schedule-list > .button,
