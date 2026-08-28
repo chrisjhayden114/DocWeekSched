@@ -73,6 +73,11 @@ export class StripeBillingProvider implements BillingProvider {
     params.set("success_url", input.successUrl);
     params.set("cancel_url", input.cancelUrl);
     params.set("managed_payments[enabled]", "true");
+    // Payment-mode (one-time) checkouts do not create invoices unless asked.
+    // Subscription mode already invoices and Stripe rejects this flag there.
+    if (mode === "payment") {
+      params.set("invoice_creation[enabled]", "true");
+    }
     if (input.customerEmail) params.set("customer_email", input.customerEmail);
 
     const metadata: Record<string, string> = {

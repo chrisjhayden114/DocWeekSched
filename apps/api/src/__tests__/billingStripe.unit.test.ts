@@ -227,7 +227,47 @@ describe("planKey → price/mode mapping", () => {
       const nested = expectedMode === "subscription" ? "subscription_data" : "payment_intent_data";
       expect(body.get(`${nested}[metadata][orgId]`)).toBe("org_1");
       expect(body.get(`${nested}[metadata][planKey]`)).toBe(planKey);
+      if (expectedMode === "payment") {
+        expect(body.get("invoice_creation[enabled]")).toBe("true");
+      } else {
+        expect(body.has("invoice_creation[enabled]")).toBe(false);
+      }
     }
+  });
+
+  it("payment-mode checkout enables invoice_creation; subscription-mode does not", async () => {
+    const bodies: URLSearchParams[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: { body?: string }) => {
+        bodies.push(new URLSearchParams(String(init?.body || "")));
+        return {
+          ok: true,
+          json: async () => ({ id: "cs_test_inv", url: "https://checkout.stripe.com/c/pay/cs_test_inv" }),
+          text: async () => "",
+        };
+      }),
+    );
+
+    const provider = makeProvider();
+    await provider.createCheckout({
+      orgId: "org_1",
+      planKey: "per_event_250",
+      eventId: "evt_db_1",
+      successUrl: "https://ukedl.com/organizer/billing?ok=1",
+      cancelUrl: "https://ukedl.com/organizer/billing?cancelled=1",
+    });
+    await provider.createCheckout({
+      orgId: "org_1",
+      planKey: "pro_monthly",
+      successUrl: "https://ukedl.com/organizer/billing?ok=1",
+      cancelUrl: "https://ukedl.com/organizer/billing?cancelled=1",
+    });
+
+    expect(bodies[0].get("mode")).toBe("payment");
+    expect(bodies[0].get("invoice_creation[enabled]")).toBe("true");
+    expect(bodies[1].get("mode")).toBe("subscription");
+    expect(bodies[1].has("invoice_creation[enabled]")).toBe(false);
   });
 });
 
