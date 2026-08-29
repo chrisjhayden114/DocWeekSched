@@ -16,6 +16,7 @@ import {
   preloadImage,
   isFadeClipped,
 } from "../components/kit/HoverInfo";
+import { ParticipantLabelsEditor } from "../components/organizer/ParticipantLabelsEditor";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -148,6 +149,79 @@ describe("HoverInfo trigger=label", () => {
     press(window, "Escape");
     expect(tooltip()).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe("HoverInfo children shapes (K-6.2 — no Children.only)", () => {
+  it("renders a plain string child without throwing (label-button path)", () => {
+    expect(() =>
+      render(
+        <HoverInfo trigger="label" title="Participant labels" body="Organizer-defined labels attendees pick.">
+          Participant labels
+        </HoverInfo>,
+      ),
+    ).not.toThrow();
+    const trigger = clipper.querySelector<HTMLButtonElement>(".hover-info-label")!;
+    expect(trigger).not.toBeNull();
+    expect(trigger.textContent).toBe("Participant labels");
+    expect(clipper.querySelector(".hover-info-label-slot")).toBeNull();
+  });
+
+  it("renders a fragment / multiple children without throwing", () => {
+    expect(() =>
+      render(
+        <HoverInfo trigger="label" title="Multi" body="More than one child is valid label content.">
+          <>
+            <span>First</span>
+            <span>Second</span>
+          </>
+        </HoverInfo>,
+      ),
+    ).not.toThrow();
+    const trigger = clipper.querySelector<HTMLButtonElement>(".hover-info-label")!;
+    expect(trigger).not.toBeNull();
+    expect(trigger.textContent).toContain("First");
+    expect(trigger.textContent).toContain("Second");
+    expect(clipper.querySelector(".hover-info-label-slot")).toBeNull();
+  });
+
+  it("detects a single <button> child as the interactive element", () => {
+    expect(() =>
+      render(
+        <HoverInfo trigger="label" hideIcon title="Plans" body="Plan hover copy.">
+          <button type="button" className="plan-trigger">
+            Pro
+          </button>
+        </HoverInfo>,
+      ),
+    ).not.toThrow();
+    expect(clipper.querySelector(".hover-info-label")).toBeNull();
+    const slot = clipper.querySelector(".hover-info-label-slot");
+    expect(slot).not.toBeNull();
+    const child = slot!.querySelector<HTMLButtonElement>(".plan-trigger")!;
+    expect(child).not.toBeNull();
+    expect(child.textContent).toBe("Pro");
+  });
+
+  it("Participants panel: ParticipantLabelsEditor string child mounts after hydrate", () => {
+    expect(() =>
+      render(
+        <ParticipantLabelsEditor
+          eventId="evt_1"
+          event={{
+            name: "Northbridge",
+            timezone: "America/New_York",
+            startDate: "2026-09-01T00:00:00.000Z",
+            endDate: "2026-09-03T00:00:00.000Z",
+          }}
+          labels={["Faculty"]}
+          onSaved={() => undefined}
+        />,
+      ),
+    ).not.toThrow();
+    const trigger = clipper.querySelector<HTMLButtonElement>(".hover-info-label")!;
+    expect(trigger).not.toBeNull();
+    expect(trigger.textContent).toBe("Participant labels");
   });
 });
 

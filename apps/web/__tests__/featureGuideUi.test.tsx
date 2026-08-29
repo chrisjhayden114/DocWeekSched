@@ -79,6 +79,7 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
           "/feature-guide/community_meetups.png",
           "/feature-guide/community_moments.jpg",
           "/feature-guide/community_local.png",
+          "/feature-guide/community_icebreakers.png",
           "/feature-guide/community_general.png",
         ]),
       );

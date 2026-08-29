@@ -62,6 +62,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default, and it requires Community. The PD day and Focused presets turn it off. Hiding the channel preserves existing tips.",
   },
   community_icebreakers: {
+    imageSrc: "/feature-guide/community_icebreakers.png",
     whatItDoes:
       "Ice-breakers is the Community channel for intros and conversation starters. Posts use a normal title and body — no extra fields. When this channel is in view, a people-discovery strip can open a prefilled direct message, which still requires Direct messages to be on.",
     experience:

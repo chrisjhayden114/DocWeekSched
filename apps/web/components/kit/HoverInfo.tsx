@@ -200,7 +200,10 @@ export function HoverInfo({
     onClose: close,
   });
 
-  const onlyChild = Children.count(children) === 1 ? Children.only(children) : children;
+  // Children.count() is 1 for a plain string, but Children.only() throws unless
+  // the child is a real element — that crashed the Participants tab after hydrate.
+  const childList = Children.toArray(children);
+  const onlyChild = childList.length === 1 && isValidElement(childList[0]) ? childList[0] : null;
   const interactiveLabel = labelMode && isInteractiveElement(onlyChild);
   const labelButton = labelMode && !interactiveLabel;
 
