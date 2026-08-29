@@ -30,7 +30,10 @@ export type IssueCertificateResult = {
 };
 
 type TemplateWithEvent = CertificateTemplate & {
-  event: Pick<Event, "id" | "name" | "startDate" | "endDate" | "timezone" | "organizationId">;
+  event: Pick<Event, "id" | "name" | "startDate" | "endDate" | "timezone" | "organizationId"> & {
+    brandColor?: string | null;
+    logoUrl?: string | null;
+  };
 };
 
 export async function issueCertificateForUser(input: {
@@ -83,6 +86,8 @@ export async function issueCertificateForUser(input: {
     bodyText: template.bodyText,
     signatureImageUrl: template.signatureImageUrl,
     merge,
+    accentColor: template.event.brandColor,
+    logoUrl: template.event.logoUrl,
   });
 
   const stored = await getStorageProvider().put({

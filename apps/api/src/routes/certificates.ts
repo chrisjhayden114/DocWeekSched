@@ -182,6 +182,8 @@ certificatesRouter.post(
             endDate: true,
             timezone: true,
             organizationId: true,
+            brandColor: true,
+            logoUrl: true,
           },
         },
       },
@@ -303,7 +305,14 @@ certificatesRouter.get(
       include: {
         certificateTemplate: true,
         event: {
-          select: { name: true, startDate: true, endDate: true, timezone: true },
+          select: {
+            name: true,
+            startDate: true,
+            endDate: true,
+            timezone: true,
+            brandColor: true,
+            logoUrl: true,
+          },
         },
       },
     });
@@ -323,6 +332,8 @@ certificatesRouter.get(
           signatureImage: row.certificateTemplate.signatureImageUrl,
           certificateId: row.publicId,
         },
+        accentColor: row.event.brandColor,
+        logoUrl: row.event.logoUrl,
       });
     }
 
@@ -350,9 +361,12 @@ verifyRouter.get(
     const row = await prisma.issuedCertificate.findUnique({
       where: { publicId: certificateId },
       select: {
+        publicId: true,
         attendeeNameSnapshot: true,
         eventNameSnapshot: true,
         eventDateSnapshot: true,
+        hoursSnapshot: true,
+        issuedAt: true,
         voidedAt: true,
       },
     });
@@ -361,13 +375,16 @@ verifyRouter.get(
       return notFound();
     }
 
-    const d = row.eventDateSnapshot;
-    const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    const utcYmd = (d: Date) =>
+      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 
     return res.json({
       attendeeName: row.attendeeNameSnapshot,
       eventName: row.eventNameSnapshot,
-      date,
+      date: utcYmd(row.eventDateSnapshot),
+      hours: row.hoursSnapshot,
+      issuedAt: utcYmd(row.issuedAt),
+      certificateId: row.publicId,
     });
   }),
 );

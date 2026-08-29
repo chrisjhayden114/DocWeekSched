@@ -89,6 +89,8 @@ export function registerCertificateJobs(): void {
             endDate: true,
             timezone: true,
             organizationId: true,
+            brandColor: true,
+            logoUrl: true,
           },
         },
       },
