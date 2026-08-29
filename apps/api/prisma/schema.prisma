@@ -185,6 +185,7 @@ enum AiMeterFeature {
   MATCHMAKER
   OPS_DRAFT
   RECAP
+  OUTREACH_DRAFT
   OTHER
 }
 

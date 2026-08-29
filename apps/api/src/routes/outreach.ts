@@ -1,5 +1,6 @@
 /**
- * SPX-0 — sponsor outreach pipeline. UKEDL never sends these emails.
+ * SPX-0 / SPX-1 — sponsor outreach pipeline + composer.
+ * UKEDL never sends these emails.
  */
 
 import { Router } from "express";
@@ -21,7 +22,8 @@ import { requireFeature } from "../lib/features";
 import { assertOutreachProspectCap } from "../lib/billing/entitlements";
 import { patchFields, trimmedOrNull } from "../lib/patchFields";
 import { validationErrorBody } from "../lib/errors";
-import { authRateLimit } from "../lib/rateLimit";
+import { AUTHENTICATED_AI_CHAT_LIMIT, authRateLimit, testUnlimitedMax } from "../lib/rateLimit";
+import { draftOutreachEmail } from "../lib/ai/outreach/draft";
 
 export const outreachRouter = Router();
 
@@ -61,6 +63,14 @@ const importSchema = z.object({
   prospects: z.array(importRowSchema).min(1).max(200),
 });
 
+const templateSchema = z.object({
+  name: z.string().min(1).max(120),
+  subject: z.string().min(1).max(200),
+  body: z.string().min(1).max(20_000),
+});
+
+const templatePatchSchema = templateSchema.partial();
+
 function parseWebsite(value: string | null | undefined): string | null {
   if (value == null) return null;
   const parsed = normalizeWebsiteUrl(value);
@@ -80,6 +90,14 @@ async function loadProspect(eventId: string, prospectId: string) {
     where: { id: prospectId, eventId },
   });
   if (!row) throw new HttpError(404, { error: "Prospect not found" });
+  return row;
+}
+
+async function loadTemplate(eventId: string, templateId: string) {
+  const row = await prisma.outreachTemplate.findFirst({
+    where: { id: templateId, eventId },
+  });
+  if (!row) throw new HttpError(404, { error: "Template not found" });
   return row;
 }
 
@@ -314,5 +332,118 @@ outreachRouter.post(
       data: { sponsorId: sponsor.id },
     });
     return res.json({ prospect: updated, sponsor, created: match == null });
+  }),
+);
+
+outreachRouter.get(
+  "/templates",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await requireOutreach(req, true);
+    const templates = await prisma.outreachTemplate.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ name: "asc" }, { createdAt: "asc" }],
+    });
+    return res.json(templates);
+  }),
+);
+
+outreachRouter.post(
+  "/templates",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = templateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await requireOutreach(req, true);
+    const row = await prisma.outreachTemplate.create({
+      data: {
+        eventId: event.id,
+        name: parsed.data.name.trim(),
+        subject: parsed.data.subject.trim(),
+        body: parsed.data.body,
+      },
+    });
+    return res.status(201).json(row);
+  }),
+);
+
+outreachRouter.patch(
+  "/templates/:templateId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = templatePatchSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+    const event = await requireOutreach(req, true);
+    const existing = await loadTemplate(event.id, req.params.templateId);
+    const row = await prisma.outreachTemplate.update({
+      where: { id: existing.id },
+      data: {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
+        ...(parsed.data.subject !== undefined ? { subject: parsed.data.subject.trim() } : {}),
+        ...(parsed.data.body !== undefined ? { body: parsed.data.body } : {}),
+      },
+    });
+    return res.json(row);
+  }),
+);
+
+outreachRouter.delete(
+  "/templates/:templateId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await requireOutreach(req, true);
+    const existing = await loadTemplate(event.id, req.params.templateId);
+    await prisma.outreachTemplate.delete({ where: { id: existing.id } });
+    return res.json({ ok: true });
+  }),
+);
+
+outreachRouter.post(
+  "/prospects/:prospectId/draft",
+  requireAuth,
+  requireCsrf,
+  authRateLimit({
+    ...AUTHENTICATED_AI_CHAT_LIMIT,
+    max: testUnlimitedMax(AUTHENTICATED_AI_CHAT_LIMIT.max),
+  }),
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await requireOutreach(req, true);
+    const prospect = await loadProspect(event.id, req.params.prospectId);
+    const result = await draftOutreachEmail({
+      organizationId: event.organizationId,
+      eventId: event.id,
+      userId: req.user!.id,
+      event: {
+        name: event.name,
+        slug: event.slug,
+        description: event.description,
+        timezone: event.timezone,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        attendeeCap: event.attendeeCap,
+        participantLabelsJson: event.participantLabelsJson,
+      },
+      prospect: {
+        orgName: prospect.orgName,
+        contactName: prospect.contactName,
+        contactEmail: prospect.contactEmail,
+        websiteUrl: prospect.websiteUrl,
+        notes: prospect.notes,
+      },
+    });
+    if (!result.ok) {
+      if (result.code === "CAP_EXCEEDED") {
+        return res.status(402).json({
+          error: result.message,
+          code: "CAP_EXCEEDED",
+          upgrade: result.upgrade,
+        });
+      }
+      return res.status(502).json({ error: result.message || "Could not draft this email", code: result.code });
+    }
+    return res.json(result.draft);
   }),
 );

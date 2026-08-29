@@ -1,5 +1,5 @@
 /**
- * SPX-0 — sponsor outreach pipeline types and CSV dry-run.
+ * SPX-0 / SPX-1 — sponsor outreach pipeline types, CSV dry-run, and composer.
  * UKEDL never sends these emails (DESIGN_PHASE_K D1).
  */
 
@@ -245,4 +245,66 @@ export function dryRunOutreachCsv(opts: {
     rows: changes,
     summary: { creates, errors, skipped },
   };
+}
+
+/** SPX-1 — composer merge fields. Unknown `{tokens}` stay literal. */
+export const OUTREACH_MERGE_FIELDS = [
+  "orgName",
+  "contactName",
+  "eventName",
+  "eventDates",
+  "eventUrl",
+] as const;
+
+export type OutreachMergeField = (typeof OUTREACH_MERGE_FIELDS)[number];
+
+export type OutreachMergeValues = Partial<Record<OutreachMergeField, string | null | undefined>>;
+
+const MERGE_FIELD_SET = new Set<string>(OUTREACH_MERGE_FIELDS);
+
+/**
+ * Replace `{orgName}`-style tokens. Known fields that are missing become "".
+ * Unknown fields (and malformed braces) render literally and never throw.
+ */
+export function resolveOutreachMergeFields(text: string, values: OutreachMergeValues): string {
+  return text.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (match, key: string) => {
+    if (!MERGE_FIELD_SET.has(key)) return match;
+    const value = values[key as OutreachMergeField];
+    return value == null ? "" : String(value);
+  });
+}
+
+export const OUTREACH_STARTER_TEMPLATE_NAME = "Starter ask";
+
+/**
+ * Client-side only — never seeded in the database. Calm, honest sponsor ask.
+ * Organizer edits before saving as a template.
+ */
+export const OUTREACH_STARTER_TEMPLATE = {
+  name: OUTREACH_STARTER_TEMPLATE_NAME,
+  subject: "Would {orgName} consider supporting {eventName}?",
+  body:
+    `Hello {contactName},\n\n` +
+    `I'm writing about {eventName} ({eventDates}). We are looking for a small number of organizations to help make the gathering possible — a direct ask, not a blast.\n\n` +
+    `The public page is {eventUrl}. If this is something {orgName} might consider, I would welcome a short conversation. If the timing is wrong, no need to reply.\n\n` +
+    `Thank you for reading.`,
+};
+
+export const OUTREACH_DOCTRINE =
+  "Sponsors hear from you, not from us. We never send outreach email from this product.";
+
+/** Build a mailto: URL. Subject and body are encodeURIComponent'd (newlines, &, non-ASCII). */
+export function buildOutreachMailto(opts: {
+  to: string;
+  subject: string;
+  body: string;
+  cc?: string | null;
+}): string {
+  const parts = [
+    `subject=${encodeURIComponent(opts.subject)}`,
+    `body=${encodeURIComponent(opts.body)}`,
+  ];
+  const cc = opts.cc?.trim();
+  if (cc) parts.push(`cc=${encodeURIComponent(cc)}`);
+  return `mailto:${opts.to}?${parts.join("&")}`;
 }

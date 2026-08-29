@@ -1,4 +1,5 @@
 export { gatewayChat, gatewayExtract, gatewayEmbed, AI_GENERATED_CHIP_LABEL } from "./gateway";
+export { draftOutreachEmail, outreachEventContext, OUTREACH_DRAFT_SYSTEM } from "./outreach/draft";
 export * from "./matchmaker";
 export * from "./ops";
 export * from "./recap";

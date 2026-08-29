@@ -30,7 +30,10 @@ function readCookie(name: string): string | null {
 
 export function getCsrfToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.sessionStorage.getItem(CSRF_STORAGE_KEY) || readCookie("ep_csrf");
+  // Cookie is the server-compared value. Prefer it so a tab whose
+  // sessionStorage still holds a rotated-away token does not send a stale
+  // X-CSRF-Token. sessionStorage is the fallback for cookie-less contexts.
+  return readCookie("ep_csrf") || window.sessionStorage.getItem(CSRF_STORAGE_KEY);
 }
 
 export function setCsrfToken(token: string | undefined | null) {

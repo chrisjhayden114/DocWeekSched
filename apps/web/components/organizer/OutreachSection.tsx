@@ -1,30 +1,36 @@
 /**
- * SPX-0 — outreach pipeline on the Sponsors page. Draft-and-copy only:
- * we never send email from this product.
+ * SPX-0 / SPX-1 — outreach pipeline + composer on the Sponsors page.
+ * Draft-and-copy only: we never send email from this product.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { brand } from "@event-app/config";
 import {
+  OUTREACH_DOCTRINE,
   SPONSOR_PROSPECT_STATUS_LABEL,
   SPONSOR_PROSPECT_STATUS_ORDER,
+  type OutreachMergeValues,
   type SponsorProspectStatus,
 } from "@event-app/shared";
 import { AutoGrowTextarea } from "../kit";
 import { ListEmpty } from "../ListState";
 import { Select } from "../Select";
+import { formatEventDateRange } from "../../lib/dateFormat";
 import { organizerFetch } from "../../lib/organizerApi";
+import { publicEventUrl } from "../../lib/organizerLinks";
+import { type SponsorProspect } from "../../lib/outreachCompose";
+import { OutreachComposePanel } from "./OutreachComposePanel";
 import { OutreachImportCard } from "./OutreachImportCard";
+import { OutreachTemplatesCard, type OutreachTemplate } from "./OutreachTemplatesCard";
 
-export type SponsorProspect = {
-  id: string;
-  orgName: string;
-  contactName?: string | null;
-  contactEmail?: string | null;
-  websiteUrl?: string | null;
-  notes?: string | null;
-  status: SponsorProspectStatus;
-  lastContactedAt?: string | null;
-  sponsorId?: string | null;
+export type { SponsorProspect };
+
+type EventLite = {
+  name?: string;
+  slug?: string;
+  startDate?: string;
+  endDate?: string;
+  timezone?: string;
 };
 
 const STATUS_OPTIONS = SPONSOR_PROSPECT_STATUS_ORDER.map((value) => ({
@@ -34,17 +40,45 @@ const STATUS_OPTIONS = SPONSOR_PROSPECT_STATUS_ORDER.map((value) => ({
 
 export function OutreachSection({ eventId }: { eventId: string }) {
   const [prospects, setProspects] = useState<SponsorProspect[]>([]);
+  const [templates, setTemplates] = useState<OutreachTemplate[]>([]);
+  const [eventLite, setEventLite] = useState<EventLite | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [addingSponsorId, setAddingSponsorId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+  const [composingId, setComposingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const rows = await organizerFetch<SponsorProspect[]>("/outreach/prospects", eventId);
+    const [rows, saved, event] = await Promise.all([
+      organizerFetch<SponsorProspect[]>("/outreach/prospects", eventId),
+      organizerFetch<OutreachTemplate[]>("/outreach/templates", eventId),
+      organizerFetch<EventLite>("/event/", eventId).catch(() => null),
+    ]);
     setProspects(rows);
+    setTemplates(saved);
+    if (event) setEventLite(event);
     setNotesDraft(Object.fromEntries(rows.map((r) => [r.id, r.notes || ""])));
     setError(null);
   }, [eventId]);
+
+  const loadTemplates = useCallback(async () => {
+    const saved = await organizerFetch<OutreachTemplate[]>("/outreach/templates", eventId);
+    setTemplates(saved);
+  }, [eventId]);
+
+  const mergeValuesFor = useCallback(
+    (row: SponsorProspect): OutreachMergeValues => ({
+      orgName: row.orgName,
+      contactName: row.contactName || "",
+      eventName: eventLite?.name || "",
+      eventDates:
+        eventLite?.startDate && eventLite?.endDate
+          ? formatEventDateRange(eventLite.startDate, eventLite.endDate, eventLite.timezone || "UTC")
+          : "",
+      eventUrl: eventLite?.slug ? `${brand.primaryUrl}${publicEventUrl(eventLite.slug)}` : "",
+    }),
+    [eventLite],
+  );
 
   useEffect(() => {
     void load().catch((e) => {
@@ -120,8 +154,7 @@ export function OutreachSection({ eventId }: { eventId: string }) {
         Outreach
       </h2>
       <p className="help-text" style={{ marginTop: 0 }}>
-        Sponsors hear from you, not from us. Track who you want to ask; write and send from your
-        own address. We never send outreach email from this product.
+        {OUTREACH_DOCTRINE} Track who you want to ask; write and send from your own address.
       </p>
       {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
@@ -159,11 +192,12 @@ export function OutreachSection({ eventId }: { eventId: string }) {
       </form>
 
       <OutreachImportCard eventId={eventId} onImported={load} />
+      <OutreachTemplatesCard eventId={eventId} templates={templates} onChanged={loadTemplates} />
 
       {prospects.length === 0 ? (
         <ListEmpty
           title="No prospects yet"
-          body="Add an organization above, or import a spreadsheet. When you are ready to write, you send from your own inbox — we do not mail these for you. A draft-and-copy composer is next."
+          body="Add an organization above, or import a spreadsheet. When you are ready to write, use Write email on a row — you send from your own inbox."
         />
       ) : (
         grouped.map(({ status, rows }) => (
@@ -190,7 +224,8 @@ export function OutreachSection({ eventId }: { eventId: string }) {
                   </thead>
                   <tbody>
                     {rows.map((row) => (
-                      <tr key={row.id}>
+                      <Fragment key={row.id}>
+                      <tr>
                         <td>
                           <strong>{row.orgName}</strong>
                           {row.websiteUrl ? (
@@ -236,22 +271,49 @@ export function OutreachSection({ eventId }: { eventId: string }) {
                           />
                         </td>
                         <td>
-                          {row.status === "CONFIRMED" ? (
-                            row.sponsorId ? (
-                              <span className="help-text">Added as sponsor</span>
-                            ) : (
-                              <button
-                                type="button"
-                                className="button secondary"
-                                disabled={addingSponsorId === row.id}
-                                onClick={() => void addAsSponsor(row.id)}
-                              >
-                                Add as sponsor
-                              </button>
-                            )
-                          ) : null}
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <button
+                              type="button"
+                              className="button secondary"
+                              onClick={() => setComposingId((id) => (id === row.id ? null : row.id))}
+                            >
+                              Write email
+                            </button>
+                            {row.status === "CONFIRMED" ? (
+                              row.sponsorId ? (
+                                <span className="help-text">Added as sponsor</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="button secondary"
+                                  disabled={addingSponsorId === row.id}
+                                  onClick={() => void addAsSponsor(row.id)}
+                                >
+                                  Add as sponsor
+                                </button>
+                              )
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
+                      {composingId === row.id ? (
+                        <tr>
+                          <td colSpan={5}>
+                            <OutreachComposePanel
+                              eventId={eventId}
+                              prospect={row}
+                              templates={templates}
+                              mergeValues={mergeValuesFor(row)}
+                              onClose={() => setComposingId(null)}
+                              onMarkedContacted={(updated) => {
+                                setProspects((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
+                                setComposingId(null);
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

@@ -243,9 +243,9 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
     whatItDoes:
       "Sponsor outreach is a private pipeline of organizations you may ask to support this event. You add prospects by hand or from a spreadsheet, then move them through To contact, Contacted, In conversation, Confirmed, or Declined. UKEDL never sends the email — there is no bulk send, no open tracking, and no sequence. When someone confirms, you can add them as a sponsor so their logo can appear with the rest.",
     experience:
-      "Organizers use it on the Sponsors page, in the Outreach section above the confirmed-sponsor list. Each row has a status, notes, and an optional contact. A confirmed row can become a sponsor in one click (name and website only). Attendees never see this list.",
+      "Organizers use it on the Sponsors page, in the Outreach section above the confirmed-sponsor list. Each row has a status, notes, Write email (a draft you open in your own mail app or copy), and an optional contact. Templates live on that page; a starter ask is offered on first compose and is not stored until you save one. Attendees never see this list.",
     goodToKnow:
-      "This needs Sponsors to be on, and it is included on the same plans as Sponsors. Free is capped at 25 prospects per event; paid plans have no cap. Turning it off hides the pipeline; the rows stay. We never send outreach from our domain — you write and send from your own address.",
+      "This needs Sponsors to be on, and it is included on the same plans as Sponsors. Free is capped at 25 prospects per event; paid plans have no cap. Turning it off hides the pipeline; the rows stay. We never send outreach from our domain — you write and send from your own address, and Draft with AI is metered, review-only, and never auto-sent.",
   },
   checkin: {
     whatItDoes:

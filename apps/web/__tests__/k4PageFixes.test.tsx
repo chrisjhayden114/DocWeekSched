@@ -171,6 +171,16 @@ describe("K-4 — feature gate renders empty-state, not the form", () => {
         });
       }
       if (path === "/outreach/prospects") return Promise.resolve([]);
+      if (path === "/outreach/templates") return Promise.resolve([]);
+      if (path === "/event/" || path === "/event") {
+        return Promise.resolve({
+          name: "Northbridge",
+          slug: "northbridge",
+          startDate: "2026-09-01T09:00:00Z",
+          endDate: "2026-09-02T17:00:00Z",
+          timezone: "UTC",
+        });
+      }
       return Promise.resolve({
         headers: [],
         mapping: {},

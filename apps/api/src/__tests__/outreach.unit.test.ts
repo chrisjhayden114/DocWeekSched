@@ -1,17 +1,23 @@
 /**
- * SPX-0 — sponsor outreach pipeline (pure). UKEDL never sends these emails.
+ * SPX-0 / SPX-1 — sponsor outreach pipeline + composer (pure).
+ * UKEDL never sends these emails.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import {
+  buildOutreachMailto,
   dryRunOutreachCsv,
   lastContactedAtForStatusChange,
+  OUTREACH_STARTER_TEMPLATE,
   PLAN_BY_SKU,
+  resolveOutreachMergeFields,
   suggestOutreachCsvMapping,
 } from "@event-app/shared";
 import { FEATURE_BY_KEY } from "../lib/features/registry";
+import { draftOutreachEmail, outreachEventContext } from "../lib/ai/outreach/draft";
+import { MockAiProvider, resetAiProviderForTests } from "../lib/ai";
 
 describe("SPX-0 — feature + plan catalog", () => {
   it("registers sponsor_outreach under Sponsors, same tier, default on", () => {
@@ -148,6 +154,133 @@ describe("SPX-0 — migration is additive", () => {
     expect(sql).not.toMatch(/\bRENAME\b/);
     expect(sql).not.toMatch(/ALTER TABLE "Event"/);
     expect(sql).not.toMatch(/ALTER TABLE "Sponsor"/);
+    expect(sql).not.toMatch(/^\s*ALLOW_DESTRUCTIVE_DB/m);
+  });
+});
+
+describe("SPX-1 — merge fields + mailto", () => {
+  const values = {
+    orgName: "Acme Labs",
+    contactName: "Jordan Lee",
+    eventName: "Northbridge",
+    eventDates: "Sep 1–2",
+    eventUrl: "https://ukedl.com/e/northbridge",
+  };
+
+  it("resolves known fields; missing contactName is empty; unknown stays literal", () => {
+    expect(resolveOutreachMergeFields("Hi {contactName} at {orgName}", values)).toBe(
+      "Hi Jordan Lee at Acme Labs",
+    );
+    expect(resolveOutreachMergeFields("Hello {contactName},", { ...values, contactName: undefined })).toBe(
+      "Hello ,",
+    );
+    expect(resolveOutreachMergeFields("Keep {notAField} and {orgName}", values)).toBe(
+      "Keep {notAField} and Acme Labs",
+    );
+    expect(resolveOutreachMergeFields(OUTREACH_STARTER_TEMPLATE.subject, values)).toContain("Acme Labs");
+  });
+
+  it("encodes newlines, ampersands, and non-ASCII org names in mailto", () => {
+    const href = buildOutreachMailto({
+      to: "pat@school.example",
+      cc: "me@ukedl.com",
+      subject: "Ask: München & Friends",
+      body: "Line 1\nLine 2 & more\n株式会社北橋",
+    });
+    expect(href).toContain(`subject=${encodeURIComponent("Ask: München & Friends")}`);
+    expect(href).toContain(`body=${encodeURIComponent("Line 1\nLine 2 & more\n株式会社北橋")}`);
+    expect(href).toContain("%0A");
+    expect(href).toContain("%26");
+    expect(href).toContain(encodeURIComponent("株式会社北橋"));
+  });
+});
+
+describe("SPX-1 — OUTREACH_DRAFT metering + gate", () => {
+  beforeEach(() => {
+    process.env.AI_PROVIDER = "mock";
+    resetAiProviderForTests(new MockAiProvider());
+  });
+
+  it("draftOutreachEmail uses the OUTREACH_DRAFT meter kind", async () => {
+    const src = readFileSync(resolve(__dirname, "../lib/ai/outreach/draft.ts"), "utf8");
+    expect(src).toMatch(/feature:\s*"OUTREACH_DRAFT"/);
+    expect(src).toMatch(/never send/i);
+
+    const result = await draftOutreachEmail({
+      organizationId: "org_test",
+      eventId: "evt_test",
+      userId: "user_test",
+      skipCap: true,
+      skipMetering: true,
+      skipAudit: true,
+      event: {
+        name: "Northbridge Conference",
+        slug: "northbridge",
+        description: "A regional conference for school leaders.",
+        timezone: "UTC",
+        startDate: new Date("2027-09-01T09:00:00Z"),
+        endDate: new Date("2027-09-02T17:00:00Z"),
+        attendeeCap: 250,
+        participantLabelsJson: '["Faculty"]',
+      },
+      prospect: {
+        orgName: "Acme Labs",
+        contactName: "Jordan Lee",
+        contactEmail: "j@acme.edu",
+        websiteUrl: "https://acme.edu",
+        notes: null,
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.draft.subject.length).toBeGreaterThan(0);
+      expect(result.draft.body).toMatch(/Acme Labs|Northbridge/);
+      expect(result.draft.aiGenerated).toBe(true);
+      expect(result.draft.metered).toBe(false);
+    }
+  });
+
+  it("event context includes name, dates, type, description, audience", () => {
+    const ctx = outreachEventContext({
+      name: "Northbridge Conference",
+      slug: "northbridge",
+      description: "A regional conference for school leaders.",
+      timezone: "UTC",
+      startDate: new Date("2027-09-01T09:00:00Z"),
+      endDate: new Date("2027-09-02T17:00:00Z"),
+      attendeeCap: 250,
+      participantLabelsJson: '["Faculty"]',
+    });
+    expect(ctx.name).toBe("Northbridge Conference");
+    expect(ctx.dates).toMatch(/2027/);
+    expect(ctx.type.toLowerCase()).toMatch(/conference/);
+    expect(ctx.description).toMatch(/school leaders/);
+    expect(ctx.audience).toMatch(/250/);
+    expect(ctx.audience).toMatch(/Faculty/);
+    expect(ctx.url).toMatch(/\/e\/northbridge$/);
+  });
+
+  it("schema and route wire OUTREACH_DRAFT; templates/draft are feature-gated", () => {
+    const schema = readFileSync(resolve(__dirname, "../../prisma/schema.prisma"), "utf8");
+    expect(schema).toMatch(/OUTREACH_DRAFT/);
+    const routes = readFileSync(resolve(__dirname, "../routes/outreach.ts"), "utf8");
+    expect(routes).toMatch(/\/templates/);
+    expect(routes).toMatch(/\/prospects\/:prospectId\/draft/);
+    expect(routes).toMatch(/AUTHENTICATED_AI_CHAT_LIMIT/);
+    expect(routes).toMatch(/requireOutreach/);
+    expect(routes).toMatch(/draftOutreachEmail/);
+    expect(routes).not.toMatch(/resend/i);
+    const caps = readFileSync(resolve(__dirname, "../lib/ai/caps.ts"), "utf8");
+    expect(caps).not.toMatch(/OUTREACH_DRAFT/);
+  });
+
+  it("ADD VALUE isolation for OUTREACH_DRAFT", () => {
+    const sql = readFileSync(
+      resolve(__dirname, "../../prisma/migrations/20260828210000_spx1_outreach_draft/migration.sql"),
+      "utf8",
+    );
+    expect(sql).toMatch(/ALTER TYPE "AiMeterFeature" ADD VALUE IF NOT EXISTS 'OUTREACH_DRAFT'/);
+    expect(sql.replace(/--.*$/gm, "")).not.toMatch(/INSERT|UPDATE|CREATE TABLE|DROP|RENAME/i);
     expect(sql).not.toMatch(/^\s*ALLOW_DESTRUCTIVE_DB/m);
   });
 });

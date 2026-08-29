@@ -226,5 +226,5 @@ export const LIVE_FEATURE_IMPACT: Partial<Record<FeatureKey, string>> = {
   session_qa: "Session Q&A is hidden; existing threads are preserved.",
   session_likes: "Likes stop appearing; existing like counts are preserved.",
   venue_maps: "Venue maps are hidden; floor plans are preserved.",
-  sponsor_outreach: "The outreach pipeline is hidden; existing prospects stay.",
+  sponsor_outreach: "The outreach pipeline is hidden; existing prospects and templates stay.",
 };

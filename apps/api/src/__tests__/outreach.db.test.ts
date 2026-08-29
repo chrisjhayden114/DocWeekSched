@@ -1,10 +1,11 @@
 /**
- * SPX-0 — sponsor outreach pipeline against the real routes.
+ * SPX-0 / SPX-1 — sponsor outreach pipeline + composer against the real routes.
  * Does NOT set ALLOW_DESTRUCTIVE_DB.
  *
  * UKEDL never sends these emails. This suite asserts the pipeline contract:
  * limit, import dedupe, CONTACTED stamps lastContactedAt, add-as-sponsor is
- * idempotent, and the feature gate 404s when outreach is off.
+ * idempotent, template CRUD, OUTREACH_DRAFT metering, and the feature gate
+ * 404s when outreach is off.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -25,6 +26,7 @@ import { hashPassword, signToken } from "../lib/auth";
 import { upsertFeatureOverrides } from "../lib/features";
 import { assertOutreachProspectCap } from "../lib/billing/entitlements";
 import { outreachRouter } from "../routes/outreach";
+import { MockAiProvider, resetAiProviderForTests } from "../lib/ai";
 
 type Prospect = {
   id: string;
@@ -72,6 +74,8 @@ describe("sponsor outreach (DB, SPX-0)", () => {
   } = {};
 
   beforeAll(async () => {
+    process.env.AI_PROVIDER = "mock";
+    resetAiProviderForTests(new MockAiProvider());
     const passwordHash = await hashPassword("TestPass12!x");
     const admin = await prisma.user.create({
       data: {
@@ -205,6 +209,17 @@ describe("sponsor outreach (DB, SPX-0)", () => {
     expect(created.status).toBe(404);
     expect(created.body.error).toMatch(/not available/i);
     expect(await prisma.sponsorProspect.count({ where: { eventId: ids.eventId } })).toBe(0);
+
+    const templates = await fetch(`${base}/outreach/templates`, {
+      method: "POST",
+      headers: headers(ids.eventId!),
+      body: JSON.stringify({ name: "Nope", subject: "Hi", body: "Hello" }),
+    });
+    expect(templates.status).toBe(404);
+    const list = await fetch(`${base}/outreach/templates`, { headers: headers(ids.eventId!) });
+    expect(list.status).toBe(404);
+    expect(await prisma.outreachTemplate.count({ where: { eventId: ids.eventId } })).toBe(0);
+
     await upsertFeatureOverrides(ids.eventId!, { sponsors: true, sponsor_outreach: true });
   }, 60_000);
 
@@ -317,5 +332,73 @@ describe("sponsor outreach (DB, SPX-0)", () => {
       },
     });
     expect(await prisma.sponsorProspect.count({ where: { eventId } })).toBe(cap);
+  }, 60_000);
+
+  it("templates CRUD does not seed a starter row", async () => {
+    const listed = await fetch(`${base}/outreach/templates`, { headers: headers(ids.eventId!) });
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual([]);
+
+    const created = await fetch(`${base}/outreach/templates`, {
+      method: "POST",
+      headers: headers(ids.eventId!),
+      body: JSON.stringify({
+        name: "Ask",
+        subject: "Would {orgName} help {eventName}?",
+        body: "Hello {contactName}",
+      }),
+    });
+    expect(created.status).toBe(201);
+    const row = (await created.json()) as { id: string; subject: string };
+    expect(row.subject).toContain("{orgName}");
+
+    const patched = await fetch(`${base}/outreach/templates/${row.id}`, {
+      method: "PATCH",
+      headers: headers(ids.eventId!),
+      body: JSON.stringify({ name: "Ask v2" }),
+    });
+    expect(patched.status).toBe(200);
+    expect(((await patched.json()) as { name: string }).name).toBe("Ask v2");
+
+    const del = await fetch(`${base}/outreach/templates/${row.id}`, {
+      method: "DELETE",
+      headers: headers(ids.eventId!),
+    });
+    expect(del.status).toBe(200);
+    expect(await prisma.outreachTemplate.count({ where: { eventId: ids.eventId } })).toBe(0);
+  }, 60_000);
+
+  it("OUTREACH_DRAFT is metered and 404s when the gate is off", async () => {
+    resetAiProviderForTests(new MockAiProvider());
+    const prospect = await create({
+      orgName: `Draft Co ${stamp}`,
+      contactName: "Jordan",
+      contactEmail: "j@draft.example",
+    });
+    expect(prospect.status).toBe(201);
+
+    const before = await prisma.aiUsageRecord.count({
+      where: { eventId: ids.eventId, feature: "OUTREACH_DRAFT" },
+    });
+    const drafted = await fetch(`${base}/outreach/prospects/${prospect.body.id}/draft`, {
+      method: "POST",
+      headers: headers(ids.eventId!),
+    });
+    expect(drafted.status).toBe(200);
+    const body = (await drafted.json()) as { subject?: string; body?: string; aiGenerated?: boolean };
+    expect(body.subject).toBeTruthy();
+    expect(body.body).toBeTruthy();
+    expect(body.aiGenerated).toBe(true);
+    expect(await prisma.aiUsageRecord.count({
+      where: { eventId: ids.eventId, feature: "OUTREACH_DRAFT" },
+    })).toBe(before + 1);
+
+    await upsertFeatureOverrides(ids.eventId!, { sponsors: true, sponsor_outreach: false });
+    const blocked = await fetch(`${base}/outreach/prospects/${prospect.body.id}/draft`, {
+      method: "POST",
+      headers: headers(ids.eventId!),
+    });
+    expect(blocked.status).toBe(404);
+    await upsertFeatureOverrides(ids.eventId!, { sponsors: true, sponsor_outreach: true });
   }, 60_000);
 });
