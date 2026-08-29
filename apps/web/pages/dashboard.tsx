@@ -4079,6 +4079,7 @@ function CommunityBoard({
         error={composeError}
         expanded={composeOpen}
         onExpandedChange={setComposeOpen}
+        requireTitle={false}
         allowEmptySubmit={composeChannel === "MOMENTS" && (momentImageUrls.length > 0 || momentImageUrlInput.trim().length > 0)}
         onSubmit={createThread}
       >
@@ -4410,6 +4411,31 @@ function CommunityBoard({
             const taggedNames = (t.taggedUserIds ?? []).map((id) => nameById[id]).filter(Boolean);
             const meetupNames = (t.meetupParticipantIds ?? []).map((id) => nameById[id]).filter(Boolean);
             const replyCount = t.replies?.length ?? 0;
+            const hasTitle = Boolean(t.title?.trim());
+            const hasBody = Boolean(t.body?.trim());
+            const photoFirst = !hasTitle && gallery.length > 0;
+            const galleryEl =
+              gallery.length > 0
+                ? (() => {
+                    const { shown, extra, gridCount } = galleryPreview(gallery, 4);
+                    return (
+                      <div className="moments-grid" data-count={gridCount}>
+                        {shown.map((src, i) => (
+                          <button
+                            type="button"
+                            key={src.slice(0, 48)}
+                            className="moments-tile"
+                            aria-label={`View photo ${i + 1} of ${gallery.length}`}
+                            onClick={() => setLightbox({ images: gallery, index: i })}
+                          >
+                            <img src={src} alt="" loading="lazy" />
+                            {i === 3 && extra > 0 ? <span className="moments-tile-more" aria-hidden>+{extra}</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()
+                : null;
             let audienceLabel: string | null = null;
             if (t.audienceType && t.audienceType !== "EVERYONE") {
               if (t.audienceType === "SESSION") {
@@ -4432,6 +4458,8 @@ function CommunityBoard({
                       ? `last reply ${formatRelativeTime(lastReply.createdAt)}`
                       : `started ${formatRelativeTime(t.createdAt)}`
                   }`}
+                  photoFirst={photoFirst}
+                  media={photoFirst ? galleryEl : undefined}
                   pill={
                     ch === "MEETUP" && t.meetupStartsAt
                       ? { label: formatEventDateTime(t.meetupStartsAt), tone: "primary" }
@@ -4475,8 +4503,8 @@ function CommunityBoard({
                         await onThreadsUpdated();
                       }}
                     >
-                      <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
-                      <AutoGrowTextarea className="textarea" minRows={4} value={editBody} onChange={(e) => setEditBody(e.target.value)} required />
+                      <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title" />
+                      <AutoGrowTextarea className="textarea" minRows={4} value={editBody} onChange={(e) => setEditBody(e.target.value)} placeholder="Description" />
                       <div style={{ display: "flex", gap: 8 }}>
                         <button className="button" type="submit">
                           Save post
@@ -4488,33 +4516,19 @@ function CommunityBoard({
                     </form>
                   ) : (
                     <>
-                      <h4 className="community-thread-title">{t.title}</h4>
-                      {open ? (
-                        <p style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{t.body}</p>
-                      ) : (
-                        <p className="community-thread-desc">{t.body}</p>
-                      )}
+                      {hasTitle ? <h4 className="community-thread-title">{t.title}</h4> : null}
+                      {hasBody ? (
+                        open ? (
+                          <p style={{ margin: hasTitle ? "4px 0 0" : 0, whiteSpace: "pre-wrap" }}>{t.body}</p>
+                        ) : (
+                          <p className="community-thread-desc" style={hasTitle ? undefined : { margin: 0 }}>
+                            {t.body}
+                          </p>
+                        )
+                      ) : null}
                     </>
                   )}
-                  {gallery.length > 0 && (() => {
-                    const { shown, extra, gridCount } = galleryPreview(gallery, 4);
-                    return (
-                      <div className="moments-grid" data-count={gridCount}>
-                        {shown.map((src, i) => (
-                          <button
-                            type="button"
-                            key={src.slice(0, 48)}
-                            className="moments-tile"
-                            aria-label={`View photo ${i + 1} of ${gallery.length}`}
-                            onClick={() => setLightbox({ images: gallery, index: i })}
-                          >
-                            <img src={src} alt="" loading="lazy" />
-                            {i === 3 && extra > 0 ? <span className="moments-tile-more" aria-hidden>+{extra}</span> : null}
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })()}
+                  {!photoFirst ? galleryEl : null}
                   {ch === "MEETUP" && (
                     <div className="community-thread-foot">
                       {t.meetupInviteEveryone

@@ -60,6 +60,12 @@ describe("F3.1 — Community leads with the feed, composing is on demand", () =>
     expect(boardSrc).not.toContain("window.alert(");
     expect(boardSrc).toContain("setComposeError");
   });
+
+  it("K-6: Moments posts accept title-only, body-only, or photos; untitled cards are photo-first", () => {
+    expect(boardSrc).toContain("requireTitle={false}");
+    expect(boardSrc).toContain("photoFirst={photoFirst}");
+    expect(boardSrc).toContain("hasTitle ? <h4 className=\"community-thread-title\">{t.title}</h4> : null");
+  });
 });
 
 describe("F3.2 — session Q&A leads with the threads", () => {

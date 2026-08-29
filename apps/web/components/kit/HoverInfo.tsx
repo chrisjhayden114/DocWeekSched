@@ -278,7 +278,7 @@ export function HoverInfo({
           >
             {hasImage ? (
               <div className="hover-info-art" aria-hidden>
-                {imageSrc ? <img className="hover-info-image" src={imageSrc} alt="" /> : image}
+                {imageSrc ? <img className="hover-info-image" src={imageSrc} alt="" loading="lazy" /> : image}
               </div>
             ) : null}
             <div className="hover-info-inner">

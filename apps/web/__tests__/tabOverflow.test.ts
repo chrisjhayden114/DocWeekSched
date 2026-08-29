@@ -87,6 +87,63 @@ describe("planTabOverflow", () => {
     expect(after.overflowIds.length).toBeGreaterThan(before.overflowIds.length);
   });
 
+  it("K-6: alwaysOverflow ids stay in More even when the row would fit", () => {
+    const plan = planTabOverflow({
+      ids: IDS,
+      widths: widths(80),
+      available: 2000,
+      moreWidth: 72,
+      activeId: "overview",
+      gap: 12,
+      alwaysOverflowIds: ["ops", "recap"],
+    });
+    expect(plan.visibleIds).toEqual(IDS.filter((id) => id !== "ops" && id !== "recap"));
+    expect(plan.overflowIds).toEqual(["ops", "recap"]);
+  });
+
+  it("K-6: further measured overflow is appended after the always-More tabs", () => {
+    const plan = planTabOverflow({
+      ids: ["overview", "program", "people", "readiness", "invites", "maps", "announcements", "features", "ops", "recap"] as const,
+      widths: {
+        overview: 80,
+        program: 80,
+        people: 80,
+        readiness: 80,
+        invites: 80,
+        maps: 80,
+        announcements: 80,
+        features: 80,
+        ops: 80,
+        recap: 80,
+      },
+      available: 500,
+      moreWidth: 72,
+      activeId: "overview",
+      gap: 12,
+      alwaysOverflowIds: ["ops", "recap"],
+    });
+    // Budget after More = 500 − 72 − 12 = 416 → 4 tabs (80×4 + 12×3 = 356)
+    expect(plan.visibleIds).toEqual(["overview", "program", "people", "readiness"]);
+    expect(plan.overflowIds[0]).toBe("ops");
+    expect(plan.overflowIds[1]).toBe("recap");
+    expect(plan.overflowIds.slice(2)).toEqual(["invites", "maps", "announcements", "features"]);
+  });
+
+  it("K-6: active-tab-always-visible still swaps a pinned More tab onto the strip", () => {
+    const plan = planTabOverflow({
+      ids: IDS,
+      widths: widths(80),
+      available: 2000,
+      moreWidth: 72,
+      activeId: "recap",
+      gap: 12,
+      alwaysOverflowIds: ["ops", "recap"],
+    });
+    expect(plan.visibleIds).toContain("recap");
+    expect(plan.overflowIds).not.toContain("recap");
+    expect(plan.overflowIds[0]).toBe("ops");
+  });
+
   it("keeps at least the active tab when nothing else fits beside More", () => {
     const plan = planTabOverflow({
       ids: IDS,

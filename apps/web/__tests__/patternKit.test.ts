@@ -69,6 +69,7 @@ describe("F1 — Composer collapse/expand contract", () => {
     expect(composerCanSubmit(composerInitialState)).toBe(false);
     expect(composerCanSubmit({ expanded: true, value: "   ", title: "" })).toBe(false);
     expect(composerCanSubmit({ expanded: true, value: "hi", title: "" })).toBe(true);
+    expect(composerCanSubmit({ expanded: true, value: "", title: "Title only" })).toBe(true);
     expect(composerCanSubmit({ expanded: false, value: "hi", title: "" })).toBe(false);
   });
 

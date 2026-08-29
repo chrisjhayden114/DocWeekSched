@@ -20,10 +20,15 @@ export type ComposerProps = {
   busy?: boolean;
   /**
    * F3: renders a headline input above the body (community posts, Q&A
-   * questions). When set, submit also requires a non-blank title and
-   * onSubmit receives it.
+   * questions). When set, onSubmit receives the title. Title is required
+   * only when `requireTitle` is true (default: a title field is showing).
    */
   titlePlaceholder?: string;
+  /**
+   * Community posts accept title-only, body-only, or photos (`allowEmptySubmit`).
+   * Session Q&A still requires both a title and a body.
+   */
+  requireTitle?: boolean;
   /**
    * F3: inline error from the caller (validation or a failed send) —
    * rendered inside the panel, never window.alert.
@@ -65,6 +70,7 @@ export function Composer({
   rows = 3,
   busy,
   titlePlaceholder,
+  requireTitle: requireTitleProp,
   error,
   children,
   expanded: expandedProp,
@@ -103,7 +109,7 @@ export function Composer({
     wasExpanded.current = state.expanded;
   }, [state.expanded]);
 
-  const requireTitle = Boolean(titlePlaceholder);
+  const requireTitle = requireTitleProp ?? Boolean(titlePlaceholder);
 
   const submit = async () => {
     if (busy || !composerCanSubmit(state, { requireTitle, allowEmpty: allowEmptySubmit })) return;

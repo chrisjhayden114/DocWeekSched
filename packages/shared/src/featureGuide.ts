@@ -26,6 +26,7 @@ export const FEATURE_GUIDE_CATEGORY_LABEL: Record<FeatureCategory, string> = {
 
 export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
   community: {
+    imageSrc: "/feature-guide/community.png",
     whatItDoes:
       "Community is the shared event board: attendees post threads and reply in public channels, not in private chats. Anyone on the roster can post; organizers can edit or delete threads and replies. Unlike Messages, there is no in-thread Report control on Community posts — organizers moderate by editing or deleting. The parent toggle is the master gate: turning it off also turns off every Community channel.",
     experience:
@@ -34,24 +35,27 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "Community is on by default and included on every plan. Turning it off hides the tab immediately; existing posts stay in the database and return if you turn it back on. Meet-ups, Moments, Local tips, Ice-breakers, and the General board all require Community to be on.",
   },
   community_meetups: {
+    imageSrc: "/feature-guide/community_meetups.png",
     whatItDoes:
-      "Meet-ups is the Community channel for proposing an in-person or virtual gathering. A post needs a title and body, a format, and either a named guest list or an invite to everyone. Virtual meet-ups also require a meeting URL. Notifications go to the invited people, or to the whole roster when you invite everyone.",
+      "Meet-ups is the Community channel for proposing an in-person or virtual gathering. A post needs a title, a description, or a photo (at least one), plus a format and either a named guest list or an invite to everyone. Virtual meet-ups also require a meeting URL. Notifications go to the invited people, or to the whole roster when you invite everyone.",
     experience:
       "Attendees pick the Meet-ups pill on the Community tab, then fill in format, optional start time, and who to invite. The feed shows invite scope, format, time, and the virtual link when there is one. Organizers see the same channel and can delete a post like any other Community thread.",
     goodToKnow:
       "On by default, but it cannot run without Community. The Focused, PD day, and Talk showcase presets turn it off. Hiding the channel leaves existing meet-up posts in place; they reappear if you turn it back on.",
   },
   community_moments: {
+    imageSrc: "/feature-guide/community_moments.jpg",
     whatItDoes:
-      "Moments is the Community photo channel. A post can be photos, a caption, or both — unlike other channels it does not require a title and body. You can attach up to twelve images and optionally tag people who are on the roster. Images are stored on the thread and open in a lightbox from the feed.",
+      "Moments is the Community photo channel. A post can be photos only, a title only, or a description only — at least one of the three is required. You can attach up to twelve images and optionally tag people who are on the roster. Images are stored on the thread and open in a lightbox from the feed.",
     experience:
       "Attendees pick the Moments pill, add a caption, tag people, and upload photos or paste image URLs. The feed shows a photo grid; tagged names sit under the post. Organizers moderate by editing or deleting the thread.",
     goodToKnow:
       "On by default, and it requires Community. The Academic and PD day presets turn photo sharing off; Talk showcase leaves it on. Turning it off hides the channel; existing photo posts are preserved.",
   },
   community_local: {
+    imageSrc: "/feature-guide/community_local.png",
     whatItDoes:
-      "Local recommendations is the Community channel for nearby places to eat, walk, or explore. A post needs a title and body, and it is the only channel that stores an optional maps URL (up to 4,000 characters). There is no guest-list targeting — local tips are always event-wide.",
+      "Local recommendations is the Community channel for nearby places to eat, walk, or explore. A post needs a title, a description, or a photo (at least one), and it is the only channel that stores an optional maps URL (up to 4,000 characters). There is no guest-list targeting — local tips are always event-wide.",
     experience:
       "Attendees pick the Local tips pill and can add a Maps link; a helper opens Google Maps search in a new tab. Posts with a link show Open in Google Maps on the feed. Organizers see the same channel.",
     goodToKnow:
@@ -66,6 +70,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default, and it requires Community. The Focused preset turns it off. Existing ice-breaker posts stay if you hide the channel. The carousel cannot start a chat if Direct messages is off.",
   },
   community_general: {
+    imageSrc: "/feature-guide/community_general.png",
     whatItDoes:
       "The General board is the open Community channel for posts that do not fit a special channel. It is the default when a channel is omitted, and the only channel with audience targeting: everyone, a session, a track, or named people. Targeted posts are hidden from people outside that audience; the author and event managers still see them.",
     experience:

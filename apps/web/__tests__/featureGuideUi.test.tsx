@@ -146,4 +146,49 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
     expect(src).not.toMatch(/HoverInfo[^>]*appearsIn/);
     expect(src).not.toMatch(/HoverInfo[^>]*body=\{f\.plainDescription\}/);
   });
+
+  it("the feature-guide page renders imageSrc with lazy loading, else category art", () => {
+    const page = read("pages", "help", "feature-guide.tsx");
+    expect(page).toContain("guide.imageSrc");
+    expect(page).toContain('loading="lazy"');
+    expect(page).toContain("<FeatureArt category={group.category} />");
+  });
+});
+
+describe("K-6 — feature card + carousel CSS", () => {
+  const globalsCss = readFileSync(join(__dirname, "..", "styles", "globals.css"), "utf8");
+
+  function blockBody(css: string, start: number): string {
+    const open = css.indexOf("{", start);
+    let depth = 0;
+    for (let i = open; i < css.length; i += 1) {
+      if (css[i] === "{") depth += 1;
+      else if (css[i] === "}") {
+        depth -= 1;
+        if (depth === 0) return css.slice(open + 1, i);
+      }
+    }
+    throw new Error("Unbalanced braces");
+  }
+
+  function rule(selector: string): string {
+    const at = globalsCss.indexOf(`\n${selector} {`);
+    expect(at, `${selector} must exist`).toBeGreaterThan(-1);
+    return blockBody(globalsCss, at);
+  }
+
+  it("caps the preview image at ~150px and the card at ~480px so title, body, and footer stay visible", () => {
+    expect(rule(".hover-info-art")).toContain("150px");
+    expect(rule(".hover-info-popover")).toContain("max-height: 480px");
+    expect(rule(".hover-info-title")).toContain("overflow: visible");
+    expect(rule(".hover-info-body")).toContain("calc(15px * 1.5 * 6)");
+    expect(rule(".hover-info-action")).toContain("flex: 0 0 auto");
+  });
+
+  it("the icebreaker carousel is a fixed viewport with internal scroll", () => {
+    expect(rule(".break-ice")).toContain("min-width: 0");
+    expect(rule(".break-ice-carousel")).toContain("overflow-x: hidden");
+    expect(rule(".break-ice-track")).toContain("overflow-x: auto");
+    expect(rule(".shell-content")).toContain("min-width: 0");
+  });
 });

@@ -10,28 +10,31 @@ import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { featureKeyForNetworkChannel, requireFeature, featureEnabled } from "../lib/features";
 import { authorOrDeleted } from "../lib/authorDisplay";
 import { threadVisibleTo } from "../lib/threadAudience";
+import { COMMUNITY_THREAD_EMPTY_ERROR, communityThreadHasContent } from "../lib/communityThread";
 import { validationErrorBody } from "../lib/errors";
 
 export const networkRouter = Router();
 
-const threadSchema = z.object({
-  title: z.string().max(500).optional(),
-  body: z.string().max(8000).optional(),
-  channel: z.nativeEnum(NetworkChannel).optional(),
-  meetupMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
-  meetupStartsAt: z.string().datetime().optional(),
-  meetupMeetingUrl: z.string().max(4000).optional(),
-  meetupInviteEveryone: z.boolean().optional(),
-  meetupParticipantIds: z.array(z.string().min(1)).max(500).optional(),
-  taggedUserIds: z.array(z.string().min(1)).max(80).optional(),
-  imageUrl: z.string().max(2_000_000).optional(),
-  imageUrls: z.array(z.string().max(2_000_000)).max(12).optional(),
-  mapsUrl: z.string().max(4000).optional(),
-  audienceType: z.enum(["EVERYONE", "SESSION", "TRACK", "GROUP"]).optional(),
-  audienceSessionId: z.string().min(1).optional(),
-  audienceTrackId: z.string().min(1).optional(),
-  audienceUserIds: z.array(z.string().min(1)).max(500).optional(),
-});
+const threadSchema = z
+  .object({
+    title: z.string().max(500).optional(),
+    body: z.string().max(8000).optional(),
+    channel: z.nativeEnum(NetworkChannel).optional(),
+    meetupMode: z.enum(["VIRTUAL", "IN_PERSON"]).optional(),
+    meetupStartsAt: z.string().datetime().optional(),
+    meetupMeetingUrl: z.string().max(4000).optional(),
+    meetupInviteEveryone: z.boolean().optional(),
+    meetupParticipantIds: z.array(z.string().min(1)).max(500).optional(),
+    taggedUserIds: z.array(z.string().min(1)).max(80).optional(),
+    imageUrl: z.string().max(2_000_000).optional(),
+    imageUrls: z.array(z.string().max(2_000_000)).max(12).optional(),
+    mapsUrl: z.string().max(4000).optional(),
+    audienceType: z.enum(["EVERYONE", "SESSION", "TRACK", "GROUP"]).optional(),
+    audienceSessionId: z.string().min(1).optional(),
+    audienceTrackId: z.string().min(1).optional(),
+    audienceUserIds: z.array(z.string().min(1)).max(500).optional(),
+  })
+  .refine((data) => communityThreadHasContent(data), { message: COMMUNITY_THREAD_EMPTY_ERROR });
 
 const replySchema = z.object({
   body: z.string().min(1).max(8000),
@@ -205,12 +208,8 @@ networkRouter.post(
 
     const normTitle = (parsed.data.title ?? "").trim();
     const normBody = (parsed.data.body ?? "").trim();
-    if (channel === NetworkChannel.MOMENTS) {
-      if (imageUrls.length === 0 && normBody.length === 0) {
-        return res.status(400).json({ error: "Add a photo or a caption to post a Moment." });
-      }
-    } else if (normTitle.length === 0 || normBody.length === 0) {
-      return res.status(400).json({ error: "Both a title and a message are required." });
+    if (!communityThreadHasContent({ title: normTitle, body: normBody, imageUrls })) {
+      return res.status(400).json({ error: COMMUNITY_THREAD_EMPTY_ERROR });
     }
 
     const thread = await prisma.networkThread.create({
@@ -381,8 +380,8 @@ networkRouter.delete(
 );
 
 const threadEditSchema = z.object({
-  title: z.string().min(1).max(500).optional(),
-  body: z.string().min(1).max(20_000).optional(),
+  title: z.string().max(500).optional(),
+  body: z.string().max(20_000).optional(),
 });
 
 networkRouter.patch(

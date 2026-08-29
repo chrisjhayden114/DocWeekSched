@@ -44,8 +44,10 @@ export function composerReduce(state: ComposerState, event: ComposerEvent): Comp
 }
 
 /**
- * Submit is allowed only from the expanded state with a non-blank draft —
- * and a non-blank title where the screen asks for one.
+ * Submit is allowed only from the expanded state with a non-blank draft.
+ * Title-only or body-only is enough unless the screen asks for a title
+ * (`requireTitle`), in which case both are required. `allowEmpty` covers
+ * photo-only Moments (the caller has other postable content).
  */
 export function composerCanSubmit(
   state: ComposerState,
@@ -53,7 +55,8 @@ export function composerCanSubmit(
 ): boolean {
   if (!state.expanded) return false;
   if (options?.allowEmpty) return true;
-  if (state.value.trim().length === 0) return false;
-  if (options?.requireTitle && state.title.trim().length === 0) return false;
-  return true;
+  const hasTitle = state.title.trim().length > 0;
+  const hasBody = state.value.trim().length > 0;
+  if (options?.requireTitle) return hasTitle && hasBody;
+  return hasTitle || hasBody;
 }

@@ -16,6 +16,7 @@ import { join, relative } from "node:path";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { consoleTabCopy } from "@event-app/config";
 import { AutoGrowTextarea } from "../components/kit/AutoGrowTextarea";
 import { ConsoleTabStrip } from "../components/organizer/ConsoleTabStrip";
 
@@ -317,6 +318,42 @@ describe("UX-3 #2 — console tab strip stays one row", () => {
     const page = read("pages", "organizer", "events", "[eventId]", "index.tsx");
     expect(page).toContain("<ConsoleTabStrip");
     expect(page).not.toContain('className="nav console-event-tabs"');
+  });
+
+  it("K-6: visible order is Overview → Program → Speakers → Readiness → Participants → Maps → Announcements → Features; More always holds Ops and Recap", () => {
+    const page = read("pages", "organizer", "events", "[eventId]", "index.tsx");
+    const stripStart = page.indexOf("<ConsoleTabStrip");
+    const strip = page.slice(stripStart, page.indexOf("/>", stripStart) + 2);
+    const labels = [...strip.matchAll(/label: "([^"]+)"/g)].map((m) => m[1]);
+    expect(labels).toEqual([
+      "Overview",
+      "Program",
+      "Speakers",
+      "Readiness",
+      "Participants",
+      "Maps",
+      "Announcements",
+      "Features",
+      "Ops Inbox",
+      "Recap",
+    ]);
+    expect(strip).toContain("alwaysOverflowIds={CONSOLE_TAB_ALWAYS_OVERFLOW}");
+    expect(strip).toContain("consoleTabCopy");
+    expect(strip).toContain("description:");
+    for (const key of [
+      "overview",
+      "program",
+      "people",
+      "readiness",
+      "invites",
+      "maps",
+      "announcements",
+      "features",
+      "ops",
+      "recap",
+    ] as const) {
+      expect(consoleTabCopy[key].trim().length).toBeGreaterThan(80);
+    }
   });
 
   it("applies the compact 13px tier at desktop widths at or below 1200px", () => {

@@ -388,7 +388,7 @@ export const communityCopy = {
   /** One orienting line inside the expanded composer, per channel. */
   hints: {
     MEETUP: "Propose a meet-up and invite specific people, or open it to everyone at this event.",
-    MOMENTS: "Upload one or more photos, tag people from the directory, and add a caption.",
+    MOMENTS: "A photo, a title, or a caption — any one is enough. You can also tag people from the directory.",
     LOCAL: "Recommend a place and paste a Google Maps link so others can open it in Maps.",
     ICEBREAKER: "Welcome others — share a quick intro or icebreaker prompt.",
     GENERAL: "Open discussion for everyone at this event.",
@@ -428,6 +428,34 @@ export const communityCopy = {
       body: "Introduce yourself — where you're from, what you work on, what you're hoping to get from the event.",
     },
   },
+} as const;
+
+/**
+ * K-6 — organizer console tab hover cards. One honest paragraph per tab:
+ * what lives there and when you'd open it. Label-trigger, text-only.
+ * Edit this module, not ConsoleTabStrip / the event page.
+ */
+export const consoleTabCopy = {
+  overview:
+    "Overview is the event home: publish or unpublish, see session, speaker, and registration counts, and work through the setup checklist. Open it for the state of the event at a glance, or to jump into importing the program, editing sessions, or opening the attendee app.",
+  program:
+    "Program is where you add and edit sessions, tracks, and rooms, including bulk assignment. Draft sessions stay hidden from attendees until you publish them. Come here to build the schedule by hand after an ingest, or to fix a room or a time.",
+  people:
+    "Speakers is the roster of people who appear on the public schedule next to their sessions. Add speakers here; paper authors and presenters for a specific session are still managed on Program. Use it when you are building or correcting the public speaker list.",
+  readiness:
+    "Readiness tracks what each accepted speaker or session still needs — bios, slides, forms — from a template you assign once. Presenters get a personal link (no account) to upload or paste a slides URL; you approve or request a change. Open it once Speaker & Session Readiness is on, especially in the weeks before show day.",
+  invites:
+    "Participants is the full roster: invite one person, bulk-invite by CSV, make someone an admin, or remove them. Copyable join links live here too. Use it whenever you are adding people or checking who has registered.",
+  maps:
+    "Maps is where you upload floor-plan images and drop pins that stay put when the plan scales. A pin can link to a room so today’s sessions show on it. Use it to give attendees a way to find rooms; turning the feature off hides the attendee Maps tab but keeps your plans.",
+  announcements:
+    "Announcements is organizer broadcast — compose a notice to attendee inboxes, optionally also by email, aimed at everyone, a role, session joiners, or an attendance mode. Preview to yourself before sending. Use it for schedule changes and anything that should interrupt, not for back-and-forth (that is Community).",
+  features:
+    "Features is the per-event toggle board: Community channels, messaging, session tools, and the rest, with presets you can still edit after. Save applies the set. Use it to turn a surface on or off for this event, and to edit Event assistant FAQ and starters under the toggles.",
+  ops:
+    "Ops Inbox watches the event and drafts cards for you — session changes, stale Q&A, low check-in, capacity pressure, a community blocklist hit, and a daily digest. Nothing sends until you apply or dismiss a card. Open it when you want a suggested-action list rather than hunting through the other tabs.",
+  recap:
+    "Recap builds the post-event report after the end date: synthesized sections, thank-you email drafts, and a metrics export. Generate is blocked until the event has ended. Come here after the event to review, send, or export — attendees never see this builder.",
 } as const;
 
 /**

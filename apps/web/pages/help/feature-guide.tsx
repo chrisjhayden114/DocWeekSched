@@ -1,5 +1,5 @@
 import { brand, marketingSeo } from "@event-app/config";
-import { FEATURE_BY_KEY, featureGuideGroups } from "@event-app/shared";
+import { FEATURE_BY_KEY, FEATURE_GUIDE, featureGuideGroups } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import { FeatureArt } from "../../components/featureArt";
@@ -53,13 +53,18 @@ export default function FeatureGuidePage() {
             {groups.map((group) => (
               <section key={group.category} id={group.category} aria-labelledby={`guide-cat-${group.category}`}>
                 <h2 id={`guide-cat-${group.category}`}>{group.label}</h2>
-                <div className="feature-guide-cat-art">
-                  <FeatureArt category={group.category} />
-                </div>
                 {group.keys.map((key) => {
                   const def = FEATURE_BY_KEY[key];
+                  const guide = FEATURE_GUIDE[key];
                   return (
                     <article key={key} id={key} style={{ marginBottom: 40 }}>
+                      <div className="feature-guide-cat-art">
+                        {guide.imageSrc ? (
+                          <img src={guide.imageSrc} alt="" loading="lazy" />
+                        ) : (
+                          <FeatureArt category={group.category} />
+                        )}
+                      </div>
                       <h3 style={{ marginBottom: 8 }}>{def.name}</h3>
                       {def.retired ? (
                         <p className="text-meta" style={{ marginTop: 0 }}>

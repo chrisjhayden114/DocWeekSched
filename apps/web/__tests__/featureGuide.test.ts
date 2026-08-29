@@ -51,4 +51,13 @@ describe("K-2.1 — Feature Guide completeness", () => {
       }
     }
   });
+
+  it("K-6: founder-supplied community screenshots are wired; icebreakers keeps category art", () => {
+    expect(FEATURE_GUIDE.community.imageSrc).toBe("/feature-guide/community.png");
+    expect(FEATURE_GUIDE.community_meetups.imageSrc).toBe("/feature-guide/community_meetups.png");
+    expect(FEATURE_GUIDE.community_moments.imageSrc).toBe("/feature-guide/community_moments.jpg");
+    expect(FEATURE_GUIDE.community_local.imageSrc).toBe("/feature-guide/community_local.png");
+    expect(FEATURE_GUIDE.community_general.imageSrc).toBe("/feature-guide/community_general.png");
+    expect(FEATURE_GUIDE.community_icebreakers.imageSrc).toBeUndefined();
+  });
 });

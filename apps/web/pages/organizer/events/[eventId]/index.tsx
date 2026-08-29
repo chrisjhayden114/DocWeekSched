@@ -1,4 +1,4 @@
-import { brand, overviewCopy } from "@event-app/config";
+import { brand, consoleTabCopy, overviewCopy } from "@event-app/config";
 import {
   PAYMENT_REFERENCE_MAX_CHARS,
   paidMarkSummaryLine,
@@ -24,6 +24,7 @@ import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListS
 import { StatusChip } from "../../../../components/StatusChip";
 import { PageHeader, StatCard } from "../../../../components/kit";
 import { ConsoleTabStrip } from "../../../../components/organizer/ConsoleTabStrip";
+import { CONSOLE_TAB_ALWAYS_OVERFLOW } from "../../../../lib/tabOverflow";
 import { EventSettingsSlideOver } from "../../../../components/organizer/EventSettingsSlideOver";
 import { MarkPaidCsvCard } from "../../../../components/organizer/MarkPaidCsvCard";
 import { ParticipantLabelsEditor } from "../../../../components/organizer/ParticipantLabelsEditor";
@@ -126,12 +127,12 @@ const EVENT_TABS: readonly EventTab[] = [
   "overview",
   "program",
   "people",
+  "readiness",
   "invites",
   "maps",
   "announcements",
   "features",
   "ops",
-  "readiness",
   "recap",
 ];
 
@@ -822,19 +823,22 @@ export default function OrganizerEventPage() {
             ariaLabel="Event sections"
             activeId={tab}
             onSelect={selectTab}
+            alwaysOverflowIds={CONSOLE_TAB_ALWAYS_OVERFLOW}
             tabs={[
-              { id: "overview", label: "Overview" },
-              { id: "program", label: "Program" },
-              { id: "people", label: "Speakers" },
-              { id: "invites", label: "Participants" },
-              { id: "maps", label: "Maps" },
-              { id: "announcements", label: "Announcements" },
-              { id: "ops", label: "Ops Inbox" },
+              { id: "overview", label: "Overview", description: consoleTabCopy.overview },
+              { id: "program", label: "Program", description: consoleTabCopy.program },
+              { id: "people", label: "Speakers", description: consoleTabCopy.people },
               // Only when the event's RESOLVED features include readiness
               // (plan entitlement + the organizer's per-event override).
-              ...(readinessEnabled ? [{ id: "readiness" as EventTab, label: "Readiness" }] : []),
-              { id: "recap", label: "Recap" },
-              { id: "features", label: "Features" },
+              ...(readinessEnabled
+                ? [{ id: "readiness" as EventTab, label: "Readiness", description: consoleTabCopy.readiness }]
+                : []),
+              { id: "invites", label: "Participants", description: consoleTabCopy.invites },
+              { id: "maps", label: "Maps", description: consoleTabCopy.maps },
+              { id: "announcements", label: "Announcements", description: consoleTabCopy.announcements },
+              { id: "features", label: "Features", description: consoleTabCopy.features },
+              { id: "ops", label: "Ops Inbox", description: consoleTabCopy.ops },
+              { id: "recap", label: "Recap", description: consoleTabCopy.recap },
             ]}
           />
         ) : null}

@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { planTabOverflow } from "../../lib/tabOverflow";
+import { HoverInfo } from "../kit/HoverInfo";
 import { Portal } from "../kit/Portal";
 import { useAnchoredPopup } from "../kit/useAnchoredPopup";
 
 export type ConsoleTab<Id extends string> = {
   id: Id;
   label: string;
+  /** K-6 — one-paragraph page preview; label-trigger, text-only card. */
+  description?: string;
 };
 
 export type ConsoleTabStripProps<Id extends string> = {
@@ -14,6 +17,11 @@ export type ConsoleTabStripProps<Id extends string> = {
   onSelect: (id: Id) => void;
   /** Names the strip for screen readers, e.g. "Event sections". */
   ariaLabel: string;
+  /**
+   * K-6 — tab ids that always live in More ▾ (Ops Inbox, Recap), even when
+   * the row would fit. Further measured overflow is appended after these.
+   */
+  alwaysOverflowIds?: readonly Id[];
 };
 
 const MORE_FALLBACK_WIDTH = 72;
@@ -34,6 +42,7 @@ export function ConsoleTabStrip<Id extends string>({
   activeId,
   onSelect,
   ariaLabel,
+  alwaysOverflowIds,
 }: ConsoleTabStripProps<Id>) {
   const scrollerRef = useRef<HTMLElement | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
@@ -84,11 +93,12 @@ export function ConsoleTabStrip<Id extends string>({
       moreWidth,
       activeId,
       gap,
+      alwaysOverflowIds,
     });
     setVisibleIds(plan.visibleIds);
     setOverflowIds(plan.overflowIds);
     if (plan.overflowIds.length === 0) setMoreOpen(false);
-  }, [tabs, activeId]);
+  }, [tabs, activeId, alwaysOverflowIds]);
 
   useEffect(() => {
     syncEdges();
@@ -219,15 +229,22 @@ export function ConsoleTabStrip<Id extends string>({
         {shownIds.map((id) => {
           const tab = byId.get(id);
           if (!tab) return null;
-          return (
+          const button = (
             <button
-              key={tab.id}
               type="button"
               className={activeId === tab.id ? "active" : ""}
               onClick={() => onSelect(tab.id)}
             >
               {tab.label}
             </button>
+          );
+          if (!tab.description) {
+            return <span key={tab.id}>{button}</span>;
+          }
+          return (
+            <HoverInfo key={tab.id} trigger="label" hideIcon title={tab.label} body={tab.description}>
+              {button}
+            </HoverInfo>
           );
         })}
       </nav>
@@ -254,8 +271,8 @@ export function ConsoleTabStrip<Id extends string>({
                 style={moreStyle}
                 onKeyDown={onMoreMenuKeyDown}
               >
-                {overflowTabs.map((tab) => (
-                  <li key={tab.id} role="none">
+                {overflowTabs.map((tab) => {
+                  const item = (
                     <button
                       type="button"
                       role="menuitem"
@@ -267,8 +284,19 @@ export function ConsoleTabStrip<Id extends string>({
                     >
                       {tab.label}
                     </button>
-                  </li>
-                ))}
+                  );
+                  return (
+                    <li key={tab.id} role="none">
+                      {tab.description ? (
+                        <HoverInfo trigger="label" hideIcon title={tab.label} body={tab.description}>
+                          {item}
+                        </HoverInfo>
+                      ) : (
+                        item
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </Portal>
           ) : null}

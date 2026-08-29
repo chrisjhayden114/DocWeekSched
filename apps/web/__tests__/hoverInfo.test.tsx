@@ -8,6 +8,7 @@
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURE_GUIDE } from "@event-app/shared";
 import {
   HoverInfo,
   HOVER_INFO_CLOSE_GRACE_MS,
@@ -282,5 +283,34 @@ describe("HoverInfo Wikipedia persistence + fade", () => {
       if (prevClient) Object.defineProperty(proto, "clientHeight", prevClient);
       else delete (proto as { clientHeight?: unknown }).clientHeight;
     }
+  });
+
+  it("keeps title, body, and footer visible for a long-guide feature with a screenshot", () => {
+    render(
+      <HoverInfo
+        trigger="label"
+        title="Community"
+        body={FEATURE_GUIDE.community.whatItDoes}
+        imageSrc={FEATURE_GUIDE.community.imageSrc}
+        action={<button type="button">How to use this feature →</button>}
+      >
+        <strong>Community</strong>
+      </HoverInfo>,
+    );
+    const wrap = clipper.querySelector<HTMLElement>(".hover-info")!;
+    fire(wrap, "mouseover");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_OPEN_DELAY_MS);
+    });
+    const card = tooltip()!;
+    expect(card).not.toBeNull();
+    expect(card.querySelector(".hover-info-title")?.textContent).toBe("Community");
+    expect(card.querySelector(".hover-info-body")?.textContent).toContain(
+      FEATURE_GUIDE.community.whatItDoes.slice(0, 40),
+    );
+    expect(card.querySelector(".hover-info-action")?.textContent).toContain("How to use this feature");
+    const img = card.querySelector<HTMLImageElement>(".hover-info-image")!;
+    expect(img.getAttribute("src")).toBe("/feature-guide/community.png");
+    expect(img.getAttribute("loading")).toBe("lazy");
   });
 });
