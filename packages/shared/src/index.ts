@@ -1,5 +1,6 @@
 export * from "./features";
 export * from "./featureGuide";
+export * from "./sponsorOutreach";
 export * from "./cfp";
 export * from "./readinessSpeakerPack";
 export * from "./paidAttendance";

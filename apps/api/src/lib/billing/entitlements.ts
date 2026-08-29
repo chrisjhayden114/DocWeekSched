@@ -240,6 +240,35 @@ export async function assertReadinessPresenterCap(
   });
 }
 
+/**
+ * SPX-0 — Free cap on sponsor-outreach prospects per event.
+ * Counted before any row is written (create or import). `adding` is how many
+ * new orgs are about to land; existing rows already in the event are free.
+ */
+export async function assertOutreachProspectCap(
+  eventId: string,
+  organizationId: string,
+  adding: number,
+): Promise<void> {
+  if (adding <= 0) return;
+  const max = await limit(organizationId, "outreachProspectsPerEvent");
+  if (max == null) return;
+
+  const current = await prisma.sponsorProspect.count({ where: { eventId } });
+  if (current + adding <= max) return;
+
+  throw new HttpError(402, {
+    error: `Your plan tracks ${max} outreach prospect${max === 1 ? "" : "s"} per event. This would make ${current + adding}. Upgrade to keep a longer list.`,
+    upgrade: upgradePayload({
+      code: "PLAN_LIMIT",
+      message: `Outreach prospect limit reached (${current}/${max}).`,
+      limitKey: "outreachProspectsPerEvent",
+      current,
+      max,
+    }),
+  });
+}
+
 /** Apply SKU entitlements onto an organization (webhooks + tests). */
 export async function applyPlanSkuToOrg(
   orgId: string,

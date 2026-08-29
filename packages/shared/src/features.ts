@@ -40,6 +40,7 @@ export type FeatureKey =
   | "session_polls"
   | "session_feedback"
   | "sponsors"
+  | "sponsor_outreach"
   | "checkin"
   | "ops_agent"
   | "recap_agent"
@@ -298,6 +299,18 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     defaultOn: true,
   },
   {
+    // SPX-0 (DESIGN_PHASE_K D1): pipeline only. UKEDL never sends outreach
+    // email. Same plan tier as sponsors; Free is capped at 25 prospects.
+    key: "sponsor_outreach",
+    name: "Sponsor outreach",
+    plainDescription:
+      "A private list of organizations you want to ask. Sponsors hear from you, not from us — you send from your own address.",
+    appearsIn: "Organizer console › Sponsors",
+    category: "engagement",
+    defaultOn: true,
+    dependsOn: ["sponsors"],
+  },
+  {
     key: "checkin",
     name: "QR check-in",
     plainDescription: "Per-attendee QR codes and a staff scanner (works offline with auto-sync).",
@@ -398,6 +411,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_polls: true,
       session_feedback: true,
       sponsors: true,
+      sponsor_outreach: true,
       checkin: true,
       ops_agent: true,
       recap_agent: true,
@@ -433,6 +447,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_polls: false,
       session_feedback: true,
       sponsors: false,
+      sponsor_outreach: false,
       checkin: true,
       ops_agent: false,
       recap_agent: false,
@@ -467,6 +482,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_polls: true,
       session_feedback: true,
       sponsors: true,
+      sponsor_outreach: true,
       checkin: true,
       ops_agent: true,
       recap_agent: true,
@@ -505,6 +521,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_polls: true,
       session_feedback: true,
       sponsors: false,
+      sponsor_outreach: false,
       checkin: true,
       ops_agent: true,
       recap_agent: true,
@@ -542,6 +559,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
       session_polls: false,
       session_feedback: true,
       sponsors: true,
+      sponsor_outreach: true,
       checkin: true,
       ops_agent: true,
       recap_agent: true,
@@ -560,6 +578,9 @@ export function dependencyBlockReason(key: FeatureKey, effectiveOffParents: Feat
   const def = FEATURE_BY_KEY[key];
   if (key === "matchmaker" && effectiveOffParents.includes("attendee_directory")) {
     return "Matchmaker needs the attendee directory";
+  }
+  if (key === "sponsor_outreach" && effectiveOffParents.includes("sponsors")) {
+    return "Sponsor outreach needs Sponsors to be on";
   }
   if (effectiveOffParents.includes("community") && def.dependsOn?.includes("community")) {
     return "This channel needs Community to be on";
@@ -597,14 +618,8 @@ export function resolveFeatureEnabled(
   if (!def) return false;
   if (opts?.planAllows === false) return false;
 
-  if (def.dependsOn?.includes("community")) {
-    if (!resolveFeatureEnabled("community", overrides, opts)) return false;
-  }
-  if (def.dependsOn?.includes("attendee_directory")) {
-    if (!resolveFeatureEnabled("attendee_directory", overrides, opts)) return false;
-  }
-  if (def.dependsOn?.includes("engagement_points")) {
-    if (!resolveFeatureEnabled("engagement_points", overrides, opts)) return false;
+  for (const parent of def.dependsOn || []) {
+    if (!resolveFeatureEnabled(parent, overrides, opts)) return false;
   }
 
   const override = overrides[key];
@@ -651,6 +666,15 @@ export function normalizeOverridesForSave(
       key: "public_leaderboard",
       reason:
         dependencyBlockReason("public_leaderboard", ["engagement_points"]) || "Requires engagement points",
+    });
+  }
+
+  if (overrides.sponsors === false && overrides.sponsor_outreach !== false) {
+    overrides.sponsor_outreach = false;
+    forcedOff.push({
+      key: "sponsor_outreach",
+      reason:
+        dependencyBlockReason("sponsor_outreach", ["sponsors"]) || "Sponsor outreach needs Sponsors to be on",
     });
   }
 

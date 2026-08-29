@@ -24,7 +24,9 @@ export type LimitKey =
   | "aiIngestPerEvent"
   | "aiConciergePerEvent"
   /** Presenters (speakers) that can be tracked by Speaker Readiness in one event. */
-  | "readinessPresentersPerEvent";
+  | "readinessPresentersPerEvent"
+  /** Sponsor-outreach prospects one event may hold. Free 25; paid unlimited. */
+  | "outreachProspectsPerEvent";
 
 /** Extra plan flags beyond the event feature registry. */
 export type PlanFlagKey =
@@ -86,6 +88,7 @@ const CORE_ATTENDEE_FEATURES: Partial<Record<EntitlementKey, boolean>> = {
   session_polls: false,
   session_feedback: false,
   sponsors: false,
+  sponsor_outreach: false,
   checkin: false,
   ops_agent: false,
   recap_agent: false,
@@ -120,6 +123,7 @@ const BASELINE_ALL: Partial<Record<EntitlementKey, boolean>> = {
   session_polls: true,
   session_feedback: true,
   sponsors: true,
+  sponsor_outreach: true,
   checkin: true,
   badges: true,
   certificates: true,
@@ -163,6 +167,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       aiIngestPerEvent: 1,
       aiConciergePerEvent: 50,
       readinessPresentersPerEvent: 10,
+      outreachProspectsPerEvent: 25,
     },
     entitlements: { ...CORE_ATTENDEE_FEATURES, ai_ingest: true },
     public: true,
@@ -181,6 +186,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       aiIngestPerEvent: 5,
       aiConciergePerEvent: 500,
       readinessPresentersPerEvent: null,
+      outreachProspectsPerEvent: null,
     },
     entitlements: { ...BASELINE_ALL },
     public: true,
@@ -199,6 +205,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       aiIngestPerEvent: 10,
       aiConciergePerEvent: 1000,
       readinessPresentersPerEvent: null,
+      outreachProspectsPerEvent: null,
     },
     entitlements: { ...BASELINE_ALL },
     public: true,
@@ -217,6 +224,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       aiIngestPerEvent: 20,
       aiConciergePerEvent: 2000,
       readinessPresentersPerEvent: null,
+      outreachProspectsPerEvent: null,
     },
     entitlements: { ...BASELINE_ALL },
     public: true,
@@ -235,6 +243,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       aiIngestPerEvent: null,
       aiConciergePerEvent: 5000,
       readinessPresentersPerEvent: null,
+      outreachProspectsPerEvent: null,
     },
     entitlements: { ...PRO_ENTITLEMENTS },
     public: true,
@@ -253,6 +262,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       aiIngestPerEvent: null,
       aiConciergePerEvent: 5000,
       readinessPresentersPerEvent: null,
+      outreachProspectsPerEvent: null,
     },
     entitlements: { ...PRO_ENTITLEMENTS },
     public: true,
@@ -271,6 +281,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       aiIngestPerEvent: null,
       aiConciergePerEvent: null,
       readinessPresentersPerEvent: null,
+      outreachProspectsPerEvent: null,
     },
     entitlements: { ...INTERNAL_ENTITLEMENTS },
     public: true,
@@ -290,6 +301,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       aiIngestPerEvent: null,
       aiConciergePerEvent: null,
       readinessPresentersPerEvent: null,
+      outreachProspectsPerEvent: null,
     },
     entitlements: { ...INTERNAL_ENTITLEMENTS },
     public: false,

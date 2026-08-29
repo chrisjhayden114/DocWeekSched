@@ -80,6 +80,23 @@ describe("dependency cascade", () => {
     expect(overrides.community_meetups).toBe(false);
     expect(overrides.community_general).toBe(false);
   });
+
+  it("sponsors-off disables sponsor outreach with explanation on save", () => {
+    expect(
+      resolveFeatureEnabled("sponsor_outreach", {
+        sponsors: false,
+        sponsor_outreach: true,
+      }),
+    ).toBe(false);
+
+    const { overrides, forcedOff } = normalizeOverridesForSave({
+      sponsors: false,
+      sponsor_outreach: true,
+    });
+    expect(overrides.sponsor_outreach).toBe(false);
+    expect(forcedOff.some((f) => f.key === "sponsor_outreach")).toBe(true);
+    expect(forcedOff.find((f) => f.key === "sponsor_outreach")?.reason).toMatch(/Sponsors/i);
+  });
 });
 
 describe("wizard presets", () => {

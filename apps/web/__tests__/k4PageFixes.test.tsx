@@ -134,12 +134,62 @@ describe("K-4 — feature gate renders empty-state, not the form", () => {
     expect(container.textContent).toContain("Sponsors is turned off for this event");
     expect(container.querySelector("form")).toBeNull();
     expect(container.textContent).not.toContain("Add sponsor");
+    expect(container.textContent).not.toContain("Add prospect");
+    expect(container.textContent).not.toContain("Outreach");
     expect(container.textContent).not.toContain("No sponsors yet");
     expect(container.textContent).not.toContain("Feature not available");
     const link = container.querySelector<HTMLAnchorElement>('a[href*="tab=features"]');
     expect(link).not.toBeNull();
     expect(link!.getAttribute("href")).toBe("/organizer/events/evt1?tab=features");
     expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("sponsors on + outreach off → confirmed list only, no pipeline", async () => {
+    organizerFetch.mockResolvedValue({
+      features: [
+        { key: "sponsors", enabled: true },
+        { key: "sponsor_outreach", enabled: false },
+      ],
+    });
+    apiFetch.mockResolvedValue([]);
+    render(<EventSponsorsPage />);
+    await flush();
+    expect(container.textContent).toContain("Add sponsor");
+    expect(container.textContent).toContain("Confirmed sponsors");
+    expect(container.textContent).not.toContain("Add prospect");
+    expect(container.textContent).not.toMatch(/Sponsors hear from you/);
+  });
+
+  it("sponsors on + outreach on → pipeline above the confirmed list", async () => {
+    organizerFetch.mockImplementation((path: unknown) => {
+      if (path === "/event/features") {
+        return Promise.resolve({
+          features: [
+            { key: "sponsors", enabled: true },
+            { key: "sponsor_outreach", enabled: true },
+          ],
+        });
+      }
+      if (path === "/outreach/prospects") return Promise.resolve([]);
+      return Promise.resolve({
+        headers: [],
+        mapping: {},
+        rows: [],
+        summary: { creates: 0, errors: 0, skipped: 0 },
+      });
+    });
+    apiFetch.mockResolvedValue([]);
+    render(<EventSponsorsPage />);
+    await flush();
+    expect(container.textContent).toContain("Outreach");
+    expect(container.textContent).toMatch(/Sponsors hear from you, not from us/);
+    expect(container.textContent).toContain("Add prospect");
+    expect(container.textContent).toContain("Confirmed sponsors");
+    expect(container.textContent).toContain("Add sponsor");
+    const outreach = container.textContent!.indexOf("Outreach");
+    const confirmed = container.textContent!.indexOf("Confirmed sponsors");
+    expect(outreach).toBeGreaterThan(-1);
+    expect(confirmed).toBeGreaterThan(outreach);
   });
 
   it("scanner: off → ListEmpty, no camera form", async () => {

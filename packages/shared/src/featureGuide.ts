@@ -239,6 +239,14 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
     goodToKnow:
       "On by default in the registry. Free plans do not include sponsors; Per-event and above do. Focused and PD day turn the strip off. Turning it off hides logos; sponsor rows and leads stay.",
   },
+  sponsor_outreach: {
+    whatItDoes:
+      "Sponsor outreach is a private pipeline of organizations you may ask to support this event. You add prospects by hand or from a spreadsheet, then move them through To contact, Contacted, In conversation, Confirmed, or Declined. UKEDL never sends the email — there is no bulk send, no open tracking, and no sequence. When someone confirms, you can add them as a sponsor so their logo can appear with the rest.",
+    experience:
+      "Organizers use it on the Sponsors page, in the Outreach section above the confirmed-sponsor list. Each row has a status, notes, and an optional contact. A confirmed row can become a sponsor in one click (name and website only). Attendees never see this list.",
+    goodToKnow:
+      "This needs Sponsors to be on, and it is included on the same plans as Sponsors. Free is capped at 25 prospects per event; paid plans have no cap. Turning it off hides the pipeline; the rows stay. We never send outreach from our domain — you write and send from your own address.",
+  },
   checkin: {
     whatItDoes:
       "QR check-in gives each attendee a personal code on their membership. Staff can scan at the door (including offline, with sync when the device is back online). A person can be checked in once per event; repeats are idempotent. Methods include self, staff scan, and QR scan.",

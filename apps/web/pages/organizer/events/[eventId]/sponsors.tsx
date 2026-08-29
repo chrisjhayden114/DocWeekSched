@@ -9,6 +9,7 @@ import { brand } from "@event-app/config";
 import { AutoGrowTextarea } from "../../../../components/kit";
 import { ListEmpty } from "../../../../components/ListState";
 import { ConsoleSubpageHeader } from "../../../../components/organizer/ConsoleSubpageHeader";
+import { OutreachSection } from "../../../../components/organizer/OutreachSection";
 import { OrganizerShell } from "../../../../components/OrganizerShell";
 import { apiFetch } from "../../../../lib/api";
 import { organizerFetch } from "../../../../lib/organizerApi";
@@ -31,8 +32,9 @@ export default function EventSponsorsPage() {
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  /** Resolved plan+override flag from /event/features — same source as the console index. */
+  /** Resolved plan+override flags from /event/features — same source as the console index. */
   const [sponsorsEnabled, setSponsorsEnabled] = useState<boolean | null>(null);
+  const [outreachEnabled, setOutreachEnabled] = useState(false);
   const [featuresError, setFeaturesError] = useState<string | null>(null);
 
   const headers = useCallback(
@@ -73,6 +75,7 @@ export default function EventSponsorsPage() {
       .then((feats) => {
         if (cancelled) return;
         setSponsorsEnabled(Boolean(feats.features?.find((f) => f.key === "sponsors")?.enabled));
+        setOutreachEnabled(Boolean(feats.features?.find((f) => f.key === "sponsor_outreach")?.enabled));
         setFeaturesError(null);
       })
       .catch((e) => {
@@ -170,6 +173,13 @@ export default function EventSponsorsPage() {
             <p className="help-text">Shown to attendees by tier / sort order. Capture leads at the booth and export CSV.</p>
             {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
+            {outreachEnabled ? (
+              <div style={{ marginBottom: 28 }}>
+                <OutreachSection eventId={eventId} />
+              </div>
+            ) : null}
+
+            <h2 style={{ fontSize: 18, margin: "0 0 8px" }}>Confirmed sponsors</h2>
             <form
               className="console-form console-panel"
               onSubmit={(e) => {

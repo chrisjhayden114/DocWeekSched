@@ -98,6 +98,15 @@ enum SessionResourceKind {
   FILE
 }
 
+/// SPX-0 — organizer-owned sponsor outreach pipeline. UKEDL never emails these.
+enum SponsorProspectStatus {
+  TO_CONTACT
+  CONTACTED
+  IN_CONVERSATION
+  CONFIRMED
+  DECLINED
+}
+
 enum NetworkChannel {
   GENERAL
   MEETUP
@@ -732,6 +741,8 @@ model Event {
   conciergePendingActions ConciergePendingAction[]
   matchSuggestions     MatchSuggestion[]
   sponsors             Sponsor[]
+  sponsorProspects     SponsorProspect[]
+  outreachTemplates    OutreachTemplate[]
   sessionScheduleChanges SessionScheduleChange[]
   opsInboxCards        OpsInboxCard[]
   badgeTemplates       BadgeTemplate[]
@@ -1305,9 +1316,46 @@ model Sponsor {
   updatedAt   DateTime      @updatedAt
   leads       SponsorLead[]
   recapSections EventRecapSection[]
+  prospects   SponsorProspect[]
 
   @@index([eventId, sortOrder])
   @@index([eventId, tier])
+}
+
+/// SPX-0 — private outreach pipeline. Not a directory; organizers send from their own address.
+model SponsorProspect {
+  id              String                 @id @default(cuid())
+  eventId         String
+  event           Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  orgName         String
+  contactName     String?
+  contactEmail    String?
+  websiteUrl      String?
+  notes           String?
+  status          SponsorProspectStatus  @default(TO_CONTACT)
+  lastContactedAt DateTime?
+  /// Set when "Add as sponsor" converts this row. Idempotency key for that click.
+  sponsorId       String?
+  sponsor         Sponsor?               @relation(fields: [sponsorId], references: [id], onDelete: SetNull)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([eventId, status])
+  @@index([eventId, orgName])
+}
+
+/// SPX-1 will use these; created now so one migration covers the pair.
+model OutreachTemplate {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  subject   String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
 }
 
 model SponsorLead {
