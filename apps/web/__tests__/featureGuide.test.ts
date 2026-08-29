@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { FEATURE_BY_KEY, FEATURE_GUIDE, FEATURE_REGISTRY, type FeatureKey } from "@event-app/shared";
+import { FEATURE_BY_KEY, FEATURE_GUIDE, FEATURE_REGISTRY, featureGuideImageSrcs, type FeatureKey } from "@event-app/shared";
 
 const KEYS = FEATURE_REGISTRY.map((f) => f.key);
 
@@ -59,5 +59,12 @@ describe("K-2.1 — Feature Guide completeness", () => {
     expect(FEATURE_GUIDE.community_local.imageSrc).toBe("/feature-guide/community_local.png");
     expect(FEATURE_GUIDE.community_general.imageSrc).toBe("/feature-guide/community_general.png");
     expect(FEATURE_GUIDE.community_icebreakers.imageSrc).toBeUndefined();
+    expect(featureGuideImageSrcs()).toEqual([
+      "/feature-guide/community.png",
+      "/feature-guide/community_meetups.png",
+      "/feature-guide/community_moments.jpg",
+      "/feature-guide/community_local.png",
+      "/feature-guide/community_general.png",
+    ]);
   });
 });

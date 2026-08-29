@@ -63,6 +63,31 @@ function render(element: ReactElement) {
 }
 
 describe("K-2.1 — Features tab + GuidePanel", () => {
+  it("prefetches every wired guide screenshot once after mount", () => {
+    const seen: string[] = [];
+    class FakeImage {
+      set src(value: string) {
+        seen.push(value);
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    try {
+      render(<FeatureConfigPanel overrides={{}} onChange={() => undefined} confirmOff={false} />);
+      expect(seen).toEqual(
+        expect.arrayContaining([
+          "/feature-guide/community.png",
+          "/feature-guide/community_meetups.png",
+          "/feature-guide/community_moments.jpg",
+          "/feature-guide/community_local.png",
+          "/feature-guide/community_general.png",
+        ]),
+      );
+      expect(new Set(seen).size).toBe(seen.length);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("renders no ⓘ on the Features panel in hover-capable mode", () => {
     render(<FeatureConfigPanel overrides={{}} onChange={() => undefined} confirmOff={false} />);
     expect(container.textContent).not.toContain("ⓘ");
@@ -179,10 +204,21 @@ describe("K-6 — feature card + carousel CSS", () => {
 
   it("caps the preview image at ~150px and the card at ~480px so title, body, and footer stay visible", () => {
     expect(rule(".hover-info-art")).toContain("150px");
+    expect(rule(".hover-info-art")).toContain("flex-shrink: 1");
+    expect(rule(".hover-info-art")).toContain("min-height: 0");
     expect(rule(".hover-info-popover")).toContain("max-height: 480px");
     expect(rule(".hover-info-title")).toContain("overflow: visible");
+    expect(rule(".hover-info-title")).toContain("flex-shrink: 0");
     expect(rule(".hover-info-body")).toContain("calc(15px * 1.5 * 6)");
+    expect(rule(".hover-info-body")).toContain("calc(15px * 1.5 * 2)");
     expect(rule(".hover-info-action")).toContain("flex: 0 0 auto");
+  });
+
+  it("K-6.1: hover-card triggers keep the normal arrow (no cursor:help)", () => {
+    expect(globalsCss).not.toContain("cursor: help");
+    expect(rule(".hover-info-trigger")).toContain("cursor: default");
+    expect(rule(".hover-info-label")).toContain("cursor: default");
+    expect(rule(".hover-info-label-slot")).toContain("cursor: default");
   });
 
   it("the icebreaker carousel is a fixed viewport with internal scroll", () => {

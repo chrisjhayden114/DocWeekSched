@@ -13,6 +13,7 @@ import {
   HoverInfo,
   HOVER_INFO_CLOSE_GRACE_MS,
   HOVER_INFO_OPEN_DELAY_MS,
+  preloadImage,
   isFadeClipped,
 } from "../components/kit/HoverInfo";
 
@@ -311,6 +312,46 @@ describe("HoverInfo Wikipedia persistence + fade", () => {
     expect(card.querySelector(".hover-info-action")?.textContent).toContain("How to use this feature");
     const img = card.querySelector<HTMLImageElement>(".hover-info-image")!;
     expect(img.getAttribute("src")).toBe("/feature-guide/community.png");
-    expect(img.getAttribute("loading")).toBe("lazy");
+    expect(img.getAttribute("loading")).toBeNull();
+    expect(card.querySelector(".hover-info-title")?.className).toBe("hover-info-title");
+    expect(card.querySelector(".hover-info-body")?.className).toContain("hover-info-body");
+  });
+
+  it("preloads imageSrc when the hover-intent timer starts, before the card opens", () => {
+    const seen: string[] = [];
+    class FakeImage {
+      set src(value: string) {
+        seen.push(value);
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    try {
+      render(
+        <HoverInfo
+          trigger="label"
+          title="Share your moments"
+          body={FEATURE_GUIDE.community_moments.whatItDoes}
+          imageSrc={FEATURE_GUIDE.community_moments.imageSrc}
+        >
+          <strong>Share your moments</strong>
+        </HoverInfo>,
+      );
+      const wrap = clipper.querySelector<HTMLElement>(".hover-info")!;
+      fire(wrap, "mouseover");
+      expect(seen).toEqual(["/feature-guide/community_moments.jpg"]);
+      expect(tooltip()).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(HOVER_INFO_OPEN_DELAY_MS);
+      });
+      const img = tooltip()!.querySelector<HTMLImageElement>(".hover-info-image")!;
+      expect(img.getAttribute("src")).toBe("/feature-guide/community_moments.jpg");
+      expect(img.getAttribute("loading")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("preloadImage is a no-op for an empty src", () => {
+    expect(() => preloadImage("")).not.toThrow();
   });
 });

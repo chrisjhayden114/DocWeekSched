@@ -6146,11 +6146,20 @@ button.schedule-meta-chip:hover {
   max-width: 560px;
 }
 
-/* K-4 — Program tab tracks/rooms: wrap to columns; inline edit spans the row. */
+/* K-4 / K-6.1 — Program tab tracks/rooms: wrap to columns; each name+actions
+   unit is a light card so Edit/Delete cannot be read as the neighbor's. */
 .program-meta-grid {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.program-meta-item {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
 }
 
 .program-meta-edit {
@@ -6405,7 +6414,7 @@ button.schedule-meta-chip:hover {
   background: transparent;
   color: var(--gray-500);
   font: 500 13px/1 var(--font-body);
-  cursor: help;
+  cursor: default;
 }
 
 .hover-info-trigger:hover {
@@ -6413,7 +6422,7 @@ button.schedule-meta-chip:hover {
 }
 
 .hover-info--label {
-  cursor: help;
+  cursor: default;
 }
 
 .hover-info-label {
@@ -6425,7 +6434,7 @@ button.schedule-meta-chip:hover {
   font: inherit;
   color: inherit;
   text-align: inherit;
-  cursor: help;
+  cursor: default;
   text-decoration: none;
   text-underline-offset: 3px;
 }
@@ -6435,7 +6444,7 @@ button.schedule-meta-chip:hover {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  cursor: help;
+  cursor: default;
 }
 
 @media (hover: hover) {
@@ -6534,9 +6543,11 @@ button.schedule-meta-chip:hover {
 }
 
 .hover-info-art {
-  flex: 0 0 150px;
-  height: 150px;
+  flex: 0 1 150px;
+  flex-shrink: 1;
+  min-height: 0;
   max-height: 150px;
+  position: relative;
   overflow: hidden;
   background: var(--gray-50);
 }
@@ -6544,6 +6555,8 @@ button.schedule-meta-chip:hover {
 .hover-info-image,
 .hover-info-art img {
   display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -6552,7 +6565,7 @@ button.schedule-meta-chip:hover {
 .hover-info-inner {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   padding: 16px 20px 18px;
 }
@@ -6563,6 +6576,7 @@ button.schedule-meta-chip:hover {
 
 .hover-info-title {
   flex: 0 0 auto;
+  flex-shrink: 0;
   margin: 0 0 8px;
   overflow: visible;
   font: var(--text-h3);
@@ -6571,7 +6585,10 @@ button.schedule-meta-chip:hover {
 
 .hover-info-body {
   position: relative;
+  flex: 0 0 auto;
+  flex-shrink: 0;
   margin: 0;
+  min-height: calc(15px * 1.5 * 2);
   max-height: calc(15px * 1.5 * 6);
   overflow: hidden;
   font: 400 15px/1.5 var(--font-body);
@@ -6590,6 +6607,7 @@ button.schedule-meta-chip:hover {
 }
 
 .hover-info-appears {
+  flex: 0 0 auto;
   margin: 10px 0 0;
   font: var(--text-meta);
   color: var(--gray-500);

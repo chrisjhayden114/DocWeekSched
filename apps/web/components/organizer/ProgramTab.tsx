@@ -781,7 +781,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                 {rowError(t.id)}
               </form>
             ) : (
-              <div key={t.id} style={{ padding: "4px 0" }}>
+              <div key={t.id} className="program-meta-item">
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span
                     aria-hidden
@@ -895,7 +895,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                 {rowError(r.id)}
               </form>
             ) : (
-              <div key={r.id} style={{ padding: "4px 0" }}>
+              <div key={r.id} className="program-meta-item">
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span style={{ flex: 1, font: "var(--text-body)", color: "var(--gray-900)" }}>{r.name}</span>
                   <button

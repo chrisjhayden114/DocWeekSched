@@ -158,8 +158,11 @@ describe("K-4 — program tracks/rooms grid CSS", () => {
   it("uses auto-fill 260px columns and full-width inline edit", () => {
     const program = read("components", "organizer", "ProgramTab.tsx");
     expect(program).toContain('className="program-meta-grid"');
+    expect(program).toContain("program-meta-item");
     expect(program).toContain("program-meta-edit");
     expect(globalsCss).toContain("grid-template-columns: repeat(auto-fill, minmax(260px, 1fr))");
+    expect(globalsCss).toContain(".program-meta-item");
+    expect(globalsCss).toContain("border: 1px solid var(--gray-200)");
     expect(globalsCss).toContain(".program-meta-edit");
     expect(globalsCss).toContain("grid-column: 1 / -1");
   });

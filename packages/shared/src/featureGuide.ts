@@ -296,6 +296,15 @@ export function getFeatureGuide(key: FeatureKey): FeatureGuideEntry {
   return FEATURE_GUIDE[key];
 }
 
+/** Screenshot URLs wired on FEATURE_GUIDE — used to prefetch the hover cards. */
+export function featureGuideImageSrcs(): string[] {
+  const srcs = new Set<string>();
+  for (const guide of Object.values(FEATURE_GUIDE)) {
+    if (guide.imageSrc) srcs.add(guide.imageSrc);
+  }
+  return [...srcs];
+}
+
 /** Registry order, grouped by category — used by /help/feature-guide. */
 export function featureGuideGroups(): { category: FeatureCategory; label: string; keys: FeatureKey[] }[] {
   const map = new Map<FeatureCategory, FeatureKey[]>();

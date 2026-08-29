@@ -20,8 +20,16 @@ export const HOVER_INFO_OPEN_DELAY_MS = 250;
 /** Travel time between the trigger and the portaled card — do not close in this gap. */
 export const HOVER_INFO_CLOSE_GRACE_MS = 150;
 /** Extract height before the fade-out clip (15px × 1.5 × 6). */
+export const HOVER_INFO_BODY_MIN_LINES = 2;
 export const HOVER_INFO_BODY_LINES = 6;
 export const HOVER_INFO_CARD_WIDTH = 400;
+
+/** Warm a screenshot as soon as hover-intent starts, before the card mounts. */
+export function preloadImage(src: string): void {
+  if (!src || typeof window === "undefined") return;
+  const img = new window.Image();
+  img.src = src;
+}
 
 export type HoverInfoTrigger = "icon" | "label";
 
@@ -35,8 +43,9 @@ export type HoverInfoProps = {
   image?: ReactNode;
   children?: ReactNode;
   /**
-   * `label` — the wrapped title is the trigger (cursor: help, dotted underline
-   * on hover). No ⓘ on hover-capable devices. Touch taps the title.
+   * `label` — the wrapped title is the trigger (dotted underline on hover;
+   * the pointer stays the normal arrow). No ⓘ on hover-capable devices.
+   * Touch taps the title.
    * `icon` — K-1 default: a visible ⓘ button beside the children.
    */
   trigger?: HoverInfoTrigger;
@@ -111,11 +120,13 @@ export function HoverInfo({
   }, [clearTimers]);
 
   const openNow = useCallback(() => {
+    if (imageSrc) preloadImage(imageSrc);
     clearTimers();
     setOpen(true);
-  }, [clearTimers]);
+  }, [clearTimers, imageSrc]);
 
   const scheduleOpen = useCallback(() => {
+    if (imageSrc) preloadImage(imageSrc);
     if (closeTimer.current) {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = null;
@@ -125,7 +136,7 @@ export function HoverInfo({
       openTimer.current = null;
       setOpen(true);
     }, HOVER_INFO_OPEN_DELAY_MS);
-  }, []);
+  }, [imageSrc]);
 
   const scheduleClose = useCallback(() => {
     if (openTimer.current) {
@@ -278,7 +289,7 @@ export function HoverInfo({
           >
             {hasImage ? (
               <div className="hover-info-art" aria-hidden>
-                {imageSrc ? <img className="hover-info-image" src={imageSrc} alt="" loading="lazy" /> : image}
+                {imageSrc ? <img className="hover-info-image" src={imageSrc} alt="" /> : image}
               </div>
             ) : null}
             <div className="hover-info-inner">

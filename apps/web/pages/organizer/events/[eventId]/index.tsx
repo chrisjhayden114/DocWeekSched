@@ -24,6 +24,7 @@ import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListS
 import { StatusChip } from "../../../../components/StatusChip";
 import { PageHeader, StatCard } from "../../../../components/kit";
 import { ConsoleTabStrip } from "../../../../components/organizer/ConsoleTabStrip";
+import { applyEventTabToQuery, resolveEventTab, type EventTab } from "../../../../lib/eventTabs";
 import { CONSOLE_TAB_ALWAYS_OVERFLOW } from "../../../../lib/tabOverflow";
 import { EventSettingsSlideOver } from "../../../../components/organizer/EventSettingsSlideOver";
 import { MarkPaidCsvCard } from "../../../../components/organizer/MarkPaidCsvCard";
@@ -110,31 +111,6 @@ type SendInvitesResult = {
   summary: string;
   items: { email: string | null; text: string; inviteUrl?: string }[];
 };
-
-type EventTab =
-  | "overview"
-  | "program"
-  | "people"
-  | "invites"
-  | "maps"
-  | "announcements"
-  | "features"
-  | "ops"
-  | "readiness"
-  | "recap";
-
-const EVENT_TABS: readonly EventTab[] = [
-  "overview",
-  "program",
-  "people",
-  "readiness",
-  "invites",
-  "maps",
-  "announcements",
-  "features",
-  "ops",
-  "recap",
-];
 
 /** Stroke icons for the overview (same 18px stroke style as OrganizerShell). */
 function OverviewIcon(props: SVGProps<SVGSVGElement>) {
@@ -234,32 +210,39 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
 export default function OrganizerEventPage() {
   const router = useRouter();
   const eventId = typeof router.query.eventId === "string" ? router.query.eventId : "";
+  // Always a known EventTab — unknown/legacy ?tab= values resolve to Overview
+  // (or Participants, for invites/participants) and never throw on render.
   const [tab, setTab] = useState<EventTab>("overview");
 
   // E12.1: honor deep links like ?tab=program (used by "View program" after
-  // an ingest confirm). Unknown values fall back to the default tab.
-  // F0.2: the URL is the source of truth — this also runs on Back/Forward
-  // (popstate), so history navigation moves between tabs instead of exiting
-  // the console, and a refresh keeps the current tab.
+  // an ingest confirm). Unknown values fall back to Overview and the query
+  // is rewritten so a stale or junk id cannot 500. F0.2: the URL is the
+  // source of truth — this also runs on Back/Forward (popstate).
+  const tabQuery = router.query.tab;
+  const settingsQuery = router.query.settings;
+  const speakerQuery = router.query.speaker;
+  const routerReady = router.isReady;
+  const routerPathname = router.pathname;
+  const routerReplace = router.replace;
   useEffect(() => {
-    if (!router.isReady) return;
-    const raw = router.query.tab;
-    // INV-1: the tab is named Participants now, but the id stays "invites"
-    // for deep-link compat — accept both spellings in the URL.
-    const q = raw === "participants" ? "invites" : raw;
-    setTab(
-      typeof q === "string" && (EVENT_TABS as readonly string[]).includes(q)
-        ? (q as EventTab)
-        : "overview",
-    );
-  }, [router.isReady, router.query.tab]);
+    if (!routerReady) return;
+    const resolved = resolveEventTab(tabQuery);
+    setTab(resolved.tab);
+    if (!resolved.rewrite || !eventId) return;
+    const query: Record<string, string> = { eventId };
+    applyEventTabToQuery(query, resolved.tab);
+    if (settingsQuery === "1") query.settings = "1";
+    if (typeof speakerQuery === "string") query.speaker = speakerQuery;
+    void routerReplace({ pathname: routerPathname, query }, undefined, { shallow: true });
+  }, [routerReady, routerPathname, routerReplace, tabQuery, settingsQuery, speakerQuery, eventId]);
 
   // F0.2: tab clicks write the tab to the query string (shallow — no data
-  // refetch); the effect above reads it back into state.
+  // refetch); the effect above reads it back into state. Participants
+  // publishes as ?tab=participants; the strip id stays "invites".
   const selectTab = useCallback(
     (next: EventTab) => {
       const query: Record<string, string> = { eventId };
-      if (next !== "overview") query.tab = next;
+      applyEventTabToQuery(query, next);
       void router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
     },
     [router, eventId],
@@ -272,7 +255,7 @@ export default function OrganizerEventPage() {
   const setSettingsOpen = useCallback(
     (next: boolean) => {
       const query: Record<string, string> = { eventId };
-      if (tab !== "overview") query.tab = tab;
+      applyEventTabToQuery(query, tab);
       if (next) query.settings = "1";
       void router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
     },
@@ -290,7 +273,7 @@ export default function OrganizerEventPage() {
   const setSpeakerParam = useCallback(
     (next: string | null) => {
       const query: Record<string, string> = { eventId };
-      if (tab !== "overview") query.tab = tab;
+      applyEventTabToQuery(query, tab);
       if (next) query.speaker = next;
       void router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
     },

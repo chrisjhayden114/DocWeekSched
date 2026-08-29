@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FEATURE_GUIDE,
   FEATURE_PRESETS,
+  featureGuideImageSrcs,
   getOrganizerVisibleFeatures,
   normalizeOverridesForSave,
   resolveFeatureEnabled,
@@ -12,7 +13,7 @@ import {
 import { FeatureArt } from "./featureArt";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { GuidePanel } from "./kit/GuidePanel";
-import { HoverInfo } from "./kit/HoverInfo";
+import { HoverInfo, preloadImage } from "./kit/HoverInfo";
 
 export type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
 
@@ -50,6 +51,10 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
   const visible = useMemo(() => getOrganizerVisibleFeatures(), []);
   const [pendingOff, setPendingOff] = useState<FeatureKey | null>(null);
   const [guideKey, setGuideKey] = useState<FeatureKey | null>(null);
+
+  useEffect(() => {
+    for (const src of featureGuideImageSrcs()) preloadImage(src);
+  }, []);
 
   const grouped = useMemo(() => {
     const map = new Map<string, typeof visible>();
