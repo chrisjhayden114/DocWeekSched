@@ -3,11 +3,20 @@
 export {
   initialDialogue,
   looksLikeQuestion,
+  replyAfterFormUpdate,
   runCreateTurn,
   runSettingsTurn,
   type DialogueState,
   type TurnResult,
 } from "./dialogue";
+export {
+  applySetupConflictChoices,
+  conflictQuestion,
+  diffExtractAgainstConfirmed,
+  type ConflictResolution,
+  type ExtractConflictDiff,
+  type SetupConflictSource,
+} from "./conflict";
 export {
   SETUP_SYSTEM,
   ORGANIZER_SYSTEM,
@@ -47,5 +56,7 @@ export {
   mergeSetupExtract,
   hasExtractedFields,
   looksLikeProgramDocument,
+  omitExtractFields,
+  statedExtractFields,
   validateExtracted,
 } from "./extractTypes";

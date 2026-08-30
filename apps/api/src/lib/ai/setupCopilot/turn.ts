@@ -20,6 +20,7 @@ import {
   type DialogueState,
   type TurnResult,
 } from "./dialogue";
+import type { SetupConflictSource } from "./conflict";
 import { hasExtractedFields, type SetupExtract } from "./extractTypes";
 import { runSetupExtract } from "./extract";
 import { linkifyOrganizerReply } from "./links";
@@ -42,6 +43,12 @@ export async function runSetupCopilotTurn(params: {
    * event and counts and serializes them via buildOrganizerStateText.
    */
   organizerStateText?: string | null;
+  /**
+   * W-4 — "document" when the extract came from an uploaded file rather than
+   * the organizer's own words: file values are proposals, so they never
+   * confirm a field and they conflict against confirmed ones.
+   */
+  extractSource?: SetupConflictSource;
 }): Promise<TurnResult> {
   const { mode, state, userMessage, liveEvent, gatewayCtx } = params;
 
@@ -62,7 +69,9 @@ export async function runSetupCopilotTurn(params: {
   const result =
     mode === "settings"
       ? runSettingsTurn(state, userMessage, liveEvent)
-      : runCreateTurn(state, userMessage, extracted);
+      : runCreateTurn(state, userMessage, extracted, {
+          extractSource: params.extractSource ?? "chat",
+        });
 
   if (!gatewayCtx) return result;
 
@@ -75,6 +84,7 @@ export async function runSetupCopilotTurn(params: {
       history: state.messages,
       userMessage,
       organizerStateText: params.organizerStateText,
+      pendingConflict: result.pendingConflict,
     }),
     gatewayCtx,
   );

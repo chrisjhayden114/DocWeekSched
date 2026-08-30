@@ -97,6 +97,50 @@ export type SetupCopilotStep =
   | "ready"
   | "settings_chat";
 
+/**
+ * W-4 (SETUP-CONFLICT) — the setup fields an organizer can CONFIRM, and the
+ * unit of conflict detection. A field is confirmed once the organizer answered
+ * it explicitly or edited it by hand; browser/preset defaults never count.
+ */
+export type SetupConfirmableField =
+  | "name"
+  | "startDate"
+  | "endDate"
+  | "timezone"
+  | "venueName"
+  | "onlineUrl"
+  | "estimatedSize"
+  | "eventType"
+  | "networkingChoice"
+  | "hasProgramDocument";
+
+export const SETUP_CONFIRMABLE_FIELDS: readonly SetupConfirmableField[] = [
+  "name",
+  "startDate",
+  "endDate",
+  "timezone",
+  "venueName",
+  "onlineUrl",
+  "estimatedSize",
+  "eventType",
+  "networkingChoice",
+  "hasProgramDocument",
+];
+
+/** Organizer-facing field names — used in the conflict card and the aside. */
+export const SETUP_FIELD_LABEL: Record<SetupConfirmableField, string> = {
+  name: "Event name",
+  startDate: "Start date",
+  endDate: "End date",
+  timezone: "Timezone",
+  venueName: "Venue",
+  onlineUrl: "Online link",
+  estimatedSize: "Expected size",
+  eventType: "Event type",
+  networkingChoice: "Networking",
+  hasProgramDocument: "Program document",
+};
+
 /** Visible form state filled alongside the chat — the conversation IS the wizard. */
 export type SetupCopilotFormState = {
   name: string;
@@ -115,6 +159,12 @@ export type SetupCopilotFormState = {
   /** Suggested preset from event type (applied as starting point when type is set). */
   suggestedPreset: FeaturePresetId | null;
   networkingChoice: "full" | "focused" | "custom" | null;
+  /**
+   * W-4 — fields the organizer confirmed, in the same client-held state as the
+   * rest of the form (timezoneExplicit's pattern, no schema change). Optional
+   * so older drafts and callers that predate it read as "nothing confirmed".
+   */
+  confirmedFields?: SetupConfirmableField[];
 };
 
 export type SetupCopilotMessage = {
@@ -148,6 +198,98 @@ export type ConfigDiffCard = {
   proposedOverrides: Partial<Record<FeatureKey, FeatureOverrideValue>>;
   aiGenerated: true;
 };
+
+/**
+ * W-4 — the values a conflicting extract wants to write, keyed by field.
+ * Same shape as the form so applying a choice is a plain assignment.
+ */
+export type SetupConflictPatch = Partial<Pick<SetupCopilotFormState, SetupConfirmableField>>;
+
+export type SetupConflictEntry = {
+  field: SetupConfirmableField;
+  label: string;
+  /** Display strings for the "current → proposed" row. */
+  current: string;
+  proposed: string;
+  /** Where the proposed value came from, so the card can say so. */
+  source: "chat" | "document";
+};
+
+/**
+ * W-4 — a conflict card is minted when an extract would overwrite a field the
+ * organizer already confirmed. Nothing in it is applied until the organizer
+ * chooses per field; the assistant's question about it is deterministic.
+ */
+export type SetupConflictCard = {
+  title: string;
+  summary: string;
+  entries: SetupConflictEntry[];
+  proposedFields: SetupConflictPatch;
+  aiGenerated: true;
+};
+
+export type SetupConflictChoice = "keep" | "use_new";
+
+/** Per-field resolution. A missing field means "keep mine" — never overwrite by default. */
+export type SetupConflictChoices = Partial<Record<SetupConfirmableField, SetupConflictChoice>>;
+
+/** An applied change, for the aside's old→new highlight. */
+export type SetupFieldChange = {
+  field: SetupConfirmableField;
+  label: string;
+  from: string;
+  to: string;
+};
+
+export function confirmedSetupFields(
+  form: Pick<SetupCopilotFormState, "confirmedFields">,
+): SetupConfirmableField[] {
+  return form.confirmedFields ?? [];
+}
+
+export function isConfirmedSetupField(
+  form: Pick<SetupCopilotFormState, "confirmedFields">,
+  field: SetupConfirmableField,
+): boolean {
+  return confirmedSetupFields(form).includes(field);
+}
+
+/** Add confirmations without duplicating or dropping existing ones. */
+export function withConfirmedSetupFields<T extends Pick<SetupCopilotFormState, "confirmedFields">>(
+  form: T,
+  fields: readonly SetupConfirmableField[],
+): T {
+  if (fields.length === 0) return form;
+  const next = new Set(confirmedSetupFields(form));
+  for (const field of fields) next.add(field);
+  return {
+    ...form,
+    confirmedFields: SETUP_CONFIRMABLE_FIELDS.filter((f) => next.has(f)),
+  };
+}
+
+/** One display string per field — "—" when unset, never a raw enum token. */
+export function formatSetupFieldValue(
+  field: SetupConfirmableField,
+  value: SetupConflictPatch[SetupConfirmableField],
+): string {
+  if (field === "hasProgramDocument") {
+    if (value === true) return "Yes";
+    if (value === false) return "No";
+    return "—";
+  }
+  if (field === "eventType") {
+    return value ? setupEventTypeLabel(value as SetupEventType) : "—";
+  }
+  if (field === "estimatedSize") {
+    return value ? `about ${String(value)} people` : "—";
+  }
+  if (typeof value === "string" && value.trim()) {
+    // Stored date-times keep the T separator; organizers read a space.
+    return field === "startDate" || field === "endDate" ? value.replace("T", " ") : value;
+  }
+  return "—";
+}
 
 export type SetupHandoffA1 = {
   kind: "agenda_ingest";
@@ -206,6 +348,7 @@ export function emptySetupFormState(timezone = "UTC"): SetupCopilotFormState {
     featureOverrides: {},
     suggestedPreset: null,
     networkingChoice: null,
+    confirmedFields: [],
   };
 }
 

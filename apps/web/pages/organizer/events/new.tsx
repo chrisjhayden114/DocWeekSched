@@ -3,7 +3,12 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { SetupCopilotFormState, SetupCopilotMessage, SetupCopilotStep } from "@event-app/shared";
+import type {
+  SetupCopilotFormState,
+  SetupCopilotMessage,
+  SetupCopilotStep,
+  SetupFieldChange,
+} from "@event-app/shared";
 import {
   ASSISTANT_COPY,
   emptySetupFormState,
@@ -24,7 +29,9 @@ import {
   clearSetupCopilotDraft,
   copilotFormToWizardFields,
   copilotStepFromForm,
+  fieldChangeMap,
   loadSetupCopilotDraft,
+  mergeFieldChanges,
   saveSetupCopilotDraft,
   wizardFieldsToCopilotForm,
 } from "../../../lib/setupCopilotDraft";
@@ -36,6 +43,32 @@ import {
   serializeWizardDraft,
   type WizardDraft,
 } from "../../../lib/wizardDraft";
+
+/**
+ * W-4 — old→new highlight under a summary row, the same "current → proposed"
+ * shape the review cards use, shown only for fields a resolved conflict
+ * actually changed.
+ */
+function FieldChangeNote({ change }: { change?: SetupFieldChange }) {
+  if (!change) return null;
+  return (
+    <span
+      className="setup-field-change"
+      style={{
+        display: "block",
+        width: "fit-content",
+        marginTop: 4,
+        padding: "1px 6px",
+        borderRadius: 4,
+        background: "var(--event-accent-tint)",
+        fontSize: 12,
+        fontWeight: 400,
+      }}
+    >
+      {change.label}: {change.from} → <strong>{change.to}</strong>
+    </span>
+  );
+}
 
 function slugify(name: string) {
   return name
@@ -78,6 +111,7 @@ export default function NewEventWizard() {
   const [copilotForm, setCopilotForm] = useState<SetupCopilotFormState>(() => emptySetupFormState(timezone));
   const [copilotHistory, setCopilotHistory] = useState<SetupCopilotMessage[]>([]);
   const [copilotStep, setCopilotStep] = useState<SetupCopilotStep>("name");
+  const [fieldChanges, setFieldChanges] = useState<SetupFieldChange[]>([]);
   const [chatEpoch, setChatEpoch] = useState(0);
   const [draftsReady, setDraftsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -273,6 +307,7 @@ export default function NewEventWizard() {
     setCopilotForm(emptySetupFormState(tz));
     setCopilotHistory([]);
     setCopilotStep("name");
+    setFieldChanges([]);
     setError(null);
   }
 
@@ -446,6 +481,8 @@ export default function NewEventWizard() {
   const canCompleteAi =
     Boolean(copilotForm.name && copilotForm.startDate && copilotForm.endDate && organizationId);
 
+  const changed = fieldChangeMap(fieldChanges);
+
   return (
     <>
       <Head>
@@ -498,6 +535,9 @@ export default function NewEventWizard() {
                   setCopilotStep(nextStep);
                 }}
                 onStartOver={startOver}
+                onFieldChanges={(changes) =>
+                  setFieldChanges((prev) => mergeFieldChanges(prev, changes))
+                }
                 onHandoff={(_h, form) => {
                   applyCopilotForm({ ...form, hasProgramDocument: true });
                 }}
@@ -571,12 +611,17 @@ export default function NewEventWizard() {
               <dl style={{ margin: 0, display: "grid", gap: 10, fontSize: 14 }}>
                 <div>
                   <dt className="help-text">Name</dt>
-                  <dd style={{ margin: 0, fontWeight: 600 }}>{name || "—"}</dd>
+                  <dd style={{ margin: 0, fontWeight: 600 }}>
+                    {name || "—"}
+                    <FieldChangeNote change={changed.name} />
+                  </dd>
                 </div>
                 <div>
                   <dt className="help-text">Dates</dt>
                   <dd style={{ margin: 0 }}>
                     {startDate || "—"} → {endDate || "—"}
+                    <FieldChangeNote change={changed.startDate} />
+                    <FieldChangeNote change={changed.endDate} />
                   </dd>
                 </div>
                 <div>
@@ -585,22 +630,33 @@ export default function NewEventWizard() {
                       Boolean(copilotForm.timezoneExplicit) || timezone !== initialTimezoneRef.current,
                     )}
                   </dt>
-                  <dd style={{ margin: 0 }}>{timezone}</dd>
+                  <dd style={{ margin: 0 }}>
+                    {timezone}
+                    <FieldChangeNote change={changed.timezone} />
+                  </dd>
                 </div>
                 <div>
                   <dt className="help-text">Place</dt>
                   <dd style={{ margin: 0 }}>
                     {venueName || onlineUrl || "—"}
                     {venueAddress ? ` · ${venueAddress}` : ""}
+                    <FieldChangeNote change={changed.venueName} />
+                    <FieldChangeNote change={changed.onlineUrl} />
                   </dd>
                 </div>
                 <div>
                   <dt className="help-text">Size</dt>
-                  <dd style={{ margin: 0 }}>{copilotForm.estimatedSize || "—"}</dd>
+                  <dd style={{ margin: 0 }}>
+                    {copilotForm.estimatedSize || "—"}
+                    <FieldChangeNote change={changed.estimatedSize} />
+                  </dd>
                 </div>
                 <div>
                   <dt className="help-text">Type</dt>
-                  <dd style={{ margin: 0 }}>{setupEventTypeLabel(copilotForm.eventType) || "—"}</dd>
+                  <dd style={{ margin: 0 }}>
+                    {setupEventTypeLabel(copilotForm.eventType) || "—"}
+                    <FieldChangeNote change={changed.eventType} />
+                  </dd>
                 </div>
                 <div>
                   <dt className="help-text">Program document</dt>
@@ -610,11 +666,15 @@ export default function NewEventWizard() {
                       : copilotForm.hasProgramDocument
                         ? "Yes → Agenda Ingest"
                         : "No → skeleton drafts"}
+                    <FieldChangeNote change={changed.hasProgramDocument} />
                   </dd>
                 </div>
                 <div>
                   <dt className="help-text">Networking</dt>
-                  <dd style={{ margin: 0 }}>{copilotForm.networkingChoice || "—"}</dd>
+                  <dd style={{ margin: 0 }}>
+                    {copilotForm.networkingChoice || "—"}
+                    <FieldChangeNote change={changed.networkingChoice} />
+                  </dd>
                 </div>
               </dl>
             </aside>

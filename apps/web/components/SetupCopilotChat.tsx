@@ -3,10 +3,13 @@ import Link from "next/link";
 import type {
   ConciergeLink,
   ConfigDiffCard,
+  SetupConflictCard,
+  SetupConflictChoices,
   SetupCopilotFormState,
   SetupCopilotMessage,
   SetupCopilotMode,
   SetupCopilotStep,
+  SetupFieldChange,
   SetupHandoffA1,
 } from "@event-app/shared";
 import { ASSISTANT_COPY, emptySetupFormState } from "@event-app/shared";
@@ -22,6 +25,7 @@ import {
 import { AiGeneratedChip } from "./AiGeneratedChip";
 import { ConfigDiffCardView } from "./ConfigDiffCardView";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { SetupConflictCardView } from "./SetupConflictCardView";
 
 export type SetupCopilotChatProps = {
   mode: SetupCopilotMode;
@@ -47,6 +51,11 @@ export type SetupCopilotChatProps = {
   onCompleteReady?: (form: SetupCopilotFormState) => void;
   /** When features are confirmed against a live/draft event. */
   onFeaturesApplied?: (overrides: SetupCopilotFormState["featureOverrides"]) => void;
+  /**
+   * W-4 — fields the organizer changed by resolving a conflict, so the summary
+   * panel can highlight the old→new value.
+   */
+  onFieldChanges?: (changes: SetupFieldChange[]) => void;
   compact?: boolean;
 };
 
@@ -56,11 +65,21 @@ type TurnResponse = {
   messages: SetupCopilotMessage[];
   assistantMessage: string;
   pendingDiff: ConfigDiffCard | null;
+  pendingConflict?: SetupConflictCard | null;
   handoff: SetupHandoffA1 | null;
   skeletonPreview: unknown;
   links?: ConciergeLink[];
   aiGenerated: true;
   liveEvent?: boolean;
+};
+
+type ResolveConflictResponse = {
+  step: SetupCopilotStep;
+  form: SetupCopilotFormState;
+  messages: SetupCopilotMessage[];
+  assistantMessage: string;
+  changes: SetupFieldChange[];
+  handoff: SetupHandoffA1 | null;
 };
 
 /**
@@ -103,6 +122,7 @@ export function SetupCopilotChat({
   onHandoff,
   onCompleteReady,
   onFeaturesApplied,
+  onFieldChanges,
   compact,
 }: SetupCopilotChatProps) {
   const seededForm: SetupCopilotFormState = {
@@ -137,7 +157,9 @@ export function SetupCopilotChat({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDiff, setPendingDiff] = useState<ConfigDiffCard | null>(null);
+  const [pendingConflict, setPendingConflict] = useState<SetupConflictCard | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [startOverOpen, setStartOverOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -175,6 +197,7 @@ export function SetupCopilotChat({
       setInput("");
       setError(null);
       setPendingDiff(null);
+      setPendingConflict(null);
       setBusy(false);
 
       const restored = loadSettingsSetupCopilotDraft(eventId);
@@ -248,7 +271,7 @@ export function SetupCopilotChat({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, pendingDiff]);
+  }, [messages, pendingDiff, pendingConflict]);
 
   async function send() {
     const text = input.trim();
@@ -272,6 +295,7 @@ export function SetupCopilotChat({
       syncConversation(res.messages, res.step);
       syncForm(res.form);
       setPendingDiff(res.pendingDiff);
+      setPendingConflict(res.pendingConflict ?? null);
       if (res.handoff) onHandoff?.(res.handoff, res.form);
       if (
         res.step === "ready" &&
@@ -316,6 +340,7 @@ export function SetupCopilotChat({
       syncConversation(res.messages, res.step);
       syncForm(res.form);
       setPendingDiff(res.pendingDiff);
+      setPendingConflict(res.pendingConflict ?? null);
       if (res.handoff) onHandoff?.(res.handoff, res.form);
       if (
         res.step === "ready" &&
@@ -328,6 +353,37 @@ export function SetupCopilotChat({
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  /**
+   * W-4 — the organizer's per-field choices go back to the server, which
+   * applies only those fields deterministically and reports what changed.
+   */
+  async function resolveConflict(choices: SetupConflictChoices) {
+    if (!pendingConflict || resolving) return;
+    setResolving(true);
+    setError(null);
+    try {
+      const res = await apiFetch<ResolveConflictResponse>("/ai/setup-copilot/resolve-conflict", {
+        method: "POST",
+        body: JSON.stringify({
+          step,
+          form,
+          messages,
+          conflict: pendingConflict,
+          choices,
+        }),
+      });
+      syncConversation(res.messages, res.step);
+      syncForm(res.form);
+      setPendingConflict(null);
+      if (res.changes.length > 0) onFieldChanges?.(res.changes);
+      if (res.handoff) onHandoff?.(res.handoff, res.form);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not apply your choices");
+    } finally {
+      setResolving(false);
     }
   }
 
@@ -428,6 +484,14 @@ export function SetupCopilotChat({
             {m.role === "assistant" ? <AssistantBody content={m.content} links={m.links} /> : m.content}
           </div>
         ))}
+        {pendingConflict ? (
+          <SetupConflictCardView
+            card={pendingConflict}
+            applying={resolving}
+            onApply={(choices) => void resolveConflict(choices)}
+            onDismiss={() => setPendingConflict(null)}
+          />
+        ) : null}
         {pendingDiff ? (
           <ConfigDiffCardView
             card={pendingDiff}

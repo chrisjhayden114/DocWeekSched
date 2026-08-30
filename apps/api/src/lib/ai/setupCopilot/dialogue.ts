@@ -7,14 +7,15 @@
  */
 
 import {
-  EVENT_TYPE_PRESET,
   TALK_SHOWCASE_SIZE_HELPER,
   applyPreset,
-  applyTalkShowcaseSizePrefill,
   emptySetupFormState,
+  withConfirmedSetupFields,
   type ConciergeLink,
   type ConfigDiffCard,
   type FeatureKey,
+  type SetupConfirmableField,
+  type SetupConflictCard,
   type SetupCopilotFormState,
   type SetupCopilotMessage,
   type SetupCopilotMode,
@@ -22,6 +23,11 @@ import {
   type SetupHandoffA1,
 } from "@event-app/shared";
 import { resolveFeatureEnabled } from "../../features/registry";
+import {
+  conflictQuestion,
+  diffExtractAgainstConfirmed,
+  type SetupConflictSource,
+} from "./conflict";
 import { buildConfigDiffCard } from "./diffCard";
 import {
   parseDatesAndTimezone,
@@ -35,8 +41,11 @@ import {
 } from "./parse";
 import { buildSkeleton, type SkeletonBundle } from "./skeleton";
 import {
+  applyEventTypeToForm,
+  applyNetworkingChoiceToForm,
   hasExtractedFields,
   mergeSetupExtract,
+  statedExtractFields,
   stepFromForm,
   validateExtracted,
   type SetupExtract,
@@ -54,6 +63,11 @@ export type TurnResult = {
   messages: SetupCopilotMessage[];
   assistantMessage: string;
   pendingDiff: ConfigDiffCard | null;
+  /**
+   * W-4 — set when an extract wanted to overwrite a CONFIRMED answer. Those
+   * fields are not in `form`: they apply only once the organizer chooses.
+   */
+  pendingConflict: SetupConflictCard | null;
   handoff: SetupHandoffA1 | null;
   skeletonPreview: SkeletonBundle | null;
   aiGenerated: true;
@@ -103,16 +117,6 @@ function assistant(text: string): SetupCopilotMessage {
 export function looksLikeQuestion(text: string): boolean {
   const t = text.trim();
   return t.endsWith("?") || /^(what|how|why|can|do|is|where)\b/i.test(t);
-}
-
-function applyTypePreset(form: SetupCopilotFormState): SetupCopilotFormState {
-  if (!form.eventType) return form;
-  const preset = EVENT_TYPE_PRESET[form.eventType];
-  return applyTalkShowcaseSizePrefill({
-    ...form,
-    suggestedPreset: preset,
-    featureOverrides: { ...form.featureOverrides, ...applyPreset(preset) },
-  });
 }
 
 const EVENT_TYPE_QUESTION =
@@ -203,14 +207,22 @@ export function runCreateTurn(
   state: DialogueState,
   userText: string,
   extracted?: SetupExtract | null,
+  /**
+   * W-4 — where the extract came from. The organizer's own words are an
+   * explicit answer (and become confirmed); a document's values are a
+   * proposal, so they never confirm anything on their own.
+   */
+  opts?: { extractSource?: SetupConflictSource },
 ): TurnResult {
   const text = userText.trim();
+  const extractSource: SetupConflictSource = opts?.extractSource ?? "chat";
   let { step, form } = state;
   const messages: SetupCopilotMessage[] = [
     ...state.messages,
     { role: "user", content: text },
   ];
   let pendingDiff: ConfigDiffCard | null = null;
+  let pendingConflict: SetupConflictCard | null = null;
   let handoff: SetupHandoffA1 | null = null;
   let skeletonPreview: SkeletonBundle | null = null;
   let reply = "";
@@ -230,7 +242,20 @@ export function runCreateTurn(
   };
   const validated = extracted ? validateExtracted(extracted, extractContext) : extracted;
   if (step !== "ready" && hasExtractedFields(validated)) {
-    form = mergeSetupExtract(form, validated!, extractContext);
+    // W-4 — PRE-MERGE DIFF: an extract may never overwrite a confirmed answer
+    // on its own. Conflicting fields are withheld from the merge and asked
+    // about; everything else merges exactly as before.
+    const diff = diffExtractAgainstConfirmed({
+      form,
+      extract: validated!,
+      context: extractContext,
+      source: extractSource,
+    });
+    pendingConflict = diff.card;
+    form = mergeSetupExtract(form, diff.mergeable, extractContext);
+    if (extractSource === "chat") {
+      form = withConfirmedSetupFields(form, statedExtractFields(diff.mergeable));
+    }
     const noteReq = extracted?.networkingNote
       ? parseFeatureRequests(extracted.networkingNote)
       : { isCustomRequest: false, patch: {}, requestedKeys: [] as FeatureKey[] };
@@ -247,7 +272,9 @@ export function runCreateTurn(
     }
     if (form.hasProgramDocument === null) {
       const yn = parseYesNo(text);
-      if (yn !== null) form = { ...form, hasProgramDocument: yn };
+      if (yn !== null) {
+        form = withConfirmedSetupFields({ ...form, hasProgramDocument: yn }, ["hasProgramDocument"]);
+      }
     }
     step = stepFromForm(form, step);
     if (step === "ready") {
@@ -255,7 +282,14 @@ export function runCreateTurn(
       handoff = readyBits.handoff;
       skeletonPreview = readyBits.skeletonPreview;
     }
-    reply = cannedReplyForStep(step, form, { fromUpload });
+    if (pendingConflict) {
+      // The conflict question is load-bearing: the model must not restate it
+      // and risk claiming a withheld field was updated.
+      reply = conflictQuestion(pendingConflict);
+      deterministicReply = true;
+    } else {
+      reply = cannedReplyForStep(step, form, { fromUpload });
+    }
     messages.push(assistant(reply));
     return {
       step,
@@ -263,10 +297,11 @@ export function runCreateTurn(
       messages,
       assistantMessage: reply,
       pendingDiff,
+      pendingConflict,
       handoff,
       skeletonPreview,
       aiGenerated: true,
-      deterministicReply: false,
+      deterministicReply,
       links: [],
     };
   }
@@ -283,7 +318,9 @@ export function runCreateTurn(
         reply = "What should we call the event?";
         break;
       }
-      form = { ...form, name };
+      // W-4: an answer typed at its own step is a CONFIRMED field — a later
+      // extract has to ask before changing it.
+      form = withConfirmedSetupFields({ ...form, name }, ["name"]);
       step = "dates";
       reply = `Got it — “${name}.” When does it run, and what timezone? (Example: 2027-07-20 to 2027-07-22, America/Los_Angeles)`;
       break;
@@ -295,20 +332,29 @@ export function runCreateTurn(
           "I need dates I can use. Try something like “2027-07-20 to 2027-07-22, America/New_York” or “July 20–22 2027 PT”.";
         break;
       }
-      form = {
-        ...form,
-        startDate: parsed.startDate,
-        endDate: parsed.endDate,
-        timezone: parsed.timezone,
-        timezoneExplicit: form.timezoneExplicit || parsed.timezoneExplicit,
-      };
+      form = withConfirmedSetupFields(
+        {
+          ...form,
+          startDate: parsed.startDate,
+          endDate: parsed.endDate,
+          timezone: parsed.timezone,
+          timezoneExplicit: form.timezoneExplicit || parsed.timezoneExplicit,
+        },
+        // A zone that is still the browser default is not an answer.
+        parsed.timezoneExplicit
+          ? ["startDate", "endDate", "timezone"]
+          : ["startDate", "endDate"],
+      );
       step = "venue";
       reply = "Where is it — a venue name, online, or hybrid?";
       break;
     }
     case "venue": {
       const v = parseVenue(text);
-      form = { ...form, ...v };
+      const placeFields: SetupConfirmableField[] = [];
+      if (v.venueName.trim()) placeFields.push("venueName");
+      if (v.onlineUrl.trim()) placeFields.push("onlineUrl");
+      form = withConfirmedSetupFields({ ...form, ...v }, placeFields);
       step = "size";
       reply = sizeQuestion(form);
       break;
@@ -319,7 +365,7 @@ export function runCreateTurn(
         reply = "About how many attendees — for example 80 or 250?";
         break;
       }
-      form = { ...form, estimatedSize: size };
+      form = withConfirmedSetupFields({ ...form, estimatedSize: size }, ["estimatedSize"]);
       step = "type";
       reply = EVENT_TYPE_QUESTION;
       break;
@@ -331,7 +377,7 @@ export function runCreateTurn(
           "Pick one: conference, academic program, meetup, internal, PD day / training, or talk showcase.";
         break;
       }
-      form = applyTypePreset({ ...form, eventType });
+      form = withConfirmedSetupFields(applyEventTypeToForm(form, eventType), ["eventType"]);
       step = "networking";
       reply = afterTypeReply(form);
       break;
@@ -345,11 +391,14 @@ export function runCreateTurn(
           liveEvent: false,
           summary: "Based on what you asked for — confirm to apply these settings.",
         });
-        form = {
-          ...form,
-          networkingChoice: "custom",
-          // Do not write overrides until the organizer confirms the diff card.
-        };
+        form = withConfirmedSetupFields(
+          {
+            ...form,
+            networkingChoice: "custom",
+            // Do not write overrides until the organizer confirms the diff card.
+          },
+          ["networkingChoice"],
+        );
         step = "document";
         reply =
           "I've drafted a settings change card for you to review (confirm it when you're ready). Do you already have a program document (PDF, Word, spreadsheet, or photo of the schedule)?";
@@ -361,25 +410,9 @@ export function runCreateTurn(
           "Say “full networking,” “focused on the schedule,” or a specific request like “no ice-breakers.”";
         break;
       }
-      if (choice === "full") {
-        form = {
-          ...form,
-          networkingChoice: "full",
-          featureOverrides: {
-            ...form.featureOverrides,
-            ...applyPreset("everything"),
-          },
-        };
-      } else {
-        form = {
-          ...form,
-          networkingChoice: "focused",
-          featureOverrides: {
-            ...form.featureOverrides,
-            ...applyPreset("focused"),
-          },
-        };
-      }
+      form = withConfirmedSetupFields(applyNetworkingChoiceToForm(form, choice), [
+        "networkingChoice",
+      ]);
       step = "document";
       reply =
         "Do you already have a program document (PDF, Word, spreadsheet, or photo of the schedule)?";
@@ -395,7 +428,7 @@ export function runCreateTurn(
         reply = "Do you have a program document? Yes or no is fine.";
         break;
       }
-      form = { ...form, hasProgramDocument: yn };
+      form = withConfirmedSetupFields({ ...form, hasProgramDocument: yn }, ["hasProgramDocument"]);
       if (yn) {
         step = "ready";
         handoff = {
@@ -451,11 +484,37 @@ export function runCreateTurn(
     messages,
     assistantMessage: reply,
     pendingDiff,
+    pendingConflict,
     handoff,
     skeletonPreview,
     aiGenerated: true,
     deterministicReply,
     links: [],
+  };
+}
+
+/**
+ * W-4 — the deterministic next question after the form changed outside a
+ * conversational turn (a resolved conflict). Same step and ready-gate logic
+ * the turn itself uses, so the assistant picks up exactly where it left off.
+ */
+export function replyAfterFormUpdate(
+  form: SetupCopilotFormState,
+  currentStep: SetupCopilotStep,
+): {
+  step: SetupCopilotStep;
+  assistantMessage: string;
+  handoff: SetupHandoffA1 | null;
+  skeletonPreview: SkeletonBundle | null;
+} {
+  const step = stepFromForm(form, currentStep);
+  const readyBits =
+    step === "ready" ? readyBitsForForm(form) : { handoff: null, skeletonPreview: null };
+  return {
+    step,
+    assistantMessage: cannedReplyForStep(step, form, { fromUpload: false }),
+    handoff: readyBits.handoff,
+    skeletonPreview: readyBits.skeletonPreview,
   };
 }
 
@@ -529,6 +588,9 @@ export function runSettingsTurn(
     messages,
     assistantMessage: reply,
     pendingDiff,
+    // Settings mode changes features through the diff card only; it never
+    // merges an extract, so it cannot conflict with a confirmed answer.
+    pendingConflict: null,
     handoff: null,
     skeletonPreview: null,
     aiGenerated: true,

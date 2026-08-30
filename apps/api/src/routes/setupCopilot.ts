@@ -6,9 +6,13 @@ import { Router } from "express";
 import { EventStatus, SessionPublishStatus } from "@prisma/client";
 import { z } from "zod";
 import {
+  SETUP_CONFIRMABLE_FIELDS,
   emptySetupFormState,
   type FeatureKey,
   type FeatureOverrideValue,
+  type SetupConfirmableField,
+  type SetupConflictCard,
+  type SetupConflictChoices,
   type SetupCopilotFormState,
   type SetupCopilotMessage,
   type SetupCopilotStep,
@@ -17,8 +21,10 @@ import { asyncHandler, HttpError, requireEventAccess, requireOrgRole } from "../
 import { OrgRole } from "@prisma/client";
 import { gatewayChat } from "../lib/ai";
 import {
+  applySetupConflictChoices,
   assertRegistryKeys,
   initialDialogue,
+  replyAfterFormUpdate,
   UnknownFeatureKeyError,
   buildConfigDiffCard,
 } from "../lib/ai/setupCopilot";
@@ -56,6 +62,21 @@ import { AUTHENTICATED_AI_CHAT_LIMIT, authRateLimit, testUnlimitedMax } from "..
 
 export const setupCopilotRouter = Router();
 
+/** W-4 — one source of truth for the field names, so the schema can't drift. */
+const confirmableFieldSchema = z.enum(
+  SETUP_CONFIRMABLE_FIELDS as unknown as [SetupConfirmableField, ...SetupConfirmableField[]],
+);
+
+const eventTypeSchema = z.union([
+  z.literal(""),
+  z.literal("conference"),
+  z.literal("academic_program"),
+  z.literal("meetup"),
+  z.literal("internal"),
+  z.literal("pd_day"),
+  z.literal("talk_showcase"),
+]);
+
 const formStateSchema = z.object({
   name: z.string(),
   startDate: z.string(),
@@ -66,19 +87,14 @@ const formStateSchema = z.object({
   venueAddress: z.string(),
   onlineUrl: z.string(),
   estimatedSize: z.string(),
-  eventType: z.union([
-    z.literal(""),
-    z.literal("conference"),
-    z.literal("academic_program"),
-    z.literal("meetup"),
-    z.literal("internal"),
-    z.literal("pd_day"),
-    z.literal("talk_showcase"),
-  ]),
+  eventType: eventTypeSchema,
   hasProgramDocument: z.boolean().nullable(),
   featureOverrides: z.record(z.union([z.boolean(), z.enum(["daily", "weekly", "interrupts_only"])])),
   suggestedPreset: z.enum(["everything", "focused", "academic", "pd_day", "talk_showcase"]).nullable(),
   networkingChoice: z.enum(["full", "focused", "custom"]).nullable(),
+  // W-4 — which answers the organizer confirmed; absent means none, so an
+  // older client simply gets the pre-W-4 merge behaviour.
+  confirmedFields: z.array(confirmableFieldSchema).max(SETUP_CONFIRMABLE_FIELDS.length).optional(),
 });
 
 const messageSchema = z.object({
@@ -242,6 +258,7 @@ setupCopilotRouter.post(
       messages: result.messages,
       assistantMessage: result.assistantMessage,
       pendingDiff: result.pendingDiff,
+      pendingConflict: result.pendingConflict,
       handoff: result.handoff,
       skeletonPreview: result.skeletonPreview,
       links: result.links,
@@ -362,6 +379,10 @@ setupCopilotRouter.post(
       userMessage,
       liveEvent: false,
       extracted,
+      // W-4 — a file's values are proposals: they merge into empty fields but
+      // must ask before overwriting an answer the organizer confirmed, event
+      // dates included (J-A: ingest never reconciled file dates vs settings).
+      extractSource: "document",
       gatewayCtx: {
         organizationId,
         userId: req.user!.id,
@@ -375,8 +396,94 @@ setupCopilotRouter.post(
       messages: result.messages,
       assistantMessage: result.assistantMessage,
       pendingDiff: result.pendingDiff,
+      pendingConflict: result.pendingConflict,
       handoff: result.handoff,
       skeletonPreview: result.skeletonPreview,
+      aiGenerated: true as const,
+    });
+  }),
+);
+
+const conflictCardSchema = z.object({
+  title: z.string().max(200),
+  summary: z.string().max(600),
+  entries: z
+    .array(
+      z.object({
+        field: confirmableFieldSchema,
+        label: z.string().max(80),
+        current: z.string().max(300),
+        proposed: z.string().max(300),
+        source: z.enum(["chat", "document"]),
+      }),
+    )
+    .max(SETUP_CONFIRMABLE_FIELDS.length),
+  proposedFields: z.object({
+    name: z.string().max(120).optional(),
+    startDate: z.string().max(40).optional(),
+    endDate: z.string().max(40).optional(),
+    timezone: z.string().max(80).optional(),
+    venueName: z.string().max(80).optional(),
+    onlineUrl: z.string().max(500).optional(),
+    estimatedSize: z.string().max(12).optional(),
+    eventType: eventTypeSchema.optional(),
+    networkingChoice: z.enum(["full", "focused", "custom"]).nullable().optional(),
+    hasProgramDocument: z.boolean().nullable().optional(),
+  }),
+  aiGenerated: z.literal(true),
+});
+
+const resolveConflictSchema = z.object({
+  step: z.string(),
+  form: formStateSchema,
+  messages: z.array(messageSchema),
+  conflict: conflictCardSchema,
+  choices: z.record(confirmableFieldSchema, z.enum(["keep", "use_new"])),
+});
+
+/**
+ * W-4 — apply a conflict card's per-field choices. Deterministic and pure:
+ * no model call, no write. Fields the organizer did not choose stay exactly
+ * as they were, and every applied change comes back for the aside highlight.
+ */
+setupCopilotRouter.post(
+  "/resolve-conflict",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = resolveConflictSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json(validationErrorBody(parsed.error));
+
+    const resolution = applySetupConflictChoices({
+      form: parsed.data.form as SetupCopilotFormState,
+      card: parsed.data.conflict as SetupConflictCard,
+      choices: parsed.data.choices as SetupConflictChoices,
+    });
+
+    const next = replyAfterFormUpdate(
+      resolution.form,
+      parsed.data.step as SetupCopilotStep,
+    );
+    const applied = resolution.changes
+      .map((c) => `${c.label.toLowerCase()} is now ${c.to}`)
+      .join("; ");
+    const assistantMessage = resolution.changes.length
+      ? `Updated what you chose — ${applied}. Everything else is unchanged. ${next.assistantMessage}`
+      : `Kept your answers as they were — nothing changed. ${next.assistantMessage}`;
+
+    const messages: SetupCopilotMessage[] = [
+      ...(parsed.data.messages as SetupCopilotMessage[]),
+      { role: "assistant", content: assistantMessage, aiGenerated: true },
+    ];
+
+    return res.json({
+      step: next.step,
+      form: resolution.form,
+      messages,
+      assistantMessage,
+      changes: resolution.changes,
+      handoff: next.handoff,
+      skeletonPreview: next.skeletonPreview,
       aiGenerated: true as const,
     });
   }),

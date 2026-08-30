@@ -10,13 +10,17 @@
 
 import {
   FEATURE_PRESETS,
+  SETUP_CONFIRMABLE_FIELDS,
   SETUP_EVENT_TYPES,
   emptySetupFormState,
+  withConfirmedSetupFields,
   type FeaturePresetId,
+  type SetupConfirmableField,
   type SetupCopilotFormState,
   type SetupCopilotMessage,
   type SetupCopilotStep,
   type SetupEventType,
+  type SetupFieldChange,
 } from "@event-app/shared";
 
 export const SETUP_COPILOT_DRAFT_STORAGE_KEY = "setupCopilot.draft.v1";
@@ -150,6 +154,11 @@ function parseForm(raw: unknown): SetupCopilotFormState | null {
       ? (o.suggestedPreset as FeaturePresetId)
       : null,
     networkingChoice,
+    // W-4 — which answers the organizer confirmed has to survive a restore,
+    // or a reload would let the next extract overwrite them silently again.
+    confirmedFields: Array.isArray(o.confirmedFields)
+      ? SETUP_CONFIRMABLE_FIELDS.filter((f) => (o.confirmedFields as unknown[]).includes(f))
+      : [],
   };
 }
 
@@ -277,6 +286,33 @@ export function clearSettingsSetupCopilotDraft(eventId: string, storage?: Storag
   }
 }
 
+/**
+ * W-4 — accumulate resolved-conflict changes for the summary panel's old→new
+ * highlight. A field changed twice keeps its ORIGINAL value as "old", so the
+ * highlight always reads against what the organizer started with.
+ */
+export function mergeFieldChanges(
+  prev: SetupFieldChange[],
+  next: SetupFieldChange[],
+): SetupFieldChange[] {
+  const out = [...prev];
+  for (const change of next) {
+    const at = out.findIndex((c) => c.field === change.field);
+    if (at >= 0) out[at] = { ...change, from: out[at].from };
+    else out.push(change);
+  }
+  return out.filter((c) => c.from !== c.to);
+}
+
+/** Field → change lookup for the panel rows. */
+export function fieldChangeMap(
+  changes: SetupFieldChange[],
+): Partial<Record<SetupConfirmableField, SetupFieldChange>> {
+  const map: Partial<Record<SetupConfirmableField, SetupFieldChange>> = {};
+  for (const change of changes) map[change.field] = change;
+  return map;
+}
+
 /** datetime-local needs YYYY-MM-DDTHH:mm — dates-only get a default clock time. */
 export function toDatetimeLocal(value: string, dateOnlyTime = "09:00"): string {
   if (!value) return "";
@@ -303,25 +339,50 @@ export function copilotFormToWizardFields(
   };
 }
 
-/** Manual wizard → copilot form. Only fills known (non-empty) fields; never clears. */
+/**
+ * Manual wizard → copilot form. Only fills known (non-empty) fields; never
+ * clears. W-4: a value the organizer typed into the wizard is a hand-edited
+ * answer, so it is CONFIRMED — an extract has to ask before changing it.
+ */
 export function wizardFieldsToCopilotForm(
   fields: Partial<SetupHandoffWizardFields>,
   base: SetupCopilotFormState,
 ): SetupCopilotFormState {
-  const next = { ...base };
-  if (fields.name?.trim()) next.name = fields.name.trim();
+  let next = { ...base };
+  const confirmed: SetupConfirmableField[] = [];
+  if (fields.name?.trim()) {
+    next.name = fields.name.trim();
+    confirmed.push("name");
+  }
   if (fields.timezone?.trim()) {
     next.timezone = fields.timezone.trim();
-    if (fields.startDate || fields.endDate) next.timezoneExplicit = true;
+    if (fields.startDate || fields.endDate) {
+      next.timezoneExplicit = true;
+      // A zone alone is the browser default; with dates it is a choice.
+      confirmed.push("timezone");
+    }
   }
-  if (fields.startDate) next.startDate = fields.startDate;
-  if (fields.endDate) next.endDate = fields.endDate;
-  if (fields.venueName?.trim()) next.venueName = fields.venueName.trim();
+  if (fields.startDate) {
+    next.startDate = fields.startDate;
+    confirmed.push("startDate");
+  }
+  if (fields.endDate) {
+    next.endDate = fields.endDate;
+    confirmed.push("endDate");
+  }
+  if (fields.venueName?.trim()) {
+    next.venueName = fields.venueName.trim();
+    confirmed.push("venueName");
+  }
   if (fields.venueAddress?.trim()) next.venueAddress = fields.venueAddress.trim();
-  if (fields.onlineUrl?.trim()) next.onlineUrl = fields.onlineUrl.trim();
+  if (fields.onlineUrl?.trim()) {
+    next.onlineUrl = fields.onlineUrl.trim();
+    confirmed.push("onlineUrl");
+  }
   if (fields.featureOverrides && Object.keys(fields.featureOverrides).length > 0) {
     next.featureOverrides = { ...next.featureOverrides, ...fields.featureOverrides };
   }
+  next = withConfirmedSetupFields(next, confirmed);
   return next;
 }
 

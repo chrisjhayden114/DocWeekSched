@@ -10,6 +10,7 @@ import {
   EVENT_TYPE_PRESET,
   applyPreset,
   applyTalkShowcaseSizePrefill,
+  type SetupConfirmableField,
   type SetupCopilotFormState,
   type SetupCopilotStep,
   type SetupEventType,
@@ -58,7 +59,7 @@ function nonEmpty(v: string | null | undefined): v is string {
   return typeof v === "string" && v.trim().length > 0;
 }
 
-function datePart(v: string | null | undefined): string | null {
+export function datePart(v: string | null | undefined): string | null {
   if (!v) return null;
   const m = YMD_RE.exec(v.trim());
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
@@ -216,6 +217,84 @@ export function validateExtracted(
   return next;
 }
 
+/**
+ * Event type carries its feature preset — the same side effect whether the
+ * type arrives from an extract, a typed answer, or a resolved conflict.
+ */
+export function applyEventTypeToForm(
+  form: SetupCopilotFormState,
+  eventType: SetupEventType,
+): SetupCopilotFormState {
+  const preset = EVENT_TYPE_PRESET[eventType];
+  return applyTalkShowcaseSizePrefill({
+    ...form,
+    eventType,
+    suggestedPreset: preset,
+    featureOverrides: { ...form.featureOverrides, ...applyPreset(preset) },
+  });
+}
+
+/** Networking choice carries its preset; "custom" waits for a diff card. */
+export function applyNetworkingChoiceToForm(
+  form: SetupCopilotFormState,
+  choice: "full" | "focused" | "custom",
+): SetupCopilotFormState {
+  if (choice === "custom") return { ...form, networkingChoice: "custom" };
+  const preset = choice === "full" ? "everything" : "focused";
+  return {
+    ...form,
+    networkingChoice: choice,
+    featureOverrides: { ...form.featureOverrides, ...applyPreset(preset) },
+  };
+}
+
+/**
+ * W-4 — the fields an extract actually STATED, after validation. Preset side
+ * effects (talk-showcase size prefill, feature defaults) are deliberately not
+ * in this list: they are defaults, not organizer answers.
+ */
+export function statedExtractFields(valid: SetupExtract): SetupConfirmableField[] {
+  const fields: SetupConfirmableField[] = [];
+  if (nonEmpty(valid.name)) fields.push("name");
+  if (nonEmpty(valid.startDate)) fields.push("startDate");
+  if (nonEmpty(valid.endDate)) fields.push("endDate");
+  if (nonEmpty(valid.timezone)) fields.push("timezone");
+  if (nonEmpty(valid.venueName)) fields.push("venueName");
+  if (nonEmpty(valid.onlineUrl)) fields.push("onlineUrl");
+  if (valid.estimatedSize != null && valid.estimatedSize !== "") fields.push("estimatedSize");
+  if (valid.eventType) fields.push("eventType");
+  if (valid.networkingChoice) fields.push("networkingChoice");
+  if (valid.hasProgramDocument === true || valid.hasProgramDocument === false) {
+    fields.push("hasProgramDocument");
+  }
+  return fields;
+}
+
+/**
+ * W-4 — drop fields from an extract so a merge cannot apply them. Day times
+ * ride on their date: withholding a conflicted startDate must also withhold
+ * dayStartTime, or applyDayWindow would rewrite the confirmed date's clock.
+ */
+export function omitExtractFields(
+  extract: SetupExtract,
+  fields: readonly SetupConfirmableField[],
+): SetupExtract {
+  if (fields.length === 0) return extract;
+  const next: SetupExtract = { ...extract };
+  for (const field of fields) {
+    if (field === "startDate") {
+      next.startDate = null;
+      next.dayStartTime = null;
+    } else if (field === "endDate") {
+      next.endDate = null;
+      next.dayEndTime = null;
+    } else {
+      next[field] = null;
+    }
+  }
+  return next;
+}
+
 function applyDayWindow(
   form: SetupCopilotFormState,
   extracted: SetupExtract,
@@ -236,6 +315,11 @@ function applyDayWindow(
  * Deterministic merge: extracted non-null values overwrite; nothing is
  * ever cleared. Empty strings are treated as absent. Values are validated
  * first — invalid fields are dropped, not merged.
+ *
+ * W-4: this function does NOT know which fields the organizer confirmed — it
+ * still overwrites whatever it is handed. Callers applying an extract must
+ * first run diffExtractAgainstConfirmed (conflict.ts) and merge only the
+ * non-conflicting remainder; confirmed conflicts go to the organizer.
  */
 export function mergeSetupExtract(
   form: SetupCopilotFormState,
@@ -262,28 +346,10 @@ export function mergeSetupExtract(
     next.estimatedSize = String(valid.estimatedSize);
   }
   if (valid.eventType) {
-    next.eventType = valid.eventType;
-    const preset = EVENT_TYPE_PRESET[valid.eventType];
-    next = applyTalkShowcaseSizePrefill({
-      ...next,
-      suggestedPreset: preset,
-      featureOverrides: { ...next.featureOverrides, ...applyPreset(preset) },
-    });
+    next = applyEventTypeToForm(next, valid.eventType);
   }
-  if (valid.networkingChoice === "full") {
-    next = {
-      ...next,
-      networkingChoice: "full",
-      featureOverrides: { ...next.featureOverrides, ...applyPreset("everything") },
-    };
-  } else if (valid.networkingChoice === "focused") {
-    next = {
-      ...next,
-      networkingChoice: "focused",
-      featureOverrides: { ...next.featureOverrides, ...applyPreset("focused") },
-    };
-  } else if (valid.networkingChoice === "custom") {
-    next = { ...next, networkingChoice: "custom" };
+  if (valid.networkingChoice) {
+    next = applyNetworkingChoiceToForm(next, valid.networkingChoice);
   }
   if (valid.hasProgramDocument !== null && valid.hasProgramDocument !== undefined) {
     next.hasProgramDocument = valid.hasProgramDocument;
