@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { GetServerSideProps } from "next";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { SiteHeader } from "../../components/marketing/SiteHeader";
-import { getHelpArticle, type HelpArticle } from "../../lib/help/articles";
+import { getHelpArticle, helpCategoryLabel, type HelpArticle } from "../../lib/help/articles";
 
 type Props = { article: HelpArticle };
 
@@ -36,6 +36,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 export default function HelpArticlePage({ article }: Props) {
   const title = marketingArticleTitle(article.title);
   const url = `${brand.primaryUrl}/help/${article.slug}`;
+  const category = helpCategoryLabel(article.category);
 
   return (
     <>
@@ -54,7 +55,10 @@ export default function HelpArticlePage({ article }: Props) {
         <main className="mkt-section">
           <article className="mkt-section-inner mkt-prose mkt-legal">
             <p className="text-meta" style={{ marginTop: 0 }}>
-              <Link href="/help">Help</Link> / {article.title}
+              <Link href="/help">Help</Link>
+              {category ? ` / ${category}` : ""}
+              {" / "}
+              {article.title}
             </p>
             <div
               className="help-article-body"

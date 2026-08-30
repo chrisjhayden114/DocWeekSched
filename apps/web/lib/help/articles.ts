@@ -1,6 +1,6 @@
 /**
  * Markdown-driven help articles (Phase 6 seed; S1 expands search/assistant).
- * Front matter: title, description, order (optional).
+ * Front matter: title, description, order, category (optional).
  *
  * Content comes from the bundled HELP_SOURCE module (mirrors content/help/*.md)
  * rather than runtime fs reads — the content directory is not shipped with the
@@ -15,6 +15,7 @@ export type HelpArticleMeta = {
   title: string;
   description: string;
   order: number;
+  category?: string;
 };
 
 export type HelpArticle = HelpArticleMeta & {
@@ -122,6 +123,7 @@ export function listHelpArticles(): HelpArticleMeta[] {
       title: meta.title || slug,
       description: meta.description || `${brand.productName} help`,
       order: Number(meta.order || 100),
+      ...(meta.category ? { category: meta.category } : {}),
     });
   }
   return articles.sort((a, b) => a.order - b.order || a.slug.localeCompare(b.slug));
@@ -138,6 +140,7 @@ export function getHelpArticle(slug: string): HelpArticle | null {
     title: meta.title || safe,
     description: meta.description || `${brand.productName} help`,
     order: Number(meta.order || 100),
+    ...(meta.category ? { category: meta.category } : {}),
     bodyMarkdown: body,
     bodyHtml: markdownToHtml(body),
   };
@@ -145,4 +148,15 @@ export function getHelpArticle(slug: string): HelpArticle | null {
 
 export function helpArticlePaths(): string[] {
   return listHelpArticles().map((a) => `/help/${a.slug}`);
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  organizer: "Organizer",
+  attendee: "Attendee",
+  speaker: "Speaker",
+};
+
+export function helpCategoryLabel(category: string | undefined): string | null {
+  if (!category) return null;
+  return CATEGORY_LABEL[category] ?? category;
 }

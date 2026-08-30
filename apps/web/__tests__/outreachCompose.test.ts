@@ -6,6 +6,7 @@ import {
 } from "@event-app/shared";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { getHelpArticle, helpCategoryLabel } from "../lib/help/articles";
 import { formatOutreachClipboard } from "../lib/outreachCompose";
 
 const eventCtx = {
@@ -89,15 +90,45 @@ describe("SPX-1 — composer is draft-and-copy only", () => {
     expect(panel).toContain("Mark contacted");
     expect(panel).toContain("Draft with AI");
     expect(panel).toContain("OUTREACH_DOCTRINE");
-    expect(panel).toContain("Nothing opened? Your computer may not have a default email app");
-    expect(panel).toContain("use Copy email and paste");
+    expect(panel).toContain("Nothing opened?");
+    expect(panel).toContain("Set up your email app →");
+    expect(panel).toContain("Open Apple Mail once");
+    expect(panel).toContain("Settings &gt; Apps &gt; Default apps &gt; Email");
+    expect(panel).toContain("Copy email");
+    expect(panel).toContain('href="/help/send-sponsor-outreach"');
     expect(panel).not.toMatch(/>\s*Send\s*</);
     expect(panel).not.toMatch(/Resend/);
     expect(panel).not.toMatch(/method:\s*"POST".*\/send/i);
     const anchorsAsButtons = [...panel.matchAll(/<a\b[^>]*>/g)].map((m) => m[0]);
-    expect(anchorsAsButtons.length).toBe(1);
+    expect(anchorsAsButtons).toHaveLength(1);
     expect(anchorsAsButtons[0]).toContain('className="button"');
     expect(anchorsAsButtons[0]).toContain("href={mailto}");
+    expect(panel).toContain("<Link href=\"/help/send-sponsor-outreach\">");
+  });
+
+  it("the mail-setup disclosure links the organizer help article", () => {
+    const article = readFileSync(
+      join(__dirname, "../content/help/send-sponsor-outreach.md"),
+      "utf8",
+    );
+    expect(article).toContain("category: organizer");
+    expect(article).toContain("Send sponsor outreach from your own email address");
+    expect(article).toContain("never sends these emails");
+    expect(article).toContain("Sponsors hear from you, not from us");
+    expect(article).toContain("{orgName}");
+    expect(article).toContain("{contactName}");
+    expect(article).toContain("{eventName}");
+    expect(article).toContain("{eventDates}");
+    expect(article).toContain("{eventUrl}");
+    expect(article).toContain("Open in your email app");
+    expect(article).toContain("mailto:");
+    expect(article).toContain("default email app");
+    expect(article).toContain("Settings > Apps > Default apps > Email");
+    expect(article).toContain("mail.google.com");
+    expect(article).toContain("Copy email");
+    const loaded = getHelpArticle("send-sponsor-outreach");
+    expect(loaded?.category).toBe("organizer");
+    expect(helpCategoryLabel(loaded?.category)).toBe("Organizer");
   });
 
   it("the templates card explains merge-field fill-in", () => {

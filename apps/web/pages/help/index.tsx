@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { GetServerSideProps } from "next";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { SiteHeader } from "../../components/marketing/SiteHeader";
-import { listHelpArticles, type HelpArticleMeta } from "../../lib/help/articles";
+import { helpCategoryLabel, listHelpArticles, type HelpArticleMeta } from "../../lib/help/articles";
 
 type Props = { articles: HelpArticleMeta[] };
 
@@ -46,16 +46,20 @@ export default function HelpIndexPage({ articles }: Props) {
               </span>
             </p>
             <ul style={{ paddingLeft: 20, marginTop: 24 }}>
-              {articles.map((a) => (
-                <li key={a.slug} style={{ marginBottom: 12 }}>
-                  <Link href={`/help/${a.slug}`}>
-                    <strong>{a.title}</strong>
-                  </Link>
-                  <div className="text-meta" style={{ marginTop: 2 }}>
-                    {a.description}
-                  </div>
-                </li>
-              ))}
+              {articles.map((a) => {
+                const category = helpCategoryLabel(a.category);
+                return (
+                  <li key={a.slug} style={{ marginBottom: 12 }}>
+                    <Link href={`/help/${a.slug}`}>
+                      <strong>{a.title}</strong>
+                    </Link>
+                    {category ? <span className="text-meta"> · {category}</span> : null}
+                    <div className="text-meta" style={{ marginTop: 2 }}>
+                      {a.description}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </main>

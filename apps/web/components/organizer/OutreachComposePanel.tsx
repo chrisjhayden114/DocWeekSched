@@ -2,6 +2,7 @@
  * SPX-1 — draft-and-copy composer. UKEDL never sends these emails.
  */
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   OUTREACH_DOCTRINE,
@@ -195,10 +196,31 @@ export function OutreachComposePanel({
           {aiBusy ? "Drafting…" : "Draft with AI"}
         </button>
       </div>
-      <p className="help-text" style={{ margin: "8px 0 0" }}>
-        Nothing opened? Your computer may not have a default email app — use Copy email and paste
-        into Gmail or Outlook.
-      </p>
+      <details className="outreach-mail-setup">
+        <summary>
+          Nothing opened? <span className="outreach-mail-setup-link">Set up your email app →</span>
+        </summary>
+        <div className="outreach-mail-setup-body">
+          <p>
+            <strong>Mac.</strong> Open Apple Mail once and it becomes the default, or in System
+            Settings search &quot;default email app&quot;. Gmail users can instead allow
+            mail.google.com as the email handler in Chrome or Edge — the handler icon in the address
+            bar on gmail.com, or the browser&apos;s site-settings handlers page.
+          </p>
+          <p>
+            <strong>Windows.</strong> Settings &gt; Apps &gt; Default apps &gt; Email.
+          </p>
+          <p>
+            Either way, <strong>Copy email</strong> always works: copy, then paste into a new
+            message in any mail service.
+          </p>
+          <p>
+            <Link href="/help/send-sponsor-outreach">
+              Send sponsor outreach from your own email address
+            </Link>
+          </p>
+        </div>
+      </details>
       <p className="help-text" style={{ margin: "8px 0 0" }}>
         Draft with AI lands here for review. It is not sent and is not saved as a template.
       </p>
