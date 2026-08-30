@@ -121,10 +121,11 @@ async function clearStage(page: Page, shot: FeatureShot): Promise<void> {
 async function resetFloatingChrome(page: Page): Promise<void> {
   await page.evaluate(
     ({ dockedClasses, prefixes }) => {
-      const stale = (key: string) => prefixes.some((prefix) => key.startsWith(prefix));
       for (const store of [window.sessionStorage, window.localStorage]) {
         try {
-          for (const key of Object.keys(store)) if (stale(key)) store.removeItem(key);
+          for (const key of Object.keys(store)) {
+            if (prefixes.some((prefix) => key.startsWith(prefix))) store.removeItem(key);
+          }
         } catch {
           /* private mode / blocked storage */
         }
@@ -182,11 +183,11 @@ async function pageScopeClip(page: Page, target: Locator, selector: string): Pro
  */
 async function stageBackground(target: Locator): Promise<string> {
   return target.evaluate((el) => {
-    const blank = (color: string) =>
-      !color || color === "transparent" || /^rgba\(0,\s*0,\s*0,\s*0\)$/.test(color);
     for (let node: Element | null = el; node; node = node.parentElement) {
       const color = getComputedStyle(node).backgroundColor;
-      if (!blank(color)) return color;
+      if (color && color !== "transparent" && !/^rgba\(0,\s*0,\s*0,\s*0\)$/.test(color)) {
+        return color;
+      }
     }
     return "#ffffff";
   });
@@ -242,12 +243,17 @@ async function capture(
 async function contextFor(
   browser: Awaited<ReturnType<typeof chromium.launch>>,
 ): Promise<BrowserContext> {
-  return browser.newContext({
+  const context = await browser.newContext({
     viewport: { ...SCREENSHOT_VIEWPORT },
     deviceScaleFactor: 1,
     colorScheme: "light",
     reducedMotion: "reduce",
   });
+  // tsx/esbuild keepNames wraps functions with a __name helper. Playwright
+  // serializes evaluate callbacks into the browser, where that helper does not
+  // exist — define it as a no-op before any page loads.
+  await context.addInitScript("globalThis.__name = (fn) => fn;");
+  return context;
 }
 
 async function main() {
