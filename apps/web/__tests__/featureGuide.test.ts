@@ -3,8 +3,12 @@
  * restatement of the Features-tab one-liner.
  */
 
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { brand } from "@event-app/config";
 import { FEATURE_BY_KEY, FEATURE_GUIDE, FEATURE_REGISTRY, featureGuideGroups, featureGuideImageSrcs, type FeatureKey } from "@event-app/shared";
+import { applyBrandTokens } from "../lib/brandTokens";
 
 const KEYS = FEATURE_REGISTRY.map((f) => f.key);
 
@@ -74,5 +78,25 @@ describe("K-2.1 — Feature Guide completeness", () => {
     expect(keys).not.toContain("messaging_event_chat");
     expect(FEATURE_BY_KEY.messaging_event_chat.retired).toBe(true);
     expect(FEATURE_GUIDE.messaging_event_chat.whatItDoes).toMatch(/retired/i);
+  });
+
+  it("HELP-2.1 — packages/shared has no import from @event-app/config", () => {
+    const srcDir = join(__dirname, "../../../packages/shared/src");
+    const files = readdirSync(srcDir).filter((f) => f.endsWith(".ts"));
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const src = readFileSync(join(srcDir, file), "utf8");
+      expect(src, file).not.toMatch(/from\s+["']@event-app\/config["']/);
+      expect(src, file).not.toMatch(/require\(\s*["']@event-app\/config["']\s*\)/);
+    }
+  });
+
+  it("HELP-2.1 — Feature Guide copy uses {{product}}; applyBrandTokens substitutes it", () => {
+    expect(FEATURE_GUIDE.sponsor_outreach.whatItDoes).toContain("{{product}}");
+    expect(FEATURE_GUIDE.sponsor_outreach.goodToKnow).toContain("{{product}}");
+    expect(applyBrandTokens(FEATURE_GUIDE.sponsor_outreach.whatItDoes)).toContain(brand.productName);
+    expect(applyBrandTokens(FEATURE_GUIDE.sponsor_outreach.whatItDoes)).not.toContain("{{product}}");
+    expect(applyBrandTokens(FEATURE_GUIDE.sponsor_outreach.goodToKnow)).toContain(brand.productName);
+    expect(applyBrandTokens(FEATURE_GUIDE.sponsor_outreach.goodToKnow)).not.toContain("{{product}}");
   });
 });

@@ -10,6 +10,7 @@ import {
   type FeatureOverrideValue,
   type FeaturePresetId,
 } from "@event-app/shared";
+import { applyBrandTokens } from "../lib/brandTokens";
 import { FeatureArt } from "./featureArt";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { GuidePanel } from "./kit/GuidePanel";
@@ -149,7 +150,7 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
                         trigger="label"
                         hideIcon
                         title={f.name}
-                        body={FEATURE_GUIDE[f.key].whatItDoes}
+                        body={applyBrandTokens(FEATURE_GUIDE[f.key].whatItDoes)}
                         imageSrc={FEATURE_GUIDE[f.key].imageSrc}
                         image={<FeatureArt category={f.category} />}
                         action={

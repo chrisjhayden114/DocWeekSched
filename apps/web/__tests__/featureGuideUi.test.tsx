@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { act, useState, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { brand } from "@event-app/config";
 import { FEATURE_BY_KEY, FEATURE_GUIDE, type FeatureKey } from "@event-app/shared";
 import { FeatureConfigPanel } from "../components/FeatureConfigPanel";
 import { GuidePanel } from "../components/kit/GuidePanel";
@@ -156,6 +157,24 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
     expect(panel.textContent).toContain("What it does");
   });
 
+  it("HELP-2.1 — GuidePanel and HoverInfo substitute {{product}} in Feature Guide copy", () => {
+    render(<GuidePanel featureKey="sponsor_outreach" open onClose={() => undefined} />);
+    const panel = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(FEATURE_GUIDE.sponsor_outreach.whatItDoes).toContain("{{product}}");
+    expect(panel.textContent).toContain(brand.productName);
+    expect(panel.textContent).not.toContain("{{product}}");
+    act(() => panel.querySelector<HTMLButtonElement>(".drawer-close")!.click());
+
+    render(<FeatureConfigPanel overrides={{}} onChange={() => undefined} confirmOff={false} />);
+    const trigger = [...container.querySelectorAll<HTMLButtonElement>(".hover-info-label")].find((el) =>
+      el.textContent?.includes("Sponsor outreach"),
+    )!;
+    act(() => trigger.focus());
+    const popover = document.querySelector<HTMLElement>('[role="tooltip"]')!;
+    expect(popover.textContent).toContain(brand.productName);
+    expect(popover.textContent).not.toContain("{{product}}");
+  });
+
   it("the longest hover-card extract still has title, clamped body, and footer", () => {
     const longestKey = (Object.keys(FEATURE_GUIDE) as FeatureKey[]).reduce((best, key) =>
       FEATURE_GUIDE[key].whatItDoes.length > FEATURE_GUIDE[best].whatItDoes.length ? key : best,
@@ -203,6 +222,7 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
 
   it("FeatureConfigPanel popovers use the guide, never appearsIn or plainDescription", () => {
     const src = read("components", "FeatureConfigPanel.tsx");
+    expect(src).toContain("applyBrandTokens(FEATURE_GUIDE[f.key].whatItDoes)");
     expect(src).toContain("FEATURE_GUIDE[f.key].whatItDoes");
     expect(src).toContain('trigger="label"');
     expect(src).toContain("hideIcon");
@@ -219,6 +239,15 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
     expect(page).toContain('loading="lazy"');
     expect(page).toContain("<FeatureArt category={group.category} />");
     expect(page).not.toContain("Retired — kept here so the key stays documented.");
+  });
+
+  it("HELP-2.1 — GuidePanel and the feature-guide page apply brand tokens to guide copy", () => {
+    const guide = read("components", "kit", "GuidePanel.tsx");
+    expect(guide).toContain("applyBrandTokens(guide.whatItDoes)");
+    expect(guide).toContain("applyBrandTokens(guide.experience)");
+    expect(guide).toContain("applyBrandTokens(guide.goodToKnow)");
+    const page = read("pages", "help", "feature-guide.tsx");
+    expect(page).toContain("FeatureGuideSections");
   });
 });
 

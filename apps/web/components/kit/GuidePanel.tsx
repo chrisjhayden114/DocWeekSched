@@ -1,5 +1,6 @@
 import { FEATURE_BY_KEY, FEATURE_GUIDE, featureGuideHref, type FeatureKey } from "@event-app/shared";
 import Link from "next/link";
+import { applyBrandTokens } from "../../lib/brandTokens";
 import { SlideOver } from "./SlideOver";
 
 export type GuidePanelProps = {
@@ -17,7 +18,7 @@ export function FeatureGuideSections({ featureKey }: { featureKey: FeatureKey })
           What it does
         </h4>
         <p className="text-body" style={{ margin: 0 }}>
-          {guide.whatItDoes}
+          {applyBrandTokens(guide.whatItDoes)}
         </p>
       </section>
       <section>
@@ -25,7 +26,7 @@ export function FeatureGuideSections({ featureKey }: { featureKey: FeatureKey })
           The experience
         </h4>
         <p className="text-body" style={{ margin: 0 }}>
-          {guide.experience}
+          {applyBrandTokens(guide.experience)}
         </p>
       </section>
       <section>
@@ -33,7 +34,7 @@ export function FeatureGuideSections({ featureKey }: { featureKey: FeatureKey })
           Good to know
         </h4>
         <p className="text-body" style={{ margin: 0 }}>
-          {guide.goodToKnow}
+          {applyBrandTokens(guide.goodToKnow)}
         </p>
       </section>
     </div>

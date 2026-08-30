@@ -10,6 +10,8 @@
 import { brand } from "@event-app/config";
 import { HELP_SOURCE } from "./helpContent";
 
+export { applyBrandTokens } from "../brandTokens";
+
 export type HelpArticleMeta = {
   slug: string;
   title: string;
@@ -161,11 +163,3 @@ export function helpCategoryLabel(category: string | undefined): string | null {
   return CATEGORY_LABEL[category] ?? category;
 }
 
-/** Same token pass for /help index descriptions and /help/[slug] bodies. */
-export function applyBrandTokens(text: string): string {
-  return text
-    .replace(/\{\{product\}\}/g, brand.productName)
-    .replace(/\{\{support\}\}/g, brand.supportEmail)
-    .replace(/\{\{hours\}\}/g, brand.supportHours)
-    .replace(/\{\{status\}\}/g, brand.statusPageUrl);
-}
