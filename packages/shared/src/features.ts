@@ -300,7 +300,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
   },
   {
     // SPX-0 / SPX-1 (DESIGN_PHASE_K D1): pipeline + composer. UKEDL never
-    // sends outreach email. Same plan tier as sponsors; Free is capped at 25 prospects.
+    // sends outreach email. Entitled on every tier (Free included, capped
+    // at outreachProspectsPerEvent 25); still depends on Sponsors being on.
     key: "sponsor_outreach",
     name: "Sponsor outreach",
     plainDescription:

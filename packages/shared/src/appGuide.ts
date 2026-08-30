@@ -110,4 +110,58 @@ export const APP_GUIDE: AppGuideEntry[] = [
     href: "/dashboard?tab=Community",
     text: "If enabled for this event, Community is where attendees post: meet-ups, shared moments, local recommendations, ice-breakers, and a general board.",
   },
+  {
+    id: "community-meetups",
+    topic: "Meet-ups",
+    href: "/dashboard?tab=Community",
+    text: "If enabled for this event, pick the Meet-ups pill on Community to propose a gathering. Add a title, description, or photo, choose in-person or virtual (virtual needs a meeting URL), and invite everyone or a named list.",
+  },
+  {
+    id: "community-moments",
+    topic: "Moments",
+    href: "/dashboard?tab=Community",
+    text: "If enabled for this event, pick the Moments pill on Community to share photos. A post can be photos, a title, or a description (at least one), up to twelve images, with optional tags of people on the roster.",
+  },
+  {
+    id: "community-icebreakers",
+    topic: "Break the ice",
+    href: "/dashboard?tab=Community",
+    text: "If enabled for this event, pick the Break the ice pill on Community to post an intro or conversation starter. The people strip above the feed can open a prefilled message if Direct messages is on.",
+  },
+  {
+    id: "certificates",
+    topic: "Certificates",
+    href: "/dashboard?tab=Profile",
+    text: "If enabled for this event, you receive a certificate by email after the organizer batch-issues it — only if you meet their rule (any check-in, a minimum number of joined sessions, or a required-session list). The email has a download link; anyone can confirm it on the public /verify page.",
+  },
+  {
+    id: "registration-fee",
+    topic: "How to pay",
+    href: "/dashboard",
+    text: "If the organizer published a registration fee, the notice is informational: pay via their link or instructions (card, PO, or check). The platform never takes the money. Your status may be unpaid, PO on file, paid, waived, or refunded — only the organizer records it.",
+  },
+  {
+    id: "meet-tab",
+    topic: "Meet",
+    href: "/dashboard?tab=Meet",
+    text: "If enabled for this event, the Meet tab suggests people from shared interests. You must appear in the attendee directory and leave Match me on. Draft intro opens a message — nothing sends until you do.",
+  },
+  {
+    id: "attendees-tab",
+    topic: "Attendees",
+    href: "/dashboard?tab=Attendees",
+    text: "If enabled for this event, the Attendees tab lists people who opted into the directory. Turn on \u201cShow me in this event's attendee directory\u201d in Profile so others can find you.",
+  },
+  {
+    id: "session-polls",
+    topic: "Live polls",
+    href: "/dashboard?tab=Agenda",
+    text: "If enabled for this event, vote on the Live polls card on a session's own page. You see open or closed polls, not drafts; one vote per person.",
+  },
+  {
+    id: "session-feedback",
+    topic: "Session feedback",
+    href: "/dashboard?tab=Agenda",
+    text: "If enabled for this event, leave a 1–5 rating and an optional comment on a session's page after it has ended. Submitting again replaces your comment.",
+  },
 ];

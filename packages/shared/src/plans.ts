@@ -88,7 +88,10 @@ const CORE_ATTENDEE_FEATURES: Partial<Record<EntitlementKey, boolean>> = {
   session_polls: false,
   session_feedback: false,
   sponsors: false,
-  sponsor_outreach: false,
+  // SPX / DESIGN_PHASE_K: Sponsor outreach is granted on every tier, Free
+  // included. Free is capped by `outreachProspectsPerEvent` (25); paid
+  // plans are uncapped. Still depends on Sponsors being on for the event.
+  sponsor_outreach: true,
   checkin: false,
   ops_agent: false,
   recap_agent: false,

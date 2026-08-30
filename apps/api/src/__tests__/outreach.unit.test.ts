@@ -12,6 +12,7 @@ import {
   lastContactedAtForStatusChange,
   OUTREACH_STARTER_TEMPLATE,
   PLAN_BY_SKU,
+  resolveEntitlement,
   resolveOutreachMergeFields,
   suggestOutreachCsvMapping,
 } from "@event-app/shared";
@@ -30,7 +31,7 @@ describe("SPX-0 — feature + plan catalog", () => {
 
   it("caps Free at 25 prospects and leaves paid tiers uncapped", () => {
     expect(PLAN_BY_SKU.free.limits.outreachProspectsPerEvent).toBe(25);
-    expect(PLAN_BY_SKU.free.entitlements.sponsor_outreach).toBe(false);
+    expect(PLAN_BY_SKU.free.entitlements.sponsor_outreach).toBe(true);
     for (const sku of [
       "per_event_250",
       "per_event_500",
@@ -43,6 +44,11 @@ describe("SPX-0 — feature + plan catalog", () => {
       expect(PLAN_BY_SKU[sku].limits.outreachProspectsPerEvent, sku).toBeNull();
       expect(PLAN_BY_SKU[sku].entitlements.sponsor_outreach, sku).toBe(true);
     }
+  });
+
+  it("Free resolves sponsor_outreach on with the 25-prospect cap (GUIDE-1 / DESIGN_PHASE_K)", () => {
+    expect(resolveEntitlement(PLAN_BY_SKU.free, "sponsor_outreach")).toBe(true);
+    expect(PLAN_BY_SKU.free.limits.outreachProspectsPerEvent).toBe(25);
   });
 });
 

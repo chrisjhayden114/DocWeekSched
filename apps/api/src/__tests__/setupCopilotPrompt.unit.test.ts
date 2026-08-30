@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { applyPreset, emptySetupFormState, setupTimezoneFieldLabel } from "@event-app/shared";
+import { applyPreset, emptySetupFormState, ORGANIZER_GUIDE, setupTimezoneFieldLabel } from "@event-app/shared";
 import { brand } from "@event-app/config";
 import {
   FEATURE_REGISTRY_CLOSE,
@@ -72,6 +72,13 @@ describe("Setup Copilot prompt serialization (unit)", () => {
     expect(text).toContain("- Ops Inbox:");
   });
 
+  it("organizer guide lines include each entry's href (GUIDE-1)", () => {
+    const text = buildOrganizerGuidePrompt();
+    for (const entry of ORGANIZER_GUIDE) {
+      expect(text).toContain(`- ${entry.topic}: ${entry.text} (${entry.href})`);
+    }
+  });
+
   it("empty form: KNOWN is empty, STILL NEEDED lists every field in order", () => {
     const text = buildStatePrompt(emptySetupFormState("UTC"));
     expect(text.startsWith(SETUP_STATE_OPEN)).toBe(true);
@@ -133,6 +140,14 @@ describe("Setup Copilot prompt serialization (unit)", () => {
     expect(text.startsWith(FEATURE_REGISTRY_OPEN)).toBe(true);
     expect(text.endsWith(FEATURE_REGISTRY_CLOSE)).toBe(true);
     expect(text).toContain("Ice-breakers: A friendly space for intros and conversation starters. [currently on]");
+    expect(text).toContain("appears in: Attendee app › Community");
+  });
+
+  it("feature registry serializes appearsIn per feature (GUIDE-1)", () => {
+    const text = buildFeatureRegistryPrompt(emptySetupFormState("UTC"));
+    expect(text).toMatch(/Community: .*appears in: Attendee app › Community/);
+    expect(text).toMatch(/Sponsor outreach: .*appears in: Organizer console › Sponsors/);
+    expect(text).toMatch(/Registration fees: .*appears in: Public event page · Organizer console › Participants/);
   });
 
   it("composeSetupTurnMessages is [system+state, last 6 history, user]", () => {

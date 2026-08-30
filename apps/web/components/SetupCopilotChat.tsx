@@ -14,7 +14,7 @@ import type {
 } from "@event-app/shared";
 import { ASSISTANT_COPY, emptySetupFormState } from "@event-app/shared";
 import { apiFetch } from "../lib/api";
-import { splitByLinks } from "../lib/chatLinks";
+import { isInternalHref, splitByLinks, unmatchedLinks } from "../lib/chatLinks";
 import {
   copilotStepFromForm,
   hasKnownHandoffFields,
@@ -84,11 +84,13 @@ type ResolveConflictResponse = {
 
 /**
  * AGENT-3 (CHAT-2 pattern) — assistant body with the server's deterministic
- * links rendered inline where their labels appear. splitByLinks only inlines
- * internal ("/…") hrefs; anything else stays plain text.
+ * links rendered inline where their labels appear; leftover labels become
+ * chips. splitByLinks only inlines internal ("/…") hrefs; the chip row
+ * keeps the same internal-href-only gate.
  */
 function AssistantBody({ content, links }: { content: string; links?: ConciergeLink[] }) {
   const segments = splitByLinks(content, links ?? []);
+  const leftover = unmatchedLinks(segments, links ?? []);
   return (
     <>
       {segments.map((seg, i) =>
@@ -100,6 +102,21 @@ function AssistantBody({ content, links }: { content: string; links?: ConciergeL
           <span key={i}>{seg.text}</span>
         ),
       )}
+      {leftover.length ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+          {leftover.map((link) =>
+            isInternalHref(link.href) ? (
+              <Link key={link.href} href={link.href} className="button secondary">
+                {link.label}
+              </Link>
+            ) : (
+              <a key={link.href} href={link.href} className="button secondary">
+                {link.label}
+              </a>
+            ),
+          )}
+        </div>
+      ) : null}
     </>
   );
 }

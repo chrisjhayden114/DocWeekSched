@@ -148,22 +148,25 @@ export function buildStatePrompt(
   return lines.join("\n");
 }
 
-/** Feature registry (names + plain descriptions) with current on/off state. */
+/** Feature registry (names + descriptions + where to click) with on/off state. */
 export function buildFeatureRegistryPrompt(form: SetupCopilotFormState): string {
   const lines = [FEATURE_REGISTRY_OPEN];
   for (const def of getOrganizerVisibleFeatures()) {
     const enabled = resolveFeatureEnabled(def.key, form.featureOverrides);
-    lines.push(`- ${def.name}: ${def.plainDescription} [currently ${enabled ? "on" : "off"}]`);
+    const appears = def.appearsIn ? ` · appears in: ${def.appearsIn}` : "";
+    lines.push(
+      `- ${def.name}: ${def.plainDescription} [currently ${enabled ? "on" : "off"}]${appears}`,
+    );
   }
   lines.push(FEATURE_REGISTRY_CLOSE);
   return lines.join("\n");
 }
 
-/** Organizer Guide (topics + verified how-to text) as a data block. */
+/** Organizer Guide (topics + how-to text + href) as a data block. */
 export function buildOrganizerGuidePrompt(): string {
   const lines = [ORGANIZER_GUIDE_OPEN];
   for (const entry of ORGANIZER_GUIDE) {
-    lines.push(`- ${entry.topic}: ${entry.text}`);
+    lines.push(`- ${entry.topic}: ${entry.text} (${entry.href})`);
   }
   lines.push(ORGANIZER_GUIDE_CLOSE);
   return lines.join("\n");

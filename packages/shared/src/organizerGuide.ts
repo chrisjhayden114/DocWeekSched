@@ -12,11 +12,13 @@
  *   resolves, maps, announcements, ops, readiness — only when the event's
  *   resolved features enable it, features, recap), the
  *   ?settings=1 slide-over, or the sibling pages (ingest, sponsors,
- *   scanner, analytics). "{eventId}" is substituted server-side via
+ *   cfp, scanner, analytics). "{eventId}" is substituted server-side via
  *   resolveOrganizerGuideHref before a link is ever attached.
  * - plan-gated surfaces (sponsors, ops_agent, recap_agent, checkin,
- *   analytics) say "if your plan includes it" — the assistant must not
- *   promise a surface the plan turned off.
+ *   analytics, certificates, session_polls, session_feedback) say
+ *   "if your plan includes it" — the assistant must not promise a
+ *   surface the plan turned off. Sponsor outreach is entitled on every
+ *   tier (Free capped at 25 prospects).
  *
  * Feature CHANGES stay confirm-gated through the existing diff card; this
  * file only expands what the assistant KNOWS. Keep entries concise: they
@@ -48,13 +50,13 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     id: "agenda-ingest",
     topic: "Agenda ingest",
     href: "/organizer/events/{eventId}/ingest",
-    text: "Upload a PDF, Word, Excel/CSV, or image of your program and the AI drafts the agenda, or use Describe it to generate a skeleton from a short description. You review the result first, and confirming creates DRAFT sessions only.",
+    text: "Upload a PDF, Word, Excel/CSV, or image of your program, paste text, or fetch a URL, and the AI drafts the agenda — or use Describe it to generate a skeleton from a short description. You review the result first, and confirming creates DRAFT sessions only.",
   },
   {
     id: "participants-tab",
     topic: "Participants",
     href: "/organizer/events/{eventId}?tab=participants",
-    text: "Invite one person by name and email, bulk-invite via CSV (with a dry run before anything sends), and manage the roster — including Make admin and Remove participant. Copyable join links (the permanent join link and the public page link) live on the same tab.",
+    text: "Invite one person by name and email, or add people from a spreadsheet without emailing them (they show as Not invited until you send invites). Bulk-invite via CSV (dry run first), set participant labels, and manage the roster — including Make admin and Remove participant. When Registration fees is on, the Payment column records who has paid. Copyable join links live on the same tab.",
   },
   {
     id: "speakers-tab",
@@ -67,6 +69,48 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     topic: "Sponsors",
     href: "/organizer/events/{eventId}/sponsors",
     text: "If your plan includes it, manage sponsors by tier with logos, booths, and descriptions, and export booth leads as CSV. Attendees see sponsors grouped by tier.",
+  },
+  {
+    id: "sponsor-outreach",
+    topic: "Sponsor outreach",
+    href: "/organizer/events/{eventId}/sponsors",
+    text: "On the Sponsors page, Outreach is a private pipeline (To contact, Contacted, In conversation, Confirmed, Declined). Add prospects by hand or CSV import, save templates, then Write email (mailto) or Draft with AI — you send from your own address; the platform never sends outreach. Included in every plan: Free is capped at 25 prospects per event; paid plans have no cap. Outreach needs Sponsors to be on.",
+  },
+  {
+    id: "cfp-page",
+    topic: "CFP",
+    href: "/organizer/events/{eventId}/cfp",
+    text: "The CFP page is where you open a call, edit rubric criteria, assign reviewers, decide, and convert an accept into a draft session. Rename the call (default Call for Presentations) in Event settings under More options.",
+  },
+  {
+    id: "registration-fees",
+    topic: "Registration fees",
+    href: "/organizer/events/{eventId}?tab=participants",
+    text: "Turn on Registration fees (paid_attendance) on the Features tab. On the Participants tab, RegistrationFeeCard publishes fee text, a payment URL, and instructions — the platform never processes money. The roster Payment column records unpaid, PO on file, paid, waived, or refunded; a mark-paid CSV can update many rows at once.",
+  },
+  {
+    id: "certificates",
+    topic: "Certificates",
+    href: "/organizer/events/{eventId}?tab=recap",
+    text: "If your plan includes it, define eligibility (any check-in, a minimum number of joined sessions, or a required-session list), then batch-issue from Recap. Eligible people get an email with a download link; anyone can confirm a certificate on the public /verify page. PDFs use this event's accent colour and logo.",
+  },
+  {
+    id: "maps-tab",
+    topic: "Maps",
+    href: "/organizer/events/{eventId}?tab=maps",
+    text: "The Maps tab is where you upload floor plans, drop pins, and optionally link each pin to a room. Attendees see those maps on their Maps tab when venue maps is on.",
+  },
+  {
+    id: "session-polls",
+    topic: "Polls",
+    href: "/organizer/events/{eventId}?tab=features",
+    text: "If your plan includes it, turn on Live polls in the Features tab. On a session page, draft a multiple-choice poll (2–12 options), then open and close it during the session. Attendees vote on the same Live polls card.",
+  },
+  {
+    id: "session-feedback",
+    topic: "Session feedback",
+    href: "/organizer/events/{eventId}?tab=features",
+    text: "If your plan includes it, turn on Session feedback in the Features tab. After a session ends, attendees leave a 1–5 rating and optional comment on the session page; organizers see the count, average, and comments there.",
   },
   {
     id: "announcements-tab",
@@ -96,7 +140,7 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     id: "features-tab",
     topic: "Features",
     href: "/organizer/events/{eventId}?tab=features",
-    text: "The Features tab holds the attendee feature toggles with presets (Everything on / Focused / Academic); press Save features to apply. You can also ask me here — feature changes always show a review card before anything is applied.",
+    text: "The Features tab holds the attendee feature toggles with presets (Everything on / Focused / Academic / PD day / Talk showcase); press Save features to apply. You can also ask me here — feature changes always show a review card before anything is applied.",
   },
   {
     id: "pick-one-breakouts",
@@ -114,7 +158,7 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     id: "event-settings",
     topic: "Event settings",
     href: "/organizer/events/{eventId}?settings=1",
-    text: "Open Event settings (the Settings button in the console header) to edit the name, description, dates, timezone, and venue or online URL. The public slug, brand color, logo, and banner are under More options inside the slide-over.",
+    text: "Open Event settings (the Settings button in the console header) to edit the name, description, dates, timezone, and venue or online URL. The public slug, CFP label (what you call the call for proposals), brand color, logo, and banner are under More options inside the slide-over.",
   },
   {
     id: "check-in",

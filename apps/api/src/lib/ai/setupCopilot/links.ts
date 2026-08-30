@@ -13,7 +13,12 @@ import {
 } from "@event-app/shared";
 import { linkifyReply, type LinkifyAnchor } from "../concierge/linkify";
 
-/** Organizer Guide anchors for one event ({eventId} substituted). */
+/**
+ * Organizer Guide anchors for one event ({eventId} substituted).
+ * GUIDE-1 topics (Sponsor outreach, CFP, Registration fees, Certificates,
+ * Maps, Polls, Session feedback) are minted here automatically — they
+ * live on ORGANIZER_GUIDE, so adding an entry is what registers the anchor.
+ */
 export function buildOrganizerGuideAnchors(eventId: string): LinkifyAnchor[] {
   return ORGANIZER_GUIDE.map((entry) => ({
     label: entry.topic,
