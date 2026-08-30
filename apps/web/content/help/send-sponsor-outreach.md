@@ -1,7 +1,7 @@
 ---
 title: Send sponsor outreach from your own email address
-description: Write a sponsor ask in UKEDL, open it in your own mail app, and send it yourself. We never send these emails.
-order: 11
+description: Write a sponsor ask in {{product}}, open it in your own mail app, and send it yourself. We never send these emails.
+order: 10
 category: organizer
 ---
 

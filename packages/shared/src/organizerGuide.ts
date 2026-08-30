@@ -86,7 +86,7 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     id: "registration-fees",
     topic: "Registration fees",
     href: "/organizer/events/{eventId}?tab=participants",
-    text: "Turn on Registration fees (paid_attendance) on the Features tab. On the Participants tab, RegistrationFeeCard publishes fee text, a payment URL, and instructions — the platform never processes money. The roster Payment column records unpaid, PO on file, paid, waived, or refunded; a mark-paid CSV can update many rows at once.",
+    text: "Turn on Registration fees (paid_attendance) on the Features tab. The Registration fee section on the Participants tab publishes fee text, a payment URL, and instructions — the platform never processes money. The roster Payment column records unpaid, PO on file, paid, waived, or refunded; a mark-paid CSV can update many rows at once.",
   },
   {
     id: "certificates",

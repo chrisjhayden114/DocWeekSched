@@ -21,7 +21,7 @@ The fastest path is the **Setup assistant** on [New event](/organizer/events/new
 2. Confirm the draft sessions and features.
 3. The assistant checks off **Create event** and **Add sessions** on your onboarding checklist.
 
-One of those questions is what kind of event this is — **Conference**, **Academic program**, **Meetup**, **Internal**, or **PD day / Training**. Your answer presets sensible features (a PD day, for example, turns on pick-one breakouts and certificates), and you can change any of them on the **Features** tab afterwards.
+One of those questions is what kind of event this is — **Conference**, **Academic program**, **Meetup**, **Internal**, **PD day / Training**, or **Talk showcase**. Your answer presets sensible features (a PD day, for example, turns on pick-one breakouts and certificates; a talk showcase turns on registration fees), and you can change any of them on the **Features** tab afterwards. See the [Feature Guide](/help/feature-guide) for what each toggle does.
 
 After creation, the Setup assistant lives on the event's **Overview** tab: it reads the event's current state, names the next incomplete step (rooms, speakers, venue, draft sessions, publish), and links straight to it. Attendees have their own **Event assistant** on event pages — a wayfinder that answers only from that event's own schedule, rooms, maps, and FAQ.
 
@@ -35,7 +35,7 @@ Organizing the program: on the event's **Program** tab, tick several sessions (o
 
 ## 3. Invite attendees
 
-From the dashboard, use **Invite** to send links (email when configured). Inviting marks the checklist’s **Invite attendees** step. To invite a group from a spreadsheet, manage the roster, or set up participant labels, see [Invite participants and manage the roster](/help/participants-and-invites).
+From the dashboard, use **Invite** to send links (email when configured). Inviting marks the checklist’s **Invite attendees** step. To invite a group from a spreadsheet, manage the roster, or set up participant labels, see [Invite participants and manage the roster](/help/participants-and-invites). If you charge a fee, [Registration fees](/help/registration-fees) publishes how to pay and records who has paid — {{product}} never processes the money.
 
 ## 4. Publish
 
@@ -46,6 +46,8 @@ When the agenda looks right, publish the event so `/e/your-slug` is public. Publ
 - [Brand your event](/help/event-branding) — banner, logo, and accent colour.
 - [Let attendees pick one session per block](/help/breakout-pick-one) — for PD days and workshop programmes.
 - [Collect materials from presenters](/help/speaker-readiness) — stop chasing bios and slides by hand.
+- [Send sponsor outreach](/help/send-sponsor-outreach) — write the ask; you send it from your own address.
+- [Feature Guide](/help/feature-guide) — what each event feature does, where people see it, and what stays when you turn it off.
 - [Use the AI assistants](/help/ai-assistants) — what the Event and Setup assistants do.
 
 ## Try the public demo

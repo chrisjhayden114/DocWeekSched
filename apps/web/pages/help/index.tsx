@@ -4,12 +4,17 @@ import Link from "next/link";
 import type { GetServerSideProps } from "next";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { SiteHeader } from "../../components/marketing/SiteHeader";
-import { helpCategoryLabel, listHelpArticles, type HelpArticleMeta } from "../../lib/help/articles";
+import { applyBrandTokens, helpCategoryLabel, listHelpArticles, type HelpArticleMeta } from "../../lib/help/articles";
 
 type Props = { articles: HelpArticleMeta[] };
 
 export const getServerSideProps: GetServerSideProps<Props> = async () => {
-  return { props: { articles: listHelpArticles() } };
+  const articles = listHelpArticles().map((a) => ({
+    ...a,
+    title: applyBrandTokens(a.title),
+    description: applyBrandTokens(a.description),
+  }));
+  return { props: { articles } };
 };
 
 export default function HelpIndexPage({ articles }: Props) {

@@ -39,6 +39,35 @@ describe("Phase 6 /help seed (unit)", () => {
     }
   });
 
+  it("HELP-2 — ships the completion articles and keeps contact last", () => {
+    const articles = loadArticles();
+    const slugs = articles.map((a) => a.slug);
+    for (const slug of [
+      "registration-fees",
+      "certificates",
+      "check-in",
+      "call-for-presentations",
+      "community",
+    ]) {
+      expect(slugs).toContain(slug);
+    }
+    const order = (raw: string) => Number(/^order:\s*(\d+)\s*$/m.exec(raw)?.[1] || 100);
+    const contact = articles.find((a) => a.slug === "contact")!;
+    const contactOrder = order(contact.raw);
+    for (const a of articles) {
+      if (a.slug === "contact") continue;
+      expect(order(a.raw), `${a.slug} must sort before contact`).toBeLessThan(contactOrder);
+    }
+  });
+
+  it("help markdown uses {{product}} and never a hardcoded brand name", () => {
+    for (const a of loadArticles()) {
+      expect(a.raw, a.slug).not.toMatch(/\bUKEDL\b/);
+    }
+    const outreach = loadArticles().find((a) => a.slug === "send-sponsor-outreach");
+    expect(outreach!.raw).toContain("{{product}}");
+  });
+
   it("contact article uses config support email token", () => {
     const contact = loadArticles().find((a) => a.slug === "contact");
     expect(contact).toBeTruthy();

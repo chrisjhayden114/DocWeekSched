@@ -218,6 +218,7 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
     expect(page).toContain("guide.imageSrc");
     expect(page).toContain('loading="lazy"');
     expect(page).toContain("<FeatureArt category={group.category} />");
+    expect(page).not.toContain("Retired — kept here so the key stays documented.");
   });
 });
 

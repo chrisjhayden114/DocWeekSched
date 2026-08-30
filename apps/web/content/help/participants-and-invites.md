@@ -44,7 +44,7 @@ Each person gets an email that names your event, asks them to choose a password,
 
 ## Manage the roster
 
-The **Roster** below shows everyone with their invite status:
+The **Roster** below shows everyone with their invite status, and — when you use them — a **Label** column and a **Payment** column:
 
 - **Not invited** — on the roster (usually from a spreadsheet), never emailed. Tick them and choose **Send invites** whenever you're ready.
 - **Invite sent** — invited, hasn't finished setting up.
@@ -52,6 +52,8 @@ The **Roster** below shows everyone with their invite status:
 - **Invite expired** — their setup link lapsed. Send invites again for a fresh one.
 
 Each row has a menu. Owners can **Make admin** or **Remove admin**; any organizer can **Remove participant**. There's no separate resend button — sending invites again (or inviting the same email again) refreshes their link.
+
+When **Registration fees** is on, the **Payment** column records unpaid, PO on file, paid, waived, or refunded, plus an optional PO / check reference. See [Track registration fees](/help/registration-fees). When the event defines participant labels, the **Label** column lets you set each person's label from the roster.
 
 ## Removing someone, and the 30 days
 

@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, overviewCopy } from "@event-app/config";
 import {
   PAYMENT_INSTRUCTIONS_MAX_CHARS,
   PAYMENT_PRICE_TEXT_MAX_CHARS,
@@ -135,9 +135,7 @@ export function RegistrationFeeCard({ eventId, event, onSaved }: Props) {
             placeholder="$120 · $95 members"
             onChange={(e) => set("priceText", e.target.value)}
           />
-          <span className="help-text">
-            Free text, so tiers and member rates read the way you say them.
-          </span>
+          <span className="help-text">{overviewCopy.settings.fields.paymentPriceText}</span>
         </label>
         <label>
           Payment link (optional)
@@ -148,9 +146,7 @@ export function RegistrationFeeCard({ eventId, event, onSaved }: Props) {
             placeholder="https://…"
             onChange={(e) => set("url", e.target.value)}
           />
-          <span className="help-text">
-            Your own checkout or invoice page. Attendees get a button that opens it.
-          </span>
+          <span className="help-text">{overviewCopy.settings.fields.paymentUrl}</span>
         </label>
         <label>
           How to pay (optional)
@@ -164,9 +160,7 @@ export function RegistrationFeeCard({ eventId, event, onSaved }: Props) {
             }
             onChange={(e) => set("instructions", e.target.value)}
           />
-          <span className="help-text">
-            POs and checks belong here — many districts can&apos;t pay by card.
-          </span>
+          <span className="help-text">{overviewCopy.settings.fields.paymentInstructions}</span>
         </label>
         <div>
           <button type="submit" className="button" disabled={busy}>

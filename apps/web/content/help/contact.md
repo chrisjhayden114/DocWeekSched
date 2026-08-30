@@ -1,7 +1,7 @@
 ---
 title: Contact
 description: How to reach support — email and honest support hours.
-order: 10
+order: 16
 ---
 
 # Contact

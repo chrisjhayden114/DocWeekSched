@@ -66,11 +66,6 @@ export default function FeatureGuidePage() {
                         )}
                       </div>
                       <h3 style={{ marginBottom: 8 }}>{def.name}</h3>
-                      {def.retired ? (
-                        <p className="text-meta" style={{ marginTop: 0 }}>
-                          Retired — kept here so the key stays documented.
-                        </p>
-                      ) : null}
                       {def.plannedPhase ? (
                         <p className="text-meta" style={{ marginTop: 0 }}>
                           Planned — not shown in the app yet.

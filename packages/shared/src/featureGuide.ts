@@ -4,6 +4,7 @@
  * sessions, plans, featureEnabled). Update this file when the product changes.
  */
 
+import { brand } from "@event-app/config";
 import { FEATURE_REGISTRY, type FeatureCategory, type FeatureKey } from "./features";
 
 export type FeatureGuideEntry = {
@@ -209,7 +210,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
   },
   cfp: {
     whatItDoes:
-      "Call for proposals is a public form for papers, presentations, and workshops, plus a program-committee review workflow. Submitters do not need an account — they confirm by email — and forms can cap submissions per person, collect custom answers, and accept up to five attachments (10 MB each). Accepted work converts to draft sessions you schedule on purpose, and creating a form turns this override on.",
+      "Call for proposals is a public form for papers, presentations, and workshops, plus a program-committee review workflow with an editor for the review criteria. Submitters do not need an account — they confirm by email — and forms can cap submissions per person, collect custom answers, and accept up to five attachments (10 MB each). Accepted work converts to draft sessions you schedule on purpose, and creating a form turns this override on.",
     experience:
       "The public page lives at /e/<slug>/cfp. Organizers use the console CFP area to open the call, assign reviewers, decide, and convert accepts. You can rename the call (the default label is Call for Presentations) in event settings.",
     goodToKnow:
@@ -241,11 +242,11 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
   },
   sponsor_outreach: {
     whatItDoes:
-      "Sponsor outreach is a private pipeline of organizations you may ask to support this event. You add prospects by hand or from a spreadsheet, then move them through To contact, Contacted, In conversation, Confirmed, or Declined. UKEDL never sends the email — there is no bulk send, no open tracking, and no sequence. When someone confirms, you can add them as a sponsor so their logo can appear with the rest.",
+      `Sponsor outreach is a private pipeline of organizations you may ask to support this event. You add prospects by hand or from a spreadsheet, then move them through To contact, Contacted, In conversation, Confirmed, or Declined. ${brand.productName} never sends the email — there is no bulk send, no open tracking, and no sequence. When someone confirms, you can add them as a sponsor so their logo can appear with the rest.`,
     experience:
       "Organizers use it on the Sponsors page, in the Outreach section above the confirmed-sponsor list. Each row has a status, notes, Write email (a draft you open in your own mail app or copy), and an optional contact. Templates live on that page; a starter ask is offered on first compose and is not stored until you save one. Attendees never see this list.",
     goodToKnow:
-      "This needs Sponsors to be on, and it is included on the same plans as Sponsors. Free is capped at 25 prospects per event; paid plans have no cap. Turning it off hides the pipeline; the rows stay. We never send outreach from our domain — you write and send from your own address, and Draft with AI is metered, review-only, and never auto-sent.",
+      `This needs Sponsors to be on, and it is included on the same plans as Sponsors. Free is capped at 25 prospects per event; paid plans have no cap. Turning it off hides the pipeline; the rows stay. ${brand.productName} never sends outreach from our domain — you write and send from your own address, and Draft with AI is metered, review-only, and never auto-sent.`,
   },
   checkin: {
     whatItDoes:
@@ -273,7 +274,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
   },
   certificates: {
     whatItDoes:
-      "Certificates let you define templates and issue downloads to eligible attendees after the event ends. Eligibility can be any check-in, a minimum number of joined sessions, or a required-session list (joins, not door scans). Batch issue runs in the background. Issued certificates can be verified on a public route.",
+      "Certificates let you define templates and issue downloads to eligible attendees after the event ends. Eligibility can be any check-in, a minimum number of joined sessions, or a required-session list (joins, not door scans). Batch issue runs in the background, and issued PDFs use the event accent colour and logo. Issued certificates can be verified on a public route.",
     experience:
       "Organizers issue from Recap and the certificates API. Attendees download after the event via the certificates API (there is no separate attendee Certificates tab). Eligible people get a file, not a live editor.",
     goodToKnow:
@@ -318,6 +319,7 @@ export function featureGuideImageSrcs(): string[] {
 export function featureGuideGroups(): { category: FeatureCategory; label: string; keys: FeatureKey[] }[] {
   const map = new Map<FeatureCategory, FeatureKey[]>();
   for (const def of FEATURE_REGISTRY) {
+    if (def.retired) continue;
     const list = map.get(def.category) || [];
     list.push(def.key);
     map.set(def.category, list);

@@ -19,11 +19,11 @@ The fields are **Brand color**, **Logo URL** with a **Logo upload**, and **Banne
 
 ## Where each one appears
 
-**Logo** — the attendee app's top bar on every tab, the Agenda hero, your public event page, and the presenter portal your speakers open.
+**Logo** — the attendee app's top bar on every tab, the Agenda hero, your public event page, the presenter portal your speakers open, and issued [certificates](/help/certificates).
 
 **Banner** — two places only: the hero on the attendee **Agenda** tab, and the top of your public event page. It's deliberately not on every attendee tab; a banner above every screen stops being branding and becomes furniture. The presenter portal doesn't show it either.
 
-**Brand color** — accents buttons, links, and selected states across the attendee app, your public event page, session pages, the presenter portal, and your own organizer console while you're inside that event. If a colour would leave button text unreadable, it's darkened automatically for the button only, so your colour survives without costing legibility.
+**Brand color** — accents buttons, links, and selected states across the attendee app, your public event page, session pages, the presenter portal, issued [certificates](/help/certificates), and your own organizer console while you're inside that event. If a colour would leave button text unreadable, it's darkened automatically for the button only, so your colour survives without costing legibility.
 
 There's one more place branding surfaces: when someone shares a link to your public event page, the preview image is your banner, or your logo if there's no banner.
 

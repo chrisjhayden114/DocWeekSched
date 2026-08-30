@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { FEATURE_BY_KEY, FEATURE_GUIDE, FEATURE_REGISTRY, featureGuideImageSrcs, type FeatureKey } from "@event-app/shared";
+import { FEATURE_BY_KEY, FEATURE_GUIDE, FEATURE_REGISTRY, featureGuideGroups, featureGuideImageSrcs, type FeatureKey } from "@event-app/shared";
 
 const KEYS = FEATURE_REGISTRY.map((f) => f.key);
 
@@ -67,5 +67,12 @@ describe("K-2.1 — Feature Guide completeness", () => {
       "/feature-guide/community_icebreakers.png",
       "/feature-guide/community_general.png",
     ]);
+  });
+
+  it("HELP-2 — /help/feature-guide groups omit retired keys instead of a tombstone", () => {
+    const keys = featureGuideGroups().flatMap((g) => g.keys);
+    expect(keys).not.toContain("messaging_event_chat");
+    expect(FEATURE_BY_KEY.messaging_event_chat.retired).toBe(true);
+    expect(FEATURE_GUIDE.messaging_event_chat.whatItDoes).toMatch(/retired/i);
   });
 });

@@ -160,3 +160,12 @@ export function helpCategoryLabel(category: string | undefined): string | null {
   if (!category) return null;
   return CATEGORY_LABEL[category] ?? category;
 }
+
+/** Same token pass for /help index descriptions and /help/[slug] bodies. */
+export function applyBrandTokens(text: string): string {
+  return text
+    .replace(/\{\{product\}\}/g, brand.productName)
+    .replace(/\{\{support\}\}/g, brand.supportEmail)
+    .replace(/\{\{hours\}\}/g, brand.supportHours)
+    .replace(/\{\{status\}\}/g, brand.statusPageUrl);
+}

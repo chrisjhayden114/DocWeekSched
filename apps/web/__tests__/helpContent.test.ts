@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
+import { brand } from "@event-app/config";
+import { applyBrandTokens, listHelpArticles } from "../lib/help/articles";
 import { HELP_SOURCE } from "../lib/help/helpContent";
 
 const CONTENT_DIR = join(__dirname, "../content/help");
@@ -26,4 +28,20 @@ describe("bundled help content matches content/help/*.md", () => {
       expect(HELP_SOURCE[slug]).toBe(disk);
     });
   }
+});
+
+describe("HELP-2 — help index brand tokens", () => {
+  it("substitutes {{product}} in article descriptions the same way /help/[slug] does", () => {
+    const outreach = listHelpArticles().find((a) => a.slug === "send-sponsor-outreach");
+    expect(outreach).toBeDefined();
+    expect(outreach!.description).toContain("{{product}}");
+    expect(applyBrandTokens(outreach!.description)).toContain(brand.productName);
+    expect(applyBrandTokens(outreach!.description)).not.toContain("{{product}}");
+  });
+
+  it("the help index page applies applyBrandTokens to descriptions", () => {
+    const src = readFileSync(join(__dirname, "../pages/help/index.tsx"), "utf8");
+    expect(src).toContain("applyBrandTokens");
+    expect(src).toContain("description: applyBrandTokens(a.description)");
+  });
 });

@@ -30,7 +30,7 @@ Same technology, different job: it knows how this console works and what your ev
 
 You can also attach a programme document — PDF, Word, spreadsheet, or an image, up to 20 MB — and it will read it to answer the setup questions for you. It doesn't build your agenda from that file at this stage: upload the same file to **Agenda ingest** after the event exists, and the full programme gets extracted there for review.
 
-**After the event exists.** On the **Overview** tab it reads your event's actual state, names the next incomplete step — rooms, speakers, venue, draft sessions, publish — and links straight to it. **Ask the setup assistant** opens a chat for questions about running the event. It appears on the **Features** tab too, where you can ask for feature changes in plain words; it responds with a **Review feature changes** card listing exactly what would change, and nothing is applied until you choose **Confirm changes**.
+**After the event exists.** The Setup assistant is a **dock** available on every organizer console page for that event — not only Overview or Features. On **Overview** it reads your event's actual state, names the next incomplete step — rooms, speakers, venue, draft sessions, publish — and links straight to it. **Ask the setup assistant** opens the dock for questions about running the event. On the **Features** tab you can ask for feature changes in plain words; it responds with a **Review feature changes** card listing exactly what would change, and nothing is applied until you choose **Confirm changes**.
 
 Drafts it produces are chipped **AI-generated — review before publishing**. Sessions it creates are drafts, hidden from attendees until you publish.
 

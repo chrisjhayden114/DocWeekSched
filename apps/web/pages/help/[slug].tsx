@@ -4,17 +4,9 @@ import Link from "next/link";
 import type { GetServerSideProps } from "next";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { SiteHeader } from "../../components/marketing/SiteHeader";
-import { getHelpArticle, helpCategoryLabel, type HelpArticle } from "../../lib/help/articles";
+import { applyBrandTokens, getHelpArticle, helpCategoryLabel, type HelpArticle } from "../../lib/help/articles";
 
 type Props = { article: HelpArticle };
-
-function applyBrandTokens(html: string): string {
-  return html
-    .replace(/\{\{product\}\}/g, brand.productName)
-    .replace(/\{\{support\}\}/g, brand.supportEmail)
-    .replace(/\{\{hours\}\}/g, brand.supportHours)
-    .replace(/\{\{status\}\}/g, brand.statusPageUrl);
-}
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const slug = typeof ctx.params?.slug === "string" ? ctx.params.slug : "";

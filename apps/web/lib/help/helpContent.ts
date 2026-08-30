@@ -33,7 +33,7 @@ The fastest path is the **Setup assistant** on [New event](/organizer/events/new
 2. Confirm the draft sessions and features.
 3. The assistant checks off **Create event** and **Add sessions** on your onboarding checklist.
 
-One of those questions is what kind of event this is — **Conference**, **Academic program**, **Meetup**, **Internal**, or **PD day / Training**. Your answer presets sensible features (a PD day, for example, turns on pick-one breakouts and certificates), and you can change any of them on the **Features** tab afterwards.
+One of those questions is what kind of event this is — **Conference**, **Academic program**, **Meetup**, **Internal**, **PD day / Training**, or **Talk showcase**. Your answer presets sensible features (a PD day, for example, turns on pick-one breakouts and certificates; a talk showcase turns on registration fees), and you can change any of them on the **Features** tab afterwards. See the [Feature Guide](/help/feature-guide) for what each toggle does.
 
 After creation, the Setup assistant lives on the event's **Overview** tab: it reads the event's current state, names the next incomplete step (rooms, speakers, venue, draft sessions, publish), and links straight to it. Attendees have their own **Event assistant** on event pages — a wayfinder that answers only from that event's own schedule, rooms, maps, and FAQ.
 
@@ -47,7 +47,7 @@ Organizing the program: on the event's **Program** tab, tick several sessions (o
 
 ## 3. Invite attendees
 
-From the dashboard, use **Invite** to send links (email when configured). Inviting marks the checklist’s **Invite attendees** step. To invite a group from a spreadsheet, manage the roster, or set up participant labels, see [Invite participants and manage the roster](/help/participants-and-invites).
+From the dashboard, use **Invite** to send links (email when configured). Inviting marks the checklist’s **Invite attendees** step. To invite a group from a spreadsheet, manage the roster, or set up participant labels, see [Invite participants and manage the roster](/help/participants-and-invites). If you charge a fee, [Registration fees](/help/registration-fees) publishes how to pay and records who has paid — {{product}} never processes the money.
 
 ## 4. Publish
 
@@ -58,6 +58,8 @@ When the agenda looks right, publish the event so \`/e/your-slug\` is public. Pu
 - [Brand your event](/help/event-branding) — banner, logo, and accent colour.
 - [Let attendees pick one session per block](/help/breakout-pick-one) — for PD days and workshop programmes.
 - [Collect materials from presenters](/help/speaker-readiness) — stop chasing bios and slides by hand.
+- [Send sponsor outreach](/help/send-sponsor-outreach) — write the ask; you send it from your own address.
+- [Feature Guide](/help/feature-guide) — what each event feature does, where people see it, and what stays when you turn it off.
 - [Use the AI assistants](/help/ai-assistants) — what the Event and Setup assistants do.
 
 ## Try the public demo
@@ -227,7 +229,7 @@ Each person gets an email that names your event, asks them to choose a password,
 
 ## Manage the roster
 
-The **Roster** below shows everyone with their invite status:
+The **Roster** below shows everyone with their invite status, and — when you use them — a **Label** column and a **Payment** column:
 
 - **Not invited** — on the roster (usually from a spreadsheet), never emailed. Tick them and choose **Send invites** whenever you're ready.
 - **Invite sent** — invited, hasn't finished setting up.
@@ -235,6 +237,8 @@ The **Roster** below shows everyone with their invite status:
 - **Invite expired** — their setup link lapsed. Send invites again for a fresh one.
 
 Each row has a menu. Owners can **Make admin** or **Remove admin**; any organizer can **Remove participant**. There's no separate resend button — sending invites again (or inviting the same email again) refreshes their link.
+
+When **Registration fees** is on, the **Payment** column records unpaid, PO on file, paid, waived, or refunded, plus an optional PO / check reference. See [Track registration fees](/help/registration-fees). When the event defines participant labels, the **Label** column lets you set each person's label from the roster.
 
 ## Removing someone, and the 30 days
 
@@ -353,11 +357,11 @@ The fields are **Brand color**, **Logo URL** with a **Logo upload**, and **Banne
 
 ## Where each one appears
 
-**Logo** — the attendee app's top bar on every tab, the Agenda hero, your public event page, and the presenter portal your speakers open.
+**Logo** — the attendee app's top bar on every tab, the Agenda hero, your public event page, the presenter portal your speakers open, and issued [certificates](/help/certificates).
 
 **Banner** — two places only: the hero on the attendee **Agenda** tab, and the top of your public event page. It's deliberately not on every attendee tab; a banner above every screen stops being branding and becomes furniture. The presenter portal doesn't show it either.
 
-**Brand color** — accents buttons, links, and selected states across the attendee app, your public event page, session pages, the presenter portal, and your own organizer console while you're inside that event. If a colour would leave button text unreadable, it's darkened automatically for the button only, so your colour survives without costing legibility.
+**Brand color** — accents buttons, links, and selected states across the attendee app, your public event page, session pages, the presenter portal, issued [certificates](/help/certificates), and your own organizer console while you're inside that event. If a colour would leave button text unreadable, it's darkened automatically for the button only, so your colour survives without costing legibility.
 
 There's one more place branding surfaces: when someone shares a link to your public event page, the preview image is your banner, or your logo if there's no banner.
 
@@ -412,7 +416,7 @@ Same technology, different job: it knows how this console works and what your ev
 
 You can also attach a programme document — PDF, Word, spreadsheet, or an image, up to 20 MB — and it will read it to answer the setup questions for you. It doesn't build your agenda from that file at this stage: upload the same file to **Agenda ingest** after the event exists, and the full programme gets extracted there for review.
 
-**After the event exists.** On the **Overview** tab it reads your event's actual state, names the next incomplete step — rooms, speakers, venue, draft sessions, publish — and links straight to it. **Ask the setup assistant** opens a chat for questions about running the event. It appears on the **Features** tab too, where you can ask for feature changes in plain words; it responds with a **Review feature changes** card listing exactly what would change, and nothing is applied until you choose **Confirm changes**.
+**After the event exists.** The Setup assistant is a **dock** available on every organizer console page for that event — not only Overview or Features. On **Overview** it reads your event's actual state, names the next incomplete step — rooms, speakers, venue, draft sessions, publish — and links straight to it. **Ask the setup assistant** opens the dock for questions about running the event. On the **Features** tab you can ask for feature changes in plain words; it responds with a **Review feature changes** card listing exactly what would change, and nothing is applied until you choose **Confirm changes**.
 
 Drafts it produces are chipped **AI-generated — review before publishing**. Sessions it creates are drafts, hidden from attendees until you publish.
 
@@ -448,9 +452,21 @@ After you join, open the dashboard. **Agenda** shows the full program; save sess
 
 If your organizer enabled it, a chat button on event pages opens the **Event assistant** — a wayfinder for that event only. Ask "when is X", "where is room 201", or "what's on after lunch"; it answers from that event's schedule, rooms, maps, and organizer FAQ, and links you to the session or map. It declines questions outside the event's data rather than guessing.
 
+## Where is my check-in QR?
+
+If your organizer enabled check-in, your personal QR sits at the top of **Profile**, labelled **Event check-in QR**. Show it at registration. Staff can also type the same code by hand.
+
+## How do certificates arrive?
+
+If your organizer issues certificates, you get an email with a **download link** — not a PDF attached to the message. Anyone can confirm a certificate on the public \`/verify\` page. You can also download from your event profile after the event.
+
+## What does a registration fee notice mean?
+
+If the organizer published a fee, the notice is informational: pay via their link or instructions (card, purchase order, or check). {{product}} never takes the money. Your status — unpaid, PO on file, paid, waived, or refunded — is recorded only by the organizer.
+
 ## Can I message other attendees?
 
-Only if your organizer enabled messaging or community features for that event. Disabled features do not appear in the navigation.
+Only if your organizer enabled messaging or community features for that event. Disabled features do not appear in the navigation. See [Use Community](/help/community) for the five Community channels.
 
 ## Who do I contact for event questions?
 
@@ -512,43 +528,10 @@ If a deadline is wrong, or an item doesn't apply to you, contact the event organ
 
 Nobody is locked out for being late. The reminders are a nudge, not enforcement.
 `,
-  contact: `---
-title: Contact
-description: How to reach support — email and honest support hours.
-order: 10
----
-
-# Contact
-
-## Email
-
-Write to [{{support}}](mailto:{{support}}).
-
-## Support hours
-
-{{hours}}
-
-We do **not** promise 24/7 live human support. On event days we provide **best-effort** assistance during support hours. For platform status, see the [status page]({{status}}); for urgent incident updates, email [{{support}}](mailto:{{support}}).
-
-## What to include
-
-- Your organization or event name (if relevant)
-- Whether the event is live today
-- Steps to reproduce and screenshots when useful
-
-## Before you email
-
-Two assistants may answer faster than we can:
-
-- The **Event assistant** answers attendee questions about a specific event — when a session is, where a room is, what's on after lunch — from that event's own schedule, maps, and FAQ.
-- The **Setup assistant** answers organizer questions about building an event and names the next step you haven't finished.
-
-See [Use the AI assistants](/help/ai-assistants). For anything they decline, or anything about billing, your account, or a bug, email us — that's what the address above is for.
-`,
   "send-sponsor-outreach": `---
 title: Send sponsor outreach from your own email address
-description: Write a sponsor ask in UKEDL, open it in your own mail app, and send it yourself. We never send these emails.
-order: 11
+description: Write a sponsor ask in {{product}}, open it in your own mail app, and send it yourself. We never send these emails.
+order: 10
 category: organizer
 ---
 
@@ -593,5 +576,283 @@ If nothing opens, your computer does not have a default email app — or the bro
 ## Copy email always works
 
 **Copy email** puts the subject and body on the clipboard. Paste them into a new message in Gmail, Outlook, or any other mail service. Use this whenever \`mailto:\` does nothing, or whenever you prefer to stay in the browser.
+`,
+  "registration-fees": `---
+title: Track registration fees without taking the money
+description: Publish how to pay, record who has paid, and keep purchase orders and checks first-class. {{product}} never processes attendee money.
+order: 11
+category: organizer
+---
+
+# Track registration fees without taking the money
+
+**Registration fees** lets you tell attendees how to pay and record who has paid. {{product}} never processes, holds, or guarantees the money — attendees pay you on your own link or process. Purchase orders and checks are first-class, not a footnote.
+
+Nothing here blocks registration. People can join whether or not they have paid.
+
+## Turn it on
+
+1. Open the event's **Features** tab.
+2. Switch on **Registration fees**.
+3. Choose **Save features**.
+
+The **Talk showcase** preset switches it on for you. It is granted on every plan, including Free.
+
+## Publish how to pay
+
+On the **Participants** tab, the **Registration fee** section is where you publish the notice attendees see:
+
+- **Price** — free text, so tiers and member rates read the way you say them.
+- **Payment link** — your own checkout or invoice page. Attendees get a button that opens it.
+- **How to pay** — purchase-order and check instructions belong here.
+
+Save writes those three fields onto the event. Attendees see the notice on your public event page and in welcome when any of the three is filled. Clearing all three removes the notice.
+
+## The five payment statuses
+
+The roster **Payment** column records one status per person. You set it; {{product}} does not infer it from a card charge.
+
+- **Unpaid** — you have recorded that they have not paid.
+- **PO on file** — a purchase order is in hand. Put the PO number in the reference field that appears once a status is set.
+- **Paid** — marked paid.
+- **Waived** — you decided they do not owe this.
+- **Refunded** — you recorded a refund.
+
+A blank status is an em dash, not unpaid — nothing has been recorded yet. The reference field (PO / check #) only appears after a status is set, because a reference with no status describes nothing.
+
+## Mark paid from a spreadsheet
+
+Under the roster, upload the paid list your finance office or payment provider gives you. You see exactly who matched on the roster — and every email that did not — then confirm to set those people to **Paid**.
+
+Nothing is written before you confirm. An unmatched email never creates a roster seat; it is reported and left alone.
+
+## Honest limits
+
+- {{product}} is never the merchant of record. Questions about a missing payment go to you, not to us.
+- Turning the feature off hides the fee notice and the Payment column. Recorded statuses stay in the database and return if you turn it back on.
+`,
+  certificates: `---
+title: Issue certificates after the event
+description: Define a template, set an eligibility rule, batch-issue with progress, and let anyone confirm a certificate on the public verify page.
+order: 12
+category: organizer
+---
+
+# Issue certificates after the event
+
+Certificates are a download you issue after the event ends — not a live editor attendees fill in. You define a template and a rule for who is eligible, then batch-issue. Eligible people get an email with a **link**, not a PDF attachment. Anyone can confirm a certificate on the public verify page.
+
+Certificates are included on Per-event plans and above. The **PD day / Training** and **Academic program** presets leave them on; **Focused** turns them off.
+
+## Templates
+
+On **Recap**, after the event end date, create a template: a name, the title text on the certificate, optional body text, optional hours, and an optional signature image.
+
+Issued PDFs use this event's **accent colour** and **logo**. If neither is set, the certificate uses the platform layout — see [Brand your event](/help/event-branding).
+
+## Eligibility — registration, not the door
+
+A template has one rule. Session rules count **joins** (the person registered for the session), not a staff scan at the door:
+
+- **Any check-in** — they were checked in at the event.
+- **Minimum sessions** — they joined at least N sessions.
+- **Required sessions** — they joined every session on a list you pick.
+
+That distinction matters for a PD day with a door scan: someone can be eligible on a session rule without ever being scanned, and someone scanned at the door can fail a session rule if they never joined.
+
+## Batch issue, with progress
+
+Batch issue runs in the background. You start it from Recap; progress updates as certificates are generated. Re-issuing the same person on the same template keeps their original issue date and public id.
+
+The ready email carries a link to the public verify page (and a note that they can also download from their event profile). It does not attach the PDF.
+
+## Public verify
+
+Anyone with the certificate id can open \`/verify/<id>\` and see whether it matches a certificate we can confirm — name, event, date, optional hours. No account is required.
+
+## Honest limits
+
+- There is no separate attendee Certificates tab. Eligible people download via the link or their profile after the event.
+- Turning the feature off blocks new downloads. Certificates you already issued stay, and the verify page still works.
+- Generate on Recap is blocked until the event has ended.
+`,
+  "check-in": `---
+title: Check attendees in with a QR code
+description: Each attendee has a personal QR on their profile. Staff scan it, type the code, or queue scans offline and sync when the connection returns.
+order: 13
+category: organizer
+---
+
+# Check attendees in with a QR code
+
+**QR check-in** gives each attendee a personal code on their membership. Staff scan it at the door, or type the same code by hand. A person can be checked in once per event; a second read of the same code is ignored.
+
+Check-in is included on Per-event plans and above. Turn it on from the event's **Features** tab if it is off.
+
+## Where the attendee QR lives
+
+Each attendee's check-in QR sits at the top of **Profile**, labelled **Event check-in QR**. It encodes that person's per-event check-in code — the same value you can type or paste on the scanner. Invite emails also carry the code.
+
+## The scanner page
+
+Open **Check-in** from the organizer console (\`/organizer/events/<id>/scanner\`). Staff need organizer access.
+
+1. Open the page on a phone with a camera.
+2. Point the camera at the attendee's QR.
+3. A flash confirms **Checked in** (or that they were not).
+
+The status bar shows online/offline, how many of the roster are checked in, and how many scans are queued.
+
+## Manual entry
+
+If the camera is blocked, or this browser cannot detect QR codes, type or paste the code in the field on the same page. It is the same payload as the QR.
+
+## Offline queue and sync
+
+Scanning works offline. The device queues scans and syncs them when it is back online. The same code is ignored for a few seconds so a second read of the same QR does not double-submit.
+
+## Browser support
+
+The live camera uses the browser's **Barcode Detector** API. Chrome and Edge on a phone usually have it. Safari and Firefox often do not — the page then shows **Scanning isn't supported in this browser — use manual entry**, and the typed-code field is the path.
+
+## Honest limits
+
+- Turning check-in off hides the Profile QR and the scanner. Existing check-in records stay.
+- Repeats are idempotent: checking someone in twice does not create a second record.
+`,
+  "call-for-presentations": `---
+title: Open a call for presentations
+description: Rename the call, publish a form, set review criteria, assign reviewers, and convert an accept into a draft session.
+order: 14
+category: organizer
+---
+
+# Open a call for presentations
+
+The **CFP** page is where you open a public call, collect submissions, run a review, and turn accepted work into draft sessions. Creating a form turns the **Call for proposals** feature on.
+
+The **Academic program** preset turns the feature on. Organizer CFP tools stay available so you can build the call; the public form follows the Features toggle.
+
+## What you call it
+
+The default label is **Call for Presentations**. Rename it in **Event settings → More options → What do you call it?** — Call for Papers, Call for Workshops, whatever the programme actually is. That name is used in the organizer sidebar and console headings. Public pages still show each form's own title.
+
+## The public form
+
+The public page lives at \`/e/<slug>/cfp\`. Submitters do not need an account — they confirm by email.
+
+A form collects name, email, title, and abstract, and can include **custom fields** (short text, long text, or a choice list) that appear on that page and are stored with the submission. It can cap how many submissions one person may send, and accept attachments (PDF or Word, up to 10 MB).
+
+## Review criteria
+
+When you create a form, the **Review criteria** editor is where you name each criterion and give it a weight. Reviewers score each submission on those criteria; weight is how much each one counts. Add or remove rows before you open the call. The defaults are Novelty, Clarity, and Rigor, each weighted equally — change them to match how you actually decide.
+
+## Reviewer flow
+
+Assign reviewers on the CFP page (by user id). Each reviewer opens the **Reviewer** page: assigned submissions, the rubric, a score per criterion, and an optional comment. Blind review hides the submitter's name and email from reviewers when that option is on.
+
+The dashboard shows counts by status and each reviewer's completed / assigned progress.
+
+## Accept → draft session
+
+Select submissions and **Bulk accept** or **Bulk reject**. Accept queues the decision email; it does not put the work on the public programme.
+
+**Convert accepted → draft program** turns selected accepts into draft sessions you then schedule on **Program** — a standalone draft session, or an item inside an existing session. You review the changeset before anything is created. Draft sessions stay hidden from attendees until you publish them.
+
+## Honest limits
+
+- Turning the feature off hides the public page. Submissions and reviews stay.
+- Creating a form turns the override on, even if you had left the Features toggle off.
+`,
+  community: `---
+title: Use Community
+description: The five Community channels — meet-ups, moments, local tips, break-the-ice, and general — and how to post in each.
+order: 15
+category: attendee
+---
+
+# Use Community
+
+**Community** is the shared event board. Anyone on the roster can post; organizers can edit or delete threads and replies. It is not private chat — that is **Messages**.
+
+Open the **Community** tab. Channel pills filter the feed. A composer sits above the posts. If your organizer turned a channel off, that pill is not there.
+
+## Meet-ups
+
+Propose an in-person or virtual gathering.
+
+A post needs a **title**, a **description**, or a **photo** (at least one), plus a format and either a named guest list or an invite to everyone. Virtual meet-ups also need a meeting URL. Notifications go to the people you invited, or to the whole roster when you invite everyone.
+
+Pick the **Meet-ups** pill, then fill in format, optional start time, and who to invite.
+
+## Moments
+
+Photo posts from the event.
+
+A post can be photos only, a title only, or a description only — **at least one of the three**. You can attach up to twelve images and optionally **tag people** who are on the roster. Images open in a lightbox from the feed.
+
+Pick the **Moments** pill, add a caption if you want one, tag people, and upload photos or paste image URLs.
+
+## Local tips
+
+Nearby places to eat, walk, or explore.
+
+A post needs a title, a description, or a photo (at least one). This is the only channel that stores an optional Maps URL. There is no guest-list targeting — local tips are always event-wide.
+
+Pick the **Local tips** pill. A helper can open Google Maps search in a new tab. Posts with a link show **Open in Google Maps** on the feed.
+
+## Break the ice
+
+Intros and conversation starters.
+
+Posts use a normal title and body — no extra fields. When this channel is in view, a people strip above the feed can open a prefilled direct message (that still requires **Direct messages** to be on).
+
+Pick the **Break the ice** pill. The empty state is an invitation to introduce yourself.
+
+## General
+
+The open board for posts that do not fit a special channel.
+
+This is the only channel with audience targeting: everyone, a session, a track, or named people. Targeted posts are hidden from people outside that audience; you and event managers still see them.
+
+Pick the **General** pill and use **Post to** if the post should not go to everyone.
+
+## Honest limits
+
+- Community is on by default. Your organizer can turn the whole board or a single channel off; existing posts stay and return if they turn it back on.
+- There is no in-thread Report control on Community posts. Organizers moderate by editing or deleting.
+`,
+  contact: `---
+title: Contact
+description: How to reach support — email and honest support hours.
+order: 16
+---
+
+# Contact
+
+## Email
+
+Write to [{{support}}](mailto:{{support}}).
+
+## Support hours
+
+{{hours}}
+
+We do **not** promise 24/7 live human support. On event days we provide **best-effort** assistance during support hours. For platform status, see the [status page]({{status}}); for urgent incident updates, email [{{support}}](mailto:{{support}}).
+
+## What to include
+
+- Your organization or event name (if relevant)
+- Whether the event is live today
+- Steps to reproduce and screenshots when useful
+
+## Before you email
+
+Two assistants may answer faster than we can:
+
+- The **Event assistant** answers attendee questions about a specific event — when a session is, where a room is, what's on after lunch — from that event's own schedule, maps, and FAQ.
+- The **Setup assistant** answers organizer questions about building an event and names the next step you haven't finished.
+
+See [Use the AI assistants](/help/ai-assistants). For anything they decline, or anything about billing, your account, or a bug, email us — that's what the address above is for.
 `,
 };

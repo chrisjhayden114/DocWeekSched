@@ -22,9 +22,21 @@ After you join, open the dashboard. **Agenda** shows the full program; save sess
 
 If your organizer enabled it, a chat button on event pages opens the **Event assistant** — a wayfinder for that event only. Ask "when is X", "where is room 201", or "what's on after lunch"; it answers from that event's schedule, rooms, maps, and organizer FAQ, and links you to the session or map. It declines questions outside the event's data rather than guessing.
 
+## Where is my check-in QR?
+
+If your organizer enabled check-in, your personal QR sits at the top of **Profile**, labelled **Event check-in QR**. Show it at registration. Staff can also type the same code by hand.
+
+## How do certificates arrive?
+
+If your organizer issues certificates, you get an email with a **download link** — not a PDF attached to the message. Anyone can confirm a certificate on the public `/verify` page. You can also download from your event profile after the event.
+
+## What does a registration fee notice mean?
+
+If the organizer published a fee, the notice is informational: pay via their link or instructions (card, purchase order, or check). {{product}} never takes the money. Your status — unpaid, PO on file, paid, waived, or refunded — is recorded only by the organizer.
+
 ## Can I message other attendees?
 
-Only if your organizer enabled messaging or community features for that event. Disabled features do not appear in the navigation.
+Only if your organizer enabled messaging or community features for that event. Disabled features do not appear in the navigation. See [Use Community](/help/community) for the five Community channels.
 
 ## Who do I contact for event questions?
 

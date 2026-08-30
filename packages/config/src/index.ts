@@ -445,7 +445,7 @@ export const consoleTabCopy = {
   readiness:
     "Readiness tracks what each accepted speaker or session still needs — bios, slides, forms — from a template you assign once. Presenters get a personal link (no account) to upload or paste a slides URL; you approve or request a change. Open it once Speaker & Session Readiness is on, especially in the weeks before show day.",
   invites:
-    "Participants is the full roster: invite one person, bulk-invite by CSV, make someone an admin, or remove them. Copyable join links live here too. Use it whenever you are adding people or checking who has registered.",
+    "Participants is the full roster: invite one person, bulk-invite by CSV, make someone an admin, or remove them. Copyable join links live here too, along with participant labels and — when Registration fees is on — the Payment column. Use it whenever you are adding people or checking who has registered.",
   maps:
     "Maps is where you upload floor-plan images and drop pins that stay put when the plan scales. A pin can link to a room so today’s sessions show on it. Use it to give attendees a way to find rooms; turning the feature off hides the attendee Maps tab but keeps your plans.",
   announcements:
@@ -604,6 +604,9 @@ export const overviewCopy = {
         "Labels attendees can pick for this event — departments, cohorts, roles. You can override a person’s label on the roster. Removing a label clears it from anyone who had it.",
       cfpLabel:
         "What you call the public call — Call for Presentations, Call for Papers, Call for Workshops. This name is used in the organizer sidebar and console headings. Public pages still show each form’s own title.",
+      paymentPriceText: "Free text, so tiers and member rates read the way you say them.",
+      paymentUrl: "Your own checkout or invoice page. Attendees get a button that opens it.",
+      paymentInstructions: "POs and checks belong here — many districts can't pay by card.",
     },
   },
 } as const;
