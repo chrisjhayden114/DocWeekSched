@@ -119,11 +119,13 @@ ukedl.com
 2. If they engage, the follow-up conversation is the concierge readiness
    pilot at full published pilot pricing (EVENT_READINESS_PLAN.md §13.2):
 
-   > **Speaker & Session Readiness — concierge pilot.** We set everything up
-   > with you (data mapping, requirement templates, portal invites) and stay
-   > hands-on through your event. **$750 per event** up to ~50 presenters,
-   > **$1,250 per event** up to ~150; larger or complex events individually
-   > scoped. Includes import help, template setup, and direct founder support.
+   > **Speaker Readiness — concierge service.** We set everything up with you
+   > (data mapping, requirement templates, portal invites) and stay hands-on
+   > through your event. **$150 per event** under 50 presenters, **$350** for
+   > 50–150, **$750** for 150–500; larger or complex events individually
+   > scoped from **$1,250**. Includes import help, template setup, and direct
+   > founder support. (Software-only Speaker Readiness is included in every
+   > UKEDL plan — this is the done-with-you service on top.)
 
 3. Add support@ukedl.com as an org member as part of setup (FIX_PLAN support
    stub: interim policy).
