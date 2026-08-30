@@ -1,0 +1,178 @@
+# SHOT-CI — refresh the Feature Guide hover-card screenshots.
+#
+# Manual only (workflow_dispatch). This workflow commits images back to the
+# branch it ran on, so putting it on `push` would loop; the commit message
+# carries "[skip ci]" so the commit it creates cannot re-trigger CI either.
+# Netlify still builds that commit, which is the point — the refreshed images
+# go live without anyone capturing a screen by hand.
+#
+# THIS NEVER TOUCHES A REAL DATABASE. Everything runs against the job-scoped
+# postgres service container below, the same pattern as ci.yml's db-tests job.
+# The seed wipes the two Northbridge events by slug on every run, so it is
+# gated by the destructive guard (RUNBOOK.md §6) — which passes here purely
+# because the container is on loopback, with no override set.
+#
+# How to run it: RUNBOOK.md §15.
+
+name: Feature Guide screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit the refreshed images back to this branch"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  # Two runs committing images to the same branch would fight over the push.
+  group: feature-guide-screenshots-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Seed, boot, capture
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: event_app_shots
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Throwaway container, thrown away with the runner. The destructive-guard
+      # override is deliberately NOT set here — the guard already allows a
+      # loopback host, so the seed runs without it AND the guard still refuses
+      # if this URL is ever edited to point somewhere real. (RUNBOOK.md §6.)
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/event_app_shots
+      JWT_SECRET: screenshots-only-secret-not-used-anywhere
+      # The API refuses localhost origins when NODE_ENV=production, and these
+      # two processes only ever talk to each other, so the app runs in its
+      # development profile against production *builds*.
+      WEB_BASE_URL: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:4000
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      # Default anyway; stated so nobody has to check whether a capture run
+      # could bill an AI provider. Every agent returns deterministic mock text.
+      AI_PROVIDER: mock
+      SEED_FILE: ${{ github.workspace }}/screenshot-seed.json
+      SHOT_DIR: apps/web/public/feature-guide/auto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prisma generate + migrate
+        run: |
+          npm run prisma:generate --workspace @event-app/api
+          npm run prisma:deploy --workspace @event-app/api
+
+      - name: Build API
+        run: npm run build:api
+
+      # Same cache shape as ci.yml's web build, so a capture run usually gets a
+      # warm Next cache instead of a cold production build.
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/web/pages/**', 'apps/web/components/**', 'apps/web/lib/**', 'apps/web/styles/**', 'apps/web/content/**', 'apps/web/next.config.js', 'packages/*/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-
+            ${{ runner.os }}-next-
+
+      - name: Build web
+        run: npm run build:web
+
+      - name: Seed the Northbridge screenshot events
+        run: npm run seed:screenshots --workspace @event-app/api -- --out "$SEED_FILE"
+
+      # nohup so the servers outlive the step that starts them.
+      - name: Start API
+        run: |
+          nohup node apps/api/dist/index.js > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:4000/health > /dev/null; then
+              echo "API up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "API never became healthy:"; cat /tmp/api.log; exit 1
+
+      - name: Start web
+        working-directory: apps/web
+        run: |
+          nohup npx next start -p 3000 > /tmp/web.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/login > /dev/null; then
+              echo "Web up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "Web never became healthy:"; cat /tmp/web.log; exit 1
+
+      - name: Capture screenshots
+        working-directory: apps/web
+        run: npm run shots -- --seed "$SEED_FILE" --base http://localhost:3000
+
+      - name: Regenerate the auto-shot index
+        run: npm run gen:auto-shots --workspace @event-app/web
+
+      # The index is typed FeatureKey[], so a stray filename fails here rather
+      # than shipping a 404 into a hover card.
+      - name: Typecheck the refreshed index
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
+
+      # Only the two screenshot suites, not the whole web suite: that one boots
+      # its own Next server, which would collide with the one still on :3000.
+      - name: Test the refreshed set
+        working-directory: apps/web
+        run: npx vitest run screenshotManifest featureGuideAuto
+
+      - name: Show server logs
+        if: always()
+        run: |
+          echo "=== api ==="; tail -n 80 /tmp/api.log || true
+          echo "=== web ==="; tail -n 80 /tmp/web.log || true
+
+      - name: Upload screenshots for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-guide-screenshots
+          path: ${{ env.SHOT_DIR }}/*.png
+          # `warn`, not `error`: on a failed capture this step still runs, and
+          # an empty-artifact error would bury the real failure.
+          if-no-files-found: warn
+
+      - name: Commit refreshed screenshots
+        if: inputs.commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$SHOT_DIR" apps/web/lib/featureGuideAuto.ts
+          if git diff --cached --quiet; then
+            echo "Screenshots are unchanged — nothing to commit."
+            exit 0
+          fi
+          git commit -m "SHOT-CI: refresh Feature Guide screenshots [skip ci]"
+          # Push to the branch this run was dispatched from, not a hardcoded
+          # main, so dispatching from a branch cannot rewrite main.
+          git push origin "HEAD:${{ github.ref_name }}"

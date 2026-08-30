@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   FEATURE_GUIDE,
   FEATURE_PRESETS,
-  featureGuideImageSrcs,
   getOrganizerVisibleFeatures,
   normalizeOverridesForSave,
   resolveFeatureEnabled,
@@ -11,6 +10,7 @@ import {
   type FeaturePresetId,
 } from "@event-app/shared";
 import { applyBrandTokens } from "../lib/brandTokens";
+import { featureGuideImage, featureGuideImageSources } from "../lib/featureGuideImage";
 import { FeatureArt } from "./featureArt";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { HoverInfo, preloadImage } from "./kit/HoverInfo";
@@ -52,7 +52,7 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
   const [pendingOff, setPendingOff] = useState<FeatureKey | null>(null);
 
   useEffect(() => {
-    for (const src of featureGuideImageSrcs()) preloadImage(src);
+    for (const src of featureGuideImageSources()) preloadImage(src);
   }, []);
 
   const grouped = useMemo(() => {
@@ -150,7 +150,7 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
                         title={f.name}
                         featureKey={f.key}
                         body={applyBrandTokens(FEATURE_GUIDE[f.key].whatItDoes)}
-                        imageSrc={FEATURE_GUIDE[f.key].imageSrc}
+                        imageSrc={featureGuideImage(f.key)}
                         image={<FeatureArt category={f.category} />}
                       >
                         <strong className="text-body-md" style={{ color: "var(--ink-900)" }} id={`feature-name-${f.key}`}>

@@ -249,7 +249,9 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
 
   it("the feature-guide page renders imageSrc with lazy loading, else category art", () => {
     const page = read("pages", "help", "feature-guide.tsx");
-    expect(page).toContain("guide.imageSrc");
+    // SHOT-CI: resolution moved behind featureGuideImage() so a committed
+    // /feature-guide/auto/<key>.png can stand in for missing manual art.
+    expect(page).toContain("featureGuideImage(key)");
     expect(page).toContain('loading="lazy"');
     expect(page).toContain("<FeatureArt category={group.category} />");
     expect(page).not.toContain("Retired — kept here so the key stays documented.");

@@ -1,8 +1,9 @@
 import { brand, marketingSeo } from "@event-app/config";
-import { FEATURE_BY_KEY, FEATURE_GUIDE, featureGuideGroups } from "@event-app/shared";
+import { FEATURE_BY_KEY, featureGuideGroups } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import { FeatureArt } from "../../components/featureArt";
+import { featureGuideImage } from "../../lib/featureGuideImage";
 import { FeatureGuideSections } from "../../components/kit/GuidePanel";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { SiteHeader } from "../../components/marketing/SiteHeader";
@@ -55,12 +56,12 @@ export default function FeatureGuidePage() {
                 <h2 id={`guide-cat-${group.category}`}>{group.label}</h2>
                 {group.keys.map((key) => {
                   const def = FEATURE_BY_KEY[key];
-                  const guide = FEATURE_GUIDE[key];
+                  const imageSrc = featureGuideImage(key);
                   return (
                     <article key={key} id={key} style={{ marginBottom: 40 }}>
                       <div className="feature-guide-cat-art">
-                        {guide.imageSrc ? (
-                          <img src={guide.imageSrc} alt="" loading="lazy" />
+                        {imageSrc ? (
+                          <img src={imageSrc} alt="" loading="lazy" />
                         ) : (
                           <FeatureArt category={group.category} />
                         )}

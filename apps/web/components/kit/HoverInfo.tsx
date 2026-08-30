@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { applyBrandTokens } from "../../lib/brandTokens";
+import { featureGuideImage } from "../../lib/featureGuideImage";
 import { GuidePanel } from "./GuidePanel";
 import { Portal } from "./Portal";
 import { useAnchoredPopup } from "./useAnchoredPopup";
@@ -111,7 +112,8 @@ export function HoverInfo({
   const [clipped, setClipped] = useState(false);
   const guide = featureKey ? FEATURE_GUIDE[featureKey] : undefined;
   const resolvedBody = body ?? (guide ? applyBrandTokens(guide.whatItDoes) : "");
-  const resolvedImageSrc = imageSrc ?? (body == null && guide ? guide.imageSrc : undefined);
+  const resolvedImageSrc =
+    imageSrc ?? (body == null && featureKey ? featureGuideImage(featureKey) : undefined);
   const resolvedAction =
     action ??
     (featureKey ? (

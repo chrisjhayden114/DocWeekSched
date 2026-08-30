@@ -28,6 +28,7 @@ const REQUIRED_SECTION_HEADINGS = [
   "## 12. Running the database test suites",
   "## 13. Billing go-live (test mode → live mode)",
   "## 14. Rotating a Neon database password (causes downtime if done wrong)",
+  "## 15. Refreshing the Feature Guide screenshots (SHOT-CI)",
 ] as const;
 
 describe("RUNBOOK.md section headings", () => {
@@ -39,8 +40,8 @@ describe("RUNBOOK.md section headings", () => {
     }
   });
 
-  it("section count matches the required 1–14 list (13 numbered headings; no §11)", () => {
-    expect(REQUIRED_SECTION_HEADINGS).toHaveLength(13);
+  it("section count matches the required 1–15 list (14 numbered headings; no §11)", () => {
+    expect(REQUIRED_SECTION_HEADINGS).toHaveLength(14);
     expect(headings).toHaveLength(REQUIRED_SECTION_HEADINGS.length);
     expect(headings).toEqual([...REQUIRED_SECTION_HEADINGS]);
   });

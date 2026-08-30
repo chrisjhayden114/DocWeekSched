@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "seed:demo": "tsx src/scripts/seedDemoEvent.ts",
+    "seed:screenshots": "tsx src/scripts/seedScreenshotEvent.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --max-warnings 0"

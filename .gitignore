@@ -7,3 +7,5 @@ dist
 *.log
 .DS_Store
 .Rhistory
+# SHOT-CI hands seeded ids/credentials from the seed script to Playwright.
+screenshot-seed.json

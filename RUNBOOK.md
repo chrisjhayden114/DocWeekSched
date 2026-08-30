@@ -122,7 +122,8 @@ generic "not valid" — the presenter's screenshot tells you which of the three 
 ## 6. Destructive-DB guard (`apps/api/src/lib/destructiveGuard.ts`)
 
 Protects against dev/test processes pointed at the production Neon URL. Enforced in:
-the demo reset, `npm run seed:demo`, the account hard-delete job, and every
+the demo reset, `npm run seed:demo`, `npm run seed:screenshots` (§15 — which runs
+with the guard armed, no override), the account hard-delete job, and every
 `*.db.test.ts` file (vitest setup).
 
 - Production runtime (`NODE_ENV=production`) may run the demo reset and account
@@ -486,3 +487,76 @@ Do **not** keep connection strings in a file on the Desktop — that folder gets
 screenshotted and may sync to iCloud. Use Apple Passwords or a locked note.
 Production's copy lives in Render; the test one only needs to exist in a shell
 variable while you are running tests.
+
+## 15. Refreshing the Feature Guide screenshots (SHOT-CI)
+
+Every Feature Guide hover card wants a real product image. Rather than capturing
+them by hand and watching them go stale, `.github/workflows/screenshots.yml`
+seeds a fictional "Northbridge" event into a throwaway Postgres, boots the real
+API and web app against it, and photographs one element per feature.
+
+### Triggering it
+
+1. GitHub → **Actions** → **Feature Guide screenshots** → **Run workflow**.
+2. Pick the branch (normally `main`) and leave **Commit the refreshed images**
+   checked. Unchecking it captures and uploads the artifact without committing —
+   use that to preview a change to the manifest.
+3. Run it. Roughly 10 minutes: install, migrate, seed, two production builds,
+   then the capture pass.
+4. When it's green, download the **feature-guide-screenshots** artifact to eyeball
+   the set. If commit was on, it has already pushed
+   `SHOT-CI: refresh Feature Guide screenshots [skip ci]` to that branch.
+
+The commit message's `[skip ci]` stops the push from re-running CI (and this
+workflow is dispatch-only, so it cannot re-trigger itself). Netlify does still
+build that commit — that is how the new images reach the site.
+
+### Manual shots always win
+
+Image resolution lives in `apps/web/lib/featureGuideImage.ts`, in this order:
+
+1. **`imageSrc` in `FEATURE_GUIDE`** (`packages/shared/src/featureGuide.ts`) — the
+   hand-captured art in `apps/web/public/feature-guide/`. Wins outright; SHOT-CI
+   can never overwrite one of these, and it still writes its own PNG so you can
+   compare the two.
+2. **`/feature-guide/auto/<key>.png`**, if the key is listed in the generated
+   index `apps/web/lib/featureGuideAuto.ts`. Never edit that file by hand — run
+   `npm run gen:auto-shots --workspace @event-app/web`, which rebuilds it from
+   whatever PNGs are actually on disk. A test fails if the two disagree.
+3. **Category art** (`FeatureArt`) as the fallback.
+
+So to replace an auto shot with a better hand-captured one, add the file under
+`public/feature-guide/` and set `imageSrc` on that guide entry — no need to
+delete the auto PNG.
+
+### Changing what gets captured
+
+`apps/web/screenshot-manifest.ts` maps each feature key to a path, a CSS
+selector, the role to sign in as, and any clicks needed to reach the surface. A
+test asserts it covers every non-retired, non-planned `FEATURE_GUIDE` key, so
+adding a feature to the guide fails CI until you give it a shot here.
+
+To iterate locally (needs a local Postgres you are happy to lose):
+
+```bash
+# Terminal 1 — seed a disposable DB, then run the API against it.
+# No override needed or wanted: a loopback DATABASE_URL already satisfies the
+# destructive guard, and leaving the guard armed is what stops a stray Neon URL.
+npm run seed:screenshots --workspace @event-app/api -- --out screenshot-seed.json
+npm run dev:api
+
+# Terminal 2
+npm run dev:web
+
+# Terminal 3 — one key at a time while you tune a selector
+cd apps/web
+npm run shots -- --seed ../../screenshot-seed.json --only community_meetups
+```
+
+`--only` skips the clear-and-recapture of the whole directory. Omit it for a full
+pass, then run `npm run gen:auto-shots --workspace @event-app/web`.
+
+**Never point the seed at Neon.** It deletes the two Northbridge events by slug
+before rebuilding them. The destructive guard (§6) is the backstop: it refuses
+unless `DATABASE_URL` looks local/test, and neither the workflow nor the local
+recipe above sets an override, so that refusal actually happens.
