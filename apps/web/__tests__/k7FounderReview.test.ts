@@ -51,7 +51,8 @@ describe("K-7 — outreach a.button + organizer badge + guide panel stacking", (
     const slideOver = read("components", "kit", "SlideOver.tsx");
     expect(slideOver).toContain("Portal");
     expect(read("components", "kit", "GuidePanel.tsx")).toContain("SlideOver");
-    expect(read("components", "FeatureConfigPanel.tsx")).toContain("GuidePanel");
+    expect(read("components", "kit", "HoverInfo.tsx")).toContain("GuidePanel");
+    expect(read("components", "FeatureConfigPanel.tsx")).toContain("featureKey={f.key}");
     expect(read("components", "AppShell.tsx")).toContain("HoverInfo");
     const drawerZ = Number((rule(".drawer-panel").match(/z-index:\s*(\d+)/) || [])[1]);
     const topbarZ = Number((rule(".shell-topbar").match(/z-index:\s*(\d+)/) || [])[1]);

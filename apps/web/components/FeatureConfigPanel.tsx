@@ -13,7 +13,6 @@ import {
 import { applyBrandTokens } from "../lib/brandTokens";
 import { FeatureArt } from "./featureArt";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { GuidePanel } from "./kit/GuidePanel";
 import { HoverInfo, preloadImage } from "./kit/HoverInfo";
 
 export type FeatureOverridesMap = Partial<Record<FeatureKey, FeatureOverrideValue>>;
@@ -51,7 +50,6 @@ type Props = {
 export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, showPresets = true }: Props) {
   const visible = useMemo(() => getOrganizerVisibleFeatures(), []);
   const [pendingOff, setPendingOff] = useState<FeatureKey | null>(null);
-  const [guideKey, setGuideKey] = useState<FeatureKey | null>(null);
 
   useEffect(() => {
     for (const src of featureGuideImageSrcs()) preloadImage(src);
@@ -150,14 +148,10 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
                         trigger="label"
                         hideIcon
                         title={f.name}
+                        featureKey={f.key}
                         body={applyBrandTokens(FEATURE_GUIDE[f.key].whatItDoes)}
                         imageSrc={FEATURE_GUIDE[f.key].imageSrc}
                         image={<FeatureArt category={f.category} />}
-                        action={
-                          <button type="button" onClick={() => setGuideKey(f.key)}>
-                            How to use this feature →
-                          </button>
-                        }
                       >
                         <strong className="text-body-md" style={{ color: "var(--ink-900)" }} id={`feature-name-${f.key}`}>
                           {f.name}
@@ -188,8 +182,6 @@ export function FeatureConfigPanel({ overrides, onChange, confirmOff = true, sho
           </ul>
         </section>
       ))}
-
-      <GuidePanel featureKey={guideKey} open={guideKey !== null} onClose={() => setGuideKey(null)} />
 
       <ConfirmDialog
         open={Boolean(pendingOff && pendingDef)}

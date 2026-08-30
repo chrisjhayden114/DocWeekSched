@@ -1,3 +1,4 @@
+import { type FeatureKey } from "@event-app/shared";
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { initialsFor } from "./kit/kitHelpers";
@@ -22,6 +23,8 @@ export type ShellNavItem = {
   description?: string;
   /** K-2.1 — shown only on sidebar popovers (useful off the Features page). */
   appearsIn?: string;
+  /** When a FEATURE_GUIDE entry exists, the card always gets the guide footer. */
+  featureKey?: FeatureKey;
   icon?: ReactNode;
   href?: string;
   onSelect?: () => void;
@@ -117,9 +120,15 @@ function NavItemView({ item, onNavigate }: { item: ShellNavItem; onNavigate?: ()
       {inner}
     </button>
   );
-  if (!item.description) return control;
+  if (!item.description && !item.featureKey) return control;
   return (
-    <HoverInfo trigger="label" title={item.label} body={item.description} appearsIn={item.appearsIn}>
+    <HoverInfo
+      trigger="label"
+      title={item.label}
+      body={item.description}
+      appearsIn={item.appearsIn}
+      featureKey={item.featureKey}
+    >
       {control}
     </HoverInfo>
   );

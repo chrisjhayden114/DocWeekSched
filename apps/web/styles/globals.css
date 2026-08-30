@@ -6544,6 +6544,7 @@ button.schedule-meta-chip:hover {
 
 .hover-info-action {
   flex: 0 0 auto;
+  flex-shrink: 0;
   margin-top: 12px;
 }
 
@@ -6648,7 +6649,7 @@ button.schedule-meta-chip:hover {
 .hover-info-inner {
   display: flex;
   flex-direction: column;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
   padding: 16px 20px 18px;
 }
@@ -6662,16 +6663,16 @@ button.schedule-meta-chip:hover {
   flex-shrink: 0;
   margin: 0 0 8px;
   overflow: visible;
+  white-space: normal;
   font: var(--text-h3);
   color: var(--gray-900);
 }
 
 .hover-info-body {
   position: relative;
-  flex: 0 0 auto;
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
-  min-height: calc(15px * 1.5 * 2);
   max-height: calc(15px * 1.5 * 6);
   overflow: hidden;
   font: 400 15px/1.5 var(--font-body);
@@ -6691,6 +6692,7 @@ button.schedule-meta-chip:hover {
 
 .hover-info-appears {
   flex: 0 0 auto;
+  flex-shrink: 0;
   margin: 10px 0 0;
   font: var(--text-meta);
   color: var(--gray-500);

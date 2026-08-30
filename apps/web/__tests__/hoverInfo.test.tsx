@@ -5,13 +5,21 @@
  * keyboard (focusin immediate, Escape, blur). Hover delay is not asserted here.
  */
 
-import { act, type ReactElement } from "react";
+import { act, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { FEATURE_GUIDE } from "@event-app/shared";
+
+vi.mock("next/link", () => ({
+  default: ({ href, children }: { href: string; children: ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
 import {
   HoverInfo,
+  HOVER_INFO_CARD_MAX_HEIGHT,
   HOVER_INFO_CLOSE_GRACE_MS,
+  HOVER_INFO_GUIDE_ACTION,
   HOVER_INFO_OPEN_DELAY_MS,
   preloadImage,
   isFadeClipped,
@@ -361,15 +369,20 @@ describe("HoverInfo Wikipedia persistence + fade", () => {
   });
 
   it("keeps title, body, and footer visible for a long-guide feature with a screenshot", () => {
+    const longestKey = (Object.keys(FEATURE_GUIDE) as (keyof typeof FEATURE_GUIDE)[]).reduce((best, key) =>
+      FEATURE_GUIDE[key].whatItDoes.length > FEATURE_GUIDE[best].whatItDoes.length ? key : best,
+    );
+    const longest = FEATURE_GUIDE[longestKey];
     render(
       <HoverInfo
         trigger="label"
-        title="Community"
-        body={FEATURE_GUIDE.community.whatItDoes}
-        imageSrc={FEATURE_GUIDE.community.imageSrc}
-        action={<button type="button">How to use this feature →</button>}
+        title={longestKey}
+        featureKey={longestKey}
+        body={longest.whatItDoes}
+        imageSrc={longest.imageSrc}
+        image={<svg className="feature-art" viewBox="0 0 400 225" />}
       >
-        <strong>Community</strong>
+        <strong>{longestKey}</strong>
       </HoverInfo>,
     );
     const wrap = clipper.querySelector<HTMLElement>(".hover-info")!;
@@ -379,16 +392,24 @@ describe("HoverInfo Wikipedia persistence + fade", () => {
     });
     const card = tooltip()!;
     expect(card).not.toBeNull();
-    expect(card.querySelector(".hover-info-title")?.textContent).toBe("Community");
-    expect(card.querySelector(".hover-info-body")?.textContent).toContain(
-      FEATURE_GUIDE.community.whatItDoes.slice(0, 40),
-    );
-    expect(card.querySelector(".hover-info-action")?.textContent).toContain("How to use this feature");
-    const img = card.querySelector<HTMLImageElement>(".hover-info-image")!;
-    expect(img.getAttribute("src")).toBe("/feature-guide/community.png");
-    expect(img.getAttribute("loading")).toBeNull();
-    expect(card.querySelector(".hover-info-title")?.className).toBe("hover-info-title");
-    expect(card.querySelector(".hover-info-body")?.className).toContain("hover-info-body");
+    const footer = card.querySelector<HTMLElement>('[data-hover-slot="footer"]');
+    const body = card.querySelector<HTMLElement>('[data-hover-slot="body"]');
+    expect(card.querySelector('[data-hover-slot="title"]')?.classList.contains("hover-info-title")).toBe(true);
+    expect(card.querySelector('[data-hover-slot="art"]')).not.toBeNull();
+    expect(body?.classList.contains("hover-info-body")).toBe(true);
+    expect(body?.textContent).toContain(longest.whatItDoes.slice(0, 40));
+    expect(footer).not.toBeNull();
+    expect(footer?.classList.contains("hover-info-action")).toBe(true);
+    expect(footer?.textContent).toBe(HOVER_INFO_GUIDE_ACTION);
+    expect(body?.contains(footer)).toBe(false);
+    expect(Number.parseFloat(card.style.maxHeight)).toBe(HOVER_INFO_CARD_MAX_HEIGHT);
+    if (longest.imageSrc) {
+      const img = card.querySelector<HTMLImageElement>(".hover-info-image")!;
+      expect(img.getAttribute("src")).toBe(longest.imageSrc);
+      expect(img.getAttribute("loading")).toBeNull();
+    } else {
+      expect(card.querySelector(".feature-art")).not.toBeNull();
+    }
   });
 
   it("preloads imageSrc when the hover-intent timer starts, before the card opens", () => {

@@ -1,3 +1,4 @@
+import { type FeatureKey } from "@event-app/shared";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { planTabOverflow } from "../../lib/tabOverflow";
 import { HoverInfo } from "../kit/HoverInfo";
@@ -9,6 +10,8 @@ export type ConsoleTab<Id extends string> = {
   label: string;
   /** K-6 — one-paragraph page preview; label-trigger, text-only card. */
   description?: string;
+  /** When a FEATURE_GUIDE entry exists, the card always gets the guide footer. */
+  featureKey?: FeatureKey;
 };
 
 export type ConsoleTabStripProps<Id extends string> = {
@@ -238,11 +241,18 @@ export function ConsoleTabStrip<Id extends string>({
               {tab.label}
             </button>
           );
-          if (!tab.description) {
+          if (!tab.description && !tab.featureKey) {
             return <span key={tab.id}>{button}</span>;
           }
           return (
-            <HoverInfo key={tab.id} trigger="label" hideIcon title={tab.label} body={tab.description}>
+            <HoverInfo
+              key={tab.id}
+              trigger="label"
+              hideIcon
+              title={tab.label}
+              body={tab.description}
+              featureKey={tab.featureKey}
+            >
               {button}
             </HoverInfo>
           );
@@ -287,8 +297,14 @@ export function ConsoleTabStrip<Id extends string>({
                   );
                   return (
                     <li key={tab.id} role="none">
-                      {tab.description ? (
-                        <HoverInfo trigger="label" hideIcon title={tab.label} body={tab.description}>
+                      {tab.description || tab.featureKey ? (
+                        <HoverInfo
+                          trigger="label"
+                          hideIcon
+                          title={tab.label}
+                          body={tab.description}
+                          featureKey={tab.featureKey}
+                        >
                           {item}
                         </HoverInfo>
                       ) : (

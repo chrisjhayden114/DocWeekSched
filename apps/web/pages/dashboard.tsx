@@ -1137,12 +1137,20 @@ export default function Dashboard() {
   if (!user) return null;
 
   const eventGroupTabs: Tab[] = ["Agenda", "Attendees", MATCHMAKER_TAB, COMMUNITY_TAB, MAPS_TAB, "Messages"];
+  const ATTENDEE_TAB_FEATURE = {
+    Community: "community",
+    Messages: "messaging_dms",
+    Maps: "venue_maps",
+    Attendees: "attendee_directory",
+    Meet: "matchmaker",
+  } as const satisfies Partial<Record<Tab, FeatureKey>>;
   const toNavItem = (tab: Tab): ShellNavItem => ({
     id: tab,
     label: tab,
     icon: <MainNavIcon tab={tab} />,
     active: active === tab,
     onSelect: () => setActive(tab),
+    featureKey: ATTENDEE_TAB_FEATURE[tab as keyof typeof ATTENDEE_TAB_FEATURE],
     badge:
       tab === "Notifications" && unreadNotifications > 0
         ? unreadNotifications

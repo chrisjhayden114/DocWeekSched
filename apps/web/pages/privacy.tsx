@@ -133,7 +133,7 @@ export default function PrivacyPage() {
               and a CSRF cookie to protect state-changing requests.{" "}
               {brand.cookieConsentRequired
                 ? "A consent banner is shown for non-essential cookies."
-                : "Because we do not set non-essential analytics or advertising cookies today, we do not show a cookie consent banner. This is a deliberate product choice (see brand.cookieConsentRequired in config). If we add analytics cookies that require consent, we will enable a banner and update this section."}
+                : "Because we do not set non-essential analytics or advertising cookies today, we do not show a cookie consent banner. This is a deliberate product choice. If we add analytics cookies that require consent, we will enable a banner and update this section."}
             </p>
 
             <h2 id="retention">7. Retention</h2>

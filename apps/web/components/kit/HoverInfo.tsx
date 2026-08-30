@@ -1,3 +1,4 @@
+import { FEATURE_GUIDE, type FeatureKey } from "@event-app/shared";
 import {
   Children,
   isValidElement,
@@ -10,6 +11,8 @@ import {
   type FocusEvent,
   type ReactNode,
 } from "react";
+import { applyBrandTokens } from "../../lib/brandTokens";
+import { GuidePanel } from "./GuidePanel";
 import { Portal } from "./Portal";
 import { useAnchoredPopup } from "./useAnchoredPopup";
 
@@ -23,6 +26,10 @@ export const HOVER_INFO_CLOSE_GRACE_MS = 150;
 export const HOVER_INFO_BODY_MIN_LINES = 2;
 export const HOVER_INFO_BODY_LINES = 6;
 export const HOVER_INFO_CARD_WIDTH = 400;
+/** Card ceiling. Title + footer are reserved first; the body gets the remainder. */
+export const HOVER_INFO_CARD_MAX_HEIGHT = 480;
+export const HOVER_INFO_ART_HEIGHT = 140;
+export const HOVER_INFO_GUIDE_ACTION = "How to use this feature →";
 
 /** Warm a screenshot as soon as hover-intent starts, before the card mounts. */
 export function preloadImage(src: string): void {
@@ -35,7 +42,8 @@ export type HoverInfoTrigger = "icon" | "label";
 
 export type HoverInfoProps = {
   title: string;
-  body: string;
+  /** Omit when `featureKey` is set — the card then uses FEATURE_GUIDE.whatItDoes. */
+  body?: string;
   appearsIn?: string;
   /** Future screenshot override; wins over `image` when set. */
   imageSrc?: string;
@@ -51,6 +59,11 @@ export type HoverInfoProps = {
   trigger?: HoverInfoTrigger;
   /** Extra popover row (e.g. “How to use this feature →”). */
   action?: ReactNode;
+  /**
+   * When set, the footer is always “How to use this feature →” (unless
+   * `action` is passed) and opens GuidePanel for this key.
+   */
+  featureKey?: FeatureKey;
   /** Never render ⓘ (Features page). Implied by trigger="label". */
   hideIcon?: boolean;
 };
@@ -90,10 +103,22 @@ export function HoverInfo({
   children,
   trigger = "icon",
   action,
+  featureKey,
   hideIcon,
 }: HoverInfoProps) {
   const [open, setOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
+  const guide = featureKey ? FEATURE_GUIDE[featureKey] : undefined;
+  const resolvedBody = body ?? (guide ? applyBrandTokens(guide.whatItDoes) : "");
+  const resolvedImageSrc = imageSrc ?? (body == null && guide ? guide.imageSrc : undefined);
+  const resolvedAction =
+    action ??
+    (featureKey ? (
+      <button type="button" onClick={() => setGuideOpen(true)}>
+        {HOVER_INFO_GUIDE_ACTION}
+      </button>
+    ) : null);
   const wrapRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLElement>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
@@ -105,7 +130,7 @@ export function HoverInfo({
   const tooltipId = useId();
   const labelMode = trigger === "label";
   const showIcon = !hideIcon && !labelMode;
-  const hasImage = Boolean(imageSrc || image);
+  const hasImage = Boolean(resolvedImageSrc || image);
 
   const clearTimers = useCallback(() => {
     if (openTimer.current) window.clearTimeout(openTimer.current);
@@ -120,13 +145,13 @@ export function HoverInfo({
   }, [clearTimers]);
 
   const openNow = useCallback(() => {
-    if (imageSrc) preloadImage(imageSrc);
+    if (resolvedImageSrc) preloadImage(resolvedImageSrc);
     clearTimers();
     setOpen(true);
-  }, [clearTimers, imageSrc]);
+  }, [clearTimers, resolvedImageSrc]);
 
   const scheduleOpen = useCallback(() => {
-    if (imageSrc) preloadImage(imageSrc);
+    if (resolvedImageSrc) preloadImage(resolvedImageSrc);
     if (closeTimer.current) {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = null;
@@ -136,7 +161,7 @@ export function HoverInfo({
       openTimer.current = null;
       setOpen(true);
     }, HOVER_INFO_OPEN_DELAY_MS);
-  }, [imageSrc]);
+  }, [resolvedImageSrc]);
 
   const scheduleClose = useCallback(() => {
     if (openTimer.current) {
@@ -197,6 +222,7 @@ export function HoverInfo({
     popupRef,
     align: "start",
     maxWidth: HOVER_INFO_CARD_WIDTH,
+    maxHeight: HOVER_INFO_CARD_MAX_HEIGHT,
     onClose: close,
   });
 
@@ -291,32 +317,39 @@ export function HoverInfo({
             }}
           >
             {hasImage ? (
-              <div className="hover-info-art" aria-hidden>
-                {imageSrc ? <img className="hover-info-image" src={imageSrc} alt="" /> : image}
+              <div className="hover-info-art" data-hover-slot="art" aria-hidden>
+                {resolvedImageSrc ? <img className="hover-info-image" src={resolvedImageSrc} alt="" /> : image}
               </div>
             ) : null}
             <div className="hover-info-inner">
-              <p className="hover-info-title">{title}</p>
+              <p className="hover-info-title" data-hover-slot="title">
+                {title}
+              </p>
               <p
                 ref={attachBody}
+                data-hover-slot="body"
                 className={["hover-info-body", clipped ? "is-clipped" : ""].filter(Boolean).join(" ")}
               >
-                {body}
+                {resolvedBody}
               </p>
               {appearsIn ? <p className="hover-info-appears">Appears in: {appearsIn}</p> : null}
-              {action ? (
+              {resolvedAction ? (
                 <div
                   className="hover-info-action"
+                  data-hover-slot="footer"
                   onClick={() => {
                     close();
                   }}
                 >
-                  {action}
+                  {resolvedAction}
                 </div>
               ) : null}
             </div>
           </div>
         </Portal>
+      ) : null}
+      {featureKey ? (
+        <GuidePanel featureKey={guideOpen ? featureKey : null} open={guideOpen} onClose={() => setGuideOpen(false)} />
       ) : null}
     </span>
   );

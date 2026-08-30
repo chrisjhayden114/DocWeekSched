@@ -18,7 +18,7 @@ export default function SecurityPage() {
   const title = marketingSeo.pages.security.title;
   const description = marketingSeo.pages.security.description;
   /** Content date — bump when this page's substance changes. Not the render date. */
-  const updated = "18 August 2026";
+  const updated = "30 August 2026";
   const url = `${brand.primaryUrl}/security`;
 
   return (
@@ -119,7 +119,7 @@ export default function SecurityPage() {
               {/* A static file served from public/, not a route — next/link would
                   try to client-navigate to a page that doesn't exist. */}
               {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-              <a href="/.well-known/security.txt">/.well-known/security.txt</a>.
+              <a href="/.well-known/security.txt">/.well-known/security.txt</a>. Every AI feature can be switched off per event by the organizer, and the attendee Event assistant answers only from the published content of that event.
             </p>
 
             <h2 id="principles">Product principles (anti-goals)</h2>

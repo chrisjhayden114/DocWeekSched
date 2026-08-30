@@ -814,14 +814,14 @@ export default function OrganizerEventPage() {
               // Only when the event's RESOLVED features include readiness
               // (plan entitlement + the organizer's per-event override).
               ...(readinessEnabled
-                ? [{ id: "readiness" as EventTab, label: "Readiness", description: consoleTabCopy.readiness }]
+                ? [{ id: "readiness" as EventTab, label: "Readiness", description: consoleTabCopy.readiness, featureKey: "readiness" as const }]
                 : []),
               { id: "invites", label: "Participants", description: consoleTabCopy.invites },
-              { id: "maps", label: "Maps", description: consoleTabCopy.maps },
+              { id: "maps", label: "Maps", description: consoleTabCopy.maps, featureKey: "venue_maps" },
               { id: "announcements", label: "Announcements", description: consoleTabCopy.announcements },
               { id: "features", label: "Features", description: consoleTabCopy.features },
-              { id: "ops", label: "Ops Inbox", description: consoleTabCopy.ops },
-              { id: "recap", label: "Recap", description: consoleTabCopy.recap },
+              { id: "ops", label: "Ops Inbox", description: consoleTabCopy.ops, featureKey: "ops_agent" },
+              { id: "recap", label: "Recap", description: consoleTabCopy.recap, featureKey: "recap_agent" },
             ]}
           />
         ) : null}

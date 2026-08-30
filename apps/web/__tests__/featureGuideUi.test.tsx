@@ -175,7 +175,7 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
     expect(popover.textContent).not.toContain("{{product}}");
   });
 
-  it("the longest hover-card extract still has title, clamped body, and footer", () => {
+  it("K-8 — longest FEATURE_GUIDE + image + footer: footer is in the DOM and not inside the body", () => {
     const longestKey = (Object.keys(FEATURE_GUIDE) as FeatureKey[]).reduce((best, key) =>
       FEATURE_GUIDE[key].whatItDoes.length > FEATURE_GUIDE[best].whatItDoes.length ? key : best,
     );
@@ -184,6 +184,7 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
       <HoverInfo
         trigger="label"
         title={FEATURE_BY_KEY[longestKey].name}
+        featureKey={longestKey}
         body={longest.whatItDoes}
         imageSrc={longest.imageSrc}
         image={<svg className="feature-art" viewBox="0 0 400 225" />}
@@ -193,9 +194,19 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
     );
     act(() => container.querySelector<HTMLButtonElement>(".hover-info-label")!.focus());
     const card = document.querySelector<HTMLElement>('[role="tooltip"]')!;
-    expect(card.querySelector(".hover-info-art")).not.toBeNull();
-    expect(card.querySelector(".hover-info-title")?.textContent).toBe(FEATURE_BY_KEY[longestKey].name);
-    expect(card.querySelector(".hover-info-body")?.textContent).toBe(longest.whatItDoes);
+    const footer = card.querySelector<HTMLElement>('[data-hover-slot="footer"]');
+    const body = card.querySelector<HTMLElement>('[data-hover-slot="body"]');
+    const title = card.querySelector<HTMLElement>('[data-hover-slot="title"]');
+    expect(card.querySelector('[data-hover-slot="art"]')).not.toBeNull();
+    expect(title?.textContent).toBe(FEATURE_BY_KEY[longestKey].name);
+    expect(title?.classList.contains("hover-info-title")).toBe(true);
+    expect(body?.textContent).toBe(longest.whatItDoes);
+    expect(body?.classList.contains("hover-info-body")).toBe(true);
+    expect(footer).not.toBeNull();
+    expect(footer?.classList.contains("hover-info-action")).toBe(true);
+    expect(footer?.textContent).toContain("How to use this feature");
+    expect(body?.contains(footer)).toBe(false);
+    expect(Number.parseFloat(card.style.maxHeight)).toBe(480);
   });
 });
 
@@ -226,11 +237,14 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
     expect(src).toContain("FEATURE_GUIDE[f.key].whatItDoes");
     expect(src).toContain('trigger="label"');
     expect(src).toContain("hideIcon");
-    expect(src).toContain("GuidePanel");
+    expect(src).toContain("featureKey={f.key}");
     expect(src).toContain("FeatureArt");
-    expect(src).toContain("How to use this feature");
     expect(src).not.toMatch(/HoverInfo[^>]*appearsIn/);
     expect(src).not.toMatch(/HoverInfo[^>]*body=\{f\.plainDescription\}/);
+    const hover = read("components", "kit", "HoverInfo.tsx");
+    expect(hover).toContain("GuidePanel");
+    expect(hover).toContain("HOVER_INFO_GUIDE_ACTION");
+    expect(hover).toContain("maxHeight: HOVER_INFO_CARD_MAX_HEIGHT");
   });
 
   it("the feature-guide page renders imageSrc with lazy loading, else category art", () => {
@@ -239,6 +253,32 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
     expect(page).toContain('loading="lazy"');
     expect(page).toContain("<FeatureArt category={group.category} />");
     expect(page).not.toContain("Retired — kept here so the key stays documented.");
+  });
+
+  it("K-8 — Features rows, sidebar, and console tabs with a guide entry pass featureKey", () => {
+    expect(read("components", "FeatureConfigPanel.tsx")).toContain("featureKey={f.key}");
+    expect(read("components", "AppShell.tsx")).toContain("featureKey={item.featureKey}");
+    expect(read("components", "organizer", "ConsoleTabStrip.tsx")).toContain("featureKey={tab.featureKey}");
+    const shell = read("components", "OrganizerShell.tsx");
+    expect(shell).toContain('featureKey: "cfp"');
+    expect(shell).toContain('featureKey: "sponsors"');
+    expect(shell).toContain('featureKey: "checkin"');
+    const dash = read("pages", "dashboard.tsx");
+    expect(dash).toContain("ATTENDEE_TAB_FEATURE");
+    expect(dash).toContain("featureKey: ATTENDEE_TAB_FEATURE");
+    const consolePage = read("pages", "organizer", "events", "[eventId]", "index.tsx");
+    expect(consolePage).toContain('featureKey: "venue_maps"');
+    expect(consolePage).toContain('featureKey: "ops_agent"');
+    expect(consolePage).toContain('featureKey: "recap_agent"');
+    expect(consolePage).toContain('featureKey: "readiness"');
+  });
+
+  it("K-8 — privacy drops the internal cookie flag; security states AI control", () => {
+    const privacy = read("pages", "privacy.tsx");
+    expect(privacy).not.toContain("see brand.cookieConsentRequired in config");
+    const security = read("pages", "security.tsx");
+    expect(security).toContain("Every AI feature can be switched off per event by the organizer");
+    expect(security).toContain("Event assistant answers only from the published content of that event");
   });
 
   it("HELP-2.1 — GuidePanel and the feature-guide page apply brand tokens to guide copy", () => {
@@ -283,9 +323,15 @@ describe("K-6 — feature card + carousel CSS", () => {
     expect(rule(".hover-info-popover")).toContain("max-height: 480px");
     expect(rule(".hover-info-title")).toContain("overflow: visible");
     expect(rule(".hover-info-title")).toContain("flex-shrink: 0");
+    expect(rule(".hover-info-inner")).toContain("flex: 1 1 auto");
+    expect(rule(".hover-info-inner")).toContain("min-height: 0");
+    expect(rule(".hover-info-body")).toContain("flex: 1 1 auto");
+    expect(rule(".hover-info-body")).toContain("min-height: 0");
+    expect(rule(".hover-info-body")).toContain("overflow: hidden");
     expect(rule(".hover-info-body")).toContain("calc(15px * 1.5 * 6)");
-    expect(rule(".hover-info-body")).toContain("calc(15px * 1.5 * 2)");
+    expect(rule(".hover-info-body")).not.toContain("flex-shrink: 0");
     expect(rule(".hover-info-action")).toContain("flex: 0 0 auto");
+    expect(rule(".hover-info-action")).toContain("flex-shrink: 0");
     const longest = Object.values(FEATURE_GUIDE).reduce((a, b) =>
       a.whatItDoes.length >= b.whatItDoes.length ? a : b,
     );
