@@ -158,6 +158,14 @@ const COMMUNITY_PILLS = '.kit-filter-pills[aria-label="Community channels"] butt
 /** Organizer console tabs all render into one wrapper keyed by `?tab=`. */
 const CONSOLE_TAB = ".motion-fade";
 
+/**
+ * MANUAL-1 — these eight keys have a founder-approved image in
+ * `public/feature-guide/<key>.png`. `FEATURE_GUIDE.imageSrc` wins over
+ * `/feature-guide/auto/<key>.png`, so recapturing or "fixing" the auto shot
+ * will not change what hover cards or /help/feature-guide show:
+ * concierge, cfp, readiness, engagement_points, certificates, venue_maps,
+ * session_feedback, sponsor_outreach.
+ */
 export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
   community: {
     path: "/dashboard?tab=Community",
@@ -248,6 +256,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     as: "attendee",
     note: "An OPEN poll with results showing, which needs votes spread across options.",
   },
+  // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   session_feedback: {
     path: "/session/{endedSessionId}",
     selector: '.card:has(> h3:text-is("Session feedback"))',
@@ -260,6 +269,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     as: "attendee",
     note: "The capped session: two seats taken, three people waiting with real positions.",
   },
+  // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   concierge: {
     path: "/dashboard?tab=Agenda",
     selector: ".concierge-panel",
@@ -272,6 +282,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     note:
       "Honest empty state: header, the three starter chips, and the input. The messages column is collapsed for the frame so chips and input sit together — no fake conversation.",
   },
+  // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   cfp: {
     path: "/e/{slug}/cfp",
     selector: "main.page",
@@ -301,6 +312,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     note:
       "The public submission form under its own page heading, with a filled-in Northbridge draft. Clipped to the card's own shape so the title is in the picture wherever the picture is shown.",
   },
+  // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   readiness: {
     path: "/organizer/events/{eventId}?tab=readiness",
     selector: CONSOLE_TAB,
@@ -310,6 +322,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     note: "The board with assignments in every state the tracker can render. Framed from the first heading.",
   },
 
+  // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   engagement_points: {
     path: "/dashboard?tab=Agenda",
     selector: ".points-gem",
@@ -346,6 +359,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     waitFor: ".agenda-context-bar",
     note: "Its own event: pick-one breakouts rewrites the agenda the other shots depend on.",
   },
+  // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   venue_maps: {
     // No `pinId`: deep-linking a pin zooms the canvas to 2.2x and centres it on
     // that pin, which photographed as a marker on the empty inside of one room.
@@ -385,6 +399,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     note:
       "The attendee-facing strip, grouped by tier — four seeded sponsors with real logo artwork, which is what turning the flag off hides.",
   },
+  // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   sponsor_outreach: {
     path: "/organizer/events/{eventId}/sponsors",
     selector: "section.outreach-section",
@@ -416,6 +431,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     note:
       "Seeded recap workspace (REPORT, FEEDBACK SYNTHESIS, CERTIFICATES). Generate stays locked because the event is still running.",
   },
+  // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   certificates: {
     source: "pdf",
     page: 1,

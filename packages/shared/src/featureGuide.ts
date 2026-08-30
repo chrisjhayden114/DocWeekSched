@@ -128,6 +128,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default and included on every plan. The Focused preset turns likes off. Turning it off hides the control; existing like counts stay on the session.",
   },
   engagement_points: {
+    imageSrc: "/feature-guide/engagement_points.png",
     whatItDoes:
       "Engagement points are a quiet lifetime total on the person’s account: likes, joins, resources, Community posts, and replies all add to it. The feature flag only controls whether the gem and count appear in the app chrome — awards still accrue when the flag is off. Points are not shown on other people’s directory cards.",
     experience:
@@ -176,6 +177,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "Off by default and it requires the attendee directory. Free plans do not include it; Per-event and above do. The Academic preset turns it on. Turning it off hides Meet; prior suggestions stay in history.",
   },
   concierge: {
+    imageSrc: "/feature-guide/concierge.png",
     whatItDoes:
       "The Event assistant answers only from this event’s published schedule, rooms, maps, FAQ, and the in-app guide. It will not invent venues or sessions. Actions that change someone’s agenda (join, leave, export, waitlist, propose a meeting) ask the attendee to confirm first. Turns are rate-limited, and each plan has a per-event message cap.",
     experience:
@@ -184,6 +186,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default and granted on every plan; Free is capped at 50 assistant messages per event (paid plans are higher). The Focused preset turns it off. Turning it off hides the control; past assistant threads are kept. This is not the paid Speaker Readiness concierge service.",
   },
   venue_maps: {
+    imageSrc: "/feature-guide/venue_maps.png",
     whatItDoes:
       "Venue maps are annotated floor-plan images with pins placed by percentage so they stay put when the map scales. A pin can link to a room; today’s sessions in that room appear on the pin. Uploads accept jpeg, png, webp, or gif up to 8 MB. You can have several maps (floors or buildings).",
     experience:
@@ -208,6 +211,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default in the registry, with a stored default of daily. Free and Per-event plans do not grant the entitlement; Pro and above do. Focused, PD day, and Talk showcase store interrupts-only. Turning it off skips the morning rollup; existing notifications stay.",
   },
   cfp: {
+    imageSrc: "/feature-guide/cfp.png",
     whatItDoes:
       "Call for proposals is a public form for papers, presentations, and workshops, plus a program-committee review workflow with an editor for the review criteria. Submitters do not need an account — they confirm by email — and forms can cap submissions per person, collect custom answers, and accept up to five attachments (10 MB each). Accepted work converts to draft sessions you schedule on purpose, and creating a form turns this override on.",
     experience:
@@ -224,6 +228,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default in the registry. Free plans do not include polls; Per-event and above do. Focused and Talk showcase turn them off. Turning it off hides the card; existing polls stay.",
   },
   session_feedback: {
+    imageSrc: "/feature-guide/session_feedback.png",
     whatItDoes:
       "After a session’s end time, attendees can leave a 1–5 rating and an optional comment (up to 4,000 characters). One response per person per session; submitting again replaces the comment. Organizers get a count, average, histogram, and comments. The post-event recap can use this feedback when both features are on.",
     experience:
@@ -240,6 +245,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default in the registry. Free plans do not include sponsors; Per-event and above do. Focused and PD day turn the strip off. Turning it off hides logos; sponsor rows and leads stay.",
   },
   sponsor_outreach: {
+    imageSrc: "/feature-guide/sponsor_outreach.png",
     whatItDoes:
       "Sponsor outreach is a private pipeline of organizations you may ask to support this event. You add prospects by hand or from a spreadsheet, then move them through To contact, Contacted, In conversation, Confirmed, or Declined. {{product}} never sends the email — there is no bulk send, no open tracking, and no sequence. When someone confirms, you can add them as a sponsor so their logo can appear with the rest.",
     experience:
@@ -272,6 +278,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default in the registry. Pro and above include it. The Focused preset turns it off. Turning it off 404s generate; a recap you already built stays stored.",
   },
   certificates: {
+    imageSrc: "/feature-guide/certificates.png",
     whatItDoes:
       "Certificates let you define templates and issue downloads to eligible attendees after the event ends. Eligibility can be any check-in, a minimum number of joined sessions, or a required-session list (joins, not door scans). Batch issue runs in the background, and issued PDFs use the event accent colour and logo. Issued certificates can be verified on a public route.",
     experience:
@@ -288,6 +295,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "Off by default, and granted on every plan — including Free. The Talk showcase preset turns it on. Turning it off hides the notice and Payment column; recorded statuses stay in the database.",
   },
   readiness: {
+    imageSrc: "/feature-guide/readiness.png",
     whatItDoes:
       "Speaker & Session Readiness tracks what each accepted speaker or session still needs — bios, slides, forms, agreements — as a template you assign once. Each presenter gets a personal link (no account): they upload a file up to 250 MB or paste a slides link. You approve or request a change. Automatic reminders are polite (7 days out, 2 days out, and once if overdue); portal links last 30 days.",
     experience:

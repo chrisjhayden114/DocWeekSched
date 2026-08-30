@@ -83,6 +83,14 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
           "/feature-guide/community_local.png",
           "/feature-guide/community_icebreakers.png",
           "/feature-guide/community_general.png",
+          "/feature-guide/concierge.png",
+          "/feature-guide/cfp.png",
+          "/feature-guide/readiness.png",
+          "/feature-guide/engagement_points.png",
+          "/feature-guide/certificates.png",
+          "/feature-guide/venue_maps.png",
+          "/feature-guide/session_feedback.png",
+          "/feature-guide/sponsor_outreach.png",
         ]),
       );
       expect(new Set(seen).size).toBe(seen.length);

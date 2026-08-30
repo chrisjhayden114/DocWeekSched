@@ -2,9 +2,9 @@
  * SHOT-CI — one resolver for "which picture belongs to this feature".
  *
  * Order, highest wins:
- *   1. FEATURE_GUIDE[key].imageSrc — the founder's hand-picked Community shots.
- *      A manual shot always beats a generated one; the workflow never edits
- *      featureGuide.ts, so this stays true by construction.
+ *   1. FEATURE_GUIDE[key].imageSrc — founder-approved manuals (Community plus
+ *      MANUAL-1). A manual shot always beats a generated one; the capture
+ *      workflow never edits featureGuide.ts, so this stays true by construction.
  *   2. /feature-guide/auto/<key>.png, when that file is committed. Presence is
  *      compiled in via lib/featureGuideAuto.ts (a directory listing cannot be
  *      read at render time).

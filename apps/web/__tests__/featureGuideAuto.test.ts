@@ -47,9 +47,21 @@ describe("lib/featureGuideAuto.ts (generated)", () => {
 
 describe("featureGuideImage resolution order", () => {
   it("prefers the founder's manual shot over anything generated", () => {
-    // Community is the set the founder captured by hand; those paths sit in
-    // /feature-guide/, never /feature-guide/auto/.
-    for (const key of ["community", "community_meetups", "community_moments"] as const) {
+    // Community plus MANUAL-1: founder-approved paths sit in /feature-guide/,
+    // never /feature-guide/auto/.
+    for (const key of [
+      "community",
+      "community_meetups",
+      "community_moments",
+      "concierge",
+      "cfp",
+      "readiness",
+      "engagement_points",
+      "certificates",
+      "venue_maps",
+      "session_feedback",
+      "sponsor_outreach",
+    ] as const) {
       const manual = FEATURE_GUIDE[key].imageSrc!;
       expect(featureGuideImage(key)).toBe(manual);
       expect(manual.startsWith(`${AUTO_SHOT_URL_PREFIX}/`)).toBe(false);

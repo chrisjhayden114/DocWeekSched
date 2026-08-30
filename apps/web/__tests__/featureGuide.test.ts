@@ -56,13 +56,21 @@ describe("K-2.1 — Feature Guide completeness", () => {
     }
   });
 
-  it("K-6: founder-supplied community screenshots are wired, including icebreakers", () => {
+  it("K-6 / MANUAL-1: founder-supplied screenshots are wired on imageSrc", () => {
     expect(FEATURE_GUIDE.community.imageSrc).toBe("/feature-guide/community.png");
     expect(FEATURE_GUIDE.community_meetups.imageSrc).toBe("/feature-guide/community_meetups.png");
     expect(FEATURE_GUIDE.community_moments.imageSrc).toBe("/feature-guide/community_moments.jpg");
     expect(FEATURE_GUIDE.community_local.imageSrc).toBe("/feature-guide/community_local.png");
     expect(FEATURE_GUIDE.community_icebreakers.imageSrc).toBe("/feature-guide/community_icebreakers.png");
     expect(FEATURE_GUIDE.community_general.imageSrc).toBe("/feature-guide/community_general.png");
+    expect(FEATURE_GUIDE.engagement_points.imageSrc).toBe("/feature-guide/engagement_points.png");
+    expect(FEATURE_GUIDE.concierge.imageSrc).toBe("/feature-guide/concierge.png");
+    expect(FEATURE_GUIDE.venue_maps.imageSrc).toBe("/feature-guide/venue_maps.png");
+    expect(FEATURE_GUIDE.cfp.imageSrc).toBe("/feature-guide/cfp.png");
+    expect(FEATURE_GUIDE.session_feedback.imageSrc).toBe("/feature-guide/session_feedback.png");
+    expect(FEATURE_GUIDE.sponsor_outreach.imageSrc).toBe("/feature-guide/sponsor_outreach.png");
+    expect(FEATURE_GUIDE.certificates.imageSrc).toBe("/feature-guide/certificates.png");
+    expect(FEATURE_GUIDE.readiness.imageSrc).toBe("/feature-guide/readiness.png");
     expect(featureGuideImageSrcs()).toEqual([
       "/feature-guide/community.png",
       "/feature-guide/community_meetups.png",
@@ -70,6 +78,14 @@ describe("K-2.1 — Feature Guide completeness", () => {
       "/feature-guide/community_local.png",
       "/feature-guide/community_icebreakers.png",
       "/feature-guide/community_general.png",
+      "/feature-guide/engagement_points.png",
+      "/feature-guide/concierge.png",
+      "/feature-guide/venue_maps.png",
+      "/feature-guide/cfp.png",
+      "/feature-guide/session_feedback.png",
+      "/feature-guide/sponsor_outreach.png",
+      "/feature-guide/certificates.png",
+      "/feature-guide/readiness.png",
     ]);
   });
 
