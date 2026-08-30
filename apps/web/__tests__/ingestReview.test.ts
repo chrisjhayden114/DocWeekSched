@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   applyImportScope,
+  deleteRowsBlastCopy,
   groupCreateRows,
   removalsOf,
   rowsToApiChangeset,
+  sessionDeleteBlastCopy,
   toggleRemoval,
 } from "../lib/ingestReview";
 
@@ -163,5 +167,38 @@ describe("applyImportScope (H3/D1)", () => {
   it("empty input is safe", () => {
     expect(applyImportScope([], "part")).toEqual([]);
     expect(applyImportScope([], "full")).toEqual([]);
+  });
+});
+
+describe("W-6 — ingest delete confirm includes attendee counts", () => {
+  it("the review UI renders the blast-radius copy", () => {
+    const review = readFileSync(join(__dirname, "..", "components", "ReviewChangeset.tsx"), "utf8");
+    const ingest = readFileSync(
+      join(__dirname, "..", "pages", "organizer", "events", "[eventId]", "ingest.tsx"),
+      "utf8",
+    );
+    expect(review).toContain("sessionDeleteBlastCopy");
+    expect(review).toContain("deleteRowsBlastCopy");
+    expect(ingest).toContain("joinedCount:");
+    expect(ingest).toContain("bookmarkCount:");
+  });
+
+  it("names joined and bookmarked counts", () => {
+    expect(sessionDeleteBlastCopy(3, 2)).toBe(
+      "3 joined, 2 bookmarked — their schedules lose this session.",
+    );
+    expect(sessionDeleteBlastCopy(1, 0)).toMatch(/1 joined/);
+    expect(sessionDeleteBlastCopy(0, 0)).toMatch(/No attendees have joined or bookmarked/);
+  });
+
+  it("the confirm line totals accepted delete rows", () => {
+    const copy = deleteRowsBlastCopy([
+      { accepted: true, joinedCount: 3, bookmarkCount: 1 },
+      { accepted: false, joinedCount: 9, bookmarkCount: 9 },
+      { accepted: true, joinedCount: 0, bookmarkCount: 2 },
+    ]);
+    expect(copy).toContain("Deleting 2 sessions.");
+    expect(copy).toContain("3 joined");
+    expect(copy).toContain("3 bookmarked");
   });
 });

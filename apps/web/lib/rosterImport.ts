@@ -136,3 +136,31 @@ export function sendInvitesSummaryLine(sent: SendInvitesOutcome): string {
     sent.sentCount > 0 ? `Sent ${invites(sent.sentCount)}.` : "No invites were sent.";
   return [head, ...sendInvitesDetail(sent)].join(" ");
 }
+
+export type BulkInviteFailure = { email: string; error: string };
+
+export type BulkInviteOutcome = {
+  sentCount: number;
+  failedCount: number;
+  failed?: BulkInviteFailure[];
+};
+
+/** W-6 / J-A — per-row failures the bulk-invite UI must not collapse away. */
+export function bulkInviteFailureBreakdown(failed: BulkInviteFailure[] | undefined): BulkInviteFailure[] {
+  return (failed ?? []).filter((row) => row.email || row.error);
+}
+
+export function bulkInviteSummaryLine(outcome: BulkInviteOutcome): string {
+  const failed = bulkInviteFailureBreakdown(outcome.failed);
+  const n = outcome.failedCount || failed.length;
+  if (outcome.sentCount > 0 && n === 0) {
+    return `Sent ${invites(outcome.sentCount)}. All rows processed.`;
+  }
+  if (outcome.sentCount > 0) {
+    return `Sent ${invites(outcome.sentCount)}. ${invites(n)} couldn't be sent — see the list below.`;
+  }
+  if (n > 0) {
+    return `No invites were sent. ${invites(n)} couldn't be sent — see the list below.`;
+  }
+  return "No invites were sent.";
+}

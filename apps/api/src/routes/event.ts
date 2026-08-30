@@ -30,6 +30,10 @@ import {
   stripEventPaymentFields,
 } from "../lib/paidAttendance";
 import { featureEnabled, requireFeature } from "../lib/features";
+import {
+  EVENT_ORGANIZATION_TRANSFER_ERROR,
+  eventUpdateIncludesOrganizationId,
+} from "../lib/eventOrganization";
 
 export const eventRouter = Router();
 
@@ -355,6 +359,12 @@ eventRouter.put(
   requireAuth,
   requireCsrf,
   asyncHandler(async (req: AuthedRequest, res) => {
+    // W-6 — organizationId on PUT is not a transfer. Reject it so nothing
+    // pretends the event moved.
+    if (eventUpdateIncludesOrganizationId(req.body)) {
+      return res.status(400).json({ error: EVENT_ORGANIZATION_TRANSFER_ERROR });
+    }
+
     const parsed = eventSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json(validationErrorBody(parsed.error));

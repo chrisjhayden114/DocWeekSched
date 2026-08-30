@@ -212,6 +212,15 @@ describe("PUT /event branding hygiene (DB)", () => {
     expect((await stored()).brandColor).toBe("#1f6feb");
   }, 60_000);
 
+  it("W-6 — PUT with organizationId 400s and does not pretend a transfer worked", async () => {
+    await seedBranding();
+    const before = await stored();
+    const res = await put({ ...baseFields("Should Not Land"), organizationId: "org_other" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/can't move to a different organization/i);
+    expect(await stored()).toEqual(before);
+  }, 60_000);
+
   it("rejects a non-hex color with an honest 400 and changes nothing", async () => {
     await seedBranding();
 

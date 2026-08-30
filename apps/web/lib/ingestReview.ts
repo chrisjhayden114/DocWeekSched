@@ -124,6 +124,37 @@ export function applyImportScope<T extends { kind?: string }>(rows: T[], scope: 
 }
 
 /**
+ * W-6 — the same honesty as Program session deletes: say how many people
+ * joined or bookmarked the sessions about to disappear.
+ */
+export function sessionDeleteBlastCopy(joined: number, bookmarked: number): string {
+  if (joined <= 0 && bookmarked <= 0) {
+    return "No attendees have joined or bookmarked this session.";
+  }
+  const bits: string[] = [];
+  if (joined > 0) bits.push(`${joined} joined`);
+  if (bookmarked > 0) bits.push(`${bookmarked} bookmarked`);
+  return `${bits.join(", ")} — their schedules lose this session.`;
+}
+
+export function deleteRowsBlastCopy(
+  rows: Array<{ accepted?: boolean; joinedCount?: unknown; bookmarkCount?: unknown }>,
+): string | null {
+  const accepted = rows.filter((r) => r.accepted === true);
+  if (accepted.length === 0) return null;
+  const joined = accepted.reduce((n, r) => n + (typeof r.joinedCount === "number" ? r.joinedCount : 0), 0);
+  const bookmarked = accepted.reduce(
+    (n, r) => n + (typeof r.bookmarkCount === "number" ? r.bookmarkCount : 0),
+    0,
+  );
+  const head =
+    accepted.length === 1
+      ? "Deleting 1 session."
+      : `Deleting ${accepted.length} sessions.`;
+  return `${head} ${sessionDeleteBlastCopy(joined, bookmarked)}`;
+}
+
+/**
  * Rebuild the API changeset from edited review rows, merging each row over
  * its original (so fields the UI does not track survive the round-trip).
  * Removal arrays come from the edited row when present — they carry the

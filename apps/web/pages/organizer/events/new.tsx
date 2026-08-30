@@ -2,7 +2,7 @@ import { brand } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type {
   SetupCopilotFormState,
   SetupCopilotMessage,
@@ -25,13 +25,16 @@ import { Select } from "../../../components/Select";
 import { TimezoneSelect } from "../../../components/TimezoneSelect";
 import { apiFetch } from "../../../lib/api";
 import { OrgSummary } from "../../../lib/organizerApi";
+import { EVENT_ORG_LOCKED_NOTE } from "../../../lib/eventCreationOrg";
 import {
   clearSetupCopilotDraft,
   copilotFormToWizardFields,
   copilotStepFromForm,
   fieldChangeMap,
+  formForSetupComplete,
   loadSetupCopilotDraft,
   mergeFieldChanges,
+  restoreAiFormWithWizardEdits,
   saveSetupCopilotDraft,
   wizardFieldsToCopilotForm,
 } from "../../../lib/setupCopilotDraft";
@@ -41,6 +44,7 @@ import {
   isEmptyWizardDraft,
   parseWizardDraft,
   serializeWizardDraft,
+  type WizardAiHandoff,
   type WizardDraft,
 } from "../../../lib/wizardDraft";
 
@@ -67,6 +71,44 @@ function FieldChangeNote({ change }: { change?: SetupFieldChange }) {
     >
       {change.label}: {change.from} → <strong>{change.to}</strong>
     </span>
+  );
+}
+
+/**
+ * W-6 — hide the org picker when there is only one organization; otherwise
+ * say plainly that the choice is permanent.
+ */
+function EventOrgField({
+  orgs,
+  organizationId,
+  onChange,
+  required,
+  selectStyle,
+}: {
+  orgs: OrgSummary[];
+  organizationId: string;
+  onChange: (id: string) => void;
+  required?: boolean;
+  selectStyle?: CSSProperties;
+}) {
+  if (orgs.length === 1) {
+    return <p className="help-text">Creating in {orgs[0]!.name}</p>;
+  }
+  return (
+    <>
+      <label>
+        Organization
+        <Select
+          value={organizationId}
+          onChange={onChange}
+          required={required}
+          style={selectStyle}
+          aria-label="Organization"
+          options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+        />
+      </label>
+      <p className="help-text">{EVENT_ORG_LOCKED_NOTE}</p>
+    </>
   );
 }
 
@@ -114,6 +156,8 @@ export default function NewEventWizard() {
   const [fieldChanges, setFieldChanges] = useState<SetupFieldChange[]>([]);
   const [chatEpoch, setChatEpoch] = useState(0);
   const [draftsReady, setDraftsReady] = useState(false);
+  /** W-5 — AI-mapped fields at the last Manual handoff; later wizard edits are diffs against this. */
+  const [aiHandoff, setAiHandoff] = useState<WizardAiHandoff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{
@@ -173,24 +217,37 @@ export default function NewEventWizard() {
     setLogoUrl(draft.logoUrl);
     setBannerUrl(draft.bannerUrl);
     setFeatureOverrides(draft.featureOverrides as FeatureOverridesMap);
+    if (draft.aiHandoff) setAiHandoff(draft.aiHandoff);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // AI draft restore (wins over wizard) or seed the copilot form from the
-  // wizard so Manual → AI greets with known fields instead of starting over.
+  // AI draft restore, field-wise against a later wizard edit (W-5). A leftover
+  // wizard without an AI handoff snapshot never overwrites the draft.
   // Re-runs when mode flips so a same-page query change still hydrates chat.
   useEffect(() => {
     if (!router.isReady) return;
     const wizard = parseWizardDraft(window.sessionStorage.getItem(WIZARD_DRAFT_STORAGE_KEY));
     const ai = loadSetupCopilotDraft();
     if (ai) {
-      setCopilotForm(ai.form);
+      const merged =
+        modeAi && wizard?.aiHandoff
+          ? restoreAiFormWithWizardEdits(ai.form, wizard, wizard.aiHandoff)
+          : ai.form;
+      setCopilotForm(merged);
       setCopilotHistory(ai.history);
-      setCopilotStep(ai.step ?? copilotStepFromForm(ai.form));
+      setCopilotStep(ai.step ?? copilotStepFromForm(merged));
+      if (modeAi && wizard?.aiHandoff) {
+        saveSetupCopilotDraft({
+          form: merged,
+          history: ai.history,
+          savedAt: Date.now(),
+          step: ai.step ?? copilotStepFromForm(merged),
+        });
+      }
       // Only fold AI fields into the wizard preview when we're in AI mode.
       // In manual mode the wizard draft is the source of truth (user may have
       // edited it after switching).
-      if (modeAi) applyCopilotForm(ai.form);
+      if (modeAi) applyCopilotForm(merged);
     } else if (modeAi && wizard) {
       const seeded = wizardFieldsToCopilotForm(wizard, emptySetupFormState(wizard.timezone || timezone));
       setCopilotForm(seeded);
@@ -227,6 +284,7 @@ export default function NewEventWizard() {
       logoUrl,
       bannerUrl,
       featureOverrides,
+      ...(aiHandoff ? { aiHandoff } : {}),
     };
     if (isEmptyWizardDraft(draft)) return;
     try {
@@ -252,6 +310,7 @@ export default function NewEventWizard() {
     logoUrl,
     bannerUrl,
     featureOverrides,
+    aiHandoff,
   ]);
 
   // Persist the AI conversation + form. Empty drafts (opening greeting only)
@@ -308,6 +367,7 @@ export default function NewEventWizard() {
     setCopilotHistory([]);
     setCopilotStep("name");
     setFieldChanges([]);
+    setAiHandoff(null);
     setError(null);
   }
 
@@ -334,6 +394,7 @@ export default function NewEventWizard() {
     };
     applyCopilotForm(form);
     const mapped = copilotFormToWizardFields(form, { description });
+    setAiHandoff(mapped);
     const draft: WizardDraft = {
       step,
       organizationId,
@@ -351,6 +412,7 @@ export default function NewEventWizard() {
       logoUrl,
       bannerUrl,
       featureOverrides: mapped.featureOverrides as WizardDraft["featureOverrides"],
+      aiHandoff: mapped,
     };
     if (!isEmptyWizardDraft(draft)) {
       try {
@@ -380,17 +442,16 @@ export default function NewEventWizard() {
     setBusy(true);
     setError(null);
     try {
-      const form: SetupCopilotFormState = {
-        ...copilotForm,
-        name: name || copilotForm.name,
+      const form = formForSetupComplete(copilotForm, {
+        name,
         timezone,
-        startDate: (startDate || copilotForm.startDate).slice(0, 10),
-        endDate: (endDate || copilotForm.endDate).slice(0, 10),
+        startDate,
+        endDate,
         venueName,
         venueAddress,
         onlineUrl,
         featureOverrides,
-      };
+      });
       const result = await apiFetch<{
         eventId: string;
         slug: string;
@@ -510,15 +571,11 @@ export default function NewEventWizard() {
         ) : modeAi && !created ? (
           <div style={{ display: "grid", gap: 20, gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)" }}>
             <div>
-              <label className="help-text" style={{ display: "block", marginBottom: 6 }}>
-                Organization
-              </label>
-              <Select
-                value={organizationId}
+              <EventOrgField
+                orgs={orgs}
+                organizationId={organizationId}
                 onChange={setOrganizationId}
-                style={{ marginBottom: 12, maxWidth: 360 }}
-                aria-label="Organization"
-                options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+                selectStyle={{ marginBottom: 12, maxWidth: 360 }}
               />
               {draftsReady ? (
               <SetupCopilotChat
@@ -701,15 +758,12 @@ export default function NewEventWizard() {
 
             {step === 0 && !created ? (
               <>
-                <label>
-                  Organization
-                  <Select
-                    value={organizationId}
-                    onChange={setOrganizationId}
-                    required
-                    options={orgs.map((o) => ({ value: o.id, label: o.name }))}
-                  />
-                </label>
+                <EventOrgField
+                  orgs={orgs}
+                  organizationId={organizationId}
+                  onChange={setOrganizationId}
+                  required
+                />
                 <label>
                   Event name
                   <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />

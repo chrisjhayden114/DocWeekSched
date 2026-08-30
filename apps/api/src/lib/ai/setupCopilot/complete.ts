@@ -25,6 +25,7 @@ import { limit } from "../../billing/entitlements";
 import { writeAuditLog } from "../audit";
 import { applyConfigureFeatures } from "./features";
 import { buildSkeleton } from "./skeleton";
+import { eventBoundsFromSetupForm } from "./completeDates";
 
 function parseHm(t: string): { h: number; m: number } {
   const m = /^(\d{1,2}):(\d{2})/.exec(t.trim());
@@ -36,25 +37,6 @@ function addDaysYmd(ymd: string, offset: number): { y: number; mo: number; d: nu
   const base = new Date(ymd.includes("T") ? ymd : `${ymd}T12:00:00Z`);
   base.setUTCDate(base.getUTCDate() + offset);
   return { y: base.getUTCFullYear(), mo: base.getUTCMonth() + 1, d: base.getUTCDate() };
-}
-
-function parseFormDateTime(value: string, defaultH: number, defaultM: number): Date {
-  const ymd = value.slice(0, 10);
-  const hm = /^(\d{4}-\d{2}-\d{2})T(\d{1,2}):(\d{2})/.exec(value.trim());
-  const h = hm ? Number(hm[2]) : defaultH;
-  const m = hm ? Number(hm[3]) : defaultM;
-  return new Date(`${ymd}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
-}
-
-function toStartEndIso(form: SetupCopilotFormState): { start: Date; end: Date } {
-  const start = parseFormDateTime(form.startDate, 9, 0);
-  const end = parseFormDateTime(form.endDate, 17, 0);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    const now = new Date();
-    const later = new Date(now.getTime() + 2 * 86_400_000);
-    return { start: now, end: later };
-  }
-  return { start, end };
 }
 
 export type CompleteSetupResult = {
@@ -83,7 +65,7 @@ export async function completeSetupCopilot(opts: {
   if (!form.name.trim()) throw new Error("Event name is required");
   if (!form.startDate || !form.endDate) throw new Error("Event dates are required");
 
-  const { start, end } = toStartEndIso(form);
+  const { start, end } = eventBoundsFromSetupForm(form);
   const slugBase = slugifyEventBase(form.name);
   const slug = await ensureUniqueEventSlug(slugBase);
   const { raw: joinRaw, hash: joinHash } = newJoinToken();

@@ -155,6 +155,14 @@ describe("W-4 — the assistant surfaces the card, the panel highlights the chan
     expect(chat).toContain("onFieldChanges?.(res.changes)");
   });
 
+  it("W-5 — wizard→AI restore is field-wise and complete keeps day times", () => {
+    const page = read("pages", "organizer", "events", "new.tsx");
+    expect(page).toContain("restoreAiFormWithWizardEdits");
+    expect(page).toContain("formForSetupComplete");
+    expect(page).not.toMatch(/startDate: \(startDate \|\| copilotForm\.startDate\)\.slice\(0,\s*10\)/);
+    expect(page).not.toMatch(/endDate: \(endDate \|\| copilotForm\.endDate\)\.slice\(0,\s*10\)/);
+  });
+
   it("the summary panel shows old→new for every changed field", () => {
     const page = read("pages", "organizer", "events", "new.tsx");
     expect(page).toContain("{change.label}: {change.from} → <strong>{change.to}</strong>");

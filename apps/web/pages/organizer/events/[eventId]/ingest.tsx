@@ -172,6 +172,8 @@ function changesetToRows(raw: unknown): ReviewChangeRow[] {
         message: typeof row.message === "string" ? row.message : undefined,
         accepted: row.accepted === true,
         sessionId: row.sessionId,
+        joinedCount: typeof row.joinedCount === "number" ? row.joinedCount : 0,
+        bookmarkCount: typeof row.bookmarkCount === "number" ? row.bookmarkCount : 0,
       };
     }
     if (kind === "update") {

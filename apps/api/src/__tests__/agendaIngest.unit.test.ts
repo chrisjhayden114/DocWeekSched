@@ -197,6 +197,45 @@ describe("Agenda ingest (unit)", () => {
     ]);
   });
 
+  it("W-6 — delete rows carry joined/bookmarked counts for the confirm", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        {
+          title: "Welcome",
+          date: "2027-06-12",
+          startTime: "09:00",
+          speakers: [],
+        },
+      ],
+      assumptions: [],
+    });
+    const existing = [
+      {
+        id: "keep",
+        title: "Welcome",
+        startsAt: new Date("2027-06-12T09:00:00Z"),
+        endsAt: new Date("2027-06-12T09:30:00Z"),
+        joinedCount: 1,
+        bookmarkCount: 0,
+      },
+      {
+        id: "gone",
+        title: "Keynote",
+        startsAt: new Date("2027-06-12T10:00:00Z"),
+        endsAt: new Date("2027-06-12T11:00:00Z"),
+        joinedCount: 4,
+        bookmarkCount: 2,
+      },
+    ];
+    const rows = buildReimportChangeset(extract, existing, "UTC");
+    const del = rows.find((r) => r.kind === "delete");
+    expect(del?.kind).toBe("delete");
+    if (del?.kind !== "delete") throw new Error("expected delete row");
+    expect(del.sessionId).toBe("gone");
+    expect(del.joinedCount).toBe(4);
+    expect(del.bookmarkCount).toBe(2);
+  });
+
   it("empty extract proposes NO deletions (E9.2)", () => {
     const empty = agendaExtractSchema.parse({ sessions: [], assumptions: [] });
     const existing = [

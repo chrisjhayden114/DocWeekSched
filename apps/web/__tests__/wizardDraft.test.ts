@@ -34,6 +34,23 @@ describe("wizard draft round-trip", () => {
     expect(parseWizardDraft(serializeWizardDraft(original))).toEqual(original);
   });
 
+  it("round-trips the W-5 AI handoff snapshot", () => {
+    const original = draft({
+      aiHandoff: {
+        name: "Coastal Ecology Symposium",
+        timezone: "America/Los_Angeles",
+        startDate: "2026-09-10T09:00",
+        endDate: "2026-09-11T17:00",
+        venueName: "Marine Lab",
+        venueAddress: "1 Shore Dr",
+        onlineUrl: "",
+        description: "Two days of talks.",
+        featureOverrides: { qa: "on" },
+      },
+    });
+    expect(parseWizardDraft(serializeWizardDraft(original))?.aiHandoff).toEqual(original.aiHandoff);
+  });
+
   it("preserves a manually edited slug and its touched flag", () => {
     const original = draft({ slug: "my-custom-slug", slugTouched: true });
     const restored = parseWizardDraft(serializeWizardDraft(original));

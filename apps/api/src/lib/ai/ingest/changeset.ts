@@ -17,6 +17,9 @@ export type ExistingSessionLite = {
   roomName?: string | null;
   speakers?: ExistingSpeakerLite[];
   items?: ExistingItemLite[];
+  /** W-6 — attendee blast radius for a proposed delete. */
+  joinedCount?: number;
+  bookmarkCount?: number;
 };
 
 /** E13.3: a child the source no longer mentions. Removal defaults unchecked — nothing hand-entered disappears without a tick. */
@@ -52,6 +55,9 @@ export type ChangesetRow =
       message: string;
       /** Deletes default unchecked. */
       accepted: boolean;
+      /** W-6 — joined / bookmarked counts for the confirm copy. */
+      joinedCount?: number;
+      bookmarkCount?: number;
     };
 
 /**
@@ -139,6 +145,8 @@ export function buildReimportChangeset(
       existingTitle: ex.title,
       message: "Not found in new import — propose delete",
       accepted: false,
+      joinedCount: ex.joinedCount ?? 0,
+      bookmarkCount: ex.bookmarkCount ?? 0,
     });
   }
 

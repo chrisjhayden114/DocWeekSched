@@ -10,6 +10,24 @@ export const WIZARD_DRAFT_STORAGE_KEY = "eventWizard.draft.v1";
 /** Steps 0–3 collect input; step 4 is the "Draft created" screen and is never persisted. */
 const MAX_PERSISTED_STEP = 3;
 
+/**
+ * W-5 — snapshot of AI-mapped wizard fields at the last "Switch to manual"
+ * handoff. A later restore treats a field as organizer-edited only when it
+ * differs from this snapshot, so a leftover draft cannot clobber the AI form
+ * and an untouched field cannot lose the draft.
+ */
+export type WizardAiHandoff = {
+  name: string;
+  timezone: string;
+  startDate: string;
+  endDate: string;
+  venueName: string;
+  venueAddress: string;
+  onlineUrl: string;
+  description: string;
+  featureOverrides: Record<string, unknown>;
+};
+
 export type WizardDraft = {
   step: number;
   organizationId: string;
@@ -27,6 +45,7 @@ export type WizardDraft = {
   logoUrl: string;
   bannerUrl: string;
   featureOverrides: Record<string, unknown>;
+  aiHandoff?: WizardAiHandoff;
 };
 
 /** True when the user hasn't typed anything worth restoring. */
@@ -105,6 +124,7 @@ export function parseWizardDraft(raw: string | null): WizardDraft | null {
     o.featureOverrides && typeof o.featureOverrides === "object" && !Array.isArray(o.featureOverrides)
       ? (o.featureOverrides as Record<string, unknown>)
       : {};
+  const aiHandoff = parseAiHandoff(o.aiHandoff);
   const draft: WizardDraft = {
     step: clampStep(typeof o.step === "number" ? o.step : 0),
     organizationId: str(o.organizationId),
@@ -122,6 +142,27 @@ export function parseWizardDraft(raw: string | null): WizardDraft | null {
     logoUrl: persistableImage(str(o.logoUrl)),
     bannerUrl: persistableImage(str(o.bannerUrl)),
     featureOverrides: overrides,
+    ...(aiHandoff ? { aiHandoff } : {}),
   };
   return isEmptyWizardDraft(draft) ? null : draft;
+}
+
+function parseAiHandoff(raw: unknown): WizardAiHandoff | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const overrides =
+    o.featureOverrides && typeof o.featureOverrides === "object" && !Array.isArray(o.featureOverrides)
+      ? (o.featureOverrides as Record<string, unknown>)
+      : {};
+  return {
+    name: str(o.name),
+    timezone: str(o.timezone),
+    startDate: str(o.startDate),
+    endDate: str(o.endDate),
+    venueName: str(o.venueName),
+    venueAddress: str(o.venueAddress),
+    onlineUrl: str(o.onlineUrl),
+    description: str(o.description),
+    featureOverrides: overrides,
+  };
 }

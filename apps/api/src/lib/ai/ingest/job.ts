@@ -1,4 +1,4 @@
-import { AgendaIngestRunStatus, type Prisma } from "@prisma/client";
+import { AgendaIngestRunStatus, SessionAttendanceStatus, type Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { registerJobHandler, type JobHandler } from "../../jobs";
 import { log } from "../../log";
@@ -81,6 +81,9 @@ const handler: JobHandler = async (job) => {
         orderBy: { sortOrder: "asc" },
         select: { id: true, title: true },
       },
+      // W-6 — blast radius for a proposed delete (same honesty as Program).
+      attendances: { where: { status: SessionAttendanceStatus.JOINING }, select: { id: true } },
+      _count: { select: { bookmarks: true } },
     },
   });
 
@@ -110,6 +113,8 @@ const handler: JobHandler = async (job) => {
         roomName: s.room?.name,
         speakers: s.sessionSpeakers.map((l) => ({ speakerId: l.speakerId, name: l.speaker.name })),
         items: s.items.map((it) => ({ itemId: it.id, title: it.title })),
+        joinedCount: s.attendances.length,
+        bookmarkCount: s._count.bookmarks,
       })),
       attachment,
       mode: payload.mode,

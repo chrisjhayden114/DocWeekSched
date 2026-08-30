@@ -52,6 +52,7 @@ import { sayHiPrefill } from "../lib/sayHi";
 import { MESSAGES_MOBILE_QUERY, messagesTabQuery, type ConversationView } from "../lib/messagesView";
 import { fileToDataUrl } from "../lib/photoDataUrl";
 import { shouldShowWelcome } from "../lib/welcome";
+import { bulkInviteFailureBreakdown, bulkInviteSummaryLine } from "../lib/rosterImport";
 import { WelcomeFlow } from "../components/WelcomeFlow";
 import { ProfileEditor } from "../components/ProfileEditor";
 
@@ -3031,6 +3032,7 @@ function BulkInviteCsvCard({
   const [bulkParseError, setBulkParseError] = useState<string | null>(null);
   const [bulkRows, setBulkRows] = useState<ParsedInviteRow[] | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const [bulkFailures, setBulkFailures] = useState<{ email: string; error: string }[]>([]);
   const canInvite = Boolean(activeEventId);
 
   function downloadExampleCsv() {
@@ -3070,6 +3072,7 @@ john@example.org,John Example,,
               setBulkParseError(null);
               setBulkRows(null);
               setBulkResult(null);
+              setBulkFailures([]);
               const file = ev.target.files?.[0];
               if (!file) return;
               const text = await file.text();
@@ -3101,6 +3104,7 @@ john@example.org,John Example,,
             if (!bulkRows?.length || !canInvite) return;
             setBulkBusy(true);
             setBulkResult(null);
+            setBulkFailures([]);
             try {
               const res = await apiFetch<{
                 sentCount: number;
@@ -3114,10 +3118,14 @@ john@example.org,John Example,,
                 }),
                 token,
               );
-              const failedLines =
-                res.failed?.map((f) => `${f.email}: ${f.error}`).join("; ") || "";
+              const failed = bulkInviteFailureBreakdown(res.failed);
+              setBulkFailures(failed);
               setBulkResult(
-                `Sent ${res.sentCount} invite(s). ${res.failedCount ? `Could not send ${res.failedCount}: ${failedLines}` : "All rows processed."}`,
+                bulkInviteSummaryLine({
+                  sentCount: res.sentCount,
+                  failedCount: res.failedCount,
+                  failed,
+                }),
               );
               setBulkRows(null);
               await onDone?.();
@@ -3130,7 +3138,23 @@ john@example.org,John Example,,
         >
           {bulkBusy ? "Sending invites…" : "Send all invites from CSV"}
         </button>
-        {bulkResult ? <p className="help-text" style={{ margin: 0 }}>{bulkResult}</p> : null}
+        {bulkResult ? (
+          <div role="status">
+            <p className="help-text" style={{ margin: 0 }}>
+              {bulkResult}
+            </p>
+            {bulkFailures.length > 0 ? (
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 14 }}>
+                {bulkFailures.map((row, i) => (
+                  <li key={`${row.email || "row"}-${i}`}>
+                    {row.email ? `${row.email} — ` : null}
+                    {row.error}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

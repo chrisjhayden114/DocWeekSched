@@ -22,6 +22,7 @@ import {
   type SetupEventType,
   type SetupFieldChange,
 } from "@event-app/shared";
+import type { WizardAiHandoff, WizardDraft } from "./wizardDraft";
 
 export const SETUP_COPILOT_DRAFT_STORAGE_KEY = "setupCopilot.draft.v1";
 export const SETUP_COPILOT_DRAFT_VERSION = 1 as const;
@@ -384,6 +385,103 @@ export function wizardFieldsToCopilotForm(
   }
   next = withConfirmedSetupFields(next, confirmed);
   return next;
+}
+
+function sameOverrides(
+  a?: Record<string, unknown> | SetupCopilotFormState["featureOverrides"],
+  b?: Record<string, unknown> | SetupCopilotFormState["featureOverrides"],
+): boolean {
+  return JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
+}
+
+/**
+ * W-5 — wizard→AI re-entry. Untouched fields keep the AI draft; a field the
+ * organizer changed in the manual wizard after the last AI handoff keeps the
+ * wizard value and is marked confirmed (same tracking W-4 uses for extracts).
+ * `handoff` is the snapshot written at "Switch to manual" — without it, a
+ * leftover wizard draft must not overwrite the AI form.
+ */
+export function restoreAiFormWithWizardEdits(
+  aiForm: SetupCopilotFormState,
+  wizard: Partial<SetupHandoffWizardFields> | Pick<WizardDraft, keyof SetupHandoffWizardFields>,
+  handoff: SetupHandoffWizardFields | WizardAiHandoff,
+): SetupCopilotFormState {
+  let next = { ...aiForm };
+  const confirmed: SetupConfirmableField[] = [];
+
+  const take = (
+    field: SetupConfirmableField,
+    wizardVal: string | undefined,
+    handoffVal: string,
+    apply: (value: string) => void,
+  ) => {
+    if ((wizardVal ?? "").trim() === handoffVal.trim()) return;
+    apply(wizardVal ?? "");
+    confirmed.push(field);
+  };
+
+  take("name", wizard.name, handoff.name, (v) => {
+    next.name = v.trim();
+  });
+  take("timezone", wizard.timezone, handoff.timezone, (v) => {
+    if (v.trim()) {
+      next.timezone = v.trim();
+      next.timezoneExplicit = true;
+    }
+  });
+  take("startDate", wizard.startDate, handoff.startDate, (v) => {
+    next.startDate = v;
+  });
+  take("endDate", wizard.endDate, handoff.endDate, (v) => {
+    next.endDate = v;
+  });
+  take("venueName", wizard.venueName, handoff.venueName, (v) => {
+    next.venueName = v.trim();
+  });
+  take("onlineUrl", wizard.onlineUrl, handoff.onlineUrl, (v) => {
+    next.onlineUrl = v.trim();
+  });
+  if ((wizard.venueAddress ?? "").trim() !== handoff.venueAddress.trim()) {
+    next.venueAddress = (wizard.venueAddress ?? "").trim();
+  }
+  if (!sameOverrides(wizard.featureOverrides, handoff.featureOverrides)) {
+    next.featureOverrides = {
+      ...next.featureOverrides,
+      ...(wizard.featureOverrides as SetupCopilotFormState["featureOverrides"]),
+    };
+  }
+  return withConfirmedSetupFields(next, confirmed);
+}
+
+/**
+ * W-5 — the /complete payload. Day start/end times on the form (or the
+ * wizard's datetime-local values) must reach the created event; never slice
+ * them down to a date.
+ */
+export function formForSetupComplete(
+  form: SetupCopilotFormState,
+  wizard: {
+    name: string;
+    timezone: string;
+    startDate: string;
+    endDate: string;
+    venueName: string;
+    venueAddress: string;
+    onlineUrl: string;
+    featureOverrides: SetupCopilotFormState["featureOverrides"];
+  },
+): SetupCopilotFormState {
+  return {
+    ...form,
+    name: wizard.name.trim() || form.name,
+    timezone: wizard.timezone || form.timezone,
+    startDate: wizard.startDate || form.startDate,
+    endDate: wizard.endDate || form.endDate,
+    venueName: wizard.venueName,
+    venueAddress: wizard.venueAddress,
+    onlineUrl: wizard.onlineUrl,
+    featureOverrides: wizard.featureOverrides,
+  };
 }
 
 export function hasKnownHandoffFields(

@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  bulkInviteFailureBreakdown,
+  bulkInviteSummaryLine,
   countSelected,
   importSummaryLine,
   rowLabelValue,
@@ -118,6 +120,34 @@ describe("W-2 — summary copy tells the truth about emails", () => {
     expect(
       sendInvitesSummaryLine({ sentCount: 0, failedCount: 0, alreadyActiveCount: 2 }),
     ).toBe("No invites were sent. 2 already finished setup, so no email was sent to them.");
+  });
+});
+
+describe("W-6 — bulk-invite partial-failure breakdown", () => {
+  it("keeps every failed row and why", () => {
+    const failed = bulkInviteFailureBreakdown([
+      { email: "ada@example.edu", error: "Already on the roster" },
+      { email: "bad@", error: "Invalid email" },
+    ]);
+    expect(failed).toEqual([
+      { email: "ada@example.edu", error: "Already on the roster" },
+      { email: "bad@", error: "Invalid email" },
+    ]);
+    expect(
+      bulkInviteSummaryLine({
+        sentCount: 4,
+        failedCount: 2,
+        failed,
+      }),
+    ).toMatch(/2 invites couldn't be sent — see the list below/);
+  });
+
+  it("the dashboard bulk-invite card renders the per-row list", () => {
+    const dash = readFileSync(join(__dirname, "..", "pages", "dashboard.tsx"), "utf8");
+    expect(dash).toContain("bulkInviteFailureBreakdown");
+    expect(dash).toContain("bulkInviteSummaryLine");
+    expect(dash).toContain("{row.email ? `${row.email} — ` : null}");
+    expect(dash).toContain("{row.error}");
   });
 });
 

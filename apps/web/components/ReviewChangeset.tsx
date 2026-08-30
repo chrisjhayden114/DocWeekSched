@@ -1,5 +1,12 @@
 import { useMemo, type ReactNode } from "react";
-import { createRowSession, groupCreateRows, removalsOf, type RemovalKind } from "../lib/ingestReview";
+import {
+  createRowSession,
+  deleteRowsBlastCopy,
+  groupCreateRows,
+  removalsOf,
+  sessionDeleteBlastCopy,
+  type RemovalKind,
+} from "../lib/ingestReview";
 import { Select } from "./Select";
 
 export type ReviewChangeRow =
@@ -37,6 +44,9 @@ export type ReviewChangeRow =
       title?: string;
       /** Deletes default unchecked. */
       accepted?: boolean;
+      /** W-6 — attendee blast radius for the confirm. */
+      joinedCount?: number;
+      bookmarkCount?: number;
       [key: string]: unknown;
     };
 
@@ -197,6 +207,7 @@ export function ReviewChangeset({
   const useGroupedCreates = groupCreates && createGroups.length > 1;
   // ≤12 rows: everything visible at once. More: closed groups keep the page scannable.
   const groupsDefaultOpen = creates.length <= 12;
+  const deleteBlast = deleteRowsBlastCopy(deletes);
 
   /** Select all / none for a section — opt-in (agenda ingest, roster import). */
   const selectAllControls = (sectionRows: { rowIndex: number }[]) =>
@@ -289,6 +300,14 @@ export function ReviewChangeset({
             <span>
               {row.title || `Session ${row.rowIndex + 1}`}
               {row.message ? ` — ${row.message}` : null}
+              {row.joinedCount != null || row.bookmarkCount != null ? (
+                <>
+                  {" "}
+                  <span className="help-text">
+                    {sessionDeleteBlastCopy(row.joinedCount ?? 0, row.bookmarkCount ?? 0)}
+                  </span>
+                </>
+              ) : null}
             </span>
           </label>
         </li>
@@ -530,6 +549,11 @@ export function ReviewChangeset({
         <p className="help-text">Nothing valid to create yet. Fix errors or adjust column mapping.</p>
       ) : null}
 
+      {deleteBlast ? (
+        <p className="help-text" role="status" style={{ margin: "8px 0 0" }}>
+          {deleteBlast}
+        </p>
+      ) : null}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
         {onConfirm ? (
           <button type="button" className="button" disabled={!canConfirm} onClick={() => void onConfirm()}>

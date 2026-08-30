@@ -19,6 +19,8 @@ import {
   settingsSetupCopilotStorageKey,
   toDatetimeLocal,
   wizardFieldsToCopilotForm,
+  formForSetupComplete,
+  restoreAiFormWithWizardEdits,
   type SetupCopilotDraft,
   type StorageLike,
 } from "../lib/setupCopilotDraft";
@@ -240,6 +242,61 @@ describe("manual ↔ AI field mapping", () => {
     expect(back.venueName).toBe(original.venueName);
     expect(back.venueAddress).toBe(original.venueAddress);
     expect(back.onlineUrl).toBe(original.onlineUrl);
+  });
+});
+
+describe("W-5 — field-wise wizard→AI restore", () => {
+  it("keeps a wizard-edited field and leaves untouched AI fields alone", () => {
+    const ai = form({
+      name: "Coastal Ecology Symposium",
+      venueName: "Marine Lab",
+      startDate: "2026-09-10T08:30",
+      endDate: "2026-09-11T18:00",
+      confirmedFields: ["name", "venueName", "startDate", "endDate"],
+    });
+    const handoff = copilotFormToWizardFields(ai);
+    const restored = restoreAiFormWithWizardEdits(
+      ai,
+      { ...handoff, name: "Harbor Symposium" },
+      handoff,
+    );
+    expect(restored.name).toBe("Harbor Symposium");
+    expect(restored.venueName).toBe("Marine Lab");
+    expect(restored.startDate).toBe("2026-09-10T08:30");
+    expect(restored.endDate).toBe("2026-09-11T18:00");
+    expect(restored.confirmedFields).toContain("name");
+  });
+
+  it("does not let a leftover wizard without matching handoff values clobber AI via equal fields", () => {
+    const ai = form({ name: "AI Draft Name", venueName: "Hall A" });
+    const handoff = copilotFormToWizardFields(ai);
+    // Same as the handoff — not an edit after the AI draft.
+    const restored = restoreAiFormWithWizardEdits(ai, handoff, handoff);
+    expect(restored.name).toBe("AI Draft Name");
+    expect(restored.venueName).toBe("Hall A");
+  });
+});
+
+describe("W-5 — day times survive completion", () => {
+  it("does not slice extracted day start/end times off the complete payload", () => {
+    const ai = form({
+      name: "Doc Day",
+      startDate: "2026-12-01T08:30",
+      endDate: "2026-12-05T18:00",
+    });
+    const payload = formForSetupComplete(ai, {
+      name: "",
+      timezone: ai.timezone,
+      startDate: "2026-12-01T08:30",
+      endDate: "2026-12-05T18:00",
+      venueName: ai.venueName,
+      venueAddress: ai.venueAddress,
+      onlineUrl: ai.onlineUrl,
+      featureOverrides: ai.featureOverrides,
+    });
+    expect(payload.startDate).toBe("2026-12-01T08:30");
+    expect(payload.endDate).toBe("2026-12-05T18:00");
+    expect(payload.startDate).not.toBe(payload.startDate.slice(0, 10));
   });
 });
 
