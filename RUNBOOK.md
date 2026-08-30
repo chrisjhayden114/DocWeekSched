@@ -553,6 +553,23 @@ selector, the role to sign in as, and any clicks needed to reach the surface. A
 test asserts it covers every non-retired, non-planned `FEATURE_GUIDE` key, so
 adding a feature to the guide fails CI until you give it a shot here.
 
+How a selector is turned into an image lives in `apps/web/screenshot-frame.ts`:
+
+- **Scope.** A component selector is photographed as an element, so the shot is
+  bounded exactly — its heading is in, its neighbours are out. Only the two
+  page-scope selectors (`.kit-page-stack`, `main.page`) still clip out of the
+  document, with a 16px top pad so a section heading isn't flush-cut. Add a
+  selector to `PAGE_SCOPE_SELECTORS` when the element *is* the content column.
+- **Clean stage.** Both assistant FABs, the docked panels, and the transient
+  overlays are hidden before every shot, and the assistants' open-state storage
+  keys are cleared between shots. A shot never hides its own surface, which is
+  how the `concierge` card still gets its panel.
+- **Frame.** Whatever size the element came out at, the run re-stages it
+  centered on a 1200-wide canvas, 380–760 tall, on the background colour behind
+  the element. Small things are enlarged (up to 3x), over-wide ones shrink to
+  the width, and tall ones keep their scale and show their top. No image
+  library is involved: the composition is another Playwright screenshot.
+
 To iterate locally (needs a local Postgres you are happy to lose):
 
 ```bash

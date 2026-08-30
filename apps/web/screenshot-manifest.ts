@@ -16,7 +16,7 @@ import { FEATURE_REGISTRY, type FeatureKey } from "@event-app/shared";
 /** Wide enough that the desktop shell renders and a 1200px clip still fits. */
 export const SCREENSHOT_VIEWPORT = { width: 1440, height: 1100 } as const;
 
-/** Every capture is clipped to this width so the hover cards crop uniformly. */
+/** Every capture ends up this wide so the hover cards crop uniformly. */
 export const SCREENSHOT_WIDTH = 1200;
 /** Short panels get padded out; tall ones get cut rather than filed as posters. */
 export const SCREENSHOT_MIN_HEIGHT = 380;
@@ -58,7 +58,12 @@ export type ScreenshotToken = (typeof KNOWN_TOKENS)[number];
 export type FeatureShot = {
   /** Web path, `{token}` placeholders allowed. */
   path: string;
-  /** The element to measure and clip around — not the whole page. */
+  /**
+   * The element to photograph — not the whole page. Component selectors are
+   * captured as element screenshots, exactly bounded; the page-scope selectors
+   * in screenshot-frame.ts stay document clips, because for those the element
+   * is the content column and the page around it is the picture.
+   */
   selector: string;
   /** Which seeded account to sign in as before loading `path`. */
   as: "attendee" | "organizer";
@@ -195,7 +200,8 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     selector: "main.page",
     as: "attendee",
     waitFor: "form.console-form",
-    note: "The public submission form. Standalone page — the signed-in session is irrelevant.",
+    note:
+      "The public submission form. Standalone page — the signed-in session is irrelevant. Page-scope, so the padded clip keeps the form's title row in frame.",
   },
   readiness: {
     path: "/organizer/events/{eventId}?tab=readiness",
@@ -206,10 +212,11 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
 
   engagement_points: {
     path: "/dashboard?tab=Agenda",
-    selector: ".shell-topbar",
+    selector: ".shell-topbar-actions",
     as: "attendee",
     waitFor: ".points-gem",
-    note: "The flag only controls the gem and count in the app chrome — that is the whole surface.",
+    note:
+      "The flag only controls the gem and count in the app chrome, so the topbar cluster holding them is the whole surface — the frame step enlarges it rather than the shot reaching into unrelated dashboard below.",
   },
   timezone_toggle: {
     path: "/dashboard?tab=Agenda",
@@ -263,11 +270,12 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     note: "Organizer-only pipeline with rows in every status. Attendees never see this.",
   },
   checkin: {
-    path: "/organizer/events/{eventId}/scanner",
-    selector: ".scanner-page",
-    as: "organizer",
-    waitFor: ".scanner-status-bar",
-    note: "The staff scanner console. Chromium's fake camera device keeps the stage from going black.",
+    path: "/dashboard?tab=Profile",
+    selector: 'div:has(> strong:text-is("Event check-in QR"))',
+    as: "attendee",
+    waitFor: 'img[alt="Your check-in QR code"]',
+    note:
+      "The attendee's own code, which is the half of check-in that has a picture. The staff scanner console exists, but under Chromium's fake camera device its stage photographs as a synthetic green test pattern rather than as a check-in.",
   },
   ops_agent: {
     path: "/organizer/events/{eventId}?tab=ops",

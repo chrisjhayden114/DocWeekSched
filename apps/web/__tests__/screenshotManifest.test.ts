@@ -81,8 +81,10 @@ describe("screenshot manifest entries", () => {
 
   it("shoots organizer-only features as the organizer", () => {
     // A card claiming "organizers use it on…" must not be photographed from an
-    // attendee session, where the surface does not exist.
-    for (const key of ["sponsor_outreach", "ops_agent", "recap_agent", "readiness", "paid_attendance", "checkin"] as const) {
+    // attendee session, where the surface does not exist. Check-in is not on
+    // this list: it has an attendee half (the personal QR), and that half
+    // photographs honestly where the staff scanner's fake camera does not.
+    for (const key of ["sponsor_outreach", "ops_agent", "recap_agent", "readiness", "paid_attendance"] as const) {
       expect(SCREENSHOT_MANIFEST[key]!.as, key).toBe("organizer");
     }
   });
