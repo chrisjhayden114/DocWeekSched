@@ -11,7 +11,8 @@
  * renders without inventing a fake subscription.
  */
 
-import { randomBytes } from "crypto";
+import { mkdirSync, writeFileSync } from "fs";
+import { dirname } from "path";
 import {
   BillingProvider,
   CertificateEligibilityRule,
@@ -40,6 +41,11 @@ import {
 } from "@prisma/client";
 import { applyPreset } from "@event-app/shared";
 import { hashPassword } from "../auth";
+import {
+  formatCertificateDates,
+  generateCertificatePublicId,
+  renderCertificatePdf,
+} from "../certificates";
 import { prisma } from "../db";
 import { assertDestructiveAllowed } from "../destructiveGuard";
 import { computeRecapMetrics } from "../ai/recap/metrics";
@@ -47,12 +53,13 @@ import { upsertFeatureOverrides } from "../features/featureEnabled";
 import { newJoinToken } from "../inviteTokens";
 import {
   buildScreenshotSeedSpec,
+  eventLogoDataUrl,
   floorPlanDataUrl,
   SCREENSHOT_ATTENDEE_KEY,
   SCREENSHOT_ORGANIZER_KEY,
   SCREENSHOT_SEED_PASSWORD,
   screenshotFeatureOverrides,
-  wordmarkDataUrl,
+  seedImageDataUrl,
   type ScreenshotSeedSpec,
   type ScreenshotSessionSpec,
 } from "./fixture";
@@ -65,8 +72,18 @@ export type ScreenshotSeedOutput = {
   password: string;
   organizerEmail: string;
   attendeeEmail: string;
+  /**
+   * Where the issued certificate's PDF was written, when the caller asked for
+   * one. The certificate shot photographs this file rather than a web page.
+   */
+  certificatePdfPath?: string;
   /** Substituted into `{token}` placeholders in screenshot-manifest.ts. */
   tokens: Record<string, string>;
+};
+
+export type ScreenshotSeedOptions = {
+  /** Write the issued certificate's PDF here so a capture run can photograph it. */
+  certificatePdfPath?: string | null;
 };
 
 type UserRow = { id: string; email: string; name: string };
@@ -250,7 +267,10 @@ async function seedSessions(
  * Recreates both Northbridge events and every row the Feature Guide shots
  * need. Idempotent: safe to run repeatedly against the same throwaway DB.
  */
-export async function seedScreenshotData(now = new Date()): Promise<ScreenshotSeedOutput> {
+export async function seedScreenshotData(
+  now = new Date(),
+  options: ScreenshotSeedOptions = {},
+): Promise<ScreenshotSeedOutput> {
   assertDestructiveAllowed("seed-script");
 
   const spec = buildScreenshotSeedSpec();
@@ -296,6 +316,9 @@ export async function seedScreenshotData(now = new Date()): Promise<ScreenshotSe
       slugInviteEnabled: true,
       attendeeCap: spec.event.attendeeCap,
       cfpLabel: spec.event.cfpLabel,
+      // Brands the app's top bar and the certificate PDF's logo slot. Null
+      // unless the artwork is committed, which both surfaces already handle.
+      logoUrl: eventLogoDataUrl(),
       assistantStartersJson: JSON.stringify(spec.event.assistantStarters),
       paymentPriceText: spec.event.paymentPriceText,
       paymentUrl: spec.event.paymentUrl,
@@ -541,7 +564,7 @@ export async function seedScreenshotData(now = new Date()): Promise<ScreenshotSe
         url: s.url,
         description: s.description,
         boothLabel: s.boothLabel,
-        logoUrl: wordmarkDataUrl(s.name, s.logoColor),
+        logoUrl: seedImageDataUrl(s.logoFile),
         sortOrder: i,
       },
     });
@@ -685,23 +708,47 @@ export async function seedScreenshotData(now = new Date()): Promise<ScreenshotSe
     });
   }
 
+  // The certificate is photographed as the PDF itself, so the seed issues it
+  // the way the product does: the same publicId shape, the same renderer, the
+  // same accent and logo off the event row. The bytes go on the row as a data
+  // URL (what the storage stub does) and, when asked, to disk for the capture.
   const certificateHolder = users.get(spec.certificate.holderKey)!;
+  const certificatePublicId = generateCertificatePublicId();
+  const certificateDateSnapshot = at(nowMs, Math.max(...sessionEnds));
+  const certificatePdf = await renderCertificatePdf({
+    titleText: spec.certificate.titleText,
+    bodyText: spec.certificate.bodyText,
+    merge: {
+      attendeeName: certificateHolder.name,
+      eventName: spec.event.name,
+      dates: formatCertificateDates(event.startDate, event.endDate, spec.event.timezone),
+      hours: spec.certificate.hours,
+      signatureImage: null,
+      certificateId: certificatePublicId,
+    },
+    accentColor: event.brandColor,
+    logoUrl: event.logoUrl,
+  });
   const issuedCertificate = await prisma.issuedCertificate.create({
     data: {
-      // Matches the runtime issuer: 128-bit CSPRNG, never a cuid.
-      publicId: randomBytes(16).toString("base64url"),
+      publicId: certificatePublicId,
       organizationId: org.id,
       eventId: event.id,
       certificateTemplateId: certificateTemplate.id,
       userId: certificateHolder.id,
       attendeeNameSnapshot: certificateHolder.name,
       eventNameSnapshot: spec.event.name,
-      eventDateSnapshot: at(nowMs, Math.max(...sessionEnds)),
+      eventDateSnapshot: certificateDateSnapshot,
       hoursSnapshot: spec.certificate.hours,
+      pdfStorageKey: `data:application/pdf;base64,${certificatePdf.toString("base64")}`,
       issuedAt: new Date(),
       issuedByUserId: organizer.id,
     },
   });
+  if (options.certificatePdfPath) {
+    mkdirSync(dirname(options.certificatePdfPath), { recursive: true });
+    writeFileSync(options.certificatePdfPath, certificatePdf);
+  }
 
   for (let i = 0; i < spec.matchSuggestions.length; i++) {
     const m = spec.matchSuggestions[i]!;
@@ -881,6 +928,7 @@ export async function seedScreenshotData(now = new Date()): Promise<ScreenshotSe
     password: SCREENSHOT_SEED_PASSWORD,
     organizerEmail: organizer.email,
     attendeeEmail: attendee.email,
+    ...(options.certificatePdfPath ? { certificatePdfPath: options.certificatePdfPath } : {}),
     tokens: {
       eventId: event.id,
       slug: event.slug,

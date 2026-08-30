@@ -23,6 +23,15 @@ export const SCREENSHOT_MIN_HEIGHT = 380;
 export const SCREENSHOT_MAX_HEIGHT = 760;
 
 /**
+ * A frame this tall is the only shape a hover card shows whole: the card crops
+ * its art slot to 400x140 with `object-fit: cover`, and 1200x420 is the same
+ * 20:7. A taller frame loses a band off the top and the bottom to that crop,
+ * which is why a shot whose whole point is its page heading asks for this
+ * height instead of the 760 a long page would otherwise fill.
+ */
+export const SCREENSHOT_CARD_HEIGHT = 420;
+
+/**
  * How much of the manifest a capture run has to land before the run counts as
  * a failure. One surface breaking is not worth throwing away the other thirty:
  * below this the run fails, at or above it the good images still get committed
@@ -47,7 +56,9 @@ export const KNOWN_TOKENS = [
   "endedSessionId",
   "fullSessionId",
   "mapId",
+  /** Not used in a path any more — the maps shot photographs the plan unfocused. */
   "pinId",
+  /** Not used in a path any more — the certificate shot photographs the PDF. */
   "certificateId",
   "directConversationId",
   "groupConversationId",
@@ -55,7 +66,21 @@ export const KNOWN_TOKENS = [
 
 export type ScreenshotToken = (typeof KNOWN_TOKENS)[number];
 
-export type FeatureShot = {
+type ShotBase = {
+  /** Which seeded account's view this belongs to. */
+  as: "attendee" | "organizer";
+  /**
+   * Attendee surfaces read `localStorage.activeEventId`, so a shot has to say
+   * which seeded event it belongs to. Defaults to the main summit.
+   */
+  event?: "main" | "breakouts";
+  /** Why this surface is the honest picture of the feature. */
+  note: string;
+};
+
+/** The usual kind: photograph part of a running page. */
+export type PageFeatureShot = ShotBase & {
+  source?: "page";
   /** Web path, `{token}` placeholders allowed. */
   path: string;
   /**
@@ -65,23 +90,24 @@ export type FeatureShot = {
    * is the content column and the page around it is the picture.
    */
   selector: string;
-  /** Which seeded account to sign in as before loading `path`. */
-  as: "attendee" | "organizer";
-  /**
-   * Attendee surfaces read `localStorage.activeEventId`, so a shot has to say
-   * which seeded event it belongs to. Defaults to the main summit.
-   */
-  event?: "main" | "breakouts";
   viewport?: { width: number; height: number };
   /** Clicked in order before the shot (channel pills, the assistant launcher). */
   clicks?: string[];
   /** Extra selector to await when `selector` can render before its content. */
   waitFor?: string;
+  /**
+   * An `<img>` inside the subject that must have decoded (naturalWidth > 0)
+   * before the shutter opens. A visible `<img>` whose bytes were rejected is
+   * still a visible element, which is how a floor plan photographed as a pin
+   * on white.
+   */
+  waitForImage?: string;
   /** Playwright fills run after clicks/waitFor, before the shot. */
   fills?: Array<{ selector: string; value: string }>;
   /**
-   * Clip only the top N CSS pixels of the subject. Used when the honest
-   * empty state is a tall flex column and the interesting chrome is at the top.
+   * Clip the subject to this many CSS pixels. On an element shot it is the
+   * subject's own top N pixels; on a page-scope or align-top shot it is the
+   * height of the whole clip, so SCREENSHOT_CARD_HEIGHT frames a page heading.
    */
   clipHeight?: number;
   /**
@@ -90,14 +116,42 @@ export type FeatureShot = {
    */
   stageCss?: string;
   /**
+   * Render the subject at N times its layout size before the shutter opens
+   * (see `magnifyCss`). For a control too small for the fill rule to reach on
+   * pixels alone: a 60px pill can only become a legible subject if it is
+   * re-rendered at size rather than resampled.
+   */
+  magnify?: number;
+  /**
    * Scroll the subject to its top edge before measuring, and include a pad
    * above the first heading/card. Console tabs need this so the crop does
    * not open mid-row.
    */
   alignTop?: boolean;
-  /** Why this surface is the honest picture of the feature. */
-  note: string;
 };
+
+/**
+ * A file the seed produced rather than a surface the browser can visit. The
+ * certificate is the only one: the feature's artefact is a branded PDF, and a
+ * screenshot of a web page describing it is not a picture of the certificate.
+ */
+export type PdfFeatureShot = ShotBase & {
+  source: "pdf";
+  /** Which page of the PDF to photograph. */
+  page: number;
+  /** Resolution pdftoppm renders at before the frame step normalises it. */
+  dpi: number;
+};
+
+export type FeatureShot = PageFeatureShot | PdfFeatureShot;
+
+export function isPdfShot(shot: FeatureShot): shot is PdfFeatureShot {
+  return shot.source === "pdf";
+}
+
+export function isPageShot(shot: FeatureShot): shot is PageFeatureShot {
+  return !isPdfShot(shot);
+}
 
 const COMMUNITY_PILLS = '.kit-filter-pills[aria-label="Community channels"] button.kit-pill';
 
@@ -224,6 +278,10 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     as: "attendee",
     waitFor: "form.console-form",
     alignTop: true,
+    // The h1 was in the PNG and still missing from the card: a 760-tall frame
+    // is centre-cropped to its middle band, which threw the title away and left
+    // a floating text box. A card-shaped clip is shown whole.
+    clipHeight: SCREENSHOT_CARD_HEIGHT,
     fills: [
       { selector: 'form.console-form label:has-text("Your name") input', value: "Priya Raghunathan" },
       {
@@ -241,7 +299,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
       },
     ],
     note:
-      "The public submission form with the page heading and a filled-in Northbridge draft. Align-top so the h1 stays above the form.",
+      "The public submission form under its own page heading, with a filled-in Northbridge draft. Clipped to the card's own shape so the title is in the picture wherever the picture is shown.",
   },
   readiness: {
     path: "/organizer/events/{eventId}?tab=readiness",
@@ -254,11 +312,25 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
 
   engagement_points: {
     path: "/dashboard?tab=Agenda",
-    selector: ".shell-topbar-actions",
+    selector: ".points-gem",
     as: "attendee",
     waitFor: ".points-gem",
+    // 60-odd pixels of pill cannot be filled out of a 1x capture at any
+    // sharpness, so it is re-rendered at size first. The rest clears the top bar
+    // around it: the pill is centred in the row and the row is deep enough that
+    // the magnified subject sits on the bar's own white instead of straddling
+    // the page underneath.
+    // 8x, not 4x or 6x: the pill is ~62 CSS px wide, and only at 8x does the
+    // frame step's sharpness cap still leave it filling the width.
+    magnify: 8,
+    stageCss: [
+      ".shell-topbar { min-height: 340px !important; }",
+      ".shell-topbar-identity { display: none !important; }",
+      ".shell-topbar-actions { margin: 0 auto !important; }",
+      ".shell-avatar-menu { display: none !important; }",
+    ].join("\n"),
     note:
-      "The flag only controls the gem and count in the app chrome, so the topbar cluster holding them is the whole surface — the frame step enlarges it rather than the shot reaching into unrelated dashboard below.",
+      "The gem and count themselves, which is all the flag controls, rendered at a size where the tier gem and the running total are both legible. Nothing about the pill's own styling changes — it is the real chrome, photographed close up.",
   },
   timezone_toggle: {
     path: "/dashboard?tab=Agenda",
@@ -275,11 +347,16 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     note: "Its own event: pick-one breakouts rewrites the agenda the other shots depend on.",
   },
   venue_maps: {
-    path: "/dashboard?tab=Maps&mapId={mapId}&pinId={pinId}",
-    selector: ".venue-maps-attendee",
+    // No `pinId`: deep-linking a pin zooms the canvas to 2.2x and centres it on
+    // that pin, which photographed as a marker on the empty inside of one room.
+    // Unfocused, the plan sits at 1:1 with every pin on it.
+    path: "/dashboard?tab=Maps&mapId={mapId}",
+    selector: ".floor-plan-viewport",
     as: "attendee",
     waitFor: "img.floor-plan-image",
-    note: "A floor plan with three room-linked pins, opened on Northbridge Hall.",
+    waitForImage: "img.floor-plan-image",
+    note:
+      "The plan itself, at the scale it loads at: the labelled Civic Centre rooms with the three room-linked pins standing on Northbridge Hall, Workshop A, and the Reading Room. No pin sheet over the drawing.",
   },
   attendee_directory: {
     path: "/dashboard?tab=Attendees",
@@ -304,7 +381,9 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     path: "/dashboard?tab=Agenda",
     selector: 'section.card:has(> h3:text-is("Sponsors"))',
     as: "attendee",
-    note: "The attendee-facing strip, grouped by tier — what turning the flag off hides.",
+    waitForImage: "img",
+    note:
+      "The attendee-facing strip, grouped by tier — four seeded sponsors with real logo artwork, which is what turning the flag off hides.",
   },
   sponsor_outreach: {
     path: "/organizer/events/{eventId}/sponsors",
@@ -338,11 +417,12 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
       "Seeded recap workspace (REPORT, FEEDBACK SYNTHESIS, CERTIFICATES). Generate stays locked because the event is still running.",
   },
   certificates: {
-    path: "/verify/{certificateId}",
-    selector: ".mkt-login-card",
+    source: "pdf",
+    page: 1,
+    dpi: 150,
     as: "attendee",
     note:
-      "Fallback: there is no standalone organizer certificates console (template + eligibility + issue live on Recap after generate). The public verify card is the surface the seed can photograph.",
+      "The certificate itself — page one of the issued PDF the seed rendered through the product's own renderer, carrying the event's accent. The public verify card used to stand in for this, but a page that says a certificate is valid is not a picture of the certificate.",
   },
   paid_attendance: {
     path: "/organizer/events/{eventId}?tab=participants",

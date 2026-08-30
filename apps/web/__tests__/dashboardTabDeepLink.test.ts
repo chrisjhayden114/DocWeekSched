@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { APP_GUIDE, FEATURE_BY_KEY } from "@event-app/shared";
-import { SCREENSHOT_MANIFEST } from "../screenshot-manifest";
+import { isPageShot, SCREENSHOT_MANIFEST } from "../screenshot-manifest";
 
 const dashboardSrc = readFileSync(join(__dirname, "..", "pages", "dashboard.tsx"), "utf8");
 
@@ -42,6 +42,7 @@ describe("the tabs a deep link can land on", () => {
   it("is reachable from the in-app guide and from the screenshot manifest", () => {
     const guideHrefs = APP_GUIDE.map((entry) => entry.href);
     expect(guideHrefs).toContain("/dashboard?tab=Meet");
-    expect(SCREENSHOT_MANIFEST.matchmaker!.path).toBe("/dashboard?tab=Meet");
+    const shot = SCREENSHOT_MANIFEST.matchmaker!;
+    expect(isPageShot(shot) && shot.path).toBe("/dashboard?tab=Meet");
   });
 });

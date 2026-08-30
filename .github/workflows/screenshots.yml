@@ -82,6 +82,11 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      # pdftoppm. The certificates shot photographs the issued PDF the seed
+      # rendered, so a capture run needs a PDF rasteriser as well as a browser.
+      - name: Install poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
       - name: Prisma generate + migrate
         run: |
           npm run prisma:generate --workspace @event-app/api

@@ -1,12 +1,12 @@
 /**
- * SHOT-CI.3 — the stage rules and frame geometry a capture run applies around
+ * SHOT-CI.6 — the stage rules and frame geometry a capture run applies around
  * each Playwright screenshot.
  *
  * Everything here is pure so `__tests__/screenshotFrame.test.ts` can pin the
  * math without a browser: the script drives the page, this file decides what
  * the resulting image should look like.
  *
- * Two problems live here:
+ * Three problems live here:
  *
  *  1. A floating FAB or a docked assistant panel used to drift over a clip. The
  *     hide rules below take that chrome off the stage before every shot, and
@@ -14,6 +14,11 @@
  *  2. Element screenshots come out at whatever size the element is, but the
  *     Feature Guide hover cards crop a fixed art slot. `composedFrame` says how
  *     to re-stage such an image on a uniform 1200-wide canvas.
+ *  3. A narrow subject used to be centred at roughly its own size, which read
+ *     as a postage stamp on a sea of background. `composedFrame` now FILLS the
+ *     frame: it scales the subject up to the gutters, and the sharpness cap
+ *     that stops it turning to mush is a function of how many real pixels the
+ *     capture holds — which is why captures run at CAPTURE_DEVICE_SCALE.
  */
 
 import {
@@ -52,6 +57,10 @@ export type DocumentSize = { width: number; height: number };
  * A document clip pinned to the top of `box`, with optional pad above and an
  * optional height cap. Used for page-scope shots and console tabs that must
  * open on their first heading rather than mid-row.
+ *
+ * `clipHeight` is the height of the whole clip, pad included — a shot that asks
+ * for SCREENSHOT_CARD_HEIGHT wants exactly that many pixels of page, so that
+ * the hover card's crop cannot eat the heading it was aimed at.
  */
 export function topAlignedClip(
   box: DocumentBox,
@@ -62,7 +71,7 @@ export function topAlignedClip(
   const maxHeight = opts.maxHeight ?? SCREENSHOT_MAX_HEIGHT;
   const minHeight = opts.minHeight ?? SCREENSHOT_MIN_HEIGHT;
   const width = Math.min(SCREENSHOT_WIDTH, Math.max(1, Math.round(doc.width)));
-  const rawHeight = opts.clipHeight != null ? opts.clipHeight + pad : box.height + pad;
+  const rawHeight = opts.clipHeight ?? box.height + pad;
   const height = Math.round(Math.min(maxHeight, Math.max(minHeight, rawHeight)));
   const centered = Math.round(box.x + box.width / 2 - width / 2);
   const x = Math.max(0, Math.min(centered, Math.max(0, doc.width - width)));
@@ -85,14 +94,42 @@ export function subjectTopClip(box: DocumentBox, clipHeight: number): DocumentBo
 }
 
 /**
- * Enlarge a small shot only once it would otherwise float in a sea of
- * background — below this the frame is better off with quiet gutters than with
- * a resampled screenshot.
+ * Every capture context runs at this device pixel ratio, so a source PNG holds
+ * twice the pixels of the CSS box it photographed. That is what buys the frame
+ * step room to enlarge a narrow subject without resampling it into mush.
  */
-export const FRAME_UPSCALE_THRESHOLD = 2;
+export const CAPTURE_DEVICE_SCALE = 2;
 
-/** And never past this: beyond 3x a 1x PNG stops reading as a screenshot. */
-export const FRAME_MAX_UPSCALE = 3;
+/**
+ * How far the frame step may stretch a source past its own pixels. Sharpness,
+ * not size, is the constraint here: at CAPTURE_DEVICE_SCALE = 2 this works out
+ * to 2.2x the subject's CSS size, and it scales with the capture's DPR rather
+ * than being a magic number that silently lies when the DPR changes.
+ */
+export const FRAME_MAX_PIXEL_UPSCALE = 1.1;
+
+/** The largest CSS magnification a frame may apply to a `dpr`-scaled capture. */
+export function maxFrameUpscale(dpr: number = CAPTURE_DEVICE_SCALE): number {
+  return FRAME_MAX_PIXEL_UPSCALE * Math.max(1, dpr);
+}
+
+/**
+ * Modest even gutters. They exist for one reason: the hover card crops the art
+ * slot with `object-fit: cover`, which shaves a few percent off each side, and
+ * a subject pushed flush to the frame edge would lose its own border to that.
+ */
+export const FRAME_PAD = 28;
+
+/** The box a padded subject is scaled into. */
+export const FRAME_CONTENT_WIDTH = SCREENSHOT_WIDTH - 2 * FRAME_PAD;
+export const FRAME_CONTENT_HEIGHT = SCREENSHOT_MAX_HEIGHT - 2 * FRAME_PAD;
+
+/**
+ * The share of the frame width a composed subject should occupy. Anything wider
+ * than FRAME_CONTENT_WIDTH / maxFrameUpscale() reaches it; a genuinely tiny
+ * control cannot, and asks for `magnify` instead of being quietly resampled.
+ */
+export const FRAME_FILL_TARGET = 0.85;
 
 export type ComposedFrame = {
   /** The canvas to screenshot: always SCREENSHOT_WIDTH by a legal height. */
@@ -107,46 +144,62 @@ export type ComposedFrame = {
    * poster, and its top is the part that says what the surface is.
    */
   cropTop: boolean;
+  /** CSS magnification applied to the subject, for the capture log. */
+  scale: number;
+  /** Share of the frame width the subject ended up occupying, 0–1. */
+  fill: number;
+};
+
+export type ComposeOptions = {
+  /**
+   * Device pixel ratio the source PNG was captured at. The frame reasons in CSS
+   * pixels, so this is how it knows a 2400px-wide PNG is a 1200px surface with
+   * pixels to spare rather than an enormous one.
+   */
+  dpr?: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Whether an image is already a legal frame and can be written straight out. */
-export function needsComposedFrame(source: Size): boolean {
-  return (
-    Math.round(source.width) !== SCREENSHOT_WIDTH ||
-    source.height < SCREENSHOT_MIN_HEIGHT ||
-    source.height > SCREENSHOT_MAX_HEIGHT
-  );
-}
-
 /**
  * How to re-stage `source` as a card-friendly frame. The result is always
  * SCREENSHOT_WIDTH wide and between SCREENSHOT_MIN_HEIGHT and
  * SCREENSHOT_MAX_HEIGHT tall, whatever came in.
+ *
+ * The subject always fills the frame as far as it is allowed to:
+ *  - smaller than the frame → scaled up into the gutters, capped by
+ *    maxFrameUpscale(dpr) so the result stays sharp;
+ *  - bigger than the frame → scaled down to the full frame width, edge to edge,
+ *    with any overflow cropped off the bottom rather than shrunk to a poster.
  */
-export function composedFrame(source: Size): ComposedFrame {
-  const width = Math.max(1, Math.round(source.width));
-  const height = Math.max(1, Math.round(source.height));
+export function composedFrame(source: Size, opts: ComposeOptions = {}): ComposedFrame {
+  const dpr = Math.max(1, opts.dpr ?? 1);
+  const cssWidth = Math.max(1, source.width / dpr);
+  const cssHeight = Math.max(1, source.height / dpr);
 
-  const stage: Size = {
-    width: SCREENSHOT_WIDTH,
-    height: Math.round(clamp(height, SCREENSHOT_MIN_HEIGHT, SCREENSHOT_MAX_HEIGHT)),
-  };
-
-  const fit = Math.min(stage.width / width, stage.height / height);
-  // Over-wide images have to shrink to the frame; tall ones keep their scale
-  // and get cropped instead.
-  const scale =
-    fit >= FRAME_UPSCALE_THRESHOLD
-      ? Math.min(fit, FRAME_MAX_UPSCALE)
-      : Math.min(1, stage.width / width);
+  const fit = Math.min(FRAME_CONTENT_WIDTH / cssWidth, FRAME_CONTENT_HEIGHT / cssHeight);
+  // A subject that fits inside the gutters gets enlarged into them; one that
+  // does not gives up its gutters and goes edge to edge.
+  const padded = fit >= 1;
+  // The cap applies either way. It only ever binds on something narrow and very
+  // long, where filling the width would mean a 3x stretch of the type as well.
+  const scale = Math.min(padded ? fit : SCREENSHOT_WIDTH / cssWidth, maxFrameUpscale(dpr));
 
   const image: Size = {
-    width: Math.round(width * scale),
-    height: Math.round(height * scale),
+    width: Math.max(1, Math.round(cssWidth * scale)),
+    height: Math.max(1, Math.round(cssHeight * scale)),
+  };
+  const stage: Size = {
+    width: SCREENSHOT_WIDTH,
+    height: Math.round(
+      clamp(
+        image.height + (padded ? 2 * FRAME_PAD : 0),
+        SCREENSHOT_MIN_HEIGHT,
+        SCREENSHOT_MAX_HEIGHT,
+      ),
+    ),
   };
   const cropTop = image.height > stage.height;
 
@@ -158,7 +211,19 @@ export function composedFrame(source: Size): ComposedFrame {
       y: cropTop ? 0 : Math.round((stage.height - image.height) / 2),
     },
     cropTop,
+    scale,
+    fill: image.width / stage.width,
   };
+}
+
+/** One log line per shot, so a size regression is visible in the CI output. */
+export function describeFrame(frame: ComposedFrame): string {
+  const percent = Math.round(frame.fill * 100);
+  const crop = frame.cropTop ? ", top-cropped" : "";
+  return (
+    `${frame.stage.width}x${frame.stage.height} ` +
+    `(subject ${frame.image.width}x${frame.image.height} at ${frame.scale.toFixed(2)}x, ${percent}% fill${crop})`
+  );
 }
 
 /** The document a compose stage renders: one image, centered, on the page's own background. */
@@ -178,6 +243,19 @@ export function composedFrameHtml(
     `<img class="shot" src="${imageSrc}" alt="">`,
     "</body></html>",
   ].join("");
+}
+
+/**
+ * Render a subject at `factor` times its layout size before photographing it.
+ *
+ * A CSS transform, not a resample: Chromium paints the scaled element from the
+ * same vector geometry, so a 60px pill comes back as a crisp 400px one. The
+ * fill rule then treats that as the subject's real size. Nothing about the
+ * component's own styling changes, which is the difference between magnifying a
+ * control and faking one.
+ */
+export function magnifyCss(selector: string, factor: number): string {
+  return `${selector} { transform: scale(${factor}) !important; transform-origin: center center !important; }`;
 }
 
 /** PNG dimensions from the IHDR header — exact, where a bounding box rounds. */

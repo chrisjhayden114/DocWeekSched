@@ -17,27 +17,38 @@
  * onto that frame (see screenshot-frame.ts); page-scoped ones are clipped out
  * of the document, which is what they mean.
  *
+ * Sources are captured at CAPTURE_DEVICE_SCALE and the frame step composes back
+ * down to CSS pixels, which is what lets a narrow subject be enlarged to fill
+ * its frame and still look like a screenshot rather than a resample. One key is
+ * not a web surface at all: the certificate is a PDF the seed rendered, and it
+ * goes through the same frame step so it is filed at the same shape.
+ *
  * A shot that throws is reported, not fatal: the run keeps going and only exits
  * non-zero below SCREENSHOT_MIN_PASS_RATIO, so one broken surface cannot stop
  * the workflow from committing every image that did come out.
  */
 
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs";
+import { execFileSync } from "child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "fs";
+import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { chromium, type BrowserContext, type Locator, type Page } from "playwright";
 import type { FeatureKey } from "@event-app/shared";
 import {
   ALIGN_TOP_PAD,
+  CAPTURE_DEVICE_SCALE,
   DOCKED_BODY_CLASSES,
   cleanStageCss,
   composedFrame,
   composedFrameHtml,
+  describeFrame,
   isAssistantOpenStorageKey,
   isPageScopeSelector,
-  needsComposedFrame,
+  magnifyCss,
   pngSize,
   subjectTopClip,
   topAlignedClip,
+  type ComposedFrame,
 } from "../screenshot-frame";
 import {
   SCREENSHOT_MANIFEST,
@@ -45,16 +56,23 @@ import {
   SCREENSHOT_VIEWPORT,
   captureRunPassed,
   eligibleScreenshotKeys,
+  isPdfShot,
   tokensInPath,
-  type FeatureShot,
+  type PageFeatureShot,
+  type PdfFeatureShot,
 } from "../screenshot-manifest";
 
 type SeedFile = {
   password: string;
   organizerEmail: string;
   attendeeEmail: string;
+  /** Where the seed wrote the issued certificate PDF, for the `pdf` shot. */
+  certificatePdfPath?: string;
   tokens: Record<string, string>;
 };
+
+/** CSS inches are 96dpi, so a page rendered at `dpi` arrives at this ratio. */
+const CSS_DPI = 96;
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -108,9 +126,11 @@ async function settle(page: Page): Promise<void> {
  * and a docked panel also steals a 384px gutter out of .shell-content. The
  * shot's own family is left alone, so the concierge card still gets its panel.
  */
-async function clearStage(page: Page, shot: FeatureShot): Promise<void> {
+async function clearStage(page: Page, shot: PageFeatureShot): Promise<void> {
   await page.addStyleTag({ content: cleanStageCss(shot.selector) });
   if (shot.stageCss) await page.addStyleTag({ content: shot.stageCss });
+  // Last, so a magnified subject is measured at the size it will be shot at.
+  if (shot.magnify) await page.addStyleTag({ content: magnifyCss(shot.selector, shot.magnify) });
 }
 
 /** Scroll the window and every overflow ancestor so the subject's top is at 0. */
@@ -176,7 +196,9 @@ async function clipDocument(
     clip,
     fullPage: true,
     animations: "disabled",
-    scale: "css",
+    // Device pixels, not CSS: the frame step wants every source at the
+    // context's DPR so it knows how far it may enlarge one.
+    scale: "device",
   });
 }
 
@@ -185,9 +207,37 @@ async function clipDocument(
  * column, so its exact bounds would shave off the page around it. Padded at the
  * top so a section heading is never flush against the first row of pixels.
  */
-async function pageScopeClip(page: Page, target: Locator, selector: string): Promise<Buffer> {
+async function pageScopeClip(
+  page: Page,
+  target: Locator,
+  selector: string,
+  clipHeight?: number,
+): Promise<Buffer> {
   const { box, doc } = await documentBox(page, target, selector);
-  return clipDocument(page, topAlignedClip(box, doc, { pad: ALIGN_TOP_PAD }));
+  return clipDocument(page, topAlignedClip(box, doc, { pad: ALIGN_TOP_PAD, clipHeight }));
+}
+
+/**
+ * A visible `<img>` whose bytes were rejected is still a visible element, so
+ * `waitFor({ state: "visible" })` cannot tell a rendered floor plan from an
+ * empty box. Decoded dimensions can.
+ */
+async function waitForDecodedImage(page: Page, subject: Locator, selector: string): Promise<void> {
+  const image = subject.locator(selector).first();
+  await image.waitFor({ state: "visible", timeout: 30_000 });
+  const deadline = Date.now() + 30_000;
+  for (;;) {
+    const decoded = await image.evaluate(
+      (el) => el instanceof HTMLImageElement && el.complete && el.naturalWidth > 0,
+    );
+    if (decoded) return;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `"${selector}" never decoded (naturalWidth stayed 0) — the image the seed wrote was rejected`,
+      );
+    }
+    await page.waitForTimeout(250);
+  }
 }
 
 /**
@@ -208,7 +258,7 @@ async function stageBackground(target: Locator): Promise<string> {
 }
 
 /**
- * Re-stage an element PNG as a uniform frame, using the browser we already have
+ * Re-stage a source PNG as a uniform frame, using the browser we already have
  * instead of an image library: the shot goes back in as a data URL on a page
  * sized to the frame, and that page is screenshotted.
  */
@@ -217,23 +267,29 @@ async function composeFrame(
   png: Buffer,
   background: string,
   outPath: string,
-): Promise<void> {
-  const frame = composedFrame(pngSize(png));
+  dpr: number,
+): Promise<ComposedFrame> {
+  const frame = composedFrame(pngSize(png), { dpr });
   const src = `data:image/png;base64,${png.toString("base64")}`;
   await stage.setViewportSize(frame.stage);
   await stage.setContent(composedFrameHtml(src, frame, background), { waitUntil: "load" });
   await stage.locator("img.shot").waitFor({ state: "visible", timeout: 30_000 });
+  // `scale: "css"` here, `"device"` on the sources: the committed PNG is exactly
+  // the frame's own size whatever DPR the sources were captured at, and the
+  // retina source is downsampled into it rather than stretched.
   await stage.screenshot({ path: outPath, animations: "disabled", scale: "css" });
+  return frame;
 }
 
 async function capture(
   page: Page,
   stage: Page,
-  shot: FeatureShot,
+  shot: PageFeatureShot,
   outPath: string,
-): Promise<void> {
+): Promise<ComposedFrame> {
   const target = page.locator(shot.selector).first();
   await target.waitFor({ state: "visible", timeout: 30_000 });
+  if (shot.waitForImage) await waitForDecodedImage(page, target, shot.waitForImage);
   if (shot.alignTop || isPageScopeSelector(shot.selector)) {
     await scrollSubjectToTop(page, target);
   } else {
@@ -244,24 +300,62 @@ async function capture(
   // moves the content the clip is about to be measured against.
   await clearStage(page, shot);
 
+  const pageScoped = shot.alignTop || isPageScopeSelector(shot.selector);
   let png: Buffer;
-  if (shot.clipHeight != null) {
+  if (pageScoped) {
+    png = await pageScopeClip(page, target, shot.selector, shot.clipHeight);
+  } else if (shot.clipHeight != null) {
     const { box } = await documentBox(page, target, shot.selector);
     png = await clipDocument(page, subjectTopClip(box, shot.clipHeight));
-  } else if (shot.alignTop || isPageScopeSelector(shot.selector)) {
-    png = await pageScopeClip(page, target, shot.selector);
   } else {
     // Playwright scrolls the element into frame and bounds it exactly, which
     // is the whole point: headings included, no neighbouring column, no
     // shaved top from a rectangle that only happened to start there.
-    png = await target.screenshot({ animations: "disabled", scale: "css" });
+    png = await target.screenshot({ animations: "disabled", scale: "device" });
   }
 
-  if (!needsComposedFrame(pngSize(png))) {
-    writeFileSync(outPath, png);
-    return;
+  return composeFrame(stage, png, await stageBackground(target), outPath, CAPTURE_DEVICE_SCALE);
+}
+
+/** Page `page` of a PDF as PNG bytes. Needs poppler-utils (see screenshots.yml). */
+function pdfPageToPng(pdfPath: string, pageNumber: number, dpi: number): Buffer {
+  if (!existsSync(pdfPath)) {
+    throw new Error(`no PDF at ${pdfPath} — did the seed run with --out?`);
   }
-  await composeFrame(stage, png, await stageBackground(target), outPath);
+  const dir = mkdtempSync(join(tmpdir(), "shot-pdf-"));
+  try {
+    const prefix = join(dir, "page");
+    try {
+      execFileSync(
+        "pdftoppm",
+        ["-png", "-r", String(dpi), "-f", String(pageNumber), "-l", String(pageNumber), pdfPath, prefix],
+        { stdio: ["ignore", "ignore", "pipe"] },
+      );
+    } catch (err) {
+      const why = (err as NodeJS.ErrnoException).code === "ENOENT" ? "not installed" : "failed";
+      throw new Error(`pdftoppm ${why} — install poppler-utils to photograph the certificate`);
+    }
+    // pdftoppm decides its own zero-padding width from the page count.
+    const rendered = readdirSync(dir).filter((name) => name.endsWith(".png")).sort();
+    if (!rendered.length) throw new Error("pdftoppm wrote no PNG");
+    return readFileSync(join(dir, rendered[0]!));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * The certificate is a document, not a surface: photograph the real PDF the seed
+ * issued and run it through the same frame step as every element shot.
+ */
+async function capturePdf(
+  stage: Page,
+  shot: PdfFeatureShot,
+  pdfPath: string,
+  outPath: string,
+): Promise<ComposedFrame> {
+  const png = pdfPageToPng(pdfPath, shot.page, shot.dpi);
+  return composeFrame(stage, png, "#ffffff", outPath, shot.dpi / CSS_DPI);
 }
 
 async function contextFor(
@@ -269,7 +363,10 @@ async function contextFor(
 ): Promise<BrowserContext> {
   const context = await browser.newContext({
     viewport: { ...SCREENSHOT_VIEWPORT },
-    deviceScaleFactor: 1,
+    // Retina sources. Every element PNG then holds twice the pixels of its CSS
+    // box, which is the whole budget the frame step spends enlarging a narrow
+    // subject to fill its frame without softening it.
+    deviceScaleFactor: CAPTURE_DEVICE_SCALE,
     colorScheme: "light",
     reducedMotion: "reduce",
   });
@@ -318,36 +415,51 @@ async function main() {
 
       for (const key of forThisUser) {
         const shot = SCREENSHOT_MANIFEST[key]!;
-        const eventId =
-          shot.event === "breakouts" ? seed.tokens.breakoutEventId! : seed.tokens.eventId!;
+        const where = isPdfShot(shot) ? "issued certificate PDF" : shot.path;
         try {
-          if (shot.viewport) await page.setViewportSize(shot.viewport);
-          else await page.setViewportSize({ ...SCREENSHOT_VIEWPORT });
+          let frame: ComposedFrame;
+          if (isPdfShot(shot)) {
+            if (!seed.certificatePdfPath) {
+              throw new Error("the seed did not report a certificatePdfPath");
+            }
+            frame = await capturePdf(stage, shot, seed.certificatePdfPath, join(outDir, `${key}.png`));
+          } else {
+            const eventId =
+              shot.event === "breakouts" ? seed.tokens.breakoutEventId! : seed.tokens.eventId!;
+            if (shot.viewport) await page.setViewportSize(shot.viewport);
+            else await page.setViewportSize({ ...SCREENSHOT_VIEWPORT });
 
-          await setActiveEvent(page, eventId);
-          await resetFloatingChrome(page);
-          await page.goto(`${base}${interpolate(shot.path, seed.tokens)}`, {
-            waitUntil: "domcontentloaded",
-          });
-          await settle(page);
-
-          for (const selector of shot.clicks ?? []) {
-            await page.locator(selector).first().click({ timeout: 30_000 });
+            await setActiveEvent(page, eventId);
+            await resetFloatingChrome(page);
+            await page.goto(`${base}${interpolate(shot.path, seed.tokens)}`, {
+              waitUntil: "domcontentloaded",
+            });
             await settle(page);
-          }
-          if (shot.waitFor) {
-            await page.locator(shot.waitFor).first().waitFor({ state: "visible", timeout: 30_000 });
-          }
-          for (const field of shot.fills ?? []) {
-            await page.fill(field.selector, field.value);
-          }
 
-          await capture(page, stage, shot, join(outDir, `${key}.png`));
+            for (const selector of shot.clicks ?? []) {
+              await page.locator(selector).first().click({ timeout: 30_000 });
+              await settle(page);
+            }
+            if (shot.waitFor) {
+              await page
+                .locator(shot.waitFor)
+                .first()
+                .waitFor({ state: "visible", timeout: 30_000 });
+            }
+            for (const field of shot.fills ?? []) {
+              await page.fill(field.selector, field.value);
+            }
+
+            frame = await capture(page, stage, shot, join(outDir, `${key}.png`));
+          }
           written.push(key);
-          console.log(`captured ${key}`);
+          // Dimensions in the log: a shot that quietly turns back into a speck
+          // on a wide canvas is then visible in the CI output, not only in the
+          // artifact somebody has to download.
+          console.log(`captured ${key} — ${describeFrame(frame)}`);
         } catch (err) {
           const reason = err instanceof Error ? err.message.split("\n")[0] : String(err);
-          failures.push(`${key} (${shot.path}): ${reason}`);
+          failures.push(`${key} (${where}): ${reason}`);
           console.error(`FAILED  ${key}: ${reason}`);
         }
       }

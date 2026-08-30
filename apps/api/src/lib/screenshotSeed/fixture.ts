@@ -188,7 +188,8 @@ export type ScreenshotSeedSpec = {
     url: string;
     description: string;
     boothLabel: string;
-    logoColor: string;
+    /** Committed PNG beside this file. The wordmark has to match `name`. */
+    logoFile: string;
   }>;
   prospects: ScreenshotProspectSpec[];
   outreachTemplate: { name: string; subject: string; body: string };
@@ -244,41 +245,53 @@ export const SCREENSHOT_ORGANIZER_KEY = "organizer";
 export const SCREENSHOT_ATTENDEE_KEY = "priya";
 
 /**
- * The Civic Centre floor plan as a PNG data URL — the same shape moments
- * photos use (inline `data:`, no R2). Maps upload only accepts jpeg/png/webp/gif,
- * so an SVG data URL photographed as a blank box.
+ * A committed PNG next to this file, as a data URL — the storage stub's own
+ * shape (`DataUrlStorageProvider.put`), which is what the app serves when no
+ * object store is configured. Everything the seed photographs travels this way:
+ * no R2 bucket, no network, identical bytes every run.
+ *
+ * PNG and not SVG on purpose. An SVG data URL with only a viewBox has no
+ * intrinsic size, and the sponsor strip's `max-width`/`object-fit` box
+ * photographed those as blank space — three tier headings and no logos.
  *
  * `tsx` / vitest resolve `__dirname` next to this file; the compiled `dist/`
  * copy looks one hop back into `src/` if someone runs a built seed.
  */
-export function floorPlanDataUrl(): string {
+export function seedImageDataUrl(fileName: string): string {
   const candidates = [
-    join(__dirname, "floorplan.png"),
-    join(__dirname, "../../../src/lib/screenshotSeed/floorplan.png"),
+    join(__dirname, fileName),
+    join(__dirname, `../../../src/lib/screenshotSeed/${fileName}`),
   ];
   const path = candidates.find((p) => existsSync(p));
   if (!path) {
-    throw new Error("screenshot seed floorplan.png is missing next to fixture.ts");
+    throw new Error(`screenshot seed ${fileName} is missing next to fixture.ts`);
   }
   return `data:image/png;base64,${readFileSync(path).toString("base64")}`;
 }
 
-/**
- * A flat wordmark for a fictional sponsor. Without a logoUrl the sponsor strip
- * falls back to bold text, which photographs as a list rather than a strip.
- */
-export function wordmarkDataUrl(name: string, color: string): string {
-  const svg = [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120">`,
-    `<rect width="420" height="120" rx="10" fill="#ffffff"/>`,
-    `<rect x="18" y="34" width="52" height="52" rx="8" fill="${color}"/>`,
-    `<text x="88" y="72" fill="#1a2233" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="bold">`,
-    name.replace(/[<>&]/g, ""),
-    `</text>`,
-    `</svg>`,
-  ].join("");
-  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+/** The Civic Centre floor plan: five labelled rooms at 1200x760. */
+export function floorPlanDataUrl(): string {
+  return seedImageDataUrl(FLOOR_PLAN_FILE);
 }
+
+export const FLOOR_PLAN_FILE = "floorplan.png";
+
+/**
+ * Optional event logo. `renderCertificatePdf` puts it above the certificate
+ * title and the app shell wears it in the top bar, so dropping a
+ * `logo_northbridge.png` in beside the sponsor logos brands both. Absent, both
+ * fall back to their unbranded layout — the fixture invents no artwork it does
+ * not have.
+ */
+export function eventLogoDataUrl(): string | null {
+  const candidates = [
+    join(__dirname, EVENT_LOGO_FILE),
+    join(__dirname, `../../../src/lib/screenshotSeed/${EVENT_LOGO_FILE}`),
+  ];
+  return candidates.some((p) => existsSync(p)) ? seedImageDataUrl(EVENT_LOGO_FILE) : null;
+}
+
+export const EVENT_LOGO_FILE = "logo_northbridge.png";
 
 /** A framed placeholder for the Moments photo channel — never a real photo. */
 export function momentDataUrl(caption: string): string {
@@ -862,38 +875,41 @@ export function buildScreenshotSeedSpec(): ScreenshotSeedSpec {
         { roomLabel: "Reading Room", x: 84, y: 28, roomKey: "reading" },
       ],
     },
+    // Named after the committed logo artwork, because the strip shows the
+    // wordmark rather than the row's `name` — a sponsor whose logo says
+    // something else photographs as a mistake.
     sponsors: [
       {
-        name: "Kestrel Street Books",
+        name: "Brightwater Trust",
         tier: "Gold",
-        url: "https://kestrel-books.example",
-        description: "Classroom library partner for the Northbridge district.",
+        url: "https://brightwater-trust.example",
+        description: "Funds the moderation clinic across its fourteen schools.",
         boothLabel: "C1",
-        logoColor: "#1f3f7a",
+        logoFile: "logo_brightwater.png",
       },
       {
-        name: "Brightpath Learning",
+        name: "Ashgrove Schools",
         tier: "Gold",
-        url: "https://brightpath.example",
-        description: "Assessment and reporting software for schools.",
+        url: "https://ashgrove-schools.example",
+        description: "Ran the reading-conference pilot the Workshop A team reports from.",
         boothLabel: "C2",
-        logoColor: "#0f6b4c",
+        logoFile: "logo_ashgrove.png",
       },
       {
-        name: "Harbourline Print",
+        name: "Harbor & Vale Press",
         tier: "Silver",
-        url: "https://harbourline-print.example",
-        description: "Printed the programme and the commitment wall.",
+        url: "https://harbor-vale.example",
+        description: "Printed the programme, the room cards, and the commitment wall.",
         boothLabel: "C5",
-        logoColor: "#8a4b08",
+        logoFile: "logo_harborvale.png",
       },
       {
-        name: "Northbridge Credit Union",
+        name: "Quill Learning Co-op",
         tier: "Community",
-        url: "https://nb-credit.example",
+        url: "https://quill-learning.example",
         description: "Sponsors the travel bursary for early-career teachers.",
         boothLabel: "C7",
-        logoColor: "#5b3f8a",
+        logoFile: "logo_quill.png",
       },
     ],
     prospects: [
@@ -924,10 +940,10 @@ export function buildScreenshotSeedSpec(): ScreenshotSeedSpec {
         lastContactedDaysAgo: 2,
       },
       {
-        orgName: "Northbridge Credit Union",
+        orgName: "Quill Learning Co-op",
         contactName: "Salma Reyes",
-        contactEmail: "salma.reyes@nb-credit.example",
-        websiteUrl: "https://nb-credit.example",
+        contactEmail: "salma.reyes@quill-learning.example",
+        websiteUrl: "https://quill-learning.example",
         notes: "Confirmed the travel bursary at the Community tier. Logo received.",
         status: "CONFIRMED",
         lastContactedDaysAgo: 11,

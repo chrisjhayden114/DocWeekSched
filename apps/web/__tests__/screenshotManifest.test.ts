@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { FEATURE_BY_KEY, FEATURE_REGISTRY, type FeatureKey } from "@event-app/shared";
 import {
   KNOWN_TOKENS,
+  SCREENSHOT_CARD_HEIGHT,
   SCREENSHOT_MANIFEST,
   SCREENSHOT_MAX_HEIGHT,
   SCREENSHOT_MIN_HEIGHT,
@@ -16,11 +17,24 @@ import {
   SCREENSHOT_WIDTH,
   captureRunPassed,
   eligibleScreenshotKeys,
+  isPageShot,
+  isPdfShot,
   tokensInPath,
+  type FeatureShot,
+  type PageFeatureShot,
 } from "../screenshot-manifest";
 
 const eligible = eligibleScreenshotKeys();
-const entries = Object.entries(SCREENSHOT_MANIFEST) as Array<[FeatureKey, (typeof SCREENSHOT_MANIFEST)[string]]>;
+const entries = Object.entries(SCREENSHOT_MANIFEST) as Array<[FeatureKey, FeatureShot]>;
+const pageEntries = entries.filter((entry): entry is [FeatureKey, PageFeatureShot] =>
+  isPageShot(entry[1]),
+);
+
+function pageShot(key: FeatureKey): PageFeatureShot {
+  const shot = SCREENSHOT_MANIFEST[key]!;
+  if (!isPageShot(shot)) throw new Error(`${key} is not a page shot`);
+  return shot;
+}
 
 describe("screenshot manifest coverage", () => {
   it("covers every shipped feature key with a surface", () => {
@@ -44,7 +58,7 @@ describe("screenshot manifest coverage", () => {
 
 describe("screenshot manifest entries", () => {
   it("only interpolates tokens the seed is contracted to provide", () => {
-    for (const [key, shot] of entries) {
+    for (const [key, shot] of pageEntries) {
       for (const token of tokensInPath(shot.path)) {
         expect(KNOWN_TOKENS, `${key} uses unknown token {${token}}`).toContain(token);
       }
@@ -52,7 +66,7 @@ describe("screenshot manifest entries", () => {
   });
 
   it("targets an element, never the whole document", () => {
-    for (const [key, shot] of entries) {
+    for (const [key, shot] of pageEntries) {
       expect(shot.selector.trim(), key).not.toBe("");
       expect(["body", "html", ":root", "#__next"], key).not.toContain(shot.selector.trim());
     }
@@ -62,15 +76,23 @@ describe("screenshot manifest entries", () => {
     for (const [key, shot] of entries) {
       expect(["attendee", "organizer"], key).toContain(shot.as);
       expect(shot.note.trim().length, `${key} needs a note saying why this surface`).toBeGreaterThan(20);
-      expect(shot.path.startsWith("/"), key).toBe(true);
+      if (isPageShot(shot)) expect(shot.path.startsWith("/"), key).toBe(true);
     }
   });
 
   it("keeps every viewport wide enough for the fixed-width clip", () => {
     expect(SCREENSHOT_VIEWPORT.width).toBeGreaterThanOrEqual(SCREENSHOT_WIDTH);
-    for (const [key, shot] of entries) {
+    for (const [key, shot] of pageEntries) {
       if (!shot.viewport) continue;
       expect(shot.viewport.width, key).toBeGreaterThanOrEqual(SCREENSHOT_WIDTH);
+    }
+  });
+
+  it("waits for the decoded bytes wherever a shot is a picture of an image", () => {
+    // A visible <img> whose data URL was rejected is still visible, which is how
+    // the floor plan and the sponsor strip photographed as empty boxes.
+    for (const key of ["venue_maps", "sponsors"] as const) {
+      expect(pageShot(key).waitForImage, key).toBeTruthy();
     }
   });
 
@@ -91,51 +113,82 @@ describe("screenshot manifest entries", () => {
 
   it("frames console tabs from the first heading, not mid-row", () => {
     for (const key of ["readiness", "ops_agent", "recap_agent"] as const) {
-      expect(SCREENSHOT_MANIFEST[key]!.alignTop, key).toBe(true);
+      expect(pageShot(key).alignTop, key).toBe(true);
     }
   });
 
-  it("fills the CFP form and keeps the page heading in the clip", () => {
-    const shot = SCREENSHOT_MANIFEST.cfp!;
+  it("fills the CFP form and clips it to the shape a card shows whole", () => {
+    const shot = pageShot("cfp");
     expect(shot.selector).toBe("main.page");
     expect(shot.alignTop).toBe(true);
+    // A 760-tall frame is centre-cropped by the card, which threw the h1 away.
+    expect(shot.clipHeight).toBe(SCREENSHOT_CARD_HEIGHT);
     expect(shot.fills?.map((f) => f.value).join(" ")).toContain("Priya Raghunathan");
     expect(shot.fills).toHaveLength(4);
   });
 
   it("clips the concierge empty state to the header, chips, and input", () => {
-    const shot = SCREENSHOT_MANIFEST.concierge!;
+    const shot = pageShot("concierge");
     expect(shot.clipHeight).toBe(420);
     expect(shot.stageCss).toContain(".concierge-messages");
     expect(shot.clicks?.[0]).toContain("concierge-fab");
   });
 
-  it("keeps certificates on the public verify card — no standalone organizer console", () => {
-    expect(SCREENSHOT_MANIFEST.certificates!.path).toContain("/verify/");
+  it("photographs the certificate PDF itself, not a page that describes one", () => {
+    const shot = SCREENSHOT_MANIFEST.certificates!;
+    expect(isPdfShot(shot)).toBe(true);
+    if (!isPdfShot(shot)) return;
+    expect(shot.page).toBe(1);
+    expect(shot.dpi).toBeGreaterThanOrEqual(150);
+    // The verify card was the stand-in; nothing should point back at it.
+    expect(JSON.stringify(shot)).not.toContain("/verify/");
+  });
+
+  it("photographs the floor plan itself, unfocused, so more than one pin is on it", () => {
+    const shot = pageShot("venue_maps");
+    expect(shot.selector).toBe(".floor-plan-viewport");
+    // A deep-linked pin zooms the canvas to 2.2x and centres it on that pin,
+    // which photographed as one marker on the empty inside of a room.
+    expect(shot.path).not.toContain("pinId");
+    expect(shot.path).toContain("mapId");
+  });
+
+  it("magnifies the engagement pill rather than filing it as a speck", () => {
+    const shot = pageShot("engagement_points");
+    expect(shot.selector).toBe(".points-gem");
+    expect(shot.magnify).toBeGreaterThan(1);
+    // Geometry and stage only — the pill's own styling is the product's.
+    expect(shot.stageCss).toContain(".shell-topbar");
+    expect(shot.stageCss).not.toMatch(/color:|background:/);
   });
 
   it("shoots every community channel from its own filtered feed", () => {
     const channels = FEATURE_REGISTRY.filter((f) => f.dependsOn?.includes("community")).map((f) => f.key);
     for (const key of channels) {
-      const shot = SCREENSHOT_MANIFEST[key]!;
+      const shot = pageShot(key);
       expect(shot.as, key).toBe("attendee");
       expect(shot.clicks?.length, `${key} must click its channel pill first`).toBe(1);
       expect(shot.path, key).toContain("tab=Community");
     }
     // The parent card is the unfiltered board, so it clicks nothing.
-    expect(SCREENSHOT_MANIFEST.community!.clicks).toBeUndefined();
+    expect(pageShot("community").clicks).toBeUndefined();
   });
 
   it("uses a finished session for feedback and a live one for polls and Q&A", () => {
-    expect(SCREENSHOT_MANIFEST.session_feedback!.path).toContain("{endedSessionId}");
-    expect(SCREENSHOT_MANIFEST.session_polls!.path).toContain("{liveSessionId}");
-    expect(SCREENSHOT_MANIFEST.session_qa!.path).toContain("{liveSessionId}");
-    expect(SCREENSHOT_MANIFEST.waitlist_visibility!.path).toContain("{fullSessionId}");
+    expect(pageShot("session_feedback").path).toContain("{endedSessionId}");
+    expect(pageShot("session_polls").path).toContain("{liveSessionId}");
+    expect(pageShot("session_qa").path).toContain("{liveSessionId}");
+    expect(pageShot("waitlist_visibility").path).toContain("{fullSessionId}");
   });
 
-  it("keeps the clip height band sane", () => {
+  it("keeps the clip height band sane, with the card's own shape inside it", () => {
     expect(SCREENSHOT_MIN_HEIGHT).toBeGreaterThan(0);
     expect(SCREENSHOT_MAX_HEIGHT).toBeGreaterThan(SCREENSHOT_MIN_HEIGHT);
+    expect(SCREENSHOT_CARD_HEIGHT).toBeGreaterThanOrEqual(SCREENSHOT_MIN_HEIGHT);
+    expect(SCREENSHOT_CARD_HEIGHT).toBeLessThanOrEqual(SCREENSHOT_MAX_HEIGHT);
+    // 1200 x 420 is the 400 x 140 art slot's own aspect ratio, which is the
+    // only shape a hover card shows without cropping a band off it.
+    expect(SCREENSHOT_WIDTH / SCREENSHOT_CARD_HEIGHT).toBeCloseTo(400 / 140, 2);
   });
 
   it("names every eligible key in the registry, so notes stay reviewable", () => {

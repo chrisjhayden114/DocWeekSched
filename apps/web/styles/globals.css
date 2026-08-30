@@ -940,6 +940,10 @@ textarea.input,
   border-radius: 999px;
   background: var(--gray-100);
   border: 1px solid var(--gray-200);
+  /* The tier colours the gem, not the count. Inheriting them put the Diamond
+     tier's near-white on a gray-100 pill, so the running total read as faded
+     text at every size. */
+  color: var(--gray-800);
   font-weight: 600;
   font-size: 13px;
   vertical-align: middle;
@@ -952,28 +956,27 @@ textarea.input,
   filter: drop-shadow(0.5px 1px 0.5px rgba(15, 23, 42, 0.28)) drop-shadow(-0.5px -0.5px 0.5px rgba(255, 255, 255, 0.2));
 }
 
-/* Quartz → sapphire → ruby → emerald → diamond */
-.points-gem-tier-0 {
+/* Quartz → sapphire → ruby → emerald → diamond. Scoped to the icon: the gem's
+   facets are drawn from currentColor, and the count beside it keeps ink. */
+.points-gem-tier-0 .points-gem-icon {
   color: #78716c;
 }
 
-.points-gem-tier-1 {
+.points-gem-tier-1 .points-gem-icon {
   color: #2563eb;
 }
 
-.points-gem-tier-2 {
+.points-gem-tier-2 .points-gem-icon {
   color: #dc2626;
 }
 
-.points-gem-tier-3 {
+.points-gem-tier-3 .points-gem-icon {
   color: #059669;
 }
 
-.points-gem-tier-4 {
-  color: #e2e8f0;
-}
-
+/* Was #e2e8f0, which is invisible against the pill it sits on. */
 .points-gem-tier-4 .points-gem-icon {
+  color: #0ea5e9;
   filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.85));
 }
 

@@ -9,7 +9,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
+import { dirname, join, resolve } from "path";
 import dotenv from "dotenv";
 
 for (const p of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../../.env")]) {
@@ -29,15 +29,23 @@ function outPathFromArgv(): string | null {
 
 async function main() {
   assertDestructiveAllowed("seed-script");
-  const result = await seedScreenshotData();
   const outPath = outPathFromArgv();
+  // Beside the seed JSON, so a capture run finds it from the same --seed path.
+  const certificatePdfPath = outPath ? join(dirname(outPath), "screenshot-certificate.pdf") : null;
+  const result = await seedScreenshotData(new Date(), { certificatePdfPath });
   if (outPath) {
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   }
   console.log(
     JSON.stringify(
-      { ok: true, out: outPath, event: `/e/${result.tokens.slug}`, tokens: Object.keys(result.tokens) },
+      {
+        ok: true,
+        out: outPath,
+        certificatePdf: result.certificatePdfPath ?? null,
+        event: `/e/${result.tokens.slug}`,
+        tokens: Object.keys(result.tokens),
+      },
       null,
       2,
     ),

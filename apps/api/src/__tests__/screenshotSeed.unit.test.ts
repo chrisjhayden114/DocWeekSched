@@ -10,15 +10,17 @@
 
 import { describe, expect, it } from "vitest";
 import { FEATURE_REGISTRY, resolveFeatureEnabled, type FeatureKey } from "@event-app/shared";
+import { renderCertificatePdf } from "../lib/certificates/pdf";
 import {
   buildScreenshotSeedSpec,
+  eventLogoDataUrl,
   floorPlanDataUrl,
   momentDataUrl,
   SCREENSHOT_ATTENDEE_KEY,
   SCREENSHOT_ORGANIZER_KEY,
   SCREENSHOT_SEED_PASSWORD,
   screenshotFeatureOverrides,
-  wordmarkDataUrl,
+  seedImageDataUrl,
 } from "../lib/screenshotSeed/fixture";
 
 const spec = buildScreenshotSeedSpec();
@@ -27,6 +29,16 @@ function decodeSvgDataUrl(url: string): string {
   const [meta, payload] = url.split(",");
   expect(meta).toBe("data:image/svg+xml;base64");
   return Buffer.from(payload!, "base64").toString("utf8");
+}
+
+/** A PNG data URL of the shape `DataUrlStorageProvider.put` returns. */
+function expectPngDataUrl(url: string, label: string): Buffer {
+  const [meta, payload] = url.split(",");
+  expect(meta, label).toBe("data:image/png;base64");
+  const png = Buffer.from(payload!, "base64");
+  expect(png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), label).toBe(true);
+  expect(png.length, label).toBeGreaterThan(1000);
+  return png;
 }
 
 describe("screenshot seed — feature coverage", () => {
@@ -311,12 +323,33 @@ describe("screenshot seed — sign-in and people", () => {
 
 describe("screenshot seed — inline artwork", () => {
   it("builds a floor plan the Maps tab can render offline", () => {
-    const url = floorPlanDataUrl();
-    const [meta, payload] = url.split(",");
-    expect(meta).toBe("data:image/png;base64");
-    const png = Buffer.from(payload!, "base64");
-    expect(png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(true);
-    expect(png.length).toBeGreaterThan(1000);
+    expectPngDataUrl(floorPlanDataUrl(), "floor plan");
+  });
+
+  it("gives every sponsor real logo artwork, across tiers", () => {
+    // Without these the attendee strip photographs as three words on white.
+    expect(spec.sponsors.length).toBeGreaterThan(1);
+    const tiers = new Set<string>();
+    for (const sponsor of spec.sponsors) {
+      expect(sponsor.logoFile, `${sponsor.name} needs a logo file`).toMatch(/^logo_[a-z]+\.png$/);
+      expectPngDataUrl(seedImageDataUrl(sponsor.logoFile), sponsor.name);
+      tiers.add(sponsor.tier);
+    }
+    expect(tiers.size, "logos must appear on more than one tier row").toBeGreaterThan(1);
+    // Distinct artwork, not the same mark four times.
+    expect(new Set(spec.sponsors.map((s) => s.logoFile)).size).toBe(spec.sponsors.length);
+  });
+
+  it("fails loudly when artwork a shot depends on was not committed", () => {
+    expect(() => seedImageDataUrl("logo_nobody.png")).toThrow(/missing/);
+  });
+
+  it("brands the certificate on the accent, with the logo only if it exists", () => {
+    // The PDF's logo slot is optional by design; the accent is not, and it is
+    // what makes the certificate shot read as this event's certificate.
+    expect(spec.event.brandColor).toMatch(/^#[0-9a-f]{6}$/i);
+    const logo = eventLogoDataUrl();
+    if (logo) expectPngDataUrl(logo, "event logo");
   });
 
   it("places three room-linked pins on the seeded Hall, Workshop A, and Reading Room", () => {
@@ -336,9 +369,48 @@ describe("screenshot seed — inline artwork", () => {
     }
   });
 
-  it("escapes captions into the moment and wordmark placeholders", () => {
+  it("escapes captions into the moment placeholder", () => {
     expect(decodeSvgDataUrl(momentDataUrl("Hall <script>"))).not.toContain("<script>");
-    expect(decodeSvgDataUrl(wordmarkDataUrl("Kestrel & Co", "#1f3f7a"))).toContain("Kestrel  Co");
+  });
+});
+
+describe("screenshot seed — the certificate document", () => {
+  /** The PDF the seed hands to the capture run, rendered the way the seed does. */
+  async function render(logoUrl: string | null) {
+    return renderCertificatePdf({
+      titleText: spec.certificate.titleText,
+      bodyText: spec.certificate.bodyText,
+      merge: {
+        attendeeName: "Priya Raghunathan",
+        eventName: spec.event.name,
+        dates: "12–13 March 2026",
+        hours: spec.certificate.hours,
+        signatureImage: null,
+        certificateId: "NB-CERT-000123",
+      },
+      accentColor: spec.event.brandColor,
+      logoUrl,
+    });
+  }
+
+  it("renders one LETTER page, which is the page the shot rasterises", async () => {
+    const pdf = await render(eventLogoDataUrl());
+    expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    const raw = pdf.toString("latin1");
+    expect((raw.match(/\/Type\s*\/Page[^s]/g) ?? []).length, "page count").toBe(1);
+    // 612x792pt. At the shot's 150dpi that is 1275x1650px, which the frame step
+    // fills to 1200 wide and crops from the top — where this renderer puts the
+    // title, the name, the dates, and the certificate id.
+    expect(raw.match(/\/MediaBox\s*\[([^\]]+)\]/)?.[1]?.trim()).toBe("0 0 612 792");
+  });
+
+  it("carries a logo into the PDF when the event has one", async () => {
+    // The event logo is optional artwork, so this proves the slot rather than
+    // the file: any committed PNG must reach the document as an image.
+    const withLogo = await render(seedImageDataUrl("logo_brightwater.png"));
+    expect(withLogo.toString("latin1")).toContain("/Image");
+    const without = await render(null);
+    expect(without.length).toBeLessThan(withLogo.length);
   });
 });
 
