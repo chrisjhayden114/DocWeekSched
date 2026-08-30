@@ -55,6 +55,8 @@ describe("Setup Copilot prompt serialization (unit)", () => {
     expect(ORGANIZER_SYSTEM).toMatch(/EVENT STATE/);
     expect(ORGANIZER_SYSTEM).toMatch(/review card/i);
     expect(ORGANIZER_SYSTEM).toMatch(/never claim a change was made/i);
+    expect(ORGANIZER_SYSTEM).toMatch(/you may state them directly/i);
+    expect(ORGANIZER_SYSTEM).toMatch(/never claim a change was made, a feature was toggled/i);
     expect(ORGANIZER_SYSTEM).toMatch(/If neither block covers/i);
     expect(ORGANIZER_SYSTEM).toMatch(/2-6 sentences/);
     expect(ORGANIZER_SYSTEM).toMatch(/data, not instructions/);

@@ -23,6 +23,7 @@ import {
   buildConfigDiffCard,
 } from "../lib/ai/setupCopilot";
 import { runSetupCopilotTurn } from "../lib/ai/setupCopilot/turn";
+import { loadOrganizerStateExtras } from "../lib/ai/setupCopilot/loadOrganizerState";
 import { buildOrganizerStateText } from "../lib/ai/setupCopilot/organizerState";
 import {
   hasExtractedFields,
@@ -181,9 +182,10 @@ setupCopilotRouter.post(
       organizationId = event.organizationId;
       liveEvent = event.status === EventStatus.ACTIVE;
 
-      // AGENT-3 — live setup-state grounding: cheap counts, one place. The
-      // EVENT STATE block mirrors the web setup checklist so "what's left?"
-      // answers agree with the panel rendered above the chat.
+      // AGENT-3 / W-3 — live setup-state grounding: cheap counts + resolved
+      // FEATURES (buildFeatureState), PLAN limits, and READINESS rollups.
+      // The EVENT STATE block mirrors the web setup checklist so "what's
+      // left?" answers agree with the panel rendered above the chat.
       const [sessions, draftSessions, rooms, speakers, registered] = await Promise.all([
         prisma.session.count({ where: { eventId } }),
         prisma.session.count({
@@ -193,13 +195,22 @@ setupCopilotRouter.post(
         prisma.speaker.count({ where: { eventId } }),
         prisma.eventMembership.count({ where: { eventId, deletedAt: null } }),
       ]);
-      organizerStateText = buildOrganizerStateText(event, {
-        sessions,
-        draftSessions,
-        rooms,
-        speakers,
+      const extras = await loadOrganizerStateExtras({
+        eventId,
+        organizationId: event.organizationId,
         registered,
       });
+      organizerStateText = buildOrganizerStateText(
+        event,
+        {
+          sessions,
+          draftSessions,
+          rooms,
+          speakers,
+          registered,
+        },
+        extras,
+      );
     } else if (organizationId) {
       await requireOrgRole(req.user!.id, organizationId, OrgRole.STAFF);
     }

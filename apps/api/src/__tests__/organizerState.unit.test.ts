@@ -1,16 +1,19 @@
 /**
- * AGENT-3 — buildOrganizerStateText: the EVENT STATE block mirrors the web
- * setup checklist (apps/web/lib/setupChecklist.ts) item for item, so the
+ * AGENT-3 / W-3 — buildOrganizerStateText: the EVENT STATE block mirrors the
+ * web setup checklist (apps/web/lib/setupChecklist.ts) item for item, so the
  * assistant's "what's left?" answers agree with the panel above the chat.
- * Pure serialization — no Prisma on import.
+ * FEATURES / PLAN / READINESS are resolved extras serialized as compact
+ * key:value lines. Pure serialization — no Prisma on import.
  */
 
 import { describe, expect, it } from "vitest";
+import { FEATURE_REGISTRY, resolveFeatureEnabled } from "@event-app/shared";
 import {
   EVENT_STATE_CLOSE,
   EVENT_STATE_OPEN,
   buildOrganizerChecklist,
   buildOrganizerStateText,
+  rollupReadinessTemplates,
   type OrganizerStateCounts,
   type OrganizerStateEvent,
 } from "../lib/ai/setupCopilot/organizerState";
@@ -128,5 +131,66 @@ describe("buildOrganizerStateText (unit)", () => {
       emptyCounts,
     );
     expect(text.match(/=== END EVENT STATE ===/g)).toHaveLength(1);
+  });
+
+  it("FEATURES: a disabled feature (and dependsOn cascade) is stated as off", () => {
+    // Same resolve as the Features tab / buildFeatureState — community off
+    // forces ice-breakers off even when their override is true.
+    const overrides = { community: false as const, community_icebreakers: true as const };
+    const features = FEATURE_REGISTRY.map((def) => ({
+      key: def.key,
+      enabled: resolveFeatureEnabled(def.key, overrides),
+    }));
+    const text = buildOrganizerStateText(draftEvent, emptyCounts, { features });
+    expect(text).toContain("FEATURES:");
+    expect(text).toMatch(/^community: off$/m);
+    expect(text).toMatch(/^community_icebreakers: off$/m);
+    expect(text).toMatch(/^cfp: off$/m);
+  });
+
+  it("PLAN: name and the limits that come up (attendees, presenters, outreach)", () => {
+    const text = buildOrganizerStateText(draftEvent, { ...emptyCounts, registered: 12 }, {
+      plan: {
+        name: "Free",
+        attendeesUsed: 12,
+        attendeesLimit: 50,
+        readinessPresentersUsed: 3,
+        readinessPresentersLimit: 10,
+        outreachProspectsUsed: 5,
+        outreachProspectsLimit: 25,
+      },
+    });
+    expect(text).toContain("PLAN:");
+    expect(text).toMatch(/^name: Free$/m);
+    expect(text).toMatch(/^attendees: 12\/50$/m);
+    expect(text).toMatch(/^readiness_presenters: 3\/10$/m);
+    expect(text).toMatch(/^outreach_prospects: 5\/25$/m);
+  });
+
+  it("READINESS: per-template assigned / in_progress / ready match fixture data", () => {
+    // Same shape as the Readiness tab fixture (readinessView.test.ts): two
+    // templates, Ada still open, Grace settled, session not started.
+    const templates = [
+      { id: "tpl-speaker", name: "Keynote speaker" },
+      { id: "tpl-session", name: "Session" },
+    ];
+    const assignments = [
+      { templateId: "tpl-speaker", speakerId: "spk-ada", sessionId: null, status: "READY" },
+      { templateId: "tpl-speaker", speakerId: "spk-ada", sessionId: null, status: "IN_PROGRESS" },
+      { templateId: "tpl-speaker", speakerId: "spk-ada", sessionId: null, status: "NOT_STARTED" },
+      { templateId: "tpl-speaker", speakerId: "spk-grace", sessionId: null, status: "WAIVED" },
+      { templateId: "tpl-speaker", speakerId: "spk-grace", sessionId: null, status: "READY" },
+      { templateId: "tpl-session", speakerId: null, sessionId: "ses-key", status: "NOT_STARTED" },
+    ];
+    const readiness = rollupReadinessTemplates(templates, assignments);
+    expect(readiness).toEqual([
+      { name: "Keynote speaker", assigned: 2, inProgress: 1, ready: 1 },
+      { name: "Session", assigned: 1, inProgress: 1, ready: 0 },
+    ]);
+
+    const text = buildOrganizerStateText(draftEvent, emptyCounts, { readiness });
+    expect(text).toContain("READINESS:");
+    expect(text).toContain("Keynote speaker: assigned 2 · in_progress 1 · ready 1");
+    expect(text).toContain("Session: assigned 1 · in_progress 1 · ready 0");
   });
 });
