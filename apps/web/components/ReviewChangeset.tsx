@@ -10,6 +10,8 @@ import {
   removalsOf,
   sessionDeleteBlastCopy,
   sessionMoveBlastCopy,
+  type MatchDecisionLite,
+  type RemovalEntry,
   type RemovalKind,
   type ReviewFieldChange,
 } from "../lib/ingestReview";
@@ -25,6 +27,8 @@ export type ReviewChangeRow =
       confidence?: number;
       day?: string;
       accepted?: boolean;
+      /** W-7 — ambiguous match arrives as an ADD carrying its candidates. */
+      decision?: MatchDecisionLite;
       [key: string]: unknown;
     }
   | {
@@ -41,10 +45,20 @@ export type ReviewChangeRow =
       confidence?: number;
       day?: string;
       accepted?: boolean;
+      /** W-7 — existing session this update applies to. */
+      sessionId?: string;
+      existingTitle?: string;
+      similarity?: number;
+      tier?: string;
+      changes?: ReviewFieldChange[];
       /** W-7 — true when the day or clock time changes; drives the move blast radius. */
       movesTime?: boolean;
       joinedCount?: number;
       bookmarkCount?: number;
+      speakerRemovals?: RemovalEntry[];
+      itemRemovals?: RemovalEntry[];
+      /** W-7 — kept so a resolved ambiguous match can be revisited. */
+      decision?: MatchDecisionLite;
       [key: string]: unknown;
     }
   | {

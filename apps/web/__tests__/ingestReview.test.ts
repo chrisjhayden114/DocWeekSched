@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { ReviewChangeRow } from "../components/ReviewChangeset";
 import {
   applyImportScope,
   changesOf,
@@ -16,6 +17,17 @@ import {
   sessionMoveBlastCopy,
   toggleRemoval,
 } from "../lib/ingestReview";
+
+/** Assert a review row is the given kind and return it narrowed. */
+function expectCreate(row: ReviewChangeRow): Extract<ReviewChangeRow, { kind: "create" }> {
+  if (row.kind !== "create") throw new Error(`expected create, got ${row.kind}`);
+  return row;
+}
+
+function expectUpdate(row: ReviewChangeRow): Extract<ReviewChangeRow, { kind: "update" | "skip" }> {
+  if (row.kind !== "update") throw new Error(`expected update, got ${row.kind}`);
+  return row;
+}
 
 /**
  * E13.3: the review screen offers explicit, unchecked-by-default removal
@@ -218,7 +230,7 @@ describe("W-7 — ambiguous match decisions", () => {
   const roomChange = { field: "room", label: "Room", from: "Room A", to: "Room B" };
   const dayChange = { field: "day", label: "Day", from: "2027-06-11", to: "2027-06-12" };
 
-  const rows = () => [
+  const rows = (): ReviewChangeRow[] => [
     {
       kind: "create",
       rowIndex: 0,
@@ -266,8 +278,7 @@ describe("W-7 — ambiguous match decisions", () => {
   ];
 
   it("an unresolved row is an add carrying both candidates", () => {
-    const [row] = rows();
-    expect(row.kind).toBe("create");
+    const row = expectCreate(rows()[0]);
     expect(row.accepted).toBe(true);
     expect(decisionOf(row)?.candidates).toHaveLength(2);
     expect(decisionSelection(row)).toBeNull();
@@ -275,8 +286,7 @@ describe("W-7 — ambiguous match decisions", () => {
 
   it("choosing a candidate turns the row into an update carrying that candidate's diff", () => {
     const next = resolveMatchDecision(rows(), 0, "sess-b");
-    const row = next[0];
-    expect(row.kind).toBe("update");
+    const row = expectUpdate(next[0]);
     expect(row.sessionId).toBe("sess-b");
     expect(row.existingTitle).toBe("Workshop");
     expect(row.message).toBe("moved day");
@@ -298,17 +308,17 @@ describe("W-7 — ambiguous match decisions", () => {
 
   it("switching candidates replaces the diff rather than merging it", () => {
     const next = resolveMatchDecision(resolveMatchDecision(rows(), 0, "sess-b"), 0, "sess-a");
-    expect(next[0].sessionId).toBe("sess-a");
-    expect(changesOf(next[0])).toEqual([roomChange]);
-    expect(next[0].movesTime).toBe(false);
-    expect(next[0].joinedCount).toBe(4);
-    expect(removalsOf(next[0], "speaker")).toEqual([]);
+    const row = expectUpdate(next[0]);
+    expect(row.sessionId).toBe("sess-a");
+    expect(changesOf(row)).toEqual([roomChange]);
+    expect(row.movesTime).toBe(false);
+    expect(row.joinedCount).toBe(4);
+    expect(removalsOf(row, "speaker")).toEqual([]);
   });
 
   it("going back to add drops every update-only field", () => {
     const next = resolveMatchDecision(resolveMatchDecision(rows(), 0, "sess-a"), 0, null);
-    const row = next[0];
-    expect(row.kind).toBe("create");
+    const row = expectCreate(next[0]);
     expect(row).not.toHaveProperty("sessionId");
     expect(row).not.toHaveProperty("existingTitle");
     expect(row).not.toHaveProperty("changes");

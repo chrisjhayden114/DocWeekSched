@@ -33,6 +33,8 @@ import {
   rowsToApiChangeset,
   toggleRemoval,
   type ImportScope,
+  type RemovalEntry,
+  type ReviewFieldChange,
 } from "../../../../lib/ingestReview";
 import {
   INGEST_POLL_HARD_STOP_MS,
@@ -187,22 +189,26 @@ function changesetToRows(raw: unknown): ReviewChangeRow[] {
         day: session?.date,
         confidence: minConfidence(session),
         accepted: row.accepted !== false,
-        sessionId: row.sessionId,
+        sessionId: typeof row.sessionId === "string" ? row.sessionId : undefined,
         session,
         // E13.3: child-removal proposals ride along so the review UI can
         // offer them as unchecked checkboxes.
-        speakerRemovals: row.speakerRemovals,
-        itemRemovals: row.itemRemovals,
+        speakerRemovals: Array.isArray(row.speakerRemovals)
+          ? (row.speakerRemovals as RemovalEntry[])
+          : undefined,
+        itemRemovals: Array.isArray(row.itemRemovals)
+          ? (row.itemRemovals as RemovalEntry[])
+          : undefined,
         // W-7: what changed, who it reschedules, and (on a resolved ambiguous
         // match) the candidates the choice can be changed back to.
-        existingTitle: row.existingTitle,
-        similarity: row.similarity,
-        tier: row.tier,
-        changes: row.changes,
+        existingTitle: typeof row.existingTitle === "string" ? row.existingTitle : undefined,
+        similarity: typeof row.similarity === "number" ? row.similarity : undefined,
+        tier: typeof row.tier === "string" ? row.tier : undefined,
+        changes: Array.isArray(row.changes) ? (row.changes as ReviewFieldChange[]) : undefined,
         movesTime: row.movesTime === true,
         joinedCount: typeof row.joinedCount === "number" ? row.joinedCount : 0,
         bookmarkCount: typeof row.bookmarkCount === "number" ? row.bookmarkCount : 0,
-        decision: row.decision,
+        decision: decisionOf({ kind: "update", rowIndex: 0, decision: row.decision }),
       };
     }
     if (kind === "error") {
@@ -221,7 +227,7 @@ function changesetToRows(raw: unknown): ReviewChangeRow[] {
       accepted: row.accepted !== false,
       session,
       // W-7: an ambiguous match arrives as an ADD carrying its candidates.
-      decision: row.decision,
+      decision: decisionOf({ kind: "create", rowIndex: 0, decision: row.decision }),
     };
   });
 }
