@@ -511,6 +511,17 @@ The commit message's `[skip ci]` stops the push from re-running CI (and this
 workflow is dispatch-only, so it cannot re-trigger itself). Netlify does still
 build that commit — that is how the new images reach the site.
 
+### When a shot fails
+
+A green run does not have to be a perfect one. The capture step prints a summary
+of every shot that threw and fails only if it captured less than
+`SCREENSHOT_MIN_PASS_RATIO` (90%) of the manifest, so one broken surface cannot
+stop the other thirty images from being committed. A key that failed keeps the
+PNG from the previous run — a week-old picture of a working surface — and falls
+through to category art only if it never had one. Read the summary anyway: a
+shot that keeps failing is usually a selector that has drifted, or a surface
+that no longer renders what its manifest note claims.
+
 ### Manual shots always win
 
 Image resolution lives in `apps/web/lib/featureGuideImage.ts`, in this order:

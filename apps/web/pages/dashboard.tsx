@@ -356,6 +356,8 @@ export default function Dashboard() {
   const [communityFocusThreadId, setCommunityFocusThreadId] = useState<string | null>(null);
   const clearCommunityFocus = useCallback(() => setCommunityFocusThreadId(null), []);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
+  /** Event whose overrides are the ones currently in `featureOverrides`. */
+  const [featuresLoadedFor, setFeaturesLoadedFor] = useState<string | null>(null);
   const [roomPins, setRoomPins] = useState<Record<string, { mapId: string; pinId: string }>>({});
   const [mapsFocus, setMapsFocus] = useState<{ mapId: string | null; pinId: string | null }>({
     mapId: null,
@@ -520,10 +522,14 @@ export default function Dashboard() {
           .catch(() => null);
         apiFetch<{ overrides: FeatureOverridesMap }>("/event/features", withEventHeaders(), token)
           .then((res) => {
-            if (!cancelled) setFeatureOverrides(res.overrides || {});
+            if (cancelled) return;
+            setFeatureOverrides(res.overrides || {});
+            setFeaturesLoadedFor(activeEventId);
           })
           .catch(() => {
-            if (!cancelled) setFeatureOverrides({});
+            if (cancelled) return;
+            setFeatureOverrides({});
+            setFeaturesLoadedFor(activeEventId);
           });
       }
     })();
@@ -816,10 +822,15 @@ export default function Dashboard() {
   }, [router.isReady, router.query.contextSessionId, router.query.contextTitle]);
 
   useEffect(() => {
+    // Only correct the tab once this event's own overrides are in hand. They
+    // arrive a fetch after mount, and judging tabs against the registry
+    // defaults until then sends a ?tab= deep link to a default-off tab (Meet)
+    // straight back to Agenda.
+    if (!activeEventId || featuresLoadedFor !== activeEventId) return;
     if (!availableTabs.some((tab) => tab === active)) {
       setActive("Agenda");
     }
-  }, [availableTabs, active]);
+  }, [availableTabs, active, activeEventId, featuresLoadedFor]);
 
   useEffect(() => {
     if (!timezoneToggleOn && agendaTimeMode !== "EVENT") {

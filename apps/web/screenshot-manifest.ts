@@ -22,6 +22,14 @@ export const SCREENSHOT_WIDTH = 1200;
 export const SCREENSHOT_MIN_HEIGHT = 380;
 export const SCREENSHOT_MAX_HEIGHT = 760;
 
+/**
+ * How much of the manifest a capture run has to land before the run counts as
+ * a failure. One surface breaking is not worth throwing away the other thirty:
+ * below this the run fails, at or above it the good images still get committed
+ * and the failed keys keep whatever image they already had.
+ */
+export const SCREENSHOT_MIN_PASS_RATIO = 0.9;
+
 /** Written by the capture script; `public/` makes them `/feature-guide/auto/...`. */
 export const AUTO_SHOT_DIR = "public/feature-guide/auto";
 export const AUTO_SHOT_URL_PREFIX = "/feature-guide/auto";
@@ -295,6 +303,15 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
  */
 export function eligibleScreenshotKeys(): FeatureKey[] {
   return FEATURE_REGISTRY.filter((f) => !f.retired && !f.plannedPhase).map((f) => f.key);
+}
+
+/**
+ * Whether a capture run is worth committing. Attempting nothing passes: an
+ * empty `--only` selection is a no-op, not a broken set.
+ */
+export function captureRunPassed(captured: number, attempted: number): boolean {
+  if (attempted <= 0) return true;
+  return captured / attempted >= SCREENSHOT_MIN_PASS_RATIO;
 }
 
 /** `{token}` names used by a path, in order of appearance. */

@@ -11,8 +11,10 @@ import {
   SCREENSHOT_MANIFEST,
   SCREENSHOT_MAX_HEIGHT,
   SCREENSHOT_MIN_HEIGHT,
+  SCREENSHOT_MIN_PASS_RATIO,
   SCREENSHOT_VIEWPORT,
   SCREENSHOT_WIDTH,
+  captureRunPassed,
   eligibleScreenshotKeys,
   tokensInPath,
 } from "../screenshot-manifest";
@@ -113,5 +115,36 @@ describe("screenshot manifest entries", () => {
     for (const [key] of entries) {
       expect(FEATURE_BY_KEY[key], `${key} is not a real feature key`).toBeDefined();
     }
+  });
+});
+
+/**
+ * A run used to exit 1 on the first failed shot, which skipped the index and
+ * commit steps and threw away every image that had come out fine.
+ */
+describe("capture run pass floor", () => {
+  it("lets a shot or two fail without discarding the rest of the set", () => {
+    const almost = eligible.length - 1;
+    expect(captureRunPassed(almost, eligible.length)).toBe(true);
+    expect(captureRunPassed(eligible.length, eligible.length)).toBe(true);
+  });
+
+  it("still fails a run that captured too little to be worth committing", () => {
+    expect(captureRunPassed(Math.floor(eligible.length / 2), eligible.length)).toBe(false);
+    expect(captureRunPassed(0, eligible.length)).toBe(false);
+    // Debugging one selector with --only: that shot is the whole run.
+    expect(captureRunPassed(0, 1)).toBe(false);
+    expect(captureRunPassed(1, 1)).toBe(true);
+  });
+
+  it("treats an empty selection as a no-op rather than a broken set", () => {
+    expect(captureRunPassed(0, 0)).toBe(true);
+  });
+
+  it("keeps the floor tight enough that a rotting manifest cannot hide behind it", () => {
+    expect(SCREENSHOT_MIN_PASS_RATIO).toBeGreaterThanOrEqual(0.9);
+    expect(SCREENSHOT_MIN_PASS_RATIO).toBeLessThanOrEqual(1);
+    const tolerated = eligible.length - Math.ceil(eligible.length * SCREENSHOT_MIN_PASS_RATIO);
+    expect(tolerated, "the floor should forgive a shot, not a category").toBeLessThanOrEqual(3);
   });
 });

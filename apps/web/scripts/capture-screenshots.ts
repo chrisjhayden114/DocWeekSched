@@ -13,17 +13,24 @@
  *
  * Every shot is clipped to SCREENSHOT_WIDTH so the hover cards, which crop the
  * art slot to a fixed height, cannot end up with wildly different scales.
+ *
+ * A shot that throws is reported, not fatal: the run keeps going and only exits
+ * non-zero below SCREENSHOT_MIN_PASS_RATIO, so one broken surface cannot stop
+ * the workflow from committing every image that did come out.
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync } from "fs";
 import { join, resolve } from "path";
 import { chromium, type BrowserContext, type Page } from "playwright";
+import type { FeatureKey } from "@event-app/shared";
 import {
   SCREENSHOT_MANIFEST,
   SCREENSHOT_MAX_HEIGHT,
   SCREENSHOT_MIN_HEIGHT,
+  SCREENSHOT_MIN_PASS_RATIO,
   SCREENSHOT_VIEWPORT,
   SCREENSHOT_WIDTH,
+  captureRunPassed,
   eligibleScreenshotKeys,
   tokensInPath,
   type FeatureShot,
@@ -143,14 +150,6 @@ async function main() {
     throw new Error(`No manifest entry for: ${missing.join(", ")}`);
   }
 
-  if (!only && existsSync(outDir)) {
-    // A stale PNG for a removed key would keep being served, so a full run owns
-    // the whole set rather than merging into it. Only the PNGs go — .gitkeep
-    // keeps the directory in git when the set is empty.
-    for (const name of readdirSync(outDir)) {
-      if (name.endsWith(".png")) rmSync(join(outDir, name), { force: true });
-    }
-  }
   mkdirSync(outDir, { recursive: true });
 
   const browser = await chromium.launch({
@@ -207,12 +206,33 @@ async function main() {
     await browser.close();
   }
 
-  console.log(`\n${written.length}/${keys.length} captured into ${outDir}`);
+  if (!only) {
+    // A stale PNG for a key that left the manifest would keep being served, so
+    // a full run owns the whole set. A key that failed this run keeps its PNG:
+    // last week's picture of a working surface beats no picture at all. Only
+    // PNGs go — .gitkeep keeps the directory in git when the set is empty.
+    for (const name of readdirSync(outDir)) {
+      if (!name.endsWith(".png")) continue;
+      if (keys.includes(name.replace(/\.png$/, "") as FeatureKey)) continue;
+      rmSync(join(outDir, name), { force: true });
+    }
+  }
+
+  const percent = keys.length ? Math.round((written.length / keys.length) * 100) : 100;
+  console.log(`\n${written.length}/${keys.length} captured (${percent}%) into ${outDir}`);
+
   if (failures.length) {
     console.error(`\n${failures.length} shot(s) failed:`);
     for (const f of failures) console.error(`  - ${f}`);
-    // Committing a partial refresh silently would let a broken surface rot
-    // behind a stale image, so the workflow fails instead.
+    console.error("Each keeps its previous image, or falls back to category art if it had none.");
+  }
+
+  // One broken surface used to sink the whole run, which threw away every good
+  // image with it. Below the floor the set is too thin to be worth committing.
+  if (!captureRunPassed(written.length, keys.length)) {
+    console.error(
+      `\nOnly ${percent}% captured, under the ${Math.round(SCREENSHOT_MIN_PASS_RATIO * 100)}% floor.`,
+    );
     process.exit(1);
   }
 }

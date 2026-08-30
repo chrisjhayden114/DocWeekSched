@@ -128,6 +128,10 @@ jobs:
           done
           echo "Web never became healthy:"; cat /tmp/web.log; exit 1
 
+      # Fails only when the run drops under the pass floor
+      # (SCREENSHOT_MIN_PASS_RATIO). A shot or two breaking is printed in the
+      # summary and the steps below still index and commit everything that did
+      # come out; the broken keys keep the image they already had.
       - name: Capture screenshots
         working-directory: apps/web
         run: npm run shots -- --seed "$SEED_FILE" --base http://localhost:3000
