@@ -1,5 +1,6 @@
 import { kitCopy } from "@event-app/config";
 import { ReactNode, useEffect, useId, useRef } from "react";
+import { Portal } from "./Portal";
 
 export type SlideOverProps = {
   open: boolean;
@@ -44,7 +45,7 @@ export function SlideOver({ open, title, onClose, footer, wide, children }: Slid
   if (!open) return null;
 
   return (
-    <>
+    <Portal>
       <div className="drawer-backdrop" role="presentation" onClick={onClose} />
       <div
         className={wide ? "drawer-panel kit-slideover-wide" : "drawer-panel"}
@@ -63,7 +64,7 @@ export function SlideOver({ open, title, onClose, footer, wide, children }: Slid
         <div className="drawer-body">{children}</div>
         {footer ? <div className="drawer-footer">{footer}</div> : null}
       </div>
-    </>
+    </Portal>
   );
 }
 

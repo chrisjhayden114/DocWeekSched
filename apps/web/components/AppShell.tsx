@@ -2,7 +2,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { initialsFor } from "./kit/kitHelpers";
 import { HoverInfo } from "./kit/HoverInfo";
-import { StatusChip } from "./StatusChip";
 
 /**
  * Phase D app shell (DESIGN_PHASE_D.md Part 2 "Layout architecture").
@@ -357,7 +356,7 @@ export function AppShell({
                 <span className="shell-topbar-title-text">{title}</span>
               </span>
             )}
-            {modeBadge ? <StatusChip status="default" label={modeBadge} /> : null}
+            {modeBadge ? <span className="shell-mode-badge">{modeBadge}</span> : null}
           </div>
           {/* F0.3: no top-bar search until real search exists — a dead
               readOnly control promises a feature the product doesn't have. */}

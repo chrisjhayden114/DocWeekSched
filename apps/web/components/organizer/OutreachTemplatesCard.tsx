@@ -111,6 +111,10 @@ export function OutreachTemplatesCard({
         ) : null}
       </div>
       <p className="help-text" style={{ marginTop: 0 }}>
+        Write the ask once; pick it in any prospect&apos;s Write email panel and the {"{merge fields}"} fill
+        in that prospect&apos;s details.
+      </p>
+      <p className="help-text">
         Merge fields: {"{orgName}"}, {"{contactName}"}, {"{eventName}"}, {"{eventDates}"}, {"{eventUrl}"}.
         We do not seed a template — a starter ask appears the first time you write an email.
       </p>

@@ -196,6 +196,10 @@ export function OutreachComposePanel({
         </button>
       </div>
       <p className="help-text" style={{ margin: "8px 0 0" }}>
+        Nothing opened? Your computer may not have a default email app — use Copy email and paste
+        into Gmail or Outlook.
+      </p>
+      <p className="help-text" style={{ margin: "8px 0 0" }}>
         Draft with AI lands here for review. It is not sent and is not saved as a template.
       </p>
     </div>

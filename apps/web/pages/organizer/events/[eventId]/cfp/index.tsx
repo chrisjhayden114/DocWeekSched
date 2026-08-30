@@ -4,11 +4,12 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { AutoGrowTextarea } from "../../../../../components/kit";
+import { CfpRubricEditor } from "../../../../../components/organizer/CfpRubricEditor";
 import { ConsoleSubpageHeader } from "../../../../../components/organizer/ConsoleSubpageHeader";
 import { OrganizerShell } from "../../../../../components/OrganizerShell";
 import { ReviewChangeset, type ReviewChangeRow } from "../../../../../components/ReviewChangeset";
 import { Select } from "../../../../../components/Select";
+import { defaultCfpRubricRows, serializeCfpRubric } from "../../../../../lib/cfpRubric";
 import { organizerFetch } from "../../../../../lib/organizerApi";
 
 type FormRow = {
@@ -59,9 +60,7 @@ export default function OrganizerCfpPage() {
   const [title, setTitle] = useState(() => cfpDisplayLabel({}));
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
-  const [rubricJson, setRubricJson] = useState(
-    '[{"id":"novelty","criterion":"Novelty","weight":1},{"id":"clarity","criterion":"Clarity","weight":1},{"id":"rigor","criterion":"Rigor","weight":1}]',
-  );
+  const [rubricRows, setRubricRows] = useState(defaultCfpRubricRows);
   const [reviewerUserId, setReviewerUserId] = useState("");
 
   const refresh = useCallback(async () => {
@@ -112,7 +111,13 @@ export default function OrganizerCfpPage() {
     setBusy(true);
     setError(null);
     try {
-      const rubric = JSON.parse(rubricJson);
+      const parsed = serializeCfpRubric(rubricRows);
+      if (!parsed.ok) {
+        setError(parsed.error);
+        setBusy(false);
+        return;
+      }
+      const rubric = parsed.rubric;
       const form = await organizerFetch<FormRow>("/cfp/manage", eventId, {
         method: "POST",
         body: JSON.stringify({
@@ -210,10 +215,7 @@ export default function OrganizerCfpPage() {
               Closes
               <input className="input" type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} required />
             </label>
-            <label>
-              Rubric JSON
-              <AutoGrowTextarea className="input" minRows={4} value={rubricJson} onChange={(e) => setRubricJson(e.target.value)} />
-            </label>
+            <CfpRubricEditor rows={rubricRows} onChange={setRubricRows} />
             <button className="button" type="submit" disabled={busy}>
               Create &amp; open
             </button>

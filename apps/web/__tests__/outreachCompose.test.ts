@@ -89,8 +89,24 @@ describe("SPX-1 — composer is draft-and-copy only", () => {
     expect(panel).toContain("Mark contacted");
     expect(panel).toContain("Draft with AI");
     expect(panel).toContain("OUTREACH_DOCTRINE");
+    expect(panel).toContain("Nothing opened? Your computer may not have a default email app");
+    expect(panel).toContain("use Copy email and paste");
     expect(panel).not.toMatch(/>\s*Send\s*</);
     expect(panel).not.toMatch(/Resend/);
     expect(panel).not.toMatch(/method:\s*"POST".*\/send/i);
+    const anchorsAsButtons = [...panel.matchAll(/<a\b[^>]*>/g)].map((m) => m[0]);
+    expect(anchorsAsButtons.length).toBe(1);
+    expect(anchorsAsButtons[0]).toContain('className="button"');
+    expect(anchorsAsButtons[0]).toContain("href={mailto}");
+  });
+
+  it("the templates card explains merge-field fill-in", () => {
+    const card = readFileSync(
+      join(__dirname, "../components/organizer/OutreachTemplatesCard.tsx"),
+      "utf8",
+    );
+    expect(card).toContain("Write the ask once");
+    expect(card).toContain("{merge fields}");
+    expect(card).toContain("Write email panel");
   });
 });

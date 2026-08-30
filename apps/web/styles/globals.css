@@ -120,6 +120,39 @@ a:hover {
   cursor: not-allowed;
 }
 
+/* Anchors that use .button inherit `a { color: accent }` and look like a
+   black pill with blue link text. Pin the same fg/hover/focus as <button>. */
+a.button,
+a.button:link,
+a.button:visited,
+a.button:hover,
+a.button:active,
+a.button:focus,
+a.button:focus-visible {
+  color: var(--action-fg);
+  text-decoration: none;
+}
+
+a.button:hover:not(:disabled) {
+  background: var(--action-bg-hover);
+}
+
+a.button.secondary,
+a.button.secondary:link,
+a.button.secondary:visited,
+a.button.secondary:hover,
+a.button.secondary:active,
+a.button.secondary:focus,
+a.button.secondary:focus-visible {
+  color: var(--gray-900);
+  text-decoration: none;
+}
+
+a.button.secondary:hover:not(:disabled) {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
 .button.secondary {
   background: #ffffff;
   color: var(--gray-900);
@@ -3816,6 +3849,7 @@ button.schedule-meta-chip:hover {
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-3);
+  /* Portaled to body; must sit above the sticky shell topbar (30). */
   z-index: 1001;
   display: flex;
   flex-direction: column;
@@ -5985,8 +6019,23 @@ button.schedule-meta-chip:hover {
   min-width: 0;
 }
 
-.shell-topbar-identity .status-chip {
+.shell-topbar-identity .status-chip,
+.shell-topbar-identity .shell-mode-badge {
   flex-shrink: 0;
+}
+
+/* K-7 — organizer-mode chip: dark text on yellow, WCAG AA (~10:1),
+   13px vs the 12px status chip, same 16px line-height so the 56px bar
+   does not grow. */
+.shell-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: #f5c518;
+  color: #161616;
+  font: 600 13px/16px var(--font-body);
+  white-space: nowrap;
 }
 
 .shell-topbar-title {
@@ -6127,6 +6176,38 @@ button.schedule-meta-chip:hover {
   gap: var(--space-3);
   max-width: 560px;
   width: 100%;
+}
+
+.cfp-rubric-editor {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.cfp-rubric-editor legend {
+  padding: 0;
+  font: var(--text-label);
+  color: var(--gray-700);
+}
+
+.cfp-rubric-rows {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.cfp-rubric-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px auto;
+  gap: var(--space-2);
+  align-items: end;
+}
+
+.cfp-rubric-row .button {
+  justify-self: start;
 }
 
 .console-form label {
@@ -6521,6 +6602,7 @@ button.schedule-meta-chip:hover {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 
 .hover-info-popover {
@@ -6543,10 +6625,11 @@ button.schedule-meta-chip:hover {
 }
 
 .hover-info-art {
-  flex: 0 1 150px;
-  flex-shrink: 1;
-  min-height: 0;
-  max-height: 150px;
+  flex: 0 0 140px;
+  flex-shrink: 0;
+  height: 140px;
+  min-height: 140px;
+  max-height: 140px;
   position: relative;
   overflow: hidden;
   background: var(--gray-50);

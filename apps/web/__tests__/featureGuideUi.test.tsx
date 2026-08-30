@@ -10,9 +10,10 @@ import { join } from "node:path";
 import { act, useState, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { FEATURE_BY_KEY, FEATURE_GUIDE } from "@event-app/shared";
+import { FEATURE_BY_KEY, FEATURE_GUIDE, type FeatureKey } from "@event-app/shared";
 import { FeatureConfigPanel } from "../components/FeatureConfigPanel";
 import { GuidePanel } from "../components/kit/GuidePanel";
+import { HoverInfo } from "../components/kit/HoverInfo";
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => (
@@ -114,6 +115,7 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
 
     const panel = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(panel).not.toBeNull();
+    expect(panel.parentElement).toBe(document.body);
     expect(panel.textContent).toContain("Community");
     expect(panel.textContent).toContain("What it does");
     expect(panel.textContent).toContain(FEATURE_GUIDE.community.experience.slice(0, 32));
@@ -132,11 +134,49 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
     }
     render(<Harness />);
     const panel = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(panel.parentElement).toBe(document.body);
+    expect(panel.querySelector(".drawer-header")?.textContent).toContain("Community");
     expect(panel.textContent).toContain("What it does");
     expect(panel.textContent).toContain("The experience");
     expect(panel.textContent).toContain("Good to know");
     act(() => panel.querySelector<HTMLButtonElement>(".drawer-close")!.click());
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("Session Q&A GuidePanel header (title + close) is on the portaled panel", () => {
+    function Harness() {
+      return <GuidePanel featureKey="session_qa" open onClose={() => undefined} />;
+    }
+    render(<Harness />);
+    const panel = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(panel.parentElement).toBe(document.body);
+    const header = panel.querySelector(".drawer-header")!;
+    expect(header.textContent).toContain("Session Q&A");
+    expect(header.querySelector(".drawer-close")).not.toBeNull();
+    expect(panel.textContent).toContain("What it does");
+  });
+
+  it("the longest hover-card extract still has title, clamped body, and footer", () => {
+    const longestKey = (Object.keys(FEATURE_GUIDE) as FeatureKey[]).reduce((best, key) =>
+      FEATURE_GUIDE[key].whatItDoes.length > FEATURE_GUIDE[best].whatItDoes.length ? key : best,
+    );
+    const longest = FEATURE_GUIDE[longestKey];
+    render(
+      <HoverInfo
+        trigger="label"
+        title={FEATURE_BY_KEY[longestKey].name}
+        body={longest.whatItDoes}
+        imageSrc={longest.imageSrc}
+        image={<svg className="feature-art" viewBox="0 0 400 225" />}
+      >
+        <strong>{FEATURE_BY_KEY[longestKey].name}</strong>
+      </HoverInfo>,
+    );
+    act(() => container.querySelector<HTMLButtonElement>(".hover-info-label")!.focus());
+    const card = document.querySelector<HTMLElement>('[role="tooltip"]')!;
+    expect(card.querySelector(".hover-info-art")).not.toBeNull();
+    expect(card.querySelector(".hover-info-title")?.textContent).toBe(FEATURE_BY_KEY[longestKey].name);
+    expect(card.querySelector(".hover-info-body")?.textContent).toBe(longest.whatItDoes);
   });
 });
 
@@ -203,16 +243,23 @@ describe("K-6 — feature card + carousel CSS", () => {
     return blockBody(globalsCss, at);
   }
 
-  it("caps the preview image at ~150px and the card at ~480px so title, body, and footer stay visible", () => {
-    expect(rule(".hover-info-art")).toContain("150px");
-    expect(rule(".hover-info-art")).toContain("flex-shrink: 1");
-    expect(rule(".hover-info-art")).toContain("min-height: 0");
+  it("gives the preview image a fixed ~140px height so it never shrinks; title, body, and footer stay visible", () => {
+    expect(rule(".hover-info-art")).toContain("height: 140px");
+    expect(rule(".hover-info-art")).toContain("flex-shrink: 0");
+    expect(rule(".hover-info-art")).toContain("overflow: hidden");
+    expect(rule(".hover-info-art")).not.toContain("flex-shrink: 1");
+    expect(rule(".hover-info-art")).not.toContain("min-height: 0");
+    expect(rule(".hover-info-image,\n.hover-info-art img")).toContain("object-fit: cover");
     expect(rule(".hover-info-popover")).toContain("max-height: 480px");
     expect(rule(".hover-info-title")).toContain("overflow: visible");
     expect(rule(".hover-info-title")).toContain("flex-shrink: 0");
     expect(rule(".hover-info-body")).toContain("calc(15px * 1.5 * 6)");
     expect(rule(".hover-info-body")).toContain("calc(15px * 1.5 * 2)");
     expect(rule(".hover-info-action")).toContain("flex: 0 0 auto");
+    const longest = Object.values(FEATURE_GUIDE).reduce((a, b) =>
+      a.whatItDoes.length >= b.whatItDoes.length ? a : b,
+    );
+    expect(longest.whatItDoes.length).toBeGreaterThan(180);
   });
 
   it("K-6.1: hover-card triggers keep the normal arrow (no cursor:help)", () => {
