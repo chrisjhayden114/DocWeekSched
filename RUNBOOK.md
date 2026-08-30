@@ -505,11 +505,17 @@ API and web app against it, and photographs one element per feature.
    then the capture pass.
 4. When it's green, download the **feature-guide-screenshots** artifact to eyeball
    the set. If commit was on, it has already pushed
-   `SHOT-CI: refresh Feature Guide screenshots [skip ci]` to that branch.
+   `SHOT-CI: refresh Feature Guide screenshots [skip actions]` to that branch.
 
-The commit message's `[skip ci]` stops the push from re-running CI (and this
+The commit message's `[skip actions]` stops the push from re-running CI (and this
 workflow is dispatch-only, so it cannot re-trigger itself). Netlify does still
 build that commit — that is how the new images reach the site.
+
+That tag is deliberately `[skip actions]` rather than the more familiar
+`[skip ci]`. Both make GitHub Actions skip the run, but Netlify also treats
+`[skip ci]` as an instruction to skip its build, so using it would leave the
+refreshed screenshots committed to the branch and never deployed. Netlify
+ignores `[skip actions]`, so CI stays quiet and the deploy still happens.
 
 ### When a shot fails
 

@@ -2,9 +2,12 @@
 #
 # Manual only (workflow_dispatch). This workflow commits images back to the
 # branch it ran on, so putting it on `push` would loop; the commit message
-# carries "[skip ci]" so the commit it creates cannot re-trigger CI either.
-# Netlify still builds that commit, which is the point — the refreshed images
-# go live without anyone capturing a screen by hand.
+# carries "[skip actions]" so the commit it creates cannot re-trigger CI either.
+# It must be "[skip actions]" and not "[skip ci]": Netlify honours "[skip ci]"
+# too, which would strand the refreshed images in the repo without ever
+# deploying them. Netlify has no opinion on "[skip actions]", so it builds that
+# commit — which is the point, the new images go live without anyone capturing
+# a screen by hand.
 #
 # THIS NEVER TOUCHES A REAL DATABASE. Everything runs against the job-scoped
 # postgres service container below, the same pattern as ci.yml's db-tests job.
@@ -176,7 +179,7 @@ jobs:
             echo "Screenshots are unchanged — nothing to commit."
             exit 0
           fi
-          git commit -m "SHOT-CI: refresh Feature Guide screenshots [skip ci]"
+          git commit -m "SHOT-CI: refresh Feature Guide screenshots [skip actions]"
           # Push to the branch this run was dispatched from, not a hardcoded
           # main, so dispatching from a branch cannot rewrite main.
           git push origin "HEAD:${{ github.ref_name }}"
