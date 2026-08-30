@@ -200,3 +200,24 @@ label, ConfirmDialog on top of the re-auth, export directly above; export and
 deletion errors no longer share one slot. (4) /speaker-readiness placeholder box →
 public/marketing/readiness-dashboard.png in a bordered .mkt-screenshot figure.
 Still open here: SPK-1 and the full ACCT-1 redesign.
+
+W-7 REIMPORT-MATCH shipped (M): buildReimportChangeset matches in tiers instead of
+title+same-day only — exact normalized title on the same day, then exact title on any
+day (moved), then similarity ≥ REIMPORT_TITLE_THRESHOLD on the same day OR in the same
+time slot (retitled) — so a session that changed day or title updates in place rather
+than re-importing as a duplicate. Within a tier candidates rank by similarity, same
+room, clock distance, day distance; update rows now carry structured `changes`
+(old → new for day/time/room/track/title/description, mirroring what confirm writes,
+including the missing-endTime → start+1h rule), the matched `tier`, and `movesTime`
+plus joined/bookmark counts, and the review UI renders them through FieldDiffList in
+the same `from → to` shape as the setup-copilot config diff card. A matched session
+that changes nothing emits NO row (it is still matched, so it is never proposed for
+delete either) — the review no longer pads itself with no-op updates. Ambiguity is
+never guessed: when the top two candidates are indistinguishable on all four rank
+keys, or two import rows fit one existing session equally well, the row stays an ADD
+carrying a MatchDecision, renders in a "Needs your decision" section with a radio per
+candidate (default "Add as a new session"), and the contested existing sessions are
+held back from delete proposals as well. Resolution is client-side only
+(resolveMatchDecision) — the dry-run doctrine is untouched, nothing applies until
+Confirm drafts. job.ts now also selects `description` (a field the diff cannot see
+would otherwise be assumed unchanged).

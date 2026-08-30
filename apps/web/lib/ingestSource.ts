@@ -102,11 +102,13 @@ export function ingestReviewHeading(input: {
   confirmed?: boolean;
   creates: number;
   updates: number;
+  /** W-7 — ambiguous matches are sessions found too, however they resolve. */
+  decisions?: number;
   sourceKind: string;
   fileName?: string | null;
 }): string {
   if (input.confirmed) return "Confirmed drafts";
-  const found = input.creates + input.updates;
+  const found = input.creates + input.updates + (input.decisions || 0);
   const source = ingestSourceName(input.sourceKind, input.fileName);
   // H-GEN: generated skeletons were drafted, not found — the heading says so.
   if (input.sourceKind === "GENERATED") {

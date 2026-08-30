@@ -4,9 +4,14 @@ export { mergeExtractChunks, chunkSourceText } from "./merge";
 export {
   buildReimportChangeset,
   extractToCreateChangeset,
+  type ChangedField,
   type ChangesetRow,
   type ExistingSessionLite,
+  type FieldChange,
   type ItemRemoval,
+  type MatchCandidate,
+  type MatchDecision,
+  type MatchTier,
   type SpeakerRemoval,
 } from "./changeset";
 export { publishEventDraftSessions } from "./publish";

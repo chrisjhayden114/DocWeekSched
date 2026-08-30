@@ -69,6 +69,8 @@ const handler: JobHandler = async (job) => {
       startsAt: true,
       endsAt: true,
       location: true,
+      // W-7 — a description the diff cannot see would be assumed unchanged.
+      description: true,
       track: { select: { name: true } },
       room: { select: { name: true } },
       // E13.3: children travel with the diff so a re-import proposes
@@ -109,6 +111,7 @@ const handler: JobHandler = async (job) => {
         startsAt: s.startsAt,
         endsAt: s.endsAt,
         location: s.location,
+        description: s.description,
         trackName: s.track?.name,
         roomName: s.room?.name,
         speakers: s.sessionSpeakers.map((l) => ({ speakerId: l.speakerId, name: l.speaker.name })),

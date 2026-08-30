@@ -3,11 +3,17 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   applyImportScope,
+  changesOf,
+  decisionOf,
+  decisionSelection,
   deleteRowsBlastCopy,
   groupCreateRows,
+  moveRowsBlastCopy,
   removalsOf,
+  resolveMatchDecision,
   rowsToApiChangeset,
   sessionDeleteBlastCopy,
+  sessionMoveBlastCopy,
   toggleRemoval,
 } from "../lib/ingestReview";
 
@@ -200,5 +206,177 @@ describe("W-6 — ingest delete confirm includes attendee counts", () => {
     expect(copy).toContain("Deleting 2 sessions.");
     expect(copy).toContain("3 joined");
     expect(copy).toContain("3 bookmarked");
+  });
+});
+
+/**
+ * W-7: a revised upload updates the session it describes. Where the match is
+ * ambiguous the matcher refuses to guess and the row stays an ADD carrying
+ * its candidates — these helpers carry the organiser's choice to confirm.
+ */
+describe("W-7 — ambiguous match decisions", () => {
+  const roomChange = { field: "room", label: "Room", from: "Room A", to: "Room B" };
+  const dayChange = { field: "day", label: "Day", from: "2027-06-11", to: "2027-06-12" };
+
+  const rows = () => [
+    {
+      kind: "create",
+      rowIndex: 0,
+      title: "Workshop",
+      day: "2027-06-12",
+      accepted: true,
+      session: { title: "Workshop", date: "2027-06-12", startTime: "09:00", room: "Room B" },
+      decision: {
+        reason: "multiple-existing",
+        message: "Matches 2 existing sessions equally well — pick one, or add it as new.",
+        candidates: [
+          {
+            sessionId: "sess-a",
+            existingTitle: "Workshop",
+            existingDay: "2027-06-12",
+            existingTime: "09:00–10:00",
+            existingRoom: "Room A",
+            tier: "exact",
+            similarity: 1,
+            message: "moved room",
+            movesTime: false,
+            changes: [roomChange],
+            joinedCount: 4,
+            bookmarkCount: 1,
+          },
+          {
+            sessionId: "sess-b",
+            existingTitle: "Workshop",
+            existingDay: "2027-06-11",
+            existingTime: "09:00–10:00",
+            existingRoom: "Room B",
+            tier: "moved",
+            similarity: 1,
+            message: "moved day",
+            movesTime: true,
+            changes: [dayChange],
+            joinedCount: 6,
+            bookmarkCount: 2,
+            speakerRemovals: [{ speakerId: "sp1", name: "Hand Speaker", accepted: false }],
+          },
+        ],
+      },
+    },
+    { kind: "create", rowIndex: 1, title: "Unrelated New Session", accepted: true },
+  ];
+
+  it("an unresolved row is an add carrying both candidates", () => {
+    const [row] = rows();
+    expect(row.kind).toBe("create");
+    expect(row.accepted).toBe(true);
+    expect(decisionOf(row)?.candidates).toHaveLength(2);
+    expect(decisionSelection(row)).toBeNull();
+  });
+
+  it("choosing a candidate turns the row into an update carrying that candidate's diff", () => {
+    const next = resolveMatchDecision(rows(), 0, "sess-b");
+    const row = next[0];
+    expect(row.kind).toBe("update");
+    expect(row.sessionId).toBe("sess-b");
+    expect(row.existingTitle).toBe("Workshop");
+    expect(row.message).toBe("moved day");
+    expect(row.similarity).toBe(1);
+    expect(changesOf(row)).toEqual([dayChange]);
+    expect(row.movesTime).toBe(true);
+    expect(row.joinedCount).toBe(6);
+    expect(row.bookmarkCount).toBe(2);
+    // The candidate's child-removal proposals come with it, still unticked.
+    expect(removalsOf(row, "speaker")).toEqual([
+      { speakerId: "sp1", name: "Hand Speaker", accepted: false },
+    ]);
+    // The decision stays on the row so the choice can be revisited.
+    expect(decisionSelection(row)).toBe("sess-b");
+    expect(decisionOf(row)?.candidates).toHaveLength(2);
+    // Untouched rows are untouched.
+    expect(next[1]).toEqual(rows()[1]);
+  });
+
+  it("switching candidates replaces the diff rather than merging it", () => {
+    const next = resolveMatchDecision(resolveMatchDecision(rows(), 0, "sess-b"), 0, "sess-a");
+    expect(next[0].sessionId).toBe("sess-a");
+    expect(changesOf(next[0])).toEqual([roomChange]);
+    expect(next[0].movesTime).toBe(false);
+    expect(next[0].joinedCount).toBe(4);
+    expect(removalsOf(next[0], "speaker")).toEqual([]);
+  });
+
+  it("going back to add drops every update-only field", () => {
+    const next = resolveMatchDecision(resolveMatchDecision(rows(), 0, "sess-a"), 0, null);
+    const row = next[0];
+    expect(row.kind).toBe("create");
+    expect(row).not.toHaveProperty("sessionId");
+    expect(row).not.toHaveProperty("existingTitle");
+    expect(row).not.toHaveProperty("changes");
+    expect(row).not.toHaveProperty("joinedCount");
+    expect(decisionSelection(row)).toBeNull();
+    expect(decisionOf(row)?.candidates).toHaveLength(2);
+  });
+
+  it("rows without a decision, and unknown candidates, are left alone", () => {
+    expect(resolveMatchDecision(rows(), 1, "sess-a")[1]).toEqual(rows()[1]);
+    expect(resolveMatchDecision(rows(), 0, "sess-nope")[0]).toEqual(rows()[0]);
+    expect(decisionOf({ kind: "create", rowIndex: 0 })).toBeUndefined();
+    expect(decisionOf({ kind: "create", rowIndex: 0, decision: { candidates: [] } })).toBeUndefined();
+  });
+
+  it("the confirm payload sends the resolved match, and the add when reverted", () => {
+    const original = rows();
+    const resolved = rowsToApiChangeset(resolveMatchDecision(rows(), 0, "sess-b"), original);
+    expect(resolved[0].kind).toBe("update");
+    expect(resolved[0].sessionId).toBe("sess-b");
+    expect(resolved[0].existingTitle).toBe("Workshop");
+    expect(resolved[0].message).toBe("moved day");
+    // The extracted session still rides along — it is what confirm writes.
+    expect((resolved[0].session as { room?: string }).room).toBe("Room B");
+
+    const reverted = rowsToApiChangeset(
+      resolveMatchDecision(resolveMatchDecision(rows(), 0, "sess-b"), 0, null),
+      original,
+    );
+    expect(reverted[0].kind).toBe("create");
+    expect(reverted[0].sessionId).toBeUndefined();
+    expect(reverted[0].existingTitle).toBeUndefined();
+  });
+});
+
+describe("W-7 — moves name the attendees they reschedule", () => {
+  it("names joined and bookmarked counts for one moved session", () => {
+    expect(sessionMoveBlastCopy(12, 3)).toBe("12 joined, 3 bookmarked — their schedules move with it.");
+    expect(sessionMoveBlastCopy(1, 0)).toMatch(/1 joined/);
+    expect(sessionMoveBlastCopy(0, 0)).toMatch(/No attendees have joined or bookmarked/);
+  });
+
+  it("totals only accepted rows that actually move times", () => {
+    const copy = moveRowsBlastCopy([
+      { accepted: true, movesTime: true, joinedCount: 5, bookmarkCount: 1 },
+      { accepted: true, movesTime: false, joinedCount: 99, bookmarkCount: 99 },
+      { accepted: false, movesTime: true, joinedCount: 99, bookmarkCount: 99 },
+      { accepted: true, movesTime: true, joinedCount: 2, bookmarkCount: 0 },
+    ]);
+    expect(copy).toContain("Moving 2 sessions.");
+    expect(copy).toContain("7 joined");
+    expect(copy).toContain("1 bookmarked");
+    expect(moveRowsBlastCopy([{ accepted: true, movesTime: false, joinedCount: 4 }])).toBeNull();
+  });
+
+  it("the review UI renders the diff, the decision picker and the move copy", () => {
+    const review = readFileSync(join(__dirname, "..", "components", "ReviewChangeset.tsx"), "utf8");
+    const ingest = readFileSync(
+      join(__dirname, "..", "pages", "organizer", "events", "[eventId]", "ingest.tsx"),
+      "utf8",
+    );
+    expect(review).toContain("FieldDiffList");
+    expect(review).toContain("Needs your decision");
+    expect(review).toContain("Add as a new session (default)");
+    expect(review).toContain("sessionMoveBlastCopy");
+    expect(review).toContain("moveRowsBlastCopy");
+    // Nothing applies without confirm: the picker only edits review rows.
+    expect(ingest).toContain("resolveMatchDecision");
+    expect(ingest).toContain("onDecisionChange");
   });
 });

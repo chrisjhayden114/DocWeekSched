@@ -28,6 +28,8 @@ import {
 } from "../../../../lib/ingestSource";
 import {
   applyImportScope,
+  decisionOf,
+  resolveMatchDecision,
   rowsToApiChangeset,
   toggleRemoval,
   type ImportScope,
@@ -191,6 +193,16 @@ function changesetToRows(raw: unknown): ReviewChangeRow[] {
         // offer them as unchecked checkboxes.
         speakerRemovals: row.speakerRemovals,
         itemRemovals: row.itemRemovals,
+        // W-7: what changed, who it reschedules, and (on a resolved ambiguous
+        // match) the candidates the choice can be changed back to.
+        existingTitle: row.existingTitle,
+        similarity: row.similarity,
+        tier: row.tier,
+        changes: row.changes,
+        movesTime: row.movesTime === true,
+        joinedCount: typeof row.joinedCount === "number" ? row.joinedCount : 0,
+        bookmarkCount: typeof row.bookmarkCount === "number" ? row.bookmarkCount : 0,
+        decision: row.decision,
       };
     }
     if (kind === "error") {
@@ -208,6 +220,8 @@ function changesetToRows(raw: unknown): ReviewChangeRow[] {
       confidence: minConfidence(session),
       accepted: row.accepted !== false,
       session,
+      // W-7: an ambiguous match arrives as an ADD carrying its candidates.
+      decision: row.decision,
     };
   });
 }
@@ -350,13 +364,19 @@ export default function AgendaIngestPage() {
   const scopedRows = useMemo(() => applyImportScope(rows, importScope), [rows, importScope]);
   const summary = useMemo(
     () => ({
-      creates: scopedRows.filter((r) => r.kind === "create").length,
-      updates: scopedRows.filter((r) => r.kind === "update").length,
+      // W-7: an ambiguous match is counted as a decision, not as a create or
+      // an update, however it is currently pointed.
+      creates: scopedRows.filter((r) => r.kind === "create" && !decisionOf(r)).length,
+      updates: scopedRows.filter((r) => r.kind === "update" && !decisionOf(r)).length,
+      decisions: scopedRows.filter(
+        (r) => (r.kind === "create" || r.kind === "update") && Boolean(decisionOf(r)),
+      ).length,
       deletes: scopedRows.filter((r) => r.kind === "delete").length,
       errors: scopedRows.filter((r) => r.kind === "error").length,
     }),
     [scopedRows],
   );
+  const foundCount = summary.creates + summary.updates + summary.decisions;
 
   // E11.1: file-sourced runs show real metadata in the Source panel — never
   // the internal "[Binary …]" placeholder that sourceTextPreview holds for them.
@@ -1120,10 +1140,10 @@ export default function AgendaIngestPage() {
             title={
               // E30.4: same wording as ingestReviewHeading, with the found
               // figure rendered proudly — the ONE earned count-up.
-              run.status !== "CONFIRMED" && summary.creates + summary.updates > 0 ? (
+              run.status !== "CONFIRMED" && foundCount > 0 ? (
                 <>
-                  Review <CountUp value={summary.creates + summary.updates} /> session
-                  {summary.creates + summary.updates === 1 ? "" : "s"}{" "}
+                  Review <CountUp value={foundCount} /> session
+                  {foundCount === 1 ? "" : "s"}{" "}
                   {run.sourceKind === "GENERATED"
                     ? "drafted from your description"
                     : `found in ${ingestSourceName(run.sourceKind, run.sourceFileName)}`}
@@ -1133,6 +1153,7 @@ export default function AgendaIngestPage() {
                   confirmed: run.status === "CONFIRMED",
                   creates: summary.creates,
                   updates: summary.updates,
+                  decisions: summary.decisions,
                   sourceKind: run.sourceKind,
                   fileName: run.sourceFileName,
                 })
@@ -1182,6 +1203,14 @@ export default function AgendaIngestPage() {
             }
             onRemovalChange={(rowIndex, kind, id, accepted) =>
               setRows((prev) => toggleRemoval(prev, rowIndex, kind, id, accepted))
+            }
+            // W-7: resolving an ambiguous match only rewrites the row — the
+            // dry-run doctrine holds, nothing applies until Confirm drafts.
+            onDecisionChange={
+              run.status === "READY_FOR_REVIEW"
+                ? (rowIndex, sessionId) =>
+                    setRows((prev) => resolveMatchDecision(prev, rowIndex, sessionId))
+                : undefined
             }
             renderCreateSummary={(row) => {
               const session = "session" in row ? (row.session as { title?: string; startTime?: string; room?: string } | undefined) : undefined;

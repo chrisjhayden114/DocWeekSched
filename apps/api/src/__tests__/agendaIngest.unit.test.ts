@@ -147,12 +147,14 @@ describe("Agenda ingest (unit)", () => {
   });
 
   it("re-import with all children covered proposes no removals (E13.3)", () => {
+    // W-7: the row exists because the session was retimed — a re-import that
+    // changes nothing at all now produces no row (see the W-7 suite below).
     const extract = agendaExtractSchema.parse({
       sessions: [
         {
           title: "Methods Workshop",
           date: "2027-06-12",
-          startTime: "09:00",
+          startTime: "09:30",
           speakers: ["Alice Chen"],
           items: [{ title: "Imported Paper", authors: [] }],
         },
@@ -175,6 +177,359 @@ describe("Agenda ingest (unit)", () => {
     if (update?.kind !== "update") throw new Error("expected update row");
     expect(update.speakerRemovals).toBeUndefined();
     expect(update.itemRemovals).toBeUndefined();
+  });
+
+  it("W-7 — a session that moved to another day updates instead of duplicating", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        {
+          title: "Ethics Roundtable",
+          date: "2027-06-13",
+          startTime: "09:30",
+          endTime: "10:30",
+          speakers: [],
+        },
+      ],
+      assumptions: [],
+    });
+    const rows = buildReimportChangeset(
+      extract,
+      [
+        {
+          id: "sess-1",
+          title: "Ethics Roundtable",
+          startsAt: new Date("2027-06-12T09:30:00Z"),
+          endsAt: new Date("2027-06-12T10:30:00Z"),
+          description: null,
+          speakers: [],
+          items: [],
+          joinedCount: 7,
+          bookmarkCount: 2,
+        },
+      ],
+      "UTC",
+    );
+    // One update row and nothing else: no duplicate create, no delete pair.
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    if (row.kind !== "update") throw new Error("expected update row");
+    expect(row.sessionId).toBe("sess-1");
+    expect(row.tier).toBe("moved");
+    expect(row.changes).toEqual([
+      { field: "day", label: "Day", from: "2027-06-12", to: "2027-06-13" },
+    ]);
+    // Blast radius travels with anything that moves times.
+    expect(row.movesTime).toBe(true);
+    expect(row.joinedCount).toBe(7);
+    expect(row.bookmarkCount).toBe(2);
+  });
+
+  it("W-7 — a retitled session matches on its day and on its time slot", () => {
+    const existing = {
+      id: "sess-1",
+      title: "Poster Lightning Talk",
+      startsAt: new Date("2027-06-12T11:15:00Z"),
+      endsAt: new Date("2027-06-12T12:00:00Z"),
+      description: null,
+      speakers: [],
+      items: [],
+      joinedCount: 3,
+      bookmarkCount: 1,
+    };
+
+    const sameDay = buildReimportChangeset(
+      agendaExtractSchema.parse({
+        sessions: [
+          {
+            title: "Poster Lightning Talks",
+            date: "2027-06-12",
+            startTime: "11:15",
+            endTime: "12:00",
+            speakers: [],
+          },
+        ],
+        assumptions: [],
+      }),
+      [existing],
+      "UTC",
+    );
+    expect(sameDay).toHaveLength(1);
+    if (sameDay[0].kind !== "update") throw new Error("expected update row");
+    expect(sameDay[0].tier).toBe("retitled");
+    expect(sameDay[0].similarity).toBeGreaterThanOrEqual(REIMPORT_TITLE_THRESHOLD);
+    expect(sameDay[0].changes).toEqual([
+      {
+        field: "title",
+        label: "Title",
+        from: "Poster Lightning Talk",
+        to: "Poster Lightning Talks",
+      },
+    ]);
+    // A retitle alone does not move anyone's schedule.
+    expect(sameDay[0].movesTime).toBe(false);
+
+    // Same title similarity, different day, same time slot — still a match.
+    const sameSlot = buildReimportChangeset(
+      agendaExtractSchema.parse({
+        sessions: [
+          {
+            title: "Poster Lightning Talks",
+            date: "2027-06-13",
+            startTime: "11:15",
+            endTime: "12:00",
+            speakers: [],
+          },
+        ],
+        assumptions: [],
+      }),
+      [existing],
+      "UTC",
+    );
+    expect(sameSlot).toHaveLength(1);
+    if (sameSlot[0].kind !== "update") throw new Error("expected update row");
+    expect(sameSlot[0].sessionId).toBe("sess-1");
+    expect(sameSlot[0].changes?.map((c) => c.field)).toEqual(["day", "title"]);
+    expect(sameSlot[0].movesTime).toBe(true);
+  });
+
+  it("W-7 — one import row matching two existing sessions asks instead of guessing", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        { title: "Workshop", date: "2027-06-12", startTime: "09:00", endTime: "10:00", speakers: [] },
+      ],
+      assumptions: [],
+    });
+    const twin = (id: string, roomName: string) => ({
+      id,
+      title: "Workshop",
+      startsAt: new Date("2027-06-12T09:00:00Z"),
+      endsAt: new Date("2027-06-12T10:00:00Z"),
+      roomName,
+      description: null,
+      speakers: [],
+      items: [],
+      joinedCount: 4,
+      bookmarkCount: 0,
+    });
+    const rows = buildReimportChangeset(extract, [twin("sess-a", "Room A"), twin("sess-b", "Room B")], "UTC");
+
+    const row = rows[0];
+    if (row.kind !== "create") throw new Error("expected a create row defaulting to add");
+    expect(row.accepted).toBe(true);
+    expect(row.decision?.reason).toBe("multiple-existing");
+    expect(row.decision?.candidates.map((c) => c.sessionId)).toEqual(["sess-a", "sess-b"]);
+    expect(row.decision?.candidates.map((c) => c.existingRoom)).toEqual(["Room A", "Room B"]);
+    // Neither contested session is proposed for delete — that would be a guess too.
+    expect(rows.filter((r) => r.kind === "delete")).toEqual([]);
+  });
+
+  it("W-7 — two import rows matching one existing session ask instead of guessing", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        {
+          title: "Workshop",
+          date: "2027-06-12",
+          startTime: "09:00",
+          endTime: "10:00",
+          room: "Room A",
+          speakers: [],
+        },
+        {
+          title: "Workshop",
+          date: "2027-06-12",
+          startTime: "09:00",
+          endTime: "10:00",
+          room: "Room B",
+          speakers: [],
+        },
+      ],
+      assumptions: [],
+    });
+    const rows = buildReimportChangeset(
+      extract,
+      [
+        {
+          id: "sess-1",
+          title: "Workshop",
+          startsAt: new Date("2027-06-12T09:00:00Z"),
+          endsAt: new Date("2027-06-12T10:00:00Z"),
+          description: null,
+          speakers: [],
+          items: [],
+        },
+      ],
+      "UTC",
+    );
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      if (row.kind !== "create") throw new Error("expected create rows defaulting to add");
+      expect(row.decision?.reason).toBe("multiple-imported");
+      expect(row.decision?.candidates.map((c) => c.sessionId)).toEqual(["sess-1"]);
+    }
+    const [first, second] = rows;
+    if (first.kind !== "create" || second.kind !== "create") throw new Error("expected create rows");
+    expect(first.decision?.contendingRowIndexes).toEqual([second.rowIndex]);
+    expect(second.decision?.contendingRowIndexes).toEqual([first.rowIndex]);
+  });
+
+  it("W-7 — an ambiguous row never steals the match another row clearly owns", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        // Names its room, so it clearly belongs to the Room A session.
+        {
+          title: "Workshop",
+          date: "2027-06-12",
+          startTime: "09:00",
+          endTime: "10:30",
+          room: "Room A",
+          speakers: [],
+        },
+        // Names no room, so on its own it fits either twin.
+        { title: "Workshop", date: "2027-06-12", startTime: "09:00", endTime: "10:30", speakers: [] },
+      ],
+      assumptions: [],
+    });
+    const twin = (id: string, roomName: string) => ({
+      id,
+      title: "Workshop",
+      startsAt: new Date("2027-06-12T09:00:00Z"),
+      endsAt: new Date("2027-06-12T10:00:00Z"),
+      roomName,
+      description: null,
+      speakers: [],
+      items: [],
+    });
+    const rows = buildReimportChangeset(extract, [twin("sess-a", "Room A"), twin("sess-b", "Room B")], "UTC");
+
+    // The clear match settles first, which leaves exactly one session for the
+    // vaguer row — so neither needs a decision, and neither is duplicated.
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.kind)).toEqual(["update", "update"]);
+    if (rows[0].kind !== "update" || rows[1].kind !== "update") throw new Error("expected updates");
+    expect(rows[0].sessionId).toBe("sess-a");
+    expect(rows[1].sessionId).toBe("sess-b");
+  });
+
+  it("W-7 — a repeated title is resolved by time, not surfaced as ambiguous", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        { title: "Break", date: "2027-06-12", startTime: "10:30", endTime: "10:45", speakers: [] },
+        { title: "Break", date: "2027-06-12", startTime: "15:00", endTime: "15:20", speakers: [] },
+      ],
+      assumptions: [],
+    });
+    const rows = buildReimportChangeset(
+      extract,
+      [
+        {
+          id: "morning",
+          title: "Break",
+          startsAt: new Date("2027-06-12T10:30:00Z"),
+          endsAt: new Date("2027-06-12T10:45:00Z"),
+          description: null,
+          speakers: [],
+          items: [],
+        },
+        {
+          id: "afternoon",
+          title: "Break",
+          startsAt: new Date("2027-06-12T15:00:00Z"),
+          endsAt: new Date("2027-06-12T15:15:00Z"),
+          description: null,
+          speakers: [],
+          items: [],
+        },
+      ],
+      "UTC",
+    );
+    // The morning break is untouched; only the afternoon one changed length.
+    expect(rows).toHaveLength(1);
+    if (rows[0].kind !== "update") throw new Error("expected update row");
+    expect(rows[0].sessionId).toBe("afternoon");
+    expect(rows[0].changes).toEqual([
+      { field: "time", label: "Time", from: "15:00–15:15", to: "15:00–15:20" },
+    ]);
+  });
+
+  it("W-7 — unchanged sessions produce no rows at all", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        {
+          title: "Opening Keynote",
+          date: "2027-06-12",
+          startTime: "09:00",
+          endTime: "09:45",
+          room: "Hall 1",
+          track: "Plenary",
+          description: "Same as before.",
+          speakers: ["Nora Wells"],
+        },
+      ],
+      assumptions: [],
+    });
+    const rows = buildReimportChangeset(
+      extract,
+      [
+        {
+          id: "sess-1",
+          title: "Opening Keynote",
+          startsAt: new Date("2027-06-12T09:00:00Z"),
+          endsAt: new Date("2027-06-12T09:45:00Z"),
+          roomName: "Hall 1",
+          trackName: "Plenary",
+          description: "Same as before.",
+          speakers: [{ speakerId: "spk-1", name: "Nora Wells" }],
+          items: [],
+          joinedCount: 9,
+          bookmarkCount: 4,
+        },
+      ],
+      "UTC",
+    );
+    // No update row to review, and no delete row either — it was matched.
+    expect(rows).toEqual([]);
+  });
+
+  it("W-7 — an update that only changes the room carries counts but does not move times", () => {
+    const extract = agendaExtractSchema.parse({
+      sessions: [
+        {
+          title: "Opening Keynote",
+          date: "2027-06-12",
+          startTime: "09:00",
+          endTime: "09:45",
+          room: "Hall 2",
+          speakers: [],
+        },
+      ],
+      assumptions: [],
+    });
+    const rows = buildReimportChangeset(
+      extract,
+      [
+        {
+          id: "sess-1",
+          title: "Opening Keynote",
+          startsAt: new Date("2027-06-12T09:00:00Z"),
+          endsAt: new Date("2027-06-12T09:45:00Z"),
+          roomName: "Hall 1",
+          description: null,
+          speakers: [],
+          items: [],
+          joinedCount: 9,
+          bookmarkCount: 4,
+        },
+      ],
+      "UTC",
+    );
+    expect(rows).toHaveLength(1);
+    if (rows[0].kind !== "update") throw new Error("expected update row");
+    expect(rows[0].tier).toBe("exact");
+    expect(rows[0].changes).toEqual([
+      { field: "room", label: "Room", from: "Hall 1", to: "Hall 2" },
+    ]);
+    expect(rows[0].movesTime).toBe(false);
+    expect(rows[0].joinedCount).toBe(9);
   });
 
   it("publishEventDraftSessions scopes to the event's DRAFT sessions (E13.1)", async () => {

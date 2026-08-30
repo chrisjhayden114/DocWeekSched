@@ -1,11 +1,17 @@
 import { useMemo, type ReactNode } from "react";
 import {
+  changesOf,
   createRowSession,
+  decisionOf,
+  decisionSelection,
   deleteRowsBlastCopy,
   groupCreateRows,
+  moveRowsBlastCopy,
   removalsOf,
   sessionDeleteBlastCopy,
+  sessionMoveBlastCopy,
   type RemovalKind,
+  type ReviewFieldChange,
 } from "../lib/ingestReview";
 import { Select } from "./Select";
 
@@ -35,6 +41,10 @@ export type ReviewChangeRow =
       confidence?: number;
       day?: string;
       accepted?: boolean;
+      /** W-7 — true when the day or clock time changes; drives the move blast radius. */
+      movesTime?: boolean;
+      joinedCount?: number;
+      bookmarkCount?: number;
       [key: string]: unknown;
     }
   | {
@@ -72,7 +82,15 @@ export type ReviewChangesetProps = {
   onMappingChange?: (mapping: Record<string, string>) => void;
   mappingOptions?: { value: string; label: string }[];
   rows: ReviewChangeRow[];
-  summary?: { creates?: number; errors?: number; skipped?: number; updates?: number; deletes?: number };
+  summary?: {
+    creates?: number;
+    errors?: number;
+    skipped?: number;
+    updates?: number;
+    deletes?: number;
+    /** W-7 — ambiguous matches waiting on the organizer. */
+    decisions?: number;
+  };
   confirmLabel?: string;
   onConfirm?: () => void | Promise<void>;
   /**
@@ -97,6 +115,12 @@ export type ReviewChangesetProps = {
    * (kind "item" = paper, "speaker" = speaker link).
    */
   onRemovalChange?: (rowIndex: number, kind: RemovalKind, id: string, accepted: boolean) => void;
+  /**
+   * W-7: point an ambiguous match row at one of its candidate sessions, or
+   * back at "add as new" (null). Without this handler the candidates are
+   * shown read-only and the row stays an add.
+   */
+  onDecisionChange?: (rowIndex: number, sessionId: string | null) => void;
   /** Read-only (E13.2). */
   assumptions?: ReviewAssumption[];
   /** Amber threshold for confidence (default 0.8). */
@@ -151,6 +175,33 @@ function enrichedCreateLine(row: Extract<ReviewChangeRow, { kind: "create" }>): 
 }
 
 /**
+ * W-7: old → new per changed field, in the same shape as the setup-copilot
+ * config diff card so both review surfaces read the same way.
+ */
+function FieldDiffList({ changes, indent = 26 }: { changes: ReviewFieldChange[]; indent?: number }) {
+  if (changes.length === 0) return null;
+  return (
+    <ul
+      style={{
+        margin: `4px 0 0 ${indent}px`,
+        padding: 0,
+        listStyle: "none",
+        display: "grid",
+        gap: 2,
+        fontSize: 13,
+      }}
+    >
+      {changes.map((change) => (
+        <li key={change.field}>
+          <span className="help-text">{change.label}: </span>
+          {change.from} → <strong>{change.to}</strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
  * Reusable dry-run review surface (CSV invites + Agenda Ingest).
  * Shows column mapping, per-row create/update/delete list, confirm/cancel.
  */
@@ -172,6 +223,7 @@ export function ReviewChangeset({
   renderCreateExtra,
   onAcceptChange,
   onRemovalChange,
+  onDecisionChange,
   assumptions,
   lowConfidence = 0.8,
   sourcePreview,
@@ -180,12 +232,29 @@ export function ReviewChangeset({
   groupCreates = false,
   selectAll = false,
 }: ReviewChangesetProps) {
+  // W-7: ambiguous matches get their own section and stay there once
+  // resolved, so the organizer can revisit the choice before confirming.
+  const decisions = useMemo(
+    () =>
+      rows.filter(
+        (r): r is Extract<ReviewChangeRow, { kind: "create" | "update" | "skip" }> =>
+          (r.kind === "create" || r.kind === "update") && Boolean(decisionOf(r)),
+      ),
+    [rows],
+  );
   const creates = useMemo(
-    () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "create" }> => r.kind === "create"),
+    () =>
+      rows.filter(
+        (r): r is Extract<ReviewChangeRow, { kind: "create" }> => r.kind === "create" && !decisionOf(r),
+      ),
     [rows],
   );
   const updates = useMemo(
-    () => rows.filter((r): r is Extract<ReviewChangeRow, { kind: "update" | "skip" }> => r.kind === "update"),
+    () =>
+      rows.filter(
+        (r): r is Extract<ReviewChangeRow, { kind: "update" | "skip" }> =>
+          r.kind === "update" && !decisionOf(r),
+      ),
     [rows],
   );
   const deletes = useMemo(
@@ -208,6 +277,9 @@ export function ReviewChangeset({
   // ≤12 rows: everything visible at once. More: closed groups keep the page scannable.
   const groupsDefaultOpen = creates.length <= 12;
   const deleteBlast = deleteRowsBlastCopy(deletes);
+  // W-7: a session that moves reschedules whoever joined it — same honesty as
+  // a delete, counted across every accepted row that changes day or time.
+  const moveBlast = moveRowsBlastCopy([...updates, ...decisions]);
 
   /** Select all / none for a section — opt-in (agenda ingest, roster import). */
   const selectAllControls = (sectionRows: { rowIndex: number }[]) =>
@@ -283,7 +355,8 @@ export function ReviewChangeset({
   // A run that creates nothing but proposes deletions reads as data loss if
   // the deletions lead. Lead with the empty-state explanation instead and
   // tuck the delete list behind a disclosure.
-  const zeroCreateWithDeletes = creates.length === 0 && updates.length === 0 && deletes.length > 0;
+  const zeroCreateWithDeletes =
+    creates.length === 0 && updates.length === 0 && decisions.length === 0 && deletes.length > 0;
 
   const deletesList = (
     <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14 }}>
@@ -347,6 +420,12 @@ export function ReviewChangeset({
             <>
               {summary.creates != null ? " · " : null}
               <strong>{summary.updates}</strong> update
+            </>
+          ) : null}
+          {summary.decisions != null && summary.decisions > 0 ? (
+            <>
+              {" · "}
+              <strong>{summary.decisions}</strong> need{summary.decisions === 1 ? "s" : ""} your decision
             </>
           ) : null}
           {summary.deletes != null && summary.deletes > 0 ? (
@@ -458,6 +537,100 @@ export function ReviewChangeset({
         </div>
       ) : null}
 
+      {/* W-7: matches the matcher would have to guess at. Unanswered rows are
+          added as new sessions — the safe default — and neither candidate is
+          proposed for deletion. */}
+      {decisions.length > 0 ? (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Needs your decision</p>
+          <p className="help-text" style={{ margin: "0 0 8px" }}>
+            These could each be an update to a session you already have, or a new session. We won’t
+            guess: anything left unanswered is added as a new session, and nothing you already have is
+            deleted.
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: 14, display: "grid", gap: 10 }}>
+            {decisions.map((row) => {
+              const decision = decisionOf(row)!;
+              const selected = decisionSelection(row);
+              const session = createRowSession(row);
+              const slot = [row.day || session?.date, session?.startTime].filter(Boolean).join(" · ");
+              const chosen = selected
+                ? decision.candidates.find((c) => c.sessionId === selected)
+                : undefined;
+              return (
+                <li
+                  key={`decision-${row.rowIndex}`}
+                  style={{
+                    padding: "8px 10px",
+                    border: "1px solid var(--gray-200)",
+                    borderRadius: "var(--radius-sm)",
+                    background: "var(--warning-50)",
+                  }}
+                >
+                  <div>
+                    <strong>{row.title || session?.title || `Row ${row.rowIndex + 1}`}</strong>
+                    {slot ? <span className="help-text"> · {slot}</span> : null}
+                  </div>
+                  <p className="help-text" style={{ margin: "2px 0 8px" }}>
+                    {decision.message}
+                    {decision.contendingRowIndexes?.length
+                      ? ` Also matched by row ${decision.contendingRowIndexes
+                          .map((i) => i + 1)
+                          .join(", ")} of this import.`
+                      : null}
+                  </p>
+                  <div role="group" aria-label="What should this row do?" style={{ display: "grid", gap: 4 }}>
+                    <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <input
+                        type="radio"
+                        name={`decision-${row.rowIndex}`}
+                        checked={selected === null}
+                        disabled={!onDecisionChange}
+                        onChange={() => onDecisionChange?.(row.rowIndex, null)}
+                      />
+                      <span>Add as a new session (default)</span>
+                    </label>
+                    {decision.candidates.map((candidate) => (
+                      <label
+                        key={`decision-${row.rowIndex}-${candidate.sessionId}`}
+                        style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                      >
+                        <input
+                          type="radio"
+                          name={`decision-${row.rowIndex}`}
+                          checked={selected === candidate.sessionId}
+                          disabled={!onDecisionChange}
+                          onChange={() => onDecisionChange?.(row.rowIndex, candidate.sessionId)}
+                        />
+                        <span>
+                          Update “{candidate.existingTitle}”
+                          <span className="help-text">
+                            {" "}
+                            {[candidate.existingDay, candidate.existingTime, candidate.existingRoom]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {chosen ? (
+                    <>
+                      <FieldDiffList changes={chosen.changes || []} indent={26} />
+                      {chosen.movesTime ? (
+                        <p className="help-text" style={{ margin: "4px 0 0 26px" }}>
+                          {sessionMoveBlastCopy(chosen.joinedCount ?? 0, chosen.bookmarkCount ?? 0)}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
       {updates.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
           <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Will update</p>
@@ -482,6 +655,14 @@ export function ReviewChangeset({
                       {row.message ? ` — ${row.message}` : null}
                     </span>
                   </label>
+                  {/* W-7: what actually changes, field by field, and who is
+                      rescheduled when the change is a move. */}
+                  <FieldDiffList changes={changesOf(row)} />
+                  {row.movesTime ? (
+                    <p className="help-text" style={{ margin: "4px 0 0 26px" }}>
+                      {sessionMoveBlastCopy(row.joinedCount ?? 0, row.bookmarkCount ?? 0)}
+                    </p>
+                  ) : null}
                   {/* E13.3: children the import doesn't mention. Nothing is
                       removed unless the organiser ticks it here. */}
                   {itemRemovals.length > 0 || speakerRemovals.length > 0 ? (
@@ -545,10 +726,15 @@ export function ReviewChangeset({
         </details>
       ) : null}
 
-      {creates.length === 0 && updates.length === 0 && deletes.length === 0 ? (
+      {creates.length === 0 && updates.length === 0 && decisions.length === 0 && deletes.length === 0 ? (
         <p className="help-text">Nothing valid to create yet. Fix errors or adjust column mapping.</p>
       ) : null}
 
+      {moveBlast ? (
+        <p className="help-text" role="status" style={{ margin: "8px 0 0" }}>
+          {moveBlast}
+        </p>
+      ) : null}
       {deleteBlast ? (
         <p className="help-text" role="status" style={{ margin: "8px 0 0" }}>
           {deleteBlast}
