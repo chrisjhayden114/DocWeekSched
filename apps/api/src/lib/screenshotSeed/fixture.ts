@@ -10,6 +10,8 @@
  * photographed and published on the marketing site.
  */
 
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 import type { FeatureKey, FeatureOverrideValue } from "@event-app/shared";
 import { FEATURE_REGISTRY } from "@event-app/shared";
 
@@ -217,6 +219,17 @@ export type ScreenshotSeedSpec = {
     /** Whose certificate the public /verify shot resolves. */
     holderKey: string;
   };
+  /**
+   * Recap workspace rows written directly — no generate/AI call. Section
+   * titles match what RecapPanel shows (kind → "REPORT", "FEEDBACK SYNTHESIS").
+   */
+  recap: {
+    sections: Array<{
+      kind: "REPORT" | "FEEDBACK_SYNTHESIS" | "CERTIFICATES";
+      title: string;
+      bodyMarkdown: string;
+    }>;
+  };
   matchSuggestions: Array<{ forUserKey: string; suggestedUserKey: string; whyLine: string; draftIntro: string }>;
   notifications: Array<{ forUserKey: string; kind: string; title: string; body: string; minutesAgo: number }>;
   /** Group thread that gives the Messages shot something other than DMs. */
@@ -231,35 +244,23 @@ export const SCREENSHOT_ORGANIZER_KEY = "organizer";
 export const SCREENSHOT_ATTENDEE_KEY = "priya";
 
 /**
- * A hand-drawn floor plan as an inline SVG data URL.
+ * The Civic Centre floor plan as a PNG data URL — the same shape moments
+ * photos use (inline `data:`, no R2). Maps upload only accepts jpeg/png/webp/gif,
+ * so an SVG data URL photographed as a blank box.
  *
- * Storage is unconfigured in CI, so uploads would fall back to data URLs
- * anyway; embedding one keeps the seed offline and the Maps shot deterministic.
- * `img-src` already allows `data:` (lib/securityHeaders.js).
+ * `tsx` / vitest resolve `__dirname` next to this file; the compiled `dist/`
+ * copy looks one hop back into `src/` if someone runs a built seed.
  */
 export function floorPlanDataUrl(): string {
-  const svg = [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760">`,
-    `<rect width="1200" height="760" fill="#f4f6fa"/>`,
-    `<g fill="#ffffff" stroke="#c3cbd9" stroke-width="3">`,
-    `<rect x="60" y="60" width="480" height="300"/>`,
-    `<rect x="580" y="60" width="260" height="140"/>`,
-    `<rect x="580" y="220" width="260" height="140"/>`,
-    `<rect x="880" y="60" width="260" height="300"/>`,
-    `<rect x="60" y="400" width="330" height="300"/>`,
-    `<rect x="430" y="400" width="710" height="300"/>`,
-    `</g>`,
-    `<g fill="#5a6577" font-family="Helvetica, Arial, sans-serif" font-size="26">`,
-    `<text x="90" y="110">Northbridge Hall</text>`,
-    `<text x="610" y="110">Studio 2</text>`,
-    `<text x="610" y="270">Studio 3</text>`,
-    `<text x="910" y="110">Reading Room</text>`,
-    `<text x="90" y="450">Registration</text>`,
-    `<text x="460" y="450">Exhibitor Concourse</text>`,
-    `</g>`,
-    `</svg>`,
-  ].join("");
-  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+  const candidates = [
+    join(__dirname, "floorplan.png"),
+    join(__dirname, "../../../src/lib/screenshotSeed/floorplan.png"),
+  ];
+  const path = candidates.find((p) => existsSync(p));
+  if (!path) {
+    throw new Error("screenshot seed floorplan.png is missing next to fixture.ts");
+  }
+  return `data:image/png;base64,${readFileSync(path).toString("base64")}`;
 }
 
 /**
@@ -409,6 +410,7 @@ export function buildScreenshotSeedSpec(): ScreenshotSeedSpec {
     ],
     rooms: [
       { key: "hall", name: "Northbridge Hall", capacity: 400 },
+      { key: "workshopA", name: "Workshop A", capacity: 60 },
       { key: "studio2", name: "Studio 2", capacity: 60 },
       { key: "studio3", name: "Studio 3", capacity: 45 },
       { key: "reading", name: "Reading Room", capacity: 30 },
@@ -854,12 +856,10 @@ export function buildScreenshotSeedSpec(): ScreenshotSeedSpec {
     map: {
       name: "Civic Centre — ground floor",
       pins: [
-        { roomLabel: "Northbridge Hall", x: 24, y: 27, roomKey: "hall" },
-        { roomLabel: "Studio 2", x: 59, y: 17, roomKey: "studio2" },
-        { roomLabel: "Studio 3", x: 59, y: 38, roomKey: "studio3" },
-        { roomLabel: "Reading Room", x: 84, y: 27, roomKey: "reading" },
-        { roomLabel: "Registration desk", x: 19, y: 72 },
-        { roomLabel: "Exhibitor concourse", x: 65, y: 72 },
+        // Percentages match the committed floorplan.png room boxes.
+        { roomLabel: "Northbridge Hall", x: 26, y: 28, roomKey: "hall" },
+        { roomLabel: "Workshop A", x: 60, y: 28, roomKey: "workshopA" },
+        { roomLabel: "Reading Room", x: 84, y: 28, roomKey: "reading" },
       ],
     },
     sponsors: [
@@ -1043,6 +1043,44 @@ export function buildScreenshotSeedSpec(): ScreenshotSeedSpec {
         "attended the Northbridge Learning Summit 2026, two days of practitioner professional learning on assessment, coaching, and curriculum design.",
       hours: 12,
       holderKey: SCREENSHOT_ATTENDEE_KEY,
+    },
+    recap: {
+      sections: [
+        {
+          kind: "REPORT",
+          title: "Northbridge Learning Summit 2026 — Recap report",
+          bodyMarkdown: [
+            "# Northbridge Learning Summit 2026",
+            "",
+            "Two days at the Civic Centre. The Hall filled for the opening keynote, Workshop A ran back-to-back on reading conferences, and the reporting lab waitlist was the only room that went over.",
+            "",
+            "Check-ins tracked against the roster; Q&A and the commitment wall were the busiest attendee surfaces. Numbers in the metrics snapshot are from SQL, not this draft.",
+          ].join("\n"),
+        },
+        {
+          kind: "FEEDBACK_SYNTHESIS",
+          title: "Northbridge Learning Summit 2026 — Feedback synthesis",
+          bodyMarkdown: [
+            "# Feedback synthesis",
+            "",
+            "## Comments people can use on Monday",
+            "> The ten-minute structure is the first version of this I could actually run on Monday without extra staffing.",
+            "",
+            "## What to protect next year",
+            "- Keep the Hall sockets note in the welcome thread.",
+            "- Do not move the feedback panel out of the Hall on the morning.",
+          ].join("\n"),
+        },
+        {
+          kind: "CERTIFICATES",
+          title: "Northbridge Learning Summit 2026 — Certificates",
+          bodyMarkdown: [
+            "# Certificates",
+            "",
+            "Template ready: Summit attendance — 12 hours. Eligibility is any check-in. Batch issue stays a separate click after the event ends.",
+          ].join("\n"),
+        },
+      ],
     },
     matchSuggestions: [
       {

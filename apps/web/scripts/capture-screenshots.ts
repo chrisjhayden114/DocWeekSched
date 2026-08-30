@@ -27,8 +27,8 @@ import { join, resolve } from "path";
 import { chromium, type BrowserContext, type Locator, type Page } from "playwright";
 import type { FeatureKey } from "@event-app/shared";
 import {
+  ALIGN_TOP_PAD,
   DOCKED_BODY_CLASSES,
-  PAGE_SCOPE_TOP_PAD,
   cleanStageCss,
   composedFrame,
   composedFrameHtml,
@@ -36,14 +36,13 @@ import {
   isPageScopeSelector,
   needsComposedFrame,
   pngSize,
+  subjectTopClip,
+  topAlignedClip,
 } from "../screenshot-frame";
 import {
   SCREENSHOT_MANIFEST,
-  SCREENSHOT_MAX_HEIGHT,
-  SCREENSHOT_MIN_HEIGHT,
   SCREENSHOT_MIN_PASS_RATIO,
   SCREENSHOT_VIEWPORT,
-  SCREENSHOT_WIDTH,
   captureRunPassed,
   eligibleScreenshotKeys,
   tokensInPath,
@@ -111,6 +110,20 @@ async function settle(page: Page): Promise<void> {
  */
 async function clearStage(page: Page, shot: FeatureShot): Promise<void> {
   await page.addStyleTag({ content: cleanStageCss(shot.selector) });
+  if (shot.stageCss) await page.addStyleTag({ content: shot.stageCss });
+}
+
+/** Scroll the window and every overflow ancestor so the subject's top is at 0. */
+async function scrollSubjectToTop(page: Page, target: Locator): Promise<void> {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await target.evaluate((el) => {
+    el.scrollTop = 0;
+    let node: Element | null = el;
+    while (node) {
+      if (node instanceof HTMLElement) node.scrollTop = 0;
+      node = node.parentElement;
+    }
+  });
 }
 
 /**
@@ -140,40 +153,41 @@ async function resetFloatingChrome(page: Page): Promise<void> {
   );
 }
 
-/**
- * A document clip around a page-scope element: the element IS the content
- * column, so its exact bounds would shave off the page around it. Padded at the
- * top so a section heading is never flush against the first row of pixels.
- */
-async function pageScopeClip(page: Page, target: Locator, selector: string): Promise<Buffer> {
+async function documentBox(page: Page, target: Locator, selector: string) {
   const box = await target.boundingBox();
   if (!box) throw new Error(`"${selector}" has no bounding box (not rendered?)`);
-
   const doc = await page.evaluate(() => ({
     scrollX: window.scrollX,
     scrollY: window.scrollY,
     width: document.documentElement.scrollWidth,
     height: document.documentElement.scrollHeight,
   }));
+  return {
+    box: { x: box.x + doc.scrollX, y: box.y + doc.scrollY, width: box.width, height: box.height },
+    doc: { width: doc.width, height: doc.height },
+  };
+}
 
-  // boundingBox is viewport-relative; clip is document-relative.
-  const width = Math.min(SCREENSHOT_WIDTH, doc.width);
-  const height = Math.round(
-    Math.min(SCREENSHOT_MAX_HEIGHT, Math.max(SCREENSHOT_MIN_HEIGHT, box.height + PAGE_SCOPE_TOP_PAD)),
-  );
-  const centered = Math.round(box.x + doc.scrollX + box.width / 2 - width / 2);
-  const x = Math.max(0, Math.min(centered, doc.width - width));
-  const y = Math.max(
-    0,
-    Math.min(box.y + doc.scrollY - PAGE_SCOPE_TOP_PAD, Math.max(0, doc.height - height)),
-  );
-
+async function clipDocument(
+  page: Page,
+  clip: { x: number; y: number; width: number; height: number },
+): Promise<Buffer> {
   return page.screenshot({
-    clip: { x, y, width, height },
+    clip,
     fullPage: true,
     animations: "disabled",
     scale: "css",
   });
+}
+
+/**
+ * A document clip around a page-scope element: the element IS the content
+ * column, so its exact bounds would shave off the page around it. Padded at the
+ * top so a section heading is never flush against the first row of pixels.
+ */
+async function pageScopeClip(page: Page, target: Locator, selector: string): Promise<Buffer> {
+  const { box, doc } = await documentBox(page, target, selector);
+  return clipDocument(page, topAlignedClip(box, doc, { pad: ALIGN_TOP_PAD }));
 }
 
 /**
@@ -220,18 +234,28 @@ async function capture(
 ): Promise<void> {
   const target = page.locator(shot.selector).first();
   await target.waitFor({ state: "visible", timeout: 30_000 });
-  await target.scrollIntoViewIfNeeded();
+  if (shot.alignTop || isPageScopeSelector(shot.selector)) {
+    await scrollSubjectToTop(page, target);
+  } else {
+    await target.scrollIntoViewIfNeeded();
+  }
   await settle(page);
   // After the scroll and before any measurement: releasing the docked gutter
   // moves the content the clip is about to be measured against.
   await clearStage(page, shot);
 
-  const png = isPageScopeSelector(shot.selector)
-    ? await pageScopeClip(page, target, shot.selector)
-    : // Playwright scrolls the element into frame and bounds it exactly, which
-      // is the whole point: headings included, no neighbouring column, no
-      // shaved top from a rectangle that only happened to start there.
-      await target.screenshot({ animations: "disabled", scale: "css" });
+  let png: Buffer;
+  if (shot.clipHeight != null) {
+    const { box } = await documentBox(page, target, shot.selector);
+    png = await clipDocument(page, subjectTopClip(box, shot.clipHeight));
+  } else if (shot.alignTop || isPageScopeSelector(shot.selector)) {
+    png = await pageScopeClip(page, target, shot.selector);
+  } else {
+    // Playwright scrolls the element into frame and bounds it exactly, which
+    // is the whole point: headings included, no neighbouring column, no
+    // shaved top from a rectangle that only happened to start there.
+    png = await target.screenshot({ animations: "disabled", scale: "css" });
+  }
 
   if (!needsComposedFrame(pngSize(png))) {
     writeFileSync(outPath, png);
@@ -313,6 +337,9 @@ async function main() {
           }
           if (shot.waitFor) {
             await page.locator(shot.waitFor).first().waitFor({ state: "visible", timeout: 30_000 });
+          }
+          for (const field of shot.fills ?? []) {
+            await page.fill(field.selector, field.value);
           }
 
           await capture(page, stage, shot, join(outDir, `${key}.png`));

@@ -26,6 +26,9 @@ import {
   OrgRole,
   PlanTier,
   ReadinessAssignmentStatus,
+  RecapSectionKind,
+  RecapSectionStatus,
+  RecapStatus,
   Role,
   SessionAttendanceStatus,
   SessionJoinMode,
@@ -33,11 +36,13 @@ import {
   SessionPublishStatus,
   SponsorProspectStatus,
   SubscriptionStatus,
+  type Prisma,
 } from "@prisma/client";
 import { applyPreset } from "@event-app/shared";
 import { hashPassword } from "../auth";
 import { prisma } from "../db";
 import { assertDestructiveAllowed } from "../destructiveGuard";
+import { computeRecapMetrics } from "../ai/recap/metrics";
 import { upsertFeatureOverrides } from "../features/featureEnabled";
 import { newJoinToken } from "../inviteTokens";
 import {
@@ -102,6 +107,9 @@ async function wipeEvent(slug: string, organizationId: string): Promise<void> {
   }
   const eventId = event.id;
 
+  await prisma.eventRecapEmail.deleteMany({ where: { recap: { eventId } } });
+  await prisma.eventRecapSection.deleteMany({ where: { recap: { eventId } } });
+  await prisma.eventRecap.deleteMany({ where: { eventId } });
   await prisma.issuedCertificate.deleteMany({ where: { eventId } });
   await prisma.certificateTemplate.deleteMany({ where: { eventId } });
   await prisma.readinessAssignment.deleteMany({ where: { eventId } });
@@ -653,6 +661,30 @@ export async function seedScreenshotData(now = new Date()): Promise<ScreenshotSe
       eligibilityRule: CertificateEligibilityRule.ANY_CHECKIN,
     },
   });
+  const snapshot = await computeRecapMetrics(event.id);
+  const recap = await prisma.eventRecap.create({
+    data: {
+      organizationId: org.id,
+      eventId: event.id,
+      status: RecapStatus.READY,
+      metricsSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+      generatedAt: new Date(),
+    },
+  });
+  for (const section of spec.recap.sections) {
+    await prisma.eventRecapSection.create({
+      data: {
+        recapId: recap.id,
+        kind: RecapSectionKind[section.kind],
+        status: RecapSectionStatus.DRAFT,
+        title: section.title,
+        bodyMarkdown: section.bodyMarkdown,
+        aiGenerated: false,
+        metered: false,
+      },
+    });
+  }
+
   const certificateHolder = users.get(spec.certificate.holderKey)!;
   const issuedCertificate = await prisma.issuedCertificate.create({
     data: {

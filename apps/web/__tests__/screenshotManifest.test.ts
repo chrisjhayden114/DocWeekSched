@@ -89,6 +89,31 @@ describe("screenshot manifest entries", () => {
     }
   });
 
+  it("frames console tabs from the first heading, not mid-row", () => {
+    for (const key of ["readiness", "ops_agent", "recap_agent"] as const) {
+      expect(SCREENSHOT_MANIFEST[key]!.alignTop, key).toBe(true);
+    }
+  });
+
+  it("fills the CFP form and keeps the page heading in the clip", () => {
+    const shot = SCREENSHOT_MANIFEST.cfp!;
+    expect(shot.selector).toBe("main.page");
+    expect(shot.alignTop).toBe(true);
+    expect(shot.fills?.map((f) => f.value).join(" ")).toContain("Priya Raghunathan");
+    expect(shot.fills).toHaveLength(4);
+  });
+
+  it("clips the concierge empty state to the header, chips, and input", () => {
+    const shot = SCREENSHOT_MANIFEST.concierge!;
+    expect(shot.clipHeight).toBe(420);
+    expect(shot.stageCss).toContain(".concierge-messages");
+    expect(shot.clicks?.[0]).toContain("concierge-fab");
+  });
+
+  it("keeps certificates on the public verify card — no standalone organizer console", () => {
+    expect(SCREENSHOT_MANIFEST.certificates!.path).toContain("/verify/");
+  });
+
   it("shoots every community channel from its own filtered feed", () => {
     const channels = FEATURE_REGISTRY.filter((f) => f.dependsOn?.includes("community")).map((f) => f.key);
     for (const key of channels) {

@@ -35,8 +35,53 @@ export const PAGE_SCOPE_SELECTORS = [".kit-page-stack", "main.page"] as const;
 /** Breathing room above a page-scope clip so the first heading isn't flush-cut. */
 export const PAGE_SCOPE_TOP_PAD = 16;
 
+/**
+ * Same pad for console-tab / align-top clips: the first heading should sit
+ * just below the top of the frame, not flush-cut and not mid-row.
+ */
+export const ALIGN_TOP_PAD = PAGE_SCOPE_TOP_PAD;
+
 export function isPageScopeSelector(selector: string): boolean {
   return (PAGE_SCOPE_SELECTORS as readonly string[]).includes(selector.trim());
+}
+
+export type DocumentBox = { x: number; y: number; width: number; height: number };
+export type DocumentSize = { width: number; height: number };
+
+/**
+ * A document clip pinned to the top of `box`, with optional pad above and an
+ * optional height cap. Used for page-scope shots and console tabs that must
+ * open on their first heading rather than mid-row.
+ */
+export function topAlignedClip(
+  box: DocumentBox,
+  doc: DocumentSize,
+  opts: { pad?: number; maxHeight?: number; minHeight?: number; clipHeight?: number } = {},
+): DocumentBox {
+  const pad = opts.pad ?? ALIGN_TOP_PAD;
+  const maxHeight = opts.maxHeight ?? SCREENSHOT_MAX_HEIGHT;
+  const minHeight = opts.minHeight ?? SCREENSHOT_MIN_HEIGHT;
+  const width = Math.min(SCREENSHOT_WIDTH, Math.max(1, Math.round(doc.width)));
+  const rawHeight = opts.clipHeight != null ? opts.clipHeight + pad : box.height + pad;
+  const height = Math.round(Math.min(maxHeight, Math.max(minHeight, rawHeight)));
+  const centered = Math.round(box.x + box.width / 2 - width / 2);
+  const x = Math.max(0, Math.min(centered, Math.max(0, doc.width - width)));
+  const y = Math.max(0, Math.min(box.y - pad, Math.max(0, doc.height - height)));
+  return { x, y, width, height };
+}
+
+/**
+ * Tight clip of a component's own top edge — used when a docked panel is
+ * taller than the interesting chrome (header + chips + input).
+ */
+export function subjectTopClip(box: DocumentBox, clipHeight: number): DocumentBox {
+  const height = Math.max(1, Math.round(Math.min(clipHeight, box.height)));
+  return {
+    x: Math.max(0, Math.round(box.x)),
+    y: Math.max(0, Math.round(box.y)),
+    width: Math.max(1, Math.round(box.width)),
+    height,
+  };
 }
 
 /**

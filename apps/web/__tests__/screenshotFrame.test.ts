@@ -8,9 +8,12 @@ import { describe, expect, it } from "vitest";
 import {
   DOCKED_BODY_CLASSES,
   FRAME_MAX_UPSCALE,
+  ALIGN_TOP_PAD,
   PAGE_SCOPE_SELECTORS,
   PAGE_SCOPE_TOP_PAD,
   cleanStageCss,
+  subjectTopClip,
+  topAlignedClip,
   composedFrame,
   composedFrameHtml,
   isAssistantOpenStorageKey,
@@ -225,6 +228,7 @@ describe("page scope", () => {
     expect(PAGE_SCOPE_SELECTORS).toEqual([".kit-page-stack", "main.page"]);
     for (const selector of PAGE_SCOPE_SELECTORS) expect(isPageScopeSelector(selector)).toBe(true);
     expect(PAGE_SCOPE_TOP_PAD).toBeGreaterThan(0);
+    expect(ALIGN_TOP_PAD).toBe(PAGE_SCOPE_TOP_PAD);
   });
 
   it("photographs every other manifest selector as an element", () => {
@@ -232,5 +236,22 @@ describe("page scope", () => {
       .filter(([, shot]) => isPageScopeSelector(shot.selector))
       .map(([key]) => key);
     expect(pageScoped.sort()).toEqual(["cfp", "community", "community_icebreakers"]);
+  });
+});
+
+describe("top-aligned clips", () => {
+  it("pins the frame to the subject's top plus pad, not mid-row", () => {
+    const clip = topAlignedClip(
+      { x: 80, y: 240, width: 1040, height: 1800 },
+      { width: 1440, height: 2200 },
+    );
+    expect(clip.y).toBe(240 - ALIGN_TOP_PAD);
+    expect(clip.height).toBe(SCREENSHOT_MAX_HEIGHT);
+    expect(clip.width).toBe(SCREENSHOT_WIDTH);
+  });
+
+  it("clips a docked panel to its own top edge and width", () => {
+    const clip = subjectTopClip({ x: 1056, y: 64, width: 384, height: 1036 }, 420);
+    expect(clip).toEqual({ x: 1056, y: 64, width: 384, height: 420 });
   });
 });

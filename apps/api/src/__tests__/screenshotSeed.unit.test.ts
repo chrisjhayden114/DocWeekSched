@@ -23,7 +23,7 @@ import {
 
 const spec = buildScreenshotSeedSpec();
 
-function decodeDataUrl(url: string): string {
+function decodeSvgDataUrl(url: string): string {
   const [meta, payload] = url.split(",");
   expect(meta).toBe("data:image/svg+xml;base64");
   return Buffer.from(payload!, "base64").toString("utf8");
@@ -311,27 +311,34 @@ describe("screenshot seed — sign-in and people", () => {
 
 describe("screenshot seed — inline artwork", () => {
   it("builds a floor plan the Maps tab can render offline", () => {
-    const svg = decodeDataUrl(floorPlanDataUrl());
-    expect(svg).toContain("<svg");
-    expect(svg).toContain("Northbridge Hall");
+    const url = floorPlanDataUrl();
+    const [meta, payload] = url.split(",");
+    expect(meta).toBe("data:image/png;base64");
+    const png = Buffer.from(payload!, "base64");
+    expect(png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(true);
+    expect(png.length).toBeGreaterThan(1000);
   });
 
-  it("keeps every map pin inside the image and mostly linked to a room", () => {
+  it("places three room-linked pins on the seeded Hall, Workshop A, and Reading Room", () => {
+    expect(spec.map.pins).toHaveLength(3);
+    const roomKeys = new Set(spec.rooms.map((r) => r.key));
+    const byLabel = new Map(spec.map.pins.map((p) => [p.roomLabel, p]));
+    expect(byLabel.get("Northbridge Hall")?.roomKey).toBe("hall");
+    expect(byLabel.get("Workshop A")?.roomKey).toBe("workshopA");
+    expect(byLabel.get("Reading Room")?.roomKey).toBe("reading");
     for (const pin of spec.map.pins) {
       expect(pin.x).toBeGreaterThan(0);
       expect(pin.x).toBeLessThan(100);
       expect(pin.y).toBeGreaterThan(0);
       expect(pin.y).toBeLessThan(100);
+      expect(pin.roomKey, `${pin.roomLabel} must link a room`).toBeTruthy();
+      expect(roomKeys).toContain(pin.roomKey);
     }
-    const roomKeys = new Set(spec.rooms.map((r) => r.key));
-    const linked = spec.map.pins.filter((p) => p.roomKey);
-    expect(linked.length).toBeGreaterThan(1);
-    for (const pin of linked) expect(roomKeys).toContain(pin.roomKey);
   });
 
   it("escapes captions into the moment and wordmark placeholders", () => {
-    expect(decodeDataUrl(momentDataUrl("Hall <script>"))).not.toContain("<script>");
-    expect(decodeDataUrl(wordmarkDataUrl("Kestrel & Co", "#1f3f7a"))).toContain("Kestrel  Co");
+    expect(decodeSvgDataUrl(momentDataUrl("Hall <script>"))).not.toContain("<script>");
+    expect(decodeSvgDataUrl(wordmarkDataUrl("Kestrel & Co", "#1f3f7a"))).toContain("Kestrel  Co");
   });
 });
 
@@ -369,6 +376,18 @@ describe("screenshot seed — organizer content", () => {
     // One message only: a second would mean the request gate was accepted.
     expect(spec.messageRequest.fromKey).not.toBe(spec.messageRequest.toKey);
     expect(spec.messageRequest.body.length).toBeLessThanOrEqual(1000);
+  });
+
+  it("seeds a recap workspace the panel can render without Generate", () => {
+    expect(spec.recap.sections.length).toBeGreaterThanOrEqual(2);
+    expect(spec.recap.sections.length).toBeLessThanOrEqual(3);
+    const kinds = spec.recap.sections.map((s) => s.kind);
+    expect(kinds).toContain("REPORT");
+    expect(kinds).toContain("FEEDBACK_SYNTHESIS");
+    for (const s of spec.recap.sections) {
+      expect(s.title).toContain("Northbridge");
+      expect(s.bodyMarkdown.length).toBeGreaterThan(40);
+    }
   });
 
   it("suggests at most the five matches a batch keeps", () => {

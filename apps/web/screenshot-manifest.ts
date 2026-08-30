@@ -77,6 +77,24 @@ export type FeatureShot = {
   clicks?: string[];
   /** Extra selector to await when `selector` can render before its content. */
   waitFor?: string;
+  /** Playwright fills run after clicks/waitFor, before the shot. */
+  fills?: Array<{ selector: string; value: string }>;
+  /**
+   * Clip only the top N CSS pixels of the subject. Used when the honest
+   * empty state is a tall flex column and the interesting chrome is at the top.
+   */
+  clipHeight?: number;
+  /**
+   * Extra CSS for this shot only — collapse empty flex regions so chips and
+   * an input can share a tight frame without inventing conversation content.
+   */
+  stageCss?: string;
+  /**
+   * Scroll the subject to its top edge before measuring, and include a pad
+   * above the first heading/card. Console tabs need this so the crop does
+   * not open mid-row.
+   */
+  alignTop?: boolean;
   /** Why this surface is the honest picture of the feature. */
   note: string;
 };
@@ -193,21 +211,45 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     selector: ".concierge-panel",
     as: "attendee",
     clicks: ["button.concierge-fab"],
-    note: "The assistant is a launcher until opened, so the panel is the only real picture.",
+    waitFor: ".concierge-chip",
+    clipHeight: 420,
+    stageCss:
+      ".concierge-panel .concierge-messages { flex: 0 0 auto; min-height: 0; max-height: 40px; overflow: hidden; }",
+    note:
+      "Honest empty state: header, the three starter chips, and the input. The messages column is collapsed for the frame so chips and input sit together — no fake conversation.",
   },
   cfp: {
     path: "/e/{slug}/cfp",
     selector: "main.page",
     as: "attendee",
     waitFor: "form.console-form",
+    alignTop: true,
+    fills: [
+      { selector: 'form.console-form label:has-text("Your name") input', value: "Priya Raghunathan" },
+      {
+        selector: 'form.console-form label:has-text("Email") input',
+        value: "priya.raghunathan@ashgrove-schools.example",
+      },
+      {
+        selector: 'form.console-form label:has-text("Title") input',
+        value: "Workshop: Reporting families can actually read",
+      },
+      {
+        selector: 'form.console-form label:has-text("Abstract") textarea',
+        value:
+          "A live rewrite of a report template with parents' questions on the wall. Participants leave with a one-page version they can try in their next cycle.",
+      },
+    ],
     note:
-      "The public submission form. Standalone page — the signed-in session is irrelevant. Page-scope, so the padded clip keeps the form's title row in frame.",
+      "The public submission form with the page heading and a filled-in Northbridge draft. Align-top so the h1 stays above the form.",
   },
   readiness: {
     path: "/organizer/events/{eventId}?tab=readiness",
     selector: CONSOLE_TAB,
     as: "organizer",
-    note: "The board with assignments in every state the tracker can render.",
+    alignTop: true,
+    waitFor: ".console-panel-label",
+    note: "The board with assignments in every state the tracker can render. Framed from the first heading.",
   },
 
   engagement_points: {
@@ -236,7 +278,8 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     path: "/dashboard?tab=Maps&mapId={mapId}&pinId={pinId}",
     selector: ".venue-maps-attendee",
     as: "attendee",
-    note: "A floor plan with room-linked pins, opened on a pin.",
+    waitFor: "img.floor-plan-image",
+    note: "A floor plan with three room-linked pins, opened on Northbridge Hall.",
   },
   attendee_directory: {
     path: "/dashboard?tab=Attendees",
@@ -281,19 +324,25 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     path: "/organizer/events/{eventId}?tab=ops",
     selector: CONSOLE_TAB,
     as: "organizer",
-    note: "Organizer-only inbox of drafted cards that send nothing until applied.",
+    alignTop: true,
+    waitFor: ".console-panel-label",
+    note: "Organizer-only inbox of drafted cards that send nothing until applied. Framed from the first heading.",
   },
   recap_agent: {
     path: "/organizer/events/{eventId}?tab=recap",
     selector: CONSOLE_TAB,
     as: "organizer",
-    note: "The recap workspace. The seeded event is still running, so Generate is honestly locked.",
+    alignTop: true,
+    waitFor: 'button:has-text("REPORT")',
+    note:
+      "Seeded recap workspace (REPORT, FEEDBACK SYNTHESIS, CERTIFICATES). Generate stays locked because the event is still running.",
   },
   certificates: {
     path: "/verify/{certificateId}",
     selector: ".mkt-login-card",
     as: "attendee",
-    note: "There is no attendee Certificates tab; the public verify page is the only visual surface.",
+    note:
+      "Fallback: there is no standalone organizer certificates console (template + eligibility + issue live on Recap after generate). The public verify card is the surface the seed can photograph.",
   },
   paid_attendance: {
     path: "/organizer/events/{eventId}?tab=participants",
