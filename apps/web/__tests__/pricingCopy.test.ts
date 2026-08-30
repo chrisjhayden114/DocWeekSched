@@ -33,6 +33,9 @@ describe("pricing copy (MKT-3) — entitlement-driven bullets", () => {
       );
       expect(rows.some((r) => r.includes("Excel")), plan.sku).toBe(true);
       expect(rows.some((r) => r.includes("CFP with blind review")), plan.sku).toBe(true);
+      expect(rows.some((r) => r.includes("Registration fees")), plan.sku).toBe(
+        resolveEntitlement(plan, "paid_attendance"),
+      );
       expect(rows.some((r) => r.includes("Venue maps")), plan.sku).toBe(
         resolveEntitlement(plan, "venue_maps"),
       );
@@ -46,6 +49,8 @@ describe("pricing copy (MKT-3) — entitlement-driven bullets", () => {
       { key: "badges", needle: "Badges" },
       { key: "checkin", needle: "QR check-in" },
       { key: "sponsors", needle: "Sponsors and lead capture" },
+      { key: "sponsor_outreach", needle: "Sponsor outreach" },
+      { key: "paid_attendance", needle: "Registration fees" },
       { key: "analytics", needle: "Analytics" },
       { key: "session_polls", needle: "Polls and surveys" },
       { key: "ai_full_suite", needle: /^Full AI suite/ },
@@ -62,6 +67,36 @@ describe("pricing copy (MKT-3) — entitlement-driven bullets", () => {
         );
         expect(shown, `${plan.sku} ${key}`).toBe(resolveEntitlement(plan, key));
       }
+    }
+  });
+
+  it("lists registration fees on every card (CORE / paid_attendance)", () => {
+    for (const plan of publicPricingPlans()) {
+      expect(hasBullet(plan.sku, "Registration fees"), plan.sku).toBe(true);
+    }
+    expect(planFeatureBullets(PLAN_BY_SKU.free)).toContain(
+      "Registration fees — publish price and payment instructions, track who's paid",
+    );
+  });
+
+  it("lists sponsor outreach on every card, and names the Free prospect cap", () => {
+    for (const plan of publicPricingPlans()) {
+      expect(hasBullet(plan.sku, "Sponsor outreach"), plan.sku).toBe(true);
+    }
+    const freeCap = PLAN_BY_SKU.free.limits.outreachProspectsPerEvent;
+    expect(freeCap).not.toBeNull();
+    expect(planFeatureBullets(PLAN_BY_SKU.free)).toContain(
+      `Sponsor outreach (${freeCap!.toLocaleString()} prospects per event)`,
+    );
+    const copy = readFileSync(join(__dirname, "../lib/pricingCopy.ts"), "utf8");
+    expect(copy).toContain("outreachProspectsPerEvent");
+    expect(copy).not.toMatch(/25 prospects/);
+    for (const sku of ["per_event_250", "pro_monthly", "enterprise"] as const) {
+      expect(planFeatureBullets(PLAN_BY_SKU[sku]), sku).toContain("Sponsor outreach");
+      expect(
+        planFeatureBullets(PLAN_BY_SKU[sku]).some((row) => row.includes("prospects per event")),
+        sku,
+      ).toBe(false);
     }
   });
 

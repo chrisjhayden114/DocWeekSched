@@ -96,11 +96,20 @@ export default function CompareSchedPage() {
               <Link href="/compare/whova">Whova&apos;s territory</Link>.
             </p>
 
+            <h2>Speaker Readiness</h2>
+            <p>
+              {brand.productName} sends each presenter a personal link — no account, no login. They
+              upload; you approve or reject. Reminders go out at 7 days, 2 days, and once when
+              overdue. Sched requires speakers to create accounts and log in. If that account model
+              is what you need, pick Sched.
+            </p>
+
             <h2>Honest reasons to pick Sched instead</h2>
             <ul>
               <li>
-                You want built-in <strong>ticketing/registration</strong> — Sched includes it;{" "}
-                {brand.productName} does not (bring your own registration).
+                You need built-in <strong>payment processing</strong> — {brand.productName} publishes
+                fee info, payment links, and PO/check instructions and tracks who has paid, but does
+                not process payments itself. Pick Sched if you need built-in payment processing.
               </li>
               <li>Ten years of organizer muscle memory on your team.</li>
               <li>Your sessions genuinely are simple, and re-typing thirty of them is fine.</li>

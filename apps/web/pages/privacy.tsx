@@ -31,7 +31,7 @@ const TOC = [
 export default function PrivacyPage() {
   const title = `Privacy Policy — ${brand.productName}`;
   const description = `Privacy Policy for ${brand.productName} (draft).`;
-  const updated = "18 August 2026";
+  const updated = "30 August 2026";
   const url = `${brand.primaryUrl}/privacy`;
 
   return (
@@ -93,6 +93,21 @@ export default function PrivacyPage() {
                 Sponsor lead capture: if you scan a sponsor&apos;s code, your name and email are shared with
                 that sponsor.
               </li>
+              <li>
+                Per-attendee payment status and reference (for example a PO number), recorded by
+                organizers. We do not process the payment.
+              </li>
+              <li>
+                CFP submissions from people without accounts: email and attachments
+              </li>
+              <li>
+                Presenter-portal submissions: presenter email and uploaded files, kept per the
+                retention line below
+              </li>
+              <li>
+                Sponsor-outreach prospect contacts uploaded by organizers: name, email, organization.
+                Used only to draft their outreach; {brand.productName} never emails those contacts.
+              </li>
             </ul>
 
             <h2 id="why">4. Why we process data</h2>
@@ -132,6 +147,13 @@ export default function PrivacyPage() {
               are removed or anonymized when you delete your account. Anonymized means the message body is
               replaced with a placeholder and detached from your identity so the thread can remain for other
               participants.
+            </p>
+            <p>
+              CFP submissions from people without accounts, presenter-portal submissions (the presenter
+              email and uploaded files), sponsor-outreach prospect contacts, and per-attendee payment
+              status or reference are event data the organizer controls. We keep them while the
+              organization remains active, and for a limited period afterward for backups, dispute
+              resolution, and legal obligations.
             </p>
 
             <h2 id="rights">8. Your rights (including GDPR)</h2>

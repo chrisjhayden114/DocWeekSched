@@ -63,12 +63,21 @@ organizer-controlled, off by default, and they respect the same notification
 budget and quiet hours. Whova's engagement is always-on and gamified; ours is
 there when you want it, quiet when you don't.
 
+## Speaker Readiness
+
+UKEDL sends each presenter a personal link — no account, no login. They
+upload; you approve or reject. Reminders go out at 7 days, 2 days, and once
+when overdue. Whova has speaker forms; it does not chase presenters for you.
+If forms without automatic reminders are enough, pick Whova.
+
 ## Honest reasons to pick Whova instead
 
 - You need **full exhibitor booths** — a dedicated hall, not just sponsor pages and lead capture — today.
 - Your submission pipeline is **HotCRP/OpenReview** and that import matters.
 - Your event thrives on engagement mechanics and contests.
-- You want built-in registration/ticketing.
+- You want built-in registration/ticketing — UKEDL publishes fee info, payment
+  links, and PO/check instructions and tracks who has paid, but does not
+  process payments itself. Pick Whova if you need built-in payment processing.
 
 ## The philosophical difference, plainly
 

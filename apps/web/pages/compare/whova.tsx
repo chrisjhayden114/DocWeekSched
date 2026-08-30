@@ -105,6 +105,14 @@ export default function CompareWhovaPage() {
               it, quiet when you don&apos;t.
             </p>
 
+            <h2>Speaker Readiness</h2>
+            <p>
+              {brand.productName} sends each presenter a personal link — no account, no login. They
+              upload; you approve or reject. Reminders go out at 7 days, 2 days, and once when
+              overdue. Whova has speaker forms; it does not chase presenters for you. If forms
+              without automatic reminders are enough, pick Whova.
+            </p>
+
             <h2>Honest reasons to pick Whova instead</h2>
             <ul>
               <li>
@@ -116,7 +124,11 @@ export default function CompareWhovaPage() {
                 matters.
               </li>
               <li>Your event thrives on engagement mechanics and contests.</li>
-              <li>You want built-in registration/ticketing.</li>
+              <li>
+                You want built-in registration/ticketing — {brand.productName} publishes fee info,
+                payment links, and PO/check instructions and tracks who has paid, but does not
+                process payments itself. Pick Whova if you need built-in payment processing.
+              </li>
             </ul>
 
             <h2>The philosophical difference, plainly</h2>

@@ -59,10 +59,19 @@ never gamified. Academic attendees are colleagues, not an audience to activate.
 If gamification is what your event needs, neither we nor Sched are the tool —
 that's Whova's territory.
 
+## Speaker Readiness
+
+UKEDL sends each presenter a personal link — no account, no login. They
+upload; you approve or reject. Reminders go out at 7 days, 2 days, and once
+when overdue. Sched requires speakers to create accounts and log in. If that
+account model is what you need, pick Sched.
+
 ## Honest reasons to pick Sched instead
 
-- You want built-in **ticketing/registration** — Sched includes it; UKEDL
-  does not (bring your own registration).
+- You need built-in **payment processing** — UKEDL publishes fee info,
+  payment links, and PO/check instructions and tracks who has paid, but does
+  not process payments itself. Pick Sched if you need built-in payment
+  processing.
 - Ten years of organizer muscle memory on your team.
 - Your sessions genuinely are simple, and re-typing thirty of them is fine.
 

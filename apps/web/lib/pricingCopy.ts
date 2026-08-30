@@ -66,10 +66,25 @@ export function planFeatureBullets(plan: PlanDefinition): string[] {
   // CFP is an event-level toggle (`defaultOn: false`) and is absent from every
   // public entitlements map — not a paid-tier gate in the catalog.
   rows.push("CFP with blind review");
+  // paid_attendance is CORE (Free included). We publish price and instructions
+  // and record who has paid — we do not process the payment.
+  if (entitled(plan, "paid_attendance")) {
+    rows.push("Registration fees — publish price and payment instructions, track who's paid");
+  }
   if (entitled(plan, "certificates")) rows.push("Certificates");
   if (entitled(plan, "badges")) rows.push("Badges");
   if (entitled(plan, "checkin")) rows.push("QR check-in");
   if (entitled(plan, "sponsors")) rows.push("Sponsors and lead capture");
+  // sponsor_outreach is CORE (Free included). Free names its prospect cap so
+  // the bullet cannot promise more than the API allows; paid is uncapped.
+  if (entitled(plan, "sponsor_outreach")) {
+    const prospects = plan.limits.outreachProspectsPerEvent;
+    rows.push(
+      prospects == null
+        ? "Sponsor outreach"
+        : `Sponsor outreach (${prospects.toLocaleString()} prospects per event)`,
+    );
+  }
   if (entitled(plan, "analytics")) rows.push("Analytics");
   if (entitled(plan, "session_polls") && entitled(plan, "session_feedback")) {
     rows.push("Polls and surveys");
