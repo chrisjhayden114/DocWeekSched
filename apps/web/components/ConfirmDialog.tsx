@@ -1,3 +1,4 @@
+import { typedConfirmationMatches } from "@event-app/shared";
 import { useEffect, useId, useRef, useState } from "react";
 import { AutoGrowTextarea } from "./kit/AutoGrowTextarea";
 
@@ -19,6 +20,17 @@ export type ConfirmDialogProps = {
   promptPlaceholder?: string;
   promptRequired?: boolean;
   onPromptChange?: (value: string) => void;
+  /**
+   * ORG-2 — typed confirmation for the acts that cannot be undone. Set the
+   * phrase the person has to type (an organization's name, not a fixed word, so
+   * an organizer with several proves which one they mean) and Confirm stays
+   * disabled until it matches. The server checks the same phrase; this is the
+   * pause, not the guarantee.
+   */
+  typedConfirmExpected?: string;
+  typedConfirmLabel?: string;
+  typedConfirmValue?: string;
+  onTypedConfirmChange?: (value: string) => void;
 };
 
 /**
@@ -39,6 +51,10 @@ export function ConfirmDialog({
   promptPlaceholder,
   promptRequired,
   onPromptChange,
+  typedConfirmExpected,
+  typedConfirmLabel,
+  typedConfirmValue,
+  onTypedConfirmChange,
 }: ConfirmDialogProps) {
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -115,6 +131,22 @@ export function ConfirmDialog({
             />
           </label>
         ) : null}
+        {typedConfirmExpected ? (
+          <label style={{ display: "grid", gap: 6, margin: "0 0 var(--space-5)" }}>
+            <span className="text-body-md">
+              {typedConfirmLabel ?? `Type ${typedConfirmExpected} to confirm`}
+            </span>
+            <input
+              className="input"
+              autoComplete="off"
+              spellCheck={false}
+              value={typedConfirmValue ?? ""}
+              placeholder={typedConfirmExpected}
+              onChange={(e) => onTypedConfirmChange?.(e.target.value)}
+              style={{ fontSize: 16 }}
+            />
+          </label>
+        ) : null}
         <div style={{ display: "flex", gap: "var(--space-2)", justifyContent: "flex-end", flexWrap: "wrap" }}>
           <button ref={cancelRef} type="button" className="button secondary" disabled={busy} onClick={onCancel}>
             {cancelLabel}
@@ -122,7 +154,12 @@ export function ConfirmDialog({
           <button
             type="button"
             className={tone === "danger" ? "button button-danger" : "button"}
-            disabled={busy || (promptRequired && !promptValue?.trim())}
+            disabled={
+              busy ||
+              (promptRequired && !promptValue?.trim()) ||
+              (typedConfirmExpected != null &&
+                !typedConfirmationMatches(typedConfirmValue ?? "", typedConfirmExpected))
+            }
             onClick={() => void onConfirm()}
           >
             {busy ? "Working…" : confirmLabel}

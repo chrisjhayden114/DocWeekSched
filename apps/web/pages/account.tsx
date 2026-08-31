@@ -30,6 +30,8 @@ export default function AccountPage() {
   // the export card, nowhere near the button that was pressed.
   const [exportError, setExportError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  /** ORG-2 — where to go when deletion is blocked by a sole-owner organization. */
+  const [soleOwnerPath, setSoleOwnerPath] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [deletion, setDeletion] = useState<DeletionStatus | null>(null);
   const [deleteEmail, setDeleteEmail] = useState("");
@@ -120,6 +122,7 @@ export default function AccountPage() {
     setDeleting(true);
     setDeleteError(null);
     setDeleteMessage(null);
+    setSoleOwnerPath(null);
     setConfirmOpen(false);
     try {
       const res = await apiFetch<{
@@ -142,11 +145,16 @@ export default function AccountPage() {
         window.location.href = "/login";
       }, 2500);
     } catch (e) {
-      const err = e as Error & { body?: { code?: string; organizationIds?: string[]; error?: string } };
+      const err = e as Error & {
+        body?: { code?: string; organizationIds?: string[]; error?: string; resolvePath?: string };
+      };
       if (err.body?.code === "SOLE_OWNER") {
-        setDeleteError(
-          "You are the only owner of one or more organizations. Transfer ownership or close those orgs before deleting your account.",
-        );
+        // ORG-2 — this used to be the dead end: the copy said "transfer
+        // ownership or close those orgs" against a product that could do
+        // neither. The server now names the organizations and where to go, so
+        // show its message and put the door next to it.
+        setDeleteError(err.body.error || "One or more organizations still need an owner.");
+        setSoleOwnerPath(err.body.resolvePath || "/organizer/org/settings");
       } else {
         setDeleteError(err instanceof Error ? err.message : "Deletion request failed");
       }
@@ -283,7 +291,8 @@ export default function AccountPage() {
                 Requesting deletion deactivates your account immediately (login blocked for normal
                 use, hidden from directory/matching, notifications stopped). Permanent deletion runs
                 after a 7-day grace period. Signing in during that window cancels the request. If you
-                are the only owner of an organization, transfer ownership first.
+                are the only owner of an organization, first hand it to an admin or close it in{" "}
+                <Link href="/organizer/org/settings">Organization settings</Link>.
               </p>
               <form
                 className="grid"
@@ -326,6 +335,12 @@ export default function AccountPage() {
           {deleteError ? (
             <p role="alert" style={{ color: "var(--danger-700)" }}>
               {deleteError}
+              {soleOwnerPath ? (
+                <>
+                  {" "}
+                  <Link href={soleOwnerPath}>Open Organization settings</Link>
+                </>
+              ) : null}
             </p>
           ) : null}
           {deleteMessage ? <p className="text-body-md">{deleteMessage}</p> : null}

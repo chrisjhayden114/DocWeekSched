@@ -31,9 +31,18 @@ export type DeletionPayload = {
   hardDeleteJobId?: string | null;
 };
 
+/**
+ * Organizations this user owns alone, and so must deal with before leaving.
+ *
+ * ORG-2 — a closed organization is not one of them. Closing is the exit this
+ * guard used to demand without providing: before ORG-2 there was no route that
+ * could hand an organization over or shut it, so a solo owner met this check as
+ * a wall. Now it is a step, and a closed org has to stop counting or the wall
+ * is still there.
+ */
 export async function findSoleOwnerOrgIds(userId: string): Promise<string[]> {
   const ownerships = await prisma.orgMembership.findMany({
-    where: { userId, role: OrgRole.OWNER },
+    where: { userId, role: OrgRole.OWNER, organization: { closedAt: null } },
     select: { organizationId: true },
   });
   const sole: string[] = [];
@@ -52,13 +61,26 @@ export async function findSoleOwnerOrgIds(userId: string): Promise<string[]> {
 
 async function assertCanDelete(userId: string): Promise<void> {
   const sole = await findSoleOwnerOrgIds(userId);
-  if (sole.length > 0) {
-    throw new HttpError(409, {
-      error: "Transfer or close organizations where you are the only owner before deleting your account.",
-      code: "SOLE_OWNER",
-      organizationIds: sole,
-    });
-  }
+  if (sole.length === 0) return;
+
+  // Name them and say where to go. The old copy told people to "transfer or
+  // close" against a product where neither existed — the dead end ORG-2 was
+  // written to remove, and the error is where they met it.
+  const orgs = await prisma.organization.findMany({
+    where: { id: { in: sole } },
+    select: { id: true, name: true, slug: true },
+  });
+  const names = orgs.map((o) => o.name);
+  const subject =
+    names.length === 1 ? `${names[0]} still needs an owner` : `${names.length} organizations still need an owner`;
+
+  throw new HttpError(409, {
+    error: `${subject}. In Organization settings, either hand it to an admin or close it — then you can delete your account.`,
+    code: "SOLE_OWNER",
+    organizationIds: sole,
+    organizations: orgs,
+    resolvePath: "/organizer/org/settings",
+  });
 }
 
 /**

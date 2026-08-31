@@ -406,6 +406,17 @@ model Organization {
   /// After payment_failed webhook: now+7d; then org becomes read-only until fixed.
   gracePeriodEndsAt         DateTime?
   entitlementsUpdatedAt     DateTime?
+  /// ORG-2 — closed for good. Closing is NOT deleting: Event.organizationId is
+  /// onDelete: Restrict and archived events hold attendee records that are not
+  /// the owner's to destroy, so the rows stay and this timestamp is what ends
+  /// the workspace. A closed org leaves /organizations/mine, accepts no new
+  /// events, and stops blocking account deletion. NULL = open, as every row was
+  /// before this column existed.
+  closedAt                  DateTime?
+  /// User id of the owner who closed it. Deliberately not a relation: the
+  /// account that closes an org is usually about to be deleted (same
+  /// app-layer-SetNull reasoning as ReadinessAssignment.waivedById).
+  closedByUserId            String?
   createdAt                 DateTime             @default(now())
   memberships               OrgMembership[]
   events                    Event[]

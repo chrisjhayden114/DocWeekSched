@@ -6,6 +6,7 @@ export * from "./readinessSpeakerPack";
 export * from "./paidAttendance";
 export * from "./certificateDesign";
 export * from "./orgIdentity";
+export * from "./orgLifecycle";
 export * from "./plans";
 export * from "./maps";
 export * from "./ai";

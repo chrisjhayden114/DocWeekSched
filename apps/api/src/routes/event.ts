@@ -1,8 +1,20 @@
 import { EventMemberRole, EventStatus, OrgRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
-import { eventLogoWithOrgFallback } from "@event-app/shared";
-import { asyncHandler, requireEventAccess, requireOrgRole } from "../lib/authorization";
+import {
+  EVENT_TRANSFER_BLOCKED_MESSAGE,
+  EVENT_TRANSFER_RECOMMENDATION,
+  EVENT_TRANSFER_SAME_ORG_MESSAGE,
+  EVENT_TRANSFER_TARGET_ROLE_MESSAGE,
+  describeEventTransferBlockers,
+  eventLogoWithOrgFallback,
+} from "@event-app/shared";
+import {
+  asyncHandler,
+  orgRoleAtLeast,
+  requireEventAccess,
+  requireOrgRole,
+} from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { env } from "../lib/env";
 import {
@@ -35,6 +47,11 @@ import {
   EVENT_ORGANIZATION_TRANSFER_ERROR,
   eventUpdateIncludesOrganizationId,
 } from "../lib/eventOrganization";
+import {
+  assertOrgOpen,
+  loadEventTransferState,
+  moveEventToOrganization,
+} from "../lib/orgLifecycle";
 
 export const eventRouter = Router();
 
@@ -312,10 +329,13 @@ eventRouter.post(
 
     let organizationId = parsed.data.organizationId;
     if (organizationId) {
-      await requireOrgRole(req.user!.id, organizationId, OrgRole.STAFF);
+      const { organization } = await requireOrgRole(req.user!.id, organizationId, OrgRole.STAFF);
+      // ORG-2 — a closed organization takes no new events. Without this, the
+      // last membership row of a closed org would quietly bring it back.
+      assertOrgOpen(organization);
     } else {
       let org = await prisma.orgMembership.findFirst({
-        where: { userId: req.user!.id },
+        where: { userId: req.user!.id, organization: { closedAt: null } },
         orderBy: { createdAt: "asc" },
         include: { organization: true },
       });
@@ -578,6 +598,140 @@ eventRouter.patch(
       await revokePortalAccessForEvent(event.id);
     }
     return res.json({ ...toEventClient(updated), uiStatus: uiEventStatus(updated) });
+  }),
+);
+
+const transferOrganizationSchema = z.object({
+  organizationId: z.string().min(1),
+});
+
+/**
+ * ORG-2 — can this event move, and where to?
+ *
+ * The event settings panel only offers "Move to another organization" when this
+ * says yes, so an organizer never types their way into a refusal. The reasons
+ * come back either way: a draft that has burned AI credit should be told that,
+ * not shown a missing button.
+ */
+eventRouter.get(
+  "/transfer-organization",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const event = await resolveEventFromRequest(req);
+    await requireEventAccess(req.user!.id, event.id, { manage: true });
+    const state = await loadEventTransferState(event.id);
+
+    // Only organizations this person could actually host in, minus the one the
+    // event is already in and any that are closed.
+    const memberships = await prisma.orgMembership.findMany({
+      where: {
+        userId: req.user!.id,
+        role: { in: [OrgRole.OWNER, OrgRole.ADMIN] },
+        organization: { closedAt: null },
+      },
+      select: { role: true, organization: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return res.json({
+      eventId: state.eventId,
+      canTransfer: state.canTransfer,
+      blockers: state.blockers,
+      reasons: describeEventTransferBlockers(state.blockers),
+      recommendation: state.canTransfer ? null : EVENT_TRANSFER_RECOMMENDATION,
+      currentOrganizationId: state.organizationId,
+      targets: memberships
+        .filter((m) => m.organization.id !== state.organizationId)
+        .map((m) => ({ id: m.organization.id, name: m.organization.name, role: m.role })),
+    });
+  }),
+);
+
+/**
+ * ORG-2 — the narrow event transfer J-A was willing to allow.
+ *
+ * PUT /event still refuses organizationId outright (W-6), because a general
+ * transfer would have to rewrite billing, metering and audit history for a live
+ * event. This route moves an event only while it is a draft with nothing
+ * attached, and then moves every row that denormalizes organizationId in one
+ * transaction. Anything else is a 409 that says so and points at the way that
+ * does work.
+ */
+eventRouter.post(
+  "/transfer-organization",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = transferOrganizationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
+
+    const event = await resolveEventFromRequest(req);
+    // Moving an event changes who hosts and who pays for it, so it takes more
+    // than the STAFF role that can edit the agenda.
+    const access = await requireEventAccess(req.user!.id, event.id, { manage: true });
+    if (!access.orgRole || !orgRoleAtLeast(access.orgRole, OrgRole.ADMIN)) {
+      return res.status(403).json({ error: EVENT_TRANSFER_TARGET_ROLE_MESSAGE });
+    }
+
+    const targetOrgId = parsed.data.organizationId;
+    if (targetOrgId === event.organizationId) {
+      return res.status(400).json({ error: EVENT_TRANSFER_SAME_ORG_MESSAGE });
+    }
+
+    const { organization: target } = await requireOrgRole(req.user!.id, targetOrgId, OrgRole.ADMIN);
+    assertOrgOpen(target);
+
+    const state = await loadEventTransferState(event.id);
+    if (!state.canTransfer) {
+      return res.status(409).json({
+        error: EVENT_TRANSFER_BLOCKED_MESSAGE,
+        code: "EVENT_TRANSFER_BLOCKED",
+        blockers: state.blockers,
+        reasons: describeEventTransferBlockers(state.blockers),
+        recommendation: EVENT_TRANSFER_RECOMMENDATION,
+      });
+    }
+
+    // A draft counts against the destination's allowance the moment it lands
+    // (loadOrgBilling counts DRAFT + ACTIVE), so the destination has to have
+    // room. Otherwise moving events would be a way around the plan limit.
+    const { assertCanCreateEvent } = await import("../lib/billing");
+    await assertCanCreateEvent(targetOrgId);
+
+    const result = await moveEventToOrganization({
+      eventId: event.id,
+      fromOrganizationId: event.organizationId,
+      toOrganizationId: targetOrgId,
+    });
+
+    const { writeAuditLog } = await import("../lib/ai/audit");
+    // Written against the DESTINATION, because that is where the event's audit
+    // trail now lives — the move itself rewrote the older rows' organizationId,
+    // and this entry is the record of that having happened.
+    await writeAuditLog({
+      organizationId: targetOrgId,
+      eventId: event.id,
+      actorUserId: req.user!.id,
+      action: "OTHER",
+      entityType: "Event",
+      entityId: event.id,
+      payload: {
+        action: "event_organization_transferred",
+        fromOrganizationId: result.fromOrganizationId,
+        toOrganizationId: result.toOrganizationId,
+        movedRows: result.movedRows,
+      },
+    });
+
+    return res.json({
+      ok: true,
+      eventId: event.id,
+      organizationId: targetOrgId,
+      movedRows: result.movedRows,
+      message: `${event.name} now belongs to ${target.name}.`,
+    });
   }),
 );
 

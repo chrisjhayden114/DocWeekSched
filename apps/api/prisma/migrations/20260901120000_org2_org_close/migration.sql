@@ -1,0 +1,33 @@
+-- ORG-2 — organization close columns (DESIGN_PHASE_J §Org entity, ORG-2).
+-- NOT APPLIED by the agent — CI and Render's build run migrate deploy.
+--
+-- WHY A COLUMN AT ALL (ORG-2 expected no schema change):
+-- Closing an organization cannot be a DELETE. "Event"."organizationId" is
+-- ON DELETE RESTRICT, so removing the org row means removing its events first,
+-- and a closeable org is allowed to hold ARCHIVED events — which carry other
+-- people's records (memberships, feedback, check-ins). Those are not the
+-- owner's to destroy. Refusing to close while archived events exist would
+-- instead rebuild the very dead end ORG-2 was written to remove. So close is a
+-- terminal state on the row, and this is the smallest column pair that says so.
+--
+-- MUST-CONFIRMS (read before deploy):
+-- 1) Additive only. Two NEW nullable columns on "Organization":
+--    closedAt TIMESTAMP(3), closedByUserId TEXT. No DEFAULT, no NOT NULL, so
+--    both ADD COLUMNs are metadata-only — no table rewrite, no backfill, no
+--    lock beyond a brief ACCESS EXCLUSIVE for the catalog update.
+-- 2) NO new enum, NO ADD VALUE on any existing enum, NO new table, NO index,
+--    NO foreign key. closedByUserId is a bare id by design (the closing owner
+--    is usually about to delete their account), matching the existing
+--    app-layer-SetNull convention on "ReadinessAssignment"."waivedById".
+-- 3) NO drop, rename, retype, or NOT NULL on any existing column. Existing
+--    readers select Organization columns explicitly and cannot break.
+-- 4) Every existing org reads NULL on both, which is exactly "open" — the
+--    state the product had before this migration. Applying this changes no UI
+--    and no behaviour on its own.
+-- 5) Rollback = deploy the previous API commit. The columns stay behind,
+--    unread and harmless. Schema rollbacks are forward-fix only (RUNBOOK §4).
+-- 6) Idempotent: ADD COLUMN IF NOT EXISTS on both.
+-- Do NOT set ALLOW_DESTRUCTIVE_DB. Do NOT run against production.
+
+ALTER TABLE "Organization" ADD COLUMN IF NOT EXISTS "closedAt" TIMESTAMP(3);
+ALTER TABLE "Organization" ADD COLUMN IF NOT EXISTS "closedByUserId" TEXT;

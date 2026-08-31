@@ -5,6 +5,7 @@ import { AutoGrowTextarea, SlideOver, SlideOverMoreOptions } from "../kit";
 import { HoverInfo } from "../kit/HoverInfo";
 import { TimezoneSelect } from "../TimezoneSelect";
 import { EventBrandingFields } from "./EventBrandingFields";
+import { EventOrganizationTransfer } from "./EventOrganizationTransfer";
 import { toLocalInputValueInTimeZone, zonedDateTimeLocalToIso } from "../../lib/eventTimezone";
 import { organizerFetch } from "../../lib/organizerApi";
 
@@ -23,6 +24,8 @@ export type EventSettingsEvent = {
   bannerUrl?: string | null;
   logoUrl?: string | null;
   cfpLabel?: string | null;
+  /** ORG-2 — gates the draft-only "Move to another organization" section. */
+  status?: string;
 };
 
 function FieldHelp({ title, help, children }: { title: string; help: string; children?: ReactNode }) {
@@ -94,6 +97,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [dirtyConfirm, setDirtyConfirm] = useState(false);
+  const [movedMessage, setMovedMessage] = useState<string | null>(null);
 
   // Re-seed from the event each time the panel opens, so a reopen never
   // shows a stale draft from a previous visit.
@@ -103,6 +107,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
       setSaved(false);
       setError(null);
       setFieldError(null);
+      setMovedMessage(null);
     }
   }, [open, event]);
 
@@ -313,6 +318,29 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
             </p>
           ) : null}
         </form>
+
+        {/* ORG-2 — outside the settings form on purpose: moving an event is its
+            own act with its own confirmation, not a field that rides along on
+            Save (which is exactly what W-6 refuses). */}
+        <EventOrganizationTransfer
+          open={open}
+          eventId={eventId}
+          eventName={event.name}
+          status={event.status ?? ""}
+          onMoved={async (message) => {
+            setError(null);
+            setFieldError(null);
+            setMovedMessage(message);
+            // Refresh the console behind the panel, but stay open: the panel is
+            // where the person just acted and where the outcome belongs.
+            await onSaved();
+          }}
+        />
+        {movedMessage ? (
+          <p role="status" style={{ margin: "10px 0 0", color: "var(--success)", font: "var(--text-body)" }}>
+            {movedMessage}
+          </p>
+        ) : null}
       </SlideOver>
 
       <ConfirmDialog

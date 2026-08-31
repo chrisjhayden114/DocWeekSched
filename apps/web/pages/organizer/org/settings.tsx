@@ -15,6 +15,7 @@ import { AutoGrowTextarea } from "../../../components/kit";
 import { HoverInfo } from "../../../components/kit/HoverInfo";
 import { OrganizerShell } from "../../../components/OrganizerShell";
 import { ConsoleSubpageHeader } from "../../../components/organizer/ConsoleSubpageHeader";
+import { OrgDangerZone } from "../../../components/organizer/OrgDangerZone";
 import {
   BRANDING_IMAGE_RULES,
   fileToDataUrl,
@@ -303,6 +304,29 @@ export default function OrganizationSettingsPage() {
               </div>
             ) : null}
           </form>
+        ) : null}
+
+        {/* ORG-2 — last on the page and visually quarantined, per the UX-3
+            danger-zone pattern the account page set. Owner-only inside. */}
+        {org && !org.closedAt ? (
+          <OrgDangerZone
+            orgId={org.id}
+            orgName={org.name}
+            role={org.role}
+            onOwnershipTransferred={(message) => {
+              setNotice(message);
+              setError(null);
+              // The caller is an admin now, so the whole page's role gate
+              // changed — re-read rather than guess at the new shape.
+              void load(org.id).catch(() => undefined);
+            }}
+            onClosed={(message) => {
+              // The org is gone from every list that feeds the console, so
+              // staying on its settings page would be a lie.
+              window.localStorage.removeItem("organizerOrgId");
+              void router.push({ pathname: "/organizer", query: { closed: message } });
+            }}
+          />
         ) : null}
       </OrganizerShell>
     </>

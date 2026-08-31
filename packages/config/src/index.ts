@@ -652,6 +652,46 @@ export const orgSettingsCopy = {
    */
   logoPrefillNote: (orgName: string) =>
     `Suggested from ${orgName}. Clear it if this event has a logo of its own.`,
+  /**
+   * ORG-2 danger zone. Quiet on purpose: these two acts are why a solo owner
+   * could not delete their account, so they have to exist and be findable —
+   * they do not have to be inviting. Owner-only; an admin does not see it.
+   */
+  danger: {
+    label: "Danger zone",
+    ownerOnly: "Only the owner can transfer or close this organization.",
+    transfer: {
+      heading: "Transfer ownership",
+      intro:
+        "Hand this organization to another admin. They become the owner and you become an admin — you keep access to every event, but only they can transfer or close it after that.",
+      pickerLabel: "New owner",
+      /** Says the quiet part: the list is admins only, and why. */
+      adminsOnly:
+        "Admins only. If the person you want isn't listed, promote them to admin first — handing over an organization should be a decision you already made once.",
+      noAdmins:
+        "Nobody else here is an admin yet. Promote someone to admin on an event's Participants tab, then come back.",
+      action: "Transfer ownership",
+      working: "Transferring…",
+      confirmTitle: "Transfer this organization?",
+      confirmLabel: "Yes, transfer it",
+      cancelLabel: "Keep ownership",
+    },
+    close: {
+      heading: "Close organization",
+      intro:
+        "Closing ends this organization as a workspace. It leaves your console, nobody can open or bill it again, and it stops blocking deletion of your account.",
+      /** Honest about what close is not: nothing is deleted. */
+      notDeleted:
+        "Closing is not deleting. Draft and archived events stay on record — archived events hold attendee registrations and feedback that aren't yours to erase — but nobody will be able to open them.",
+      blockedHeading: "What's stopping it",
+      action: "Close organization",
+      working: "Closing…",
+      confirmTitle: "Close this organization?",
+      confirmLabel: "Close it for good",
+      cancelLabel: "Keep it open",
+      closed: (name: string) => `${name} is closed. It no longer appears in your console.`,
+    },
+  },
 } as const;
 
 /**

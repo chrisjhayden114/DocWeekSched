@@ -102,7 +102,12 @@ export function orgIdentityUpdateData(
   return { ok: true, data: { ...data, ...patchFields(parsed, ORG_IDENTITY_PATCH_FIELDS) } };
 }
 
-/** Columns the settings page reads back, and the only ones it may write. */
+/**
+ * Columns the settings page reads back, and the only ones it may write —
+ * except `closedAt`, which is read-only here: ORG-2's danger zone needs to know
+ * whether it is looking at a closed organization, and only POST /close writes
+ * that column.
+ */
 export const ORG_IDENTITY_SELECT = {
   id: true,
   name: true,
@@ -111,4 +116,5 @@ export const ORG_IDENTITY_SELECT = {
   supportEmail: true,
   logoUrl: true,
   description: true,
+  closedAt: true,
 } as const;

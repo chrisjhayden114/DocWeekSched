@@ -1,10 +1,15 @@
 /**
- * W-6 — event-creation org picker. An event is born in one organization and
- * cannot move; the picker is honest about that, and a single-org user never
- * sees a one-option dropdown.
+ * W-6 — event-creation org picker. A single-org user never sees a one-option
+ * dropdown, and the picker says what choosing here commits to.
+ *
+ * ORG-2 replaced W-6's flat "an event can't move" with the truth: a draft can
+ * move, a published event cannot. The old note was correct about the case that
+ * matters (by the time it matters, the event is usually live) but wrong as
+ * stated, and a picker that overstates the stakes teaches people to distrust it.
  */
 
-export const EVENT_ORG_LOCKED_NOTE = "An event can't move to a different organization later.";
+export const EVENT_ORG_LOCKED_NOTE =
+  "You can move an event while it's still a draft. Once it's published it stays with this organization.";
 
 export type EventCreationOrgMode =
   | { kind: "none" }

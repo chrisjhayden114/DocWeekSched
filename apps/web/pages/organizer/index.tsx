@@ -104,6 +104,14 @@ export default function OrganizerDashboard() {
           </div>
         </header>
 
+        {/* ORG-2 — a closed organization redirects here, because its own
+            settings page no longer describes anything that exists. */}
+        {typeof router.query.closed === "string" && router.query.closed ? (
+          <p role="status" className="text-body-md" style={{ color: "var(--success)" }}>
+            {router.query.closed}
+          </p>
+        ) : null}
+
         {error ? <ListError message={error} onRetry={() => void load()} /> : null}
 
         {loading ? <ListSkeleton rows={4} /> : null}

@@ -11,14 +11,25 @@ describe("W-6 — event-creation org picker", () => {
     });
   });
 
-  it("shows the locked-org note when there is a choice", () => {
+  it("shows the org note when there is a choice", () => {
     expect(
       eventCreationOrgMode([
         { id: "o1", name: "Northbridge" },
         { id: "o2", name: "Harbor" },
       ]),
     ).toEqual({ kind: "picker", note: EVENT_ORG_LOCKED_NOTE });
-    expect(EVENT_ORG_LOCKED_NOTE).toMatch(/can't move to a different organization later/);
+  });
+
+  /**
+   * ORG-2 replaced W-6's flat "an event can't move to a different organization
+   * later" with what is actually true: a draft can move, a published event
+   * cannot. The old line overstated the stakes of a choice the organizer was
+   * making in the first thirty seconds of using the product.
+   */
+  it("promises only what ORG-2 delivers — a draft can move, a published event stays", () => {
+    expect(EVENT_ORG_LOCKED_NOTE).toMatch(/draft/i);
+    expect(EVENT_ORG_LOCKED_NOTE).toMatch(/published/i);
+    expect(EVENT_ORG_LOCKED_NOTE).not.toMatch(/can't move to a different organization later/);
   });
 
   it("the wizard uses the quiet line for one org and the note for many", () => {
