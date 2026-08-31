@@ -456,6 +456,8 @@ export const consoleTabCopy = {
     "Ops Inbox watches the event and drafts cards for you — session changes, stale Q&A, low check-in, capacity pressure, a community blocklist hit, and a daily digest. Nothing sends until you apply or dismiss a card. Open it when you want a suggested-action list rather than hunting through the other tabs.",
   recap:
     "Recap builds the post-event report after the end date: synthesized sections, thank-you email drafts, and a metrics export. Generate is blocked until the event has ended. Come here after the event to review, send, or export — attendees never see this builder.",
+  certificates:
+    "Certificates is where you design the certificate and set who earns one — our built-in layout with your accent colour and logo, or a finished design you upload from Canva or anywhere else, with each attendee's name placed on it. Eligibility can be a check-in, a minimum number of sessions joined, or a required-session list. Issuing itself happens on Recap once the event has ended.",
 } as const;
 
 /**

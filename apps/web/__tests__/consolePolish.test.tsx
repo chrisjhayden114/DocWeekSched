@@ -320,7 +320,7 @@ describe("UX-3 #2 — console tab strip stays one row", () => {
     expect(page).not.toContain('className="nav console-event-tabs"');
   });
 
-  it("K-6: visible order is Overview → Program → Speakers → Readiness → Participants → Maps → Announcements → Features; More always holds Ops and Recap", () => {
+  it("K-6: visible order is Overview → Program → Speakers → Readiness → Participants → Maps → Announcements → Features; More always holds Ops, Recap and Certificates", () => {
     const page = read("pages", "organizer", "events", "[eventId]", "index.tsx");
     const stripStart = page.indexOf("<ConsoleTabStrip");
     const strip = page.slice(stripStart, page.indexOf("/>", stripStart) + 2);
@@ -336,6 +336,8 @@ describe("UX-3 #2 — console tab strip stays one row", () => {
       "Features",
       "Ops Inbox",
       "Recap",
+      // CERT-2 — feature-gated like Readiness, and pinned into More ▾.
+      "Certificates",
     ]);
     expect(strip).toContain("alwaysOverflowIds={CONSOLE_TAB_ALWAYS_OVERFLOW}");
     expect(strip).toContain("consoleTabCopy");
@@ -351,6 +353,7 @@ describe("UX-3 #2 — console tab strip stays one row", () => {
       "features",
       "ops",
       "recap",
+      "certificates",
     ] as const) {
       expect(consoleTabCopy[key].trim().length).toBeGreaterThan(80);
     }

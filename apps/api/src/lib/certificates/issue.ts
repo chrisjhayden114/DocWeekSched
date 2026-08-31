@@ -94,6 +94,11 @@ export async function issueCertificateForUser(input: {
       template.event.logoUrl,
       template.event.organization?.logoUrl,
     ),
+    // CERT-2 — the renderer branches on kind; batch issue does not care which.
+    kind: template.kind,
+    backgroundImageUrl: template.backgroundImageUrl,
+    nameBox: template.nameBox,
+    orientation: template.orientation,
   });
 
   const stored = await getStorageProvider().put({

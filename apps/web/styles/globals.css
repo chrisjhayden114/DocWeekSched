@@ -8803,3 +8803,101 @@ button.kit-action-card {
 .fee-notice-price { margin: 0; font: var(--text-h3); color: var(--title-color); }
 .fee-notice-instructions { margin: 0; white-space: pre-wrap; }
 .fee-notice-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+/* ==========================================================================
+   CERT-2 — certificate design surface (organizer console → Certificates).
+   The preview is a page, not a card: a checkerboard shows through where the
+   artwork has not been uploaded yet, and the aspect ratio is set inline from
+   the chosen orientation so the frame is the shape of the real PDF. Name
+   position/size come from certificateNamePlacement in @event-app/shared, the
+   same helper the renderer uses, so nothing here may hard-code a placement.
+   ========================================================================== */
+.cert-preview {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background-color: var(--gray-100);
+  background-image:
+    linear-gradient(45deg, var(--gray-200) 25%, transparent 25%, transparent 75%, var(--gray-200) 75%),
+    linear-gradient(45deg, var(--gray-200) 25%, transparent 25%, transparent 75%, var(--gray-200) 75%);
+  background-position: 0 0, 10px 10px;
+  background-size: 20px 20px;
+}
+.cert-preview-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cert-preview-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: var(--space-4);
+  text-align: center;
+  font: var(--text-body);
+  color: var(--meta-color);
+}
+.cert-preview-name {
+  position: absolute;
+  transform: translateY(-50%);
+  font-family: Helvetica, Arial, sans-serif; /* Helvetica-Bold is what pdfkit draws */
+  font-weight: 700;
+  line-height: 1.15;
+  word-break: break-word;
+}
+/* Segmented control for kind + orientation. Mirrors .schedule-view-switcher so
+   the sliding .seg-slide indicator (useSegmentSlide) behaves identically. */
+.cert-seg {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  min-height: 40px;
+}
+.cert-seg > button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  margin: 0;
+  border: none;
+  border-radius: 4px;
+  box-shadow: none;
+  background: transparent;
+  padding: 5px 12px;
+  font: 600 14px/20px var(--font-body);
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.cert-seg > button.active { background: var(--gray-200); color: var(--gray-900); }
+.cert-seg > button:not(.active):hover { background: var(--gray-50); }
+.cert-seg[data-seg-ready="true"] > .seg-slide { opacity: 1; }
+.cert-seg[data-seg-ready="true"] > button.active { background: transparent; }
+
+.cert-design-grid { display: grid; gap: var(--space-4); align-items: start; }
+@media (min-width: 900px) { .cert-design-grid { grid-template-columns: minmax(0, 1fr) 260px; } }
+.cert-design-controls { display: grid; gap: var(--space-3); min-width: 0; }
+.cert-slider { width: 100%; accent-color: var(--action-bg); }
+.cert-stepper { display: flex; align-items: center; gap: var(--space-2); }
+.cert-stepper output { min-width: 5ch; font: var(--text-body-md); font-weight: 600; }
+.cert-swatches { display: flex; gap: var(--space-2); }
+.cert-swatch {
+  width: 40px;
+  height: 28px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-input, 8px);
+  cursor: pointer;
+  padding: 0;
+}
+.cert-swatch.is-active { border-color: var(--action-bg); box-shadow: 0 0 0 2px var(--gray-200); }

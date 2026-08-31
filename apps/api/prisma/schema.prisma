@@ -336,6 +336,19 @@ enum CertificateEligibilityRule {
   REQUIRED_SESSIONS
 }
 
+/// CERT-2 — TEXT is the built-in pdfkit layout; IMAGE_BACKGROUND draws the
+/// organizer's own uploaded design and overlays only the attendee name.
+enum CertificateTemplateKind {
+  TEXT
+  IMAGE_BACKGROUND
+}
+
+/// CERT-2 — page orientation for the rendered PDF (LETTER either way).
+enum CertificateOrientation {
+  LANDSCAPE
+  PORTRAIT
+}
+
 enum RecapStatus {
   PENDING
   GENERATING
@@ -2026,6 +2039,14 @@ model CertificateTemplate {
   bodyText            String?
   signatureImageUrl   String?
   hours               Float?
+  /// CERT-2 — TEXT keeps the built-in layout and ignores the three fields below.
+  kind                CertificateTemplateKind      @default(TEXT)
+  /// Organizer's finished design as a data URL (PNG/JPG), like an event logo.
+  backgroundImageUrl  String?
+  /// { yPct, fontSize, color, align } — see @event-app/shared certificateDesign.
+  /// `{}` means "every default", which is what pre-CERT-2 rows carry.
+  nameBox             Json                         @default("{}")
+  orientation         CertificateOrientation       @default(LANDSCAPE)
   eligibilityRule     CertificateEligibilityRule
   minSessions         Int?
   requiredSessionIds  String[]                     @default([])

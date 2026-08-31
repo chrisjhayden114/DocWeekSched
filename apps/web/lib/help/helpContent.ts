@@ -633,22 +633,45 @@ Nothing is written before you confirm. An unmatched email never creates a roster
 `,
   certificates: `---
 title: Issue certificates after the event
-description: Define a template, set an eligibility rule, batch-issue with progress, and let anyone confirm a certificate on the public verify page.
+description: Use our built-in layout or upload your own finished design, set an eligibility rule, batch-issue with progress, and let anyone confirm a certificate on the public verify page.
 order: 12
 category: organizer
 ---
 
 # Issue certificates after the event
 
-Certificates are a download you issue after the event ends — not a live editor attendees fill in. You define a template and a rule for who is eligible, then batch-issue. Eligible people get an email with a **link**, not a PDF attachment. Anyone can confirm a certificate on the public verify page.
+Certificates are a download you issue after the event ends — not a live editor attendees fill in. You define a template and a rule for who is eligible, then batch-issue. A template either uses our built-in layout or wraps a design you upload yourself. Eligible people get an email with a **link**, not a PDF attachment. Anyone can confirm a certificate on the public verify page.
 
 Certificates are included on Per-event plans and above. The **PD day / Training** and **Academic program** presets leave them on; **Focused** turns them off.
 
 ## Templates
 
-On **Recap**, after the event end date, create a template: a name, the title text on the certificate, optional body text, optional hours, and an optional signature image.
+On the **Certificates** tab of your event, create a template: a name for your own reference, who is eligible, optional hours — and one of two designs.
 
-Issued PDFs use this event's **accent colour** and **logo**. If neither is set, the certificate uses the platform layout — see [Brand your event](/help/event-branding).
+**The built-in layout** needs no design work. You give it the title text, optional body text, and an optional signature image, and issued PDFs use this event's **accent colour** and **logo**. If neither is set, the certificate uses the platform layout — see [Brand your event](/help/event-branding).
+
+**Your own design** is described in the next section.
+
+## Use your own design
+
+Most organizers already have a certificate: they made it in Canva, or a colleague did, and it is finished. You can upload that file instead of using our layout, and we place each attendee's name on it.
+
+Switch **Design** to *Your own design*, pick landscape or portrait, and upload the PNG or JPG. A preview appears immediately with a sample name on it, and three controls change how that name is drawn:
+
+- **Name position** — a slider that moves the name up and down. The name is always centred left-to-right; there is no draggable box in this version.
+- **Name size** — a stepper, in points.
+- **Name colour** — dark or light, for pale and dark designs respectively.
+
+What you see in the preview is what renders: the preview and the PDF share the same placement code, so they cannot drift apart.
+
+Practical limits, stated plainly:
+
+- **Export at about 2000px wide**, in the same shape as the page you chose (landscape is 11 × 8.5in, portrait 8.5 × 11in). A file up to 10MB is accepted. A design in a different shape is scaled to *cover* the page, so its edges may be cropped.
+- **The attendee's name is the only thing we overlay.** The event name, dates, hours and signatures need to be part of the design itself — that is where you already control exactly how they look. Hours you enter on the template are still recorded and still show on the verify page.
+- **PNG and JPG only.** We upload your file as-is rather than re-compressing it, so crisp type and logos stay crisp.
+- If an uploaded design is ever unreadable, the certificate falls back to the built-in layout rather than issuing a blank page.
+
+The built-in layout remains the no-design-needed path, and switching between the two kinds never affects eligibility, issuing, the ready email, or the verify page.
 
 ## Eligibility — registration, not the door
 
@@ -662,7 +685,7 @@ That distinction matters for a PD day with a door scan: someone can be eligible 
 
 ## Batch issue, with progress
 
-Batch issue runs in the background. You start it from Recap; progress updates as certificates are generated. Re-issuing the same person on the same template keeps their original issue date and public id.
+Batch issue runs in the background, and it works the same way for both kinds of design. You start it from Recap; progress updates as certificates are generated. Re-issuing the same person on the same template keeps their original issue date and public id.
 
 The ready email carries a link to the public verify page (and a note that they can also download from their event profile). It does not attach the PDF.
 

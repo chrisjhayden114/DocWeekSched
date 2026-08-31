@@ -18,6 +18,7 @@ import {
   slicePage,
 } from "../lib/pagination";
 import { validationErrorBody } from "../lib/errors";
+import { CERTIFICATE_BACKGROUND_MAX_BYTES } from "@event-app/shared";
 import { AGENDA_INGEST_MAX_BYTES } from "../lib/ai/ingest/constants";
 import { extractedSessionSchema } from "../lib/ai/ingest/schema";
 
@@ -57,7 +58,16 @@ describe("jsonLimitForPath", () => {
     );
     const ingestMb = Number(jsonLimitForPath("POST", "/ai/ingest").replace("mb", ""));
     expect(ingestMb).toBeGreaterThanOrEqual(Math.ceil(AGENDA_INGEST_MAX_BYTES / (1024 * 1024)));
-    expect(jsonLimitForPath("POST", "/certificates/event/e1/templates")).toBe("2mb");
+    // CERT-2 — the template body now carries a full-page background design.
+    const certMb = Number(
+      jsonLimitForPath("POST", "/certificates/event/e1/templates").replace("mb", ""),
+    );
+    expect(certMb).toBeGreaterThanOrEqual(
+      Math.ceil(CERTIFICATE_BACKGROUND_MAX_BYTES / (1024 * 1024)),
+    );
+    expect(jsonLimitForPath("PUT", "/certificates/templates/t1")).toBe(
+      jsonLimitForPath("POST", "/certificates/event/e1/templates"),
+    );
     expect(jsonLimitForPath("PUT", "/auth/me")).toBe("16mb");
     expect(jsonLimitForPath("PUT", "/auth/me/profile")).toBe("16mb");
     expect(jsonLimitForPath("POST", "/portal/tok/assignments/a1/submission")).toBe("30mb");

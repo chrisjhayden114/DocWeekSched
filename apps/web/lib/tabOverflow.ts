@@ -1,8 +1,8 @@
 /**
  * K-1 / K-6 — view-model for ConsoleTabStrip overflow. Leading tabs stay
  * visible; trailing tabs that do not fit move into the More menu. Founder
- * priority tabs (Ops Inbox, Recap) always live in More even when the row
- * would fit. If the active tab would overflow, it swaps with the last
+ * priority tabs (Ops Inbox, Recap, Certificates) always live in More even when
+ * the row would fit. If the active tab would overflow, it swaps with the last
  * visible so it stays on screen.
  */
 
@@ -29,8 +29,12 @@ export type TabOverflowInput<Id extends string> = {
   alwaysOverflowIds?: readonly Id[];
 };
 
-/** Console tabs that stay in More ▾ even when there is room on the strip. */
-export const CONSOLE_TAB_ALWAYS_OVERFLOW = ["ops", "recap"] as const;
+/**
+ * Console tabs that stay in More ▾ even when there is room on the strip.
+ * Certificates joins Ops and Recap because it is the same kind of surface: one
+ * you visit around the end of an event, not while building one.
+ */
+export const CONSOLE_TAB_ALWAYS_OVERFLOW = ["ops", "recap", "certificates"] as const;
 
 function sumRow<Id extends string>(ids: readonly Id[], widths: Readonly<Partial<Record<Id, number>>>, gap: number): number {
   return ids.reduce((total, id, index) => total + (widths[id] ?? 0) + (index > 0 ? gap : 0), 0);

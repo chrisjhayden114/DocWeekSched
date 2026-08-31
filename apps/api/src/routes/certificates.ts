@@ -19,6 +19,9 @@ import {
   renderCertificatePdf,
   validateTemplateEligibility,
   formatCertificateDates,
+  certificateDesignBodySchema,
+  resolveCertificateDesign,
+  CERTIFICATE_DESIGN_DEFAULTS,
 } from "../lib/certificates";
 
 export const certificatesRouter = Router();
@@ -35,6 +38,8 @@ const templateBodySchema = z.object({
   eligibilityRule: eligibilityRuleSchema,
   minSessions: z.number().int().nullable().optional(),
   requiredSessionIds: z.array(z.string()).optional(),
+  // CERT-2 — these four patch instead of full-replacing; see lib/certificates/design.
+  ...certificateDesignBodySchema,
 });
 
 async function assertCertificatesPlan(organizationId: string): Promise<void> {
@@ -99,6 +104,8 @@ certificatesRouter.post(
       requiredSessionIds: parsed.data.requiredSessionIds,
     });
 
+    const design = resolveCertificateDesign(parsed.data, CERTIFICATE_DESIGN_DEFAULTS);
+
     const template = await prisma.certificateTemplate.create({
       data: {
         organizationId: access.event.organizationId,
@@ -111,6 +118,7 @@ certificatesRouter.post(
         eligibilityRule: parsed.data.eligibilityRule,
         minSessions: validated.minSessions,
         requiredSessionIds: validated.requiredSessionIds,
+        ...design,
       },
     });
     return res.status(201).json({ template });
@@ -119,6 +127,8 @@ certificatesRouter.post(
 
 // FIX-NULL: intentional full replace — the template editor always submits the
 // whole template, and an omitted bodyText/signature/hours means "removed".
+// CERT-2 exempts the four design fields: an omitted backgroundImageUrl means
+// "leave the artwork alone" so a slider nudge does not resend megabytes.
 certificatesRouter.put(
   "/templates/:templateId",
   requireAuth,
@@ -147,6 +157,13 @@ certificatesRouter.put(
       requiredSessionIds: parsed.data.requiredSessionIds,
     });
 
+    const design = resolveCertificateDesign(parsed.data, {
+      kind: existing.kind,
+      backgroundImageUrl: existing.backgroundImageUrl,
+      nameBox: existing.nameBox,
+      orientation: existing.orientation,
+    });
+
     const template = await prisma.certificateTemplate.update({
       where: { id: existing.id },
       data: {
@@ -158,6 +175,7 @@ certificatesRouter.put(
         eligibilityRule: parsed.data.eligibilityRule,
         minSessions: validated.minSessions,
         requiredSessionIds: validated.requiredSessionIds,
+        ...design,
       },
     });
     return res.json({ template });
@@ -339,6 +357,11 @@ certificatesRouter.get(
         },
         accentColor: row.event.brandColor,
         logoUrl: eventLogoWithOrgFallback(row.event.logoUrl, row.event.organization.logoUrl),
+        // CERT-2 — the on-demand re-render must match what batch issue produced.
+        kind: row.certificateTemplate.kind,
+        backgroundImageUrl: row.certificateTemplate.backgroundImageUrl,
+        nameBox: row.certificateTemplate.nameBox,
+        orientation: row.certificateTemplate.orientation,
       });
     }
 

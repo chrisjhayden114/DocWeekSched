@@ -280,11 +280,11 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
   certificates: {
     imageSrc: "/feature-guide/certificates.png",
     whatItDoes:
-      "Certificates let you define templates and issue downloads to eligible attendees after the event ends. Eligibility can be any check-in, a minimum number of joined sessions, or a required-session list (joins, not door scans). Batch issue runs in the background, and issued PDFs use the event accent colour and logo. Issued certificates can be verified on a public route.",
+      "Certificates let you define templates and issue downloads to eligible attendees after the event ends. A template uses either the built-in layout, which we compose with the event accent colour and logo, or your own finished design — you upload a PNG or JPG, a Canva export say, and we place each attendee's name on it. Eligibility can be any check-in, a minimum number of joined sessions, or a required-session list (joins, not door scans). Batch issue runs in the background, and issued certificates can be verified on a public route.",
     experience:
-      "Organizers issue from Recap and the certificates API. Attendees download after the event via the certificates API (there is no separate attendee Certificates tab). Eligible people get a file, not a live editor.",
+      "Organizers design templates on the Certificates tab and issue from Recap. Attendees download after the event via the certificates API (there is no separate attendee Certificates tab). Eligible people get a file, not a live editor.",
     goodToKnow:
-      "On by default in the registry. Free plans do not include certificates; Per-event and above do. Focused turns them off; PD day and Academic leave them on. Turning it off blocks new downloads; issued certificates stay.",
+      "On by default in the registry, but Free plans do not include certificates; Per-event and above do. Focused turns them off; PD day and Academic leave them on. Turning it off blocks new downloads; issued certificates stay. On an uploaded design the attendee's name is the only field we overlay — dates, hours and signatures belong in the design itself.",
   },
   paid_attendance: {
     whatItDoes:

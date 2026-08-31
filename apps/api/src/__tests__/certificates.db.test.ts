@@ -9,6 +9,10 @@ import {
   PrismaClient,
   SessionAttendanceStatus,
 } from "@prisma/client";
+import {
+  CERTIFICATE_NAME_BOX_DEFAULT,
+  normalizeCertificateNameBox,
+} from "@event-app/shared";
 import { hashPassword } from "../lib/auth";
 import { applyPlanSkuToOrg, can } from "../lib/billing/entitlements";
 import { upsertFeatureOverrides } from "../lib/features/featureEnabled";
@@ -20,10 +24,16 @@ import {
   issueCertificateForUser,
   registerCertificateJobs,
   CERTIFICATES_BATCH_ISSUE_JOB,
+  resolveCertificateDesign,
+  CERTIFICATE_DESIGN_DEFAULTS,
 } from "../lib/certificates";
 import { enqueueJob } from "../lib/jobs";
 import { drainJobsUntil } from "./setup/jobDrain";
 import { HttpError } from "../lib/authorization";
+
+/** 1x1 PNG with real magic bytes, so the renderer takes the image branch. */
+const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 describe("Phase P4 certificates (DB)", () => {
   const prisma = new PrismaClient();
@@ -309,6 +319,97 @@ describe("Phase P4 certificates (DB)", () => {
       where: { certificateTemplateId: template.id, userId: user.id },
     });
     expect(count).toBe(1);
+  });
+
+  /**
+   * CERT-2 — the column defaults are the whole safety argument for the
+   * migration: a template written without any design fields (which is every
+   * template that existed before this chunk) must read back as the built-in
+   * layout, so its certificates render exactly as they did.
+   */
+  it("CERT-2: templates saved without design fields default to the built-in layout", async () => {
+    const row = await prisma.certificateTemplate.findUniqueOrThrow({
+      where: { id: ids.templateAny! },
+    });
+    expect(row.kind).toBe("TEXT");
+    expect(row.backgroundImageUrl).toBeNull();
+    expect(row.orientation).toBe("LANDSCAPE");
+    // `{}` normalizes to every default rather than throwing on a missing field.
+    expect(normalizeCertificateNameBox(row.nameBox)).toEqual(CERTIFICATE_NAME_BOX_DEFAULT);
+  });
+
+  it("CERT-2: an image-background template issues through the shared path", async () => {
+    const created = await prisma.certificateTemplate.create({
+      data: {
+        organizationId: ids.orgId!,
+        eventId: ids.eventId!,
+        name: "Uploaded design",
+        titleText: "Uploaded design",
+        eligibilityRule: CertificateEligibilityRule.ANY_CHECKIN,
+        ...resolveCertificateDesign(
+          {
+            kind: "IMAGE_BACKGROUND",
+            backgroundImageUrl: TINY_PNG,
+            orientation: "PORTRAIT",
+            nameBox: { yPct: 64, fontSize: 40, color: "#FFFFFF" },
+          },
+          CERTIFICATE_DESIGN_DEFAULTS,
+        ),
+      },
+    });
+    expect(created.kind).toBe("IMAGE_BACKGROUND");
+    expect(created.orientation).toBe("PORTRAIT");
+
+    const template = await prisma.certificateTemplate.findUniqueOrThrow({
+      where: { id: created.id },
+      include: {
+        event: {
+          select: {
+            id: true,
+            name: true,
+            startDate: true,
+            endDate: true,
+            timezone: true,
+            organizationId: true,
+          },
+        },
+      },
+    });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: ids.userA! },
+      select: { id: true, name: true, email: true },
+    });
+
+    // Eligibility, storage and the issued row are shared with TEXT templates —
+    // CERT-2 changes what the PDF looks like and nothing else.
+    const issued = await issueCertificateForUser({
+      template,
+      user,
+      issuedByUserId: ids.adminId!,
+    });
+    expect(issued).toBeTruthy();
+    expect(issued!.created).toBe(true);
+    expect(issued!.pdfStorageKey).toBeTruthy();
+    expect(issued!.publicId.length).toBeGreaterThan(10);
+
+    // An update that omits backgroundImageUrl leaves the artwork alone, which
+    // is what lets the editor save a slider nudge without resending megabytes.
+    const patched = await prisma.certificateTemplate.update({
+      where: { id: created.id },
+      data: resolveCertificateDesign({ nameBox: { yPct: 30 } }, created),
+    });
+    expect(patched.backgroundImageUrl).toBe(TINY_PNG);
+    expect(normalizeCertificateNameBox(patched.nameBox).yPct).toBe(30);
+    expect(normalizeCertificateNameBox(patched.nameBox).fontSize).toBe(40);
+
+    // Clearing the artwork requires dropping back to the built-in layout.
+    expect(() => resolveCertificateDesign({ backgroundImageUrl: null }, patched)).toThrow(HttpError);
+    const cleared = await prisma.certificateTemplate.update({
+      where: { id: created.id },
+      data: resolveCertificateDesign({ backgroundImageUrl: null, kind: "TEXT" }, patched),
+    });
+    expect(cleared.kind).toBe("TEXT");
+    expect(cleared.backgroundImageUrl).toBeNull();
   });
 
   it("publicId is randomBytes base64url entropy", () => {

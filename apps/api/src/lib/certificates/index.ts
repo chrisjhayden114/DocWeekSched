@@ -16,6 +16,15 @@ export {
 } from "./merge";
 export { renderCertificatePdf, type CertificatePdfInput } from "./pdf";
 export {
+  certificateDesignBodySchema,
+  resolveCertificateDesign,
+  validateCertificateBackground,
+  CERTIFICATE_DESIGN_DEFAULTS,
+  type CertificateDesign,
+  type CertificateDesignInput,
+  type CertificateDesignRow,
+} from "./design";
+export {
   generateCertificatePublicId,
   issueCertificateForUser,
   wasCertificateReadyEmailSent,

@@ -1,4 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from "express";
+import { CERTIFICATE_BACKGROUND_MAX_BYTES } from "@event-app/shared";
 import { AGENDA_INGEST_MAX_BYTES } from "./ai/ingest/constants";
 
 /** Default for most mutating routes. */
@@ -35,12 +36,15 @@ export function jsonLimitForPath(method: string, path: string): string {
     return `${mb}mb`;
   }
 
-  // Certificate signature data-URL (schema max 500k chars)
+  // Certificate template: signature data-URL (500k chars) plus CERT-2's
+  // background design, which is a full-page PNG/JPG up to
+  // CERTIFICATE_BACKGROUND_MAX_BYTES arriving as a ~4/3 base64 envelope.
   if (
     /^\/certificates\/event\/[^/]+\/templates\/?$/.test(path) ||
     /^\/certificates\/templates\/[^/]+\/?$/.test(path)
   ) {
-    return "2mb";
+    const mb = Math.ceil((CERTIFICATE_BACKGROUND_MAX_BYTES * 1.4) / (1024 * 1024)) + 2;
+    return `${mb}mb`;
   }
 
   // Other upload surfaces that would silently 413 under 1mb

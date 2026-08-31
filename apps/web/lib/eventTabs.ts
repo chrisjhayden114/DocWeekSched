@@ -19,6 +19,7 @@ export const EVENT_TABS = [
   "features",
   "ops",
   "recap",
+  "certificates",
 ] as const;
 
 export type EventTab = (typeof EVENT_TABS)[number];
@@ -36,6 +37,7 @@ export const HISTORICAL_EVENT_TAB_IDS = [
   "readiness",
   "recap",
   "features",
+  "certificates",
 ] as const;
 
 const EVENT_TAB_SET = new Set<string>(EVENT_TABS);

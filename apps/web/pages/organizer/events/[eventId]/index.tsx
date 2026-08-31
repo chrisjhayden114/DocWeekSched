@@ -18,6 +18,7 @@ import { AnnouncementComposer } from "../../../../components/AnnouncementCompose
 import { AssistantStartersEditor, EventFaqEditor } from "../../../../components/EventFaqEditor";
 import { OpsInboxPanel } from "../../../../components/OpsInboxPanel";
 import { RecapPanel } from "../../../../components/RecapPanel";
+import { CertificatesTab } from "../../../../components/organizer/CertificatesTab";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import { KebabMenu } from "../../../../components/KebabMenu";
 import { ListEmpty, ListError, ListSkeleton } from "../../../../components/ListState";
@@ -284,6 +285,8 @@ export default function OrganizerEventPage() {
   /** Resolved (plan AND override) readiness flag from /event/features. Every
       plan grants readiness, so this follows the organizer's Features toggle. */
   const [readinessEnabled, setReadinessEnabled] = useState(false);
+  /** CERT-2 — resolved certificates flag; Free plans do not grant the feature. */
+  const [certificatesEnabled, setCertificatesEnabled] = useState(false);
   const [featuresDirty, setFeaturesDirty] = useState(false);
   const [featuresSaving, setFeaturesSaving] = useState(false);
   /** H1 — brief inline "Copied" after Copy link on the publish success block. */
@@ -357,6 +360,9 @@ export default function OrganizerEventPage() {
     );
     setPaidAttendanceEnabled(
       Boolean(feats.features?.find((f) => f.key === "paid_attendance")?.enabled),
+    );
+    setCertificatesEnabled(
+      Boolean(feats.features?.find((f) => f.key === "certificates")?.enabled),
     );
     setFeaturesDirty(false);
     setRegisteredCount(attendeeRows ? attendeeRows.length : null);
@@ -822,6 +828,12 @@ export default function OrganizerEventPage() {
               { id: "features", label: "Features", description: consoleTabCopy.features },
               { id: "ops", label: "Ops Inbox", description: consoleTabCopy.ops, featureKey: "ops_agent" },
               { id: "recap", label: "Recap", description: consoleTabCopy.recap, featureKey: "recap_agent" },
+              // CERT-2 — only when the event's RESOLVED features include
+              // certificates (plan entitlement AND the organizer's toggle),
+              // since Free plans do not grant them at all.
+              ...(certificatesEnabled
+                ? [{ id: "certificates" as EventTab, label: "Certificates", description: consoleTabCopy.certificates, featureKey: "certificates" as const }]
+                : []),
             ]}
           />
         ) : null}
@@ -1472,6 +1484,22 @@ export default function OrganizerEventPage() {
 
         {tab === "ops" && eventId ? <OpsInboxPanel eventId={eventId} /> : null}
         {tab === "recap" && eventId ? <RecapPanel eventId={eventId} /> : null}
+
+        {/* CERT-2 — a deep link lands here even when the feature is off (or the
+            plan does not include it); say so and say where to go. */}
+        {tab === "certificates" && event ? (
+          certificatesEnabled ? (
+            <CertificatesTab
+              eventId={eventId}
+              sessions={sessions.map((s) => ({ id: s.id, title: s.title }))}
+            />
+          ) : (
+            <p className="help-text">
+              Certificates aren&apos;t enabled for this event. Turn on “Certificates” on the
+              Features tab — they&apos;re included on Per-event plans and above.
+            </p>
+          )
+        ) : null}
 
         {/* Deep links (?tab=readiness) land here even when the feature is off;
             say so, and say where the switch is, instead of rendering nothing. */}
