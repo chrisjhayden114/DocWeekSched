@@ -4,6 +4,7 @@ export * from "./sponsorOutreach";
 export * from "./cfp";
 export * from "./readinessSpeakerPack";
 export * from "./paidAttendance";
+export * from "./orgIdentity";
 export * from "./plans";
 export * from "./maps";
 export * from "./ai";

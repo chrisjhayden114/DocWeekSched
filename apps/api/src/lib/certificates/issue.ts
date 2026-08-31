@@ -6,6 +6,7 @@
 
 import { randomBytes } from "crypto";
 import type { CertificateTemplate, Event, User } from "@prisma/client";
+import { eventLogoWithOrgFallback } from "@event-app/shared";
 import { prisma } from "../db";
 import { getStorageProvider } from "../storage";
 import { writeAuditLog } from "../ai/audit";
@@ -33,6 +34,8 @@ type TemplateWithEvent = CertificateTemplate & {
   event: Pick<Event, "id" | "name" | "startDate" | "endDate" | "timezone" | "organizationId"> & {
     brandColor?: string | null;
     logoUrl?: string | null;
+    /** ORG-1 — the org's logo stands in when the event never uploaded one. */
+    organization?: { logoUrl: string | null } | null;
   };
 };
 
@@ -87,7 +90,10 @@ export async function issueCertificateForUser(input: {
     signatureImageUrl: template.signatureImageUrl,
     merge,
     accentColor: template.event.brandColor,
-    logoUrl: template.event.logoUrl,
+    logoUrl: eventLogoWithOrgFallback(
+      template.event.logoUrl,
+      template.event.organization?.logoUrl,
+    ),
   });
 
   const stored = await getStorageProvider().put({

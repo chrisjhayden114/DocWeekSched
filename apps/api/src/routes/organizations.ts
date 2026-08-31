@@ -1,11 +1,17 @@
 import { OrgRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
+import { writeAuditLog } from "../lib/ai/audit";
 import { asyncHandler, requireOrgRole } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { uiEventStatus } from "../lib/eventStatus";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
 import { validationErrorBody } from "../lib/errors";
+import {
+  ORG_IDENTITY_SELECT,
+  orgIdentityUpdateData,
+  orgUpdateSchema,
+} from "../lib/orgIdentity";
 
 export const organizationsRouter = Router();
 
@@ -94,6 +100,68 @@ organizationsRouter.post(
       role: OrgRole.OWNER,
       plan: org.plan,
     });
+  }),
+);
+
+/**
+ * ORG-1 — the organization's own identity, for the settings page and for the
+ * create-event wizard's logo prefill. STAFF may read it (the wizard prefill
+ * needs it and STAFF can create events); only ADMIN and OWNER may write.
+ */
+organizationsRouter.get(
+  "/:orgId",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { membershipRole } = await requireOrgRole(req.user!.id, req.params.orgId, OrgRole.STAFF);
+    const org = await prisma.organization.findUniqueOrThrow({
+      where: { id: req.params.orgId },
+      select: ORG_IDENTITY_SELECT,
+    });
+    return res.json({ ...org, role: membershipRole });
+  }),
+);
+
+organizationsRouter.put(
+  "/:orgId",
+  requireAuth,
+  requireCsrf,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    // Role first: someone who may not write here learns nothing about the
+    // body's shape from a validation error.
+    await requireOrgRole(req.user!.id, req.params.orgId, OrgRole.ADMIN);
+
+    // The update is built from an allow-list, so slug, plan, and every billing
+    // column are unreachable from here no matter what the body carries.
+    // Transfer-ownership and close-org are ORG-2 and have no route yet.
+    const parsed = orgUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorBody(parsed.error));
+    }
+
+    const update = orgIdentityUpdateData(parsed.data);
+    if (!update.ok) {
+      return res.status(400).json({ error: update.error, code: "VALIDATION" });
+    }
+
+    const org = await prisma.organization.update({
+      where: { id: req.params.orgId },
+      data: update.data,
+      select: ORG_IDENTITY_SELECT,
+    });
+
+    await writeAuditLog({
+      organizationId: org.id,
+      actorUserId: req.user!.id,
+      action: "OTHER",
+      entityType: "Organization",
+      entityId: org.id,
+      payload: {
+        action: "org_identity_saved",
+        fields: Object.keys(update.data),
+      },
+    });
+
+    return res.json(org);
   }),
 );
 

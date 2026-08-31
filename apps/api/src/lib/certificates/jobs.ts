@@ -91,6 +91,8 @@ export function registerCertificateJobs(): void {
             organizationId: true,
             brandColor: true,
             logoUrl: true,
+            // ORG-1 — fallback logo for an event that never uploaded one.
+            organization: { select: { logoUrl: true } },
           },
         },
       },

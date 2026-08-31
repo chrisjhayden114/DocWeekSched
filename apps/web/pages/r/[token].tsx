@@ -36,7 +36,8 @@ type PortalAssignment = {
 };
 
 type PortalView = {
-  event: { name: string; dates: string; logoUrl: string | null; brandColor: string | null };
+  /** ORG-1 — displayLogoUrl is this event's logo, or the organization's. */
+  event: { name: string; dates: string; displayLogoUrl: string | null; brandColor: string | null };
   speakerName: string;
   assignments: PortalAssignment[];
 };
@@ -704,7 +705,7 @@ export default function PresenterPortalPage() {
             <EventHero
               name={view.event.name}
               dateRange={view.event.dates}
-              logoUrl={view.event.logoUrl}
+              logoUrl={view.event.displayLogoUrl}
               accentColor={view.event.brandColor}
             />
             <p className="text-body-md" style={{ margin: 0 }}>

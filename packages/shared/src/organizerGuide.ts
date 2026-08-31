@@ -173,6 +173,12 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     text: "If your plan includes it, Analytics shows adoption, registrations over time, check-ins, and session popularity, with a session CSV download.",
   },
   {
+    id: "org-settings",
+    topic: "Organization settings",
+    href: "/organizer/org/settings",
+    text: "Organization in the Workspace sidebar is where an owner or admin renames the organization — the “Hosted by” name on every public event page — and adds a website, a support email, and an organization logo. With a website saved the hosted-by name becomes a link; with a support email saved attendees get a Contact organizer link beside it. The organization logo is used by any event that hasn't uploaded one of its own, and is offered as a suggestion in the create-event wizard. Moving an event to a different organization and closing an organization are not possible yet.",
+  },
+  {
     id: "billing-page",
     topic: "Billing",
     href: "/organizer/billing",

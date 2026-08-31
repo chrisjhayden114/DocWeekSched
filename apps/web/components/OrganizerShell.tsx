@@ -103,6 +103,12 @@ const icons = {
       <circle cx="9" cy="7" r="4" />
     </Icon>
   ),
+  org: (
+    <Icon>
+      <path d="M3 21h18M5 21V7l7-4 7 4v14" />
+      <path d="M10 21v-6h4v6" />
+    </Icon>
+  ),
 };
 
 type MineEvent = {
@@ -129,6 +135,8 @@ const NAV_BLURB = {
   events: "Every event you organize — switch, open, or start another.",
   newEvent: "Start a draft event with the setup wizard.",
   allEvents: "Leave this event and see every event you organize.",
+  orgSettings:
+    "Your organization's name, website, support email, and the logo events borrow when they have none of their own.",
   billing: "Plan, invoices, and upgrades for this organization.",
   aiUsage: "How many AI ingest and assistant runs this organization has used.",
   attendeeApp: "See the event the way a participant does — agenda, messages, and community.",
@@ -293,6 +301,14 @@ export function OrganizerShell({ active, eventId, eventName, userName, userPhoto
               },
             ]
           : []),
+        {
+          id: "org-settings",
+          label: "Organization",
+          description: NAV_BLURB.orgSettings,
+          href: "/organizer/org/settings",
+          icon: icons.org,
+          active: isActive("org-settings"),
+        },
         {
           id: "billing",
           label: "Billing",

@@ -34,6 +34,8 @@ type Event = {
   name: string;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  /** ORG-1 — the logo to render: this event's own, or the organization's. */
+  displayLogoUrl?: string | null;
   /** Organizer's chosen event color; drives --event-accent (F1.5.3). */
   brandColor?: string | null;
   timezone: string;
@@ -607,7 +609,7 @@ export default function SessionPage() {
   return (
     <AppShell
       title={event?.name || "Event"}
-      logoUrl={event?.logoUrl}
+      logoUrl={event?.displayLogoUrl}
       /* BRAND-1 — session pages are the event's surface too: without this,
          they rendered in default blue beside an accented dashboard. */
       accentStyle={event ? eventAccentStyle(event.brandColor) : undefined}

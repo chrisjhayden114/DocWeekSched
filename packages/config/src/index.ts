@@ -612,6 +612,47 @@ export const overviewCopy = {
 } as const;
 
 /**
+ * Organization settings copy (ORG-1, DESIGN_PHASE_J §Org entity).
+ * The organization stopped being an invisible billing shell and became the
+ * host an attendee can see and write to. It is identity, not a billboard:
+ * there is no public organization page, so every string here has to earn its
+ * place on an EVENT page or in the console. Edit this module, not the page.
+ */
+export const orgSettingsCopy = {
+  title: "Organization",
+  backLabel: "All events",
+  intro:
+    "Who your events say they are hosted by. The name, website, and support email appear on your public event pages; the logo stands in for any event that hasn’t uploaded one of its own.",
+  save: "Save organization",
+  saving: "Saving…",
+  saved: "Saved — organization details updated.",
+  /** STAFF can see the settings but not change them (OWNER/ADMIN only). */
+  readOnly:
+    "Only an owner or admin can change these. Ask one of them if something here is wrong.",
+  /** Shown above the form when the user belongs to more than one organization. */
+  pickerLabel: "Organization",
+  fields: {
+    name: "The host name on every public event page, and the workspace name in billing and invoices. Changing it updates all of them at once.",
+    websiteUrl:
+      "Your own site. With one saved, “Hosted by …” on your public event pages becomes a link to it. Leave it empty and the name stays plain text.",
+    supportEmail:
+      "Where attendees should write with questions about your events. Shown as a quiet “Contact organizer” link beside the host name. Leave it empty and no contact link appears.",
+    logo: "Used by any event that hasn’t uploaded a logo of its own — your crest without re-uploading it for every event. An event that picks its own logo always keeps it. Square images work best.",
+    description:
+      "A short note about your organization, for your own reference. Not shown to attendees anywhere today.",
+  },
+  /** Says out loud that the description is the one field nobody else sees. */
+  descriptionPrivacyNote: "Internal — attendees never see this.",
+  /**
+   * Create-event wizard, under the branding step. A suggestion the organizer
+   * can see and delete — never a value quietly attached on submit (BRAND-2
+   * prefill-not-seed).
+   */
+  logoPrefillNote: (orgName: string) =>
+    `Suggested from ${orgName}. Clear it if this event has a logo of its own.`,
+} as const;
+
+/**
  * Customer-facing billing status copy (Chunk E24).
  * The raw SubscriptionStatus enum (NONE / ACTIVE / TRIALING / PAST_DUE /
  * CANCELED) must never be rendered on a customer surface. A status line is

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { eventLogoWithOrgFallback } from "@event-app/shared";
 import { writeAuditLog } from "../ai";
 import { HttpError } from "../authorization";
 import { prisma } from "../db";
@@ -351,6 +352,8 @@ export async function resolvePortalAccess(rawToken: string, now = new Date()) {
           timezone: true,
           logoUrl: true,
           brandColor: true,
+          // ORG-1 — fallback logo for an event that never uploaded one.
+          organization: { select: { logoUrl: true } },
         },
       },
     },
@@ -427,7 +430,10 @@ export async function getPortalView(rawToken: string, now = new Date()) {
     event: {
       name: access.event.name,
       dates: formatEventDates(access.event),
-      logoUrl: access.event.logoUrl,
+      displayLogoUrl: eventLogoWithOrgFallback(
+        access.event.logoUrl,
+        access.event.organization.logoUrl,
+      ),
       brandColor: access.event.brandColor,
     },
     speakerName: access.speaker.name,

@@ -83,6 +83,8 @@ type Event = {
   slug: string;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  /** ORG-1 — the logo to render: this event's own, or the organization's. */
+  displayLogoUrl?: string | null;
   /** Organizer's chosen event color; drives --event-accent (F1.5.3). */
   brandColor?: string | null;
   timezone: string;
@@ -1264,7 +1266,7 @@ export default function Dashboard() {
   return (
     <AppShell
       title={event?.name || "Event dashboard"}
-      logoUrl={event?.logoUrl}
+      logoUrl={event?.displayLogoUrl}
       nav={shellNav}
       mobilePrimaryIds={mobilePrimaryIds}
       userName={user.name}
@@ -1360,7 +1362,7 @@ export default function Dashboard() {
               name={event.name}
               dateRange={formatEventDateRange(event.startDate, event.endDate, event.timezone)}
               bannerUrl={event.bannerUrl}
-              logoUrl={event.logoUrl}
+              logoUrl={event.displayLogoUrl}
             />
           ) : null}
           {token && activeEventId ? (

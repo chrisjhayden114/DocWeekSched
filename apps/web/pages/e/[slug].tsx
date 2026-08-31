@@ -8,6 +8,7 @@ import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../../c
 import { BrandLogo } from "../../components/BrandLogo";
 import { EventHero } from "../../components/EventHero";
 import { FeeNotice } from "../../components/FeeNotice";
+import { HostedByLine } from "../../components/HostedByLine";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../../components/ScheduleViewSwitcher";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../../components/ScheduleTimetable";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
@@ -28,6 +29,8 @@ export type PublicEventView = {
   description: string | null;
   bannerUrl: string | null;
   logoUrl: string | null;
+  /** ORG-1 — the logo to render: this event's own, or the organization's. */
+  displayLogoUrl?: string | null;
   /** The organizer's chosen event color; drives --event-accent (F1.5.3). */
   brandColor: string | null;
   timezone: string;
@@ -36,6 +39,9 @@ export type PublicEventView = {
   venueName: string | null;
   venueAddress: string | null;
   organizationName?: string | null;
+  /** ORG-1 — present only when the organization filled them in. */
+  organizationWebsiteUrl?: string | null;
+  organizationSupportEmail?: string | null;
   showPoweredByBadge: boolean;
   /**
    * PAY-T0 — the organizer's registration fee, or null when the feature is off
@@ -577,7 +583,8 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
     event.description?.trim().slice(0, 200) ||
     `${event.name} · ${formatRange(event.startDate, event.endDate, event.timezone)}`;
   const canonical = `${brand.primaryUrl}/e/${event.slug}`;
-  const ogImage = event.bannerUrl || event.logoUrl || `${brand.primaryUrl}/icons/icon-512.png`;
+  const ogImage =
+    event.bannerUrl || event.displayLogoUrl || `${brand.primaryUrl}/icons/icon-512.png`;
   const loginHref = loginPathWithEvent(event.slug);
 
   // schema.org Event structured data so shared links and search results render richly.
@@ -691,7 +698,7 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
                   name={event.name}
                   dateRange={formatRange(event.startDate, event.endDate, event.timezone)}
                   bannerUrl={event.bannerUrl}
-                  logoUrl={event.logoUrl}
+                  logoUrl={event.displayLogoUrl}
                 />
               ) : (
                 <>
@@ -702,9 +709,9 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
                     className="text-h1"
                     style={{ marginTop: 0, marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}
                   >
-                    {event.logoUrl ? (
+                    {event.displayLogoUrl ? (
                       <img
-                        src={event.logoUrl}
+                        src={event.displayLogoUrl}
                         alt=""
                         style={{
                           width: 44,
@@ -721,11 +728,12 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
                   </h1>
                 </>
               )}
-              {event.organizationName ? (
-                <p className="text-meta" style={{ margin: "0 0 8px" }}>
-                  Hosted by {event.organizationName}
-                </p>
-              ) : null}
+              <HostedByLine
+                organizationName={event.organizationName}
+                websiteUrl={event.organizationWebsiteUrl}
+                supportEmail={event.organizationSupportEmail}
+              />
+
               {(event.venueName || event.venueAddress) && (
                 <p className="text-body" style={{ margin: "0 0 4px" }}>
                   {[event.venueName, event.venueAddress].filter(Boolean).join(" · ")}

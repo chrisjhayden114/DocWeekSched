@@ -4,7 +4,7 @@
  */
 
 import { SessionPublishStatus, type EventStatus } from "@prisma/client";
-import { hasFeeNotice, type FeeNotice } from "@event-app/shared";
+import { eventLogoWithOrgFallback, hasFeeNotice, type FeeNotice } from "@event-app/shared";
 import { can } from "./billing/entitlements";
 import { prisma } from "./db";
 import { featureEnabled } from "./features/featureEnabled";
@@ -17,7 +17,15 @@ export type PublicEventPayload = {
   slug: string;
   description: string | null;
   bannerUrl: string | null;
+  /**
+   * ORG-1 — `logoUrl` is always the event's OWN logo (null when it never chose
+   * one) and `displayLogoUrl` is always the one to render, falling back to the
+   * organization's. The two are separate everywhere on purpose: an editable
+   * form must never be handed the fallback, or the next save would stamp the
+   * org's logo onto the event row (prefill-not-seed, BRAND-2).
+   */
   logoUrl: string | null;
+  displayLogoUrl: string | null;
   brandColor: string | null;
   timezone: string;
   startDate: string;
@@ -25,8 +33,14 @@ export type PublicEventPayload = {
   venueName: string | null;
   venueAddress: string | null;
   onlineUrl: string | null;
-  /** Hosting organization name (name only — no other org fields). */
+  /**
+   * ORG-1 — hosting organization identity, and only the identity: who is
+   * hosting and how to reach them. The org's description never reaches a public
+   * page (there is no public org page — J-C: identity, not billboard).
+   */
   organizationName: string;
+  organizationWebsiteUrl: string | null;
+  organizationSupportEmail: string | null;
   showPoweredByBadge: boolean;
   /**
    * PAY-T0: the organizer's own registration fee, or null when the
@@ -107,7 +121,9 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
       paymentInstructions: true,
       status: true,
       organizationId: true,
-      organization: { select: { name: true } },
+      organization: {
+        select: { name: true, websiteUrl: true, supportEmail: true, logoUrl: true },
+      },
       slugInviteEnabled: true,
       slugInviteExpiresAt: true,
       slugInviteCapacity: true,
@@ -209,6 +225,7 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     description: event.description,
     bannerUrl: event.bannerUrl,
     logoUrl: event.logoUrl,
+    displayLogoUrl: eventLogoWithOrgFallback(event.logoUrl, event.organization.logoUrl),
     brandColor: event.brandColor,
     timezone: event.timezone,
     startDate: event.startDate.toISOString(),
@@ -217,6 +234,8 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     venueAddress: event.venueAddress,
     onlineUrl: event.onlineUrl,
     organizationName: event.organization.name,
+    organizationWebsiteUrl: event.organization.websiteUrl,
+    organizationSupportEmail: event.organization.supportEmail,
     showPoweredByBadge: !hideBadge,
     payment,
     sessions: sessions.map((s) => ({

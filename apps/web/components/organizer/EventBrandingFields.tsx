@@ -29,8 +29,13 @@ export const BRANDING_IMAGE_RULES = {
   banner: { maxBytes: 4_500_000, maxWidth: 1920, maxHeight: 720, quality: 0.82 },
 } as const;
 
-/** Image file → resized JPEG data URL. */
-function fileToDataUrl(
+/**
+ * Image file → resized JPEG data URL.
+ *
+ * Exported so the organization settings page can collect its fallback logo
+ * under the exact limits above rather than inventing its own (ORG-1).
+ */
+export function fileToDataUrl(
   file: File,
   options: { maxWidth: number; maxHeight: number; quality: number },
 ): Promise<string> {

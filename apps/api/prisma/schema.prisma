@@ -371,6 +371,12 @@ model Organization {
   id                        String               @id @default(cuid())
   name                      String
   slug                      String               @unique
+  /// ORG-1 identity. All optional: an org that fills in nothing looks exactly as it did.
+  websiteUrl                String?
+  supportEmail              String?
+  /// Fallback event logo (read-time only — no event row is ever stamped with it).
+  logoUrl                   String?
+  description               String?
   /// MoR / billing backend. INTERNAL = grandfathered / comps (no MoR).
   billingProvider           BillingProvider      @default(NONE)
   billingCustomerId         String?              @unique

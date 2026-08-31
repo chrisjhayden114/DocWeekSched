@@ -23,6 +23,21 @@ export type OrgSummary = {
   eventCount: number;
 };
 
+/**
+ * ORG-1 — the organization's own identity, from GET/PUT /organizations/:orgId.
+ * `role` is the caller's membership role; only OWNER/ADMIN may save.
+ */
+export type OrgIdentity = {
+  id: string;
+  name: string;
+  slug: string;
+  websiteUrl: string | null;
+  supportEmail: string | null;
+  logoUrl: string | null;
+  description: string | null;
+  role?: string;
+};
+
 export type OrganizerEvent = {
   id: string;
   name: string;

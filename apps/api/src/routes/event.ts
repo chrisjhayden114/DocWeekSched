@@ -1,6 +1,7 @@
 import { EventMemberRole, EventStatus, OrgRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
+import { eventLogoWithOrgFallback } from "@event-app/shared";
 import { asyncHandler, requireEventAccess, requireOrgRole } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { env } from "../lib/env";
@@ -124,7 +125,32 @@ const publicEventSelect = {
   startDate: true,
   endDate: true,
   status: true,
+  // ORG-1 — for displayLogoUrl only. The event's own logoUrl is still what
+  // every writer reads and writes.
+  organization: { select: { logoUrl: true } },
 } as const;
+
+/**
+ * ORG-1 — the logo a surface should actually render: the event's own, or the
+ * organization's when the event never chose one.
+ *
+ * Read-time only. No event row is ever stamped with the org's logo, so an
+ * organizer who replaces the org crest updates every event that borrowed it,
+ * and an event that picked its own mark is untouched forever. The event's raw
+ * `logoUrl` stays in the payload beside this because the settings panel edits
+ * that field — handing a form the fallback is how you seed by accident.
+ */
+async function displayLogoUrlFor(event: {
+  logoUrl: string | null;
+  organizationId: string;
+}): Promise<string | null> {
+  if (event.logoUrl?.trim()) return event.logoUrl;
+  const org = await prisma.organization.findUnique({
+    where: { id: event.organizationId },
+    select: { logoUrl: true },
+  });
+  return eventLogoWithOrgFallback(event.logoUrl, org?.logoUrl);
+}
 
 /**
  * Side-effect-free public schedule for SSR / link unfurls.
@@ -175,6 +201,7 @@ eventRouter.get(
       slug: event.slug,
       bannerUrl: event.bannerUrl,
       logoUrl: event.logoUrl,
+      displayLogoUrl: eventLogoWithOrgFallback(event.logoUrl, event.organization.logoUrl),
       brandColor: event.brandColor,
       description: event.description,
       timezone: event.timezone,
@@ -217,6 +244,7 @@ eventRouter.get(
       slug: event.slug,
       bannerUrl: event.bannerUrl,
       logoUrl: event.logoUrl,
+      displayLogoUrl: eventLogoWithOrgFallback(event.logoUrl, event.organization.logoUrl),
       brandColor: event.brandColor,
       description: event.description,
       timezone: event.timezone,
@@ -237,11 +265,17 @@ eventRouter.get(
     return res.json({
       ...(await withPaymentVisibility(toEventClient(event), event.id)),
       uiStatus: uiEventStatus(event),
+      displayLogoUrl: await displayLogoUrlFor(event),
       showPoweredByBadge: !hideBadge,
     });
   }),
 );
 
+/**
+ * The event switcher's list. Deliberately carries no displayLogoUrl: nothing
+ * renders a logo from this list, and resolving one would repeat an org's
+ * uploaded data URL once per event in the response.
+ */
 eventRouter.get(
   "/mine",
   requireAuth,

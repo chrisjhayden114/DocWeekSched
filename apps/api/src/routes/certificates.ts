@@ -5,6 +5,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { CertificateEligibilityRule } from "@prisma/client";
+import { eventLogoWithOrgFallback } from "@event-app/shared";
 import { asyncHandler, HttpError, requireEventAccess } from "../lib/authorization";
 import { prisma } from "../lib/db";
 import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
@@ -184,6 +185,8 @@ certificatesRouter.post(
             organizationId: true,
             brandColor: true,
             logoUrl: true,
+            // ORG-1 — fallback logo for an event that never uploaded one.
+            organization: { select: { logoUrl: true } },
           },
         },
       },
@@ -312,6 +315,8 @@ certificatesRouter.get(
             timezone: true,
             brandColor: true,
             logoUrl: true,
+            // ORG-1 — fallback logo for an event that never uploaded one.
+            organization: { select: { logoUrl: true } },
           },
         },
       },
@@ -333,7 +338,7 @@ certificatesRouter.get(
           certificateId: row.publicId,
         },
         accentColor: row.event.brandColor,
-        logoUrl: row.event.logoUrl,
+        logoUrl: eventLogoWithOrgFallback(row.event.logoUrl, row.event.organization.logoUrl),
       });
     }
 

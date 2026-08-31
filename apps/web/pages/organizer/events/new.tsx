@@ -1,4 +1,4 @@
-import { brand } from "@event-app/config";
+import { brand, orgSettingsCopy } from "@event-app/config";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -24,8 +24,9 @@ import { EventBrandingFields } from "../../../components/organizer/EventBranding
 import { Select } from "../../../components/Select";
 import { TimezoneSelect } from "../../../components/TimezoneSelect";
 import { apiFetch } from "../../../lib/api";
-import { OrgSummary } from "../../../lib/organizerApi";
+import { OrgSummary, type OrgIdentity } from "../../../lib/organizerApi";
 import { EVENT_ORG_LOCKED_NOTE } from "../../../lib/eventCreationOrg";
+import { orgLogoPrefill } from "../../../lib/orgLogoPrefill";
 import {
   clearSetupCopilotDraft,
   copilotFormToWizardFields,
@@ -149,6 +150,16 @@ export default function NewEventWizard() {
   const [brandColor, setBrandColor] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
+  /**
+   * ORG-1 — the org logo currently SUGGESTED in the field (with the org that
+   * offered it, for the note), and whether the organizer has since touched the
+   * field. Prefill, not seed: nothing is attached on submit that they could not
+   * see and delete.
+   */
+  const [orgLogoSuggestion, setOrgLogoSuggestion] = useState<{ logoUrl: string; orgName: string } | null>(
+    null,
+  );
+  const [logoUserEdited, setLogoUserEdited] = useState(false);
   const [featureOverrides, setFeatureOverrides] = useState<FeatureOverridesMap>({});
   const [copilotForm, setCopilotForm] = useState<SetupCopilotFormState>(() => emptySetupFormState(timezone));
   const [copilotHistory, setCopilotHistory] = useState<SetupCopilotMessage[]>([]);
@@ -194,6 +205,37 @@ export default function NewEventWizard() {
       }
     })();
   }, [router.isReady, orgFromQuery, router]);
+
+  /** Latest logo-field state for the effect below, which must not re-run per keystroke. */
+  const logoFieldRef = useRef({ logoUrl, suggestion: orgLogoSuggestion, edited: logoUserEdited });
+  logoFieldRef.current = { logoUrl, suggestion: orgLogoSuggestion, edited: logoUserEdited };
+
+  // ORG-1 — offer the organization's logo when one is selected. Keyed on the
+  // organization alone: the field's own state is read through the ref above so
+  // typing in the box can never re-trigger a suggestion.
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+    void apiFetch<OrgIdentity>(`/organizations/${encodeURIComponent(organizationId)}`)
+      .then((org) => {
+        if (cancelled) return;
+        const field = logoFieldRef.current;
+        const next = orgLogoPrefill({
+          current: field.logoUrl,
+          orgLogoUrl: org.logoUrl,
+          lastPrefill: field.suggestion?.logoUrl ?? null,
+          organizerEdited: field.edited,
+        });
+        setLogoUrl(next.logoUrl);
+        setOrgLogoSuggestion(next.prefilled ? { logoUrl: next.prefilled, orgName: org.name } : null);
+      })
+      .catch(() => {
+        /* An org we can't read just means no suggestion — never a wizard error. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
 
   // Restore the in-progress draft so a remount mid-entry (query hydration,
   // auth settling) never loses typed input. Declared before the AI→manual
@@ -863,10 +905,20 @@ export default function NewEventWizard() {
                   value={{ brandColor, logoUrl, bannerUrl }}
                   onChange={(patch) => {
                     if (patch.brandColor !== undefined) setBrandColor(patch.brandColor);
-                    if (patch.logoUrl !== undefined) setLogoUrl(patch.logoUrl);
+                    if (patch.logoUrl !== undefined) {
+                      // ORG-1: any touch of the logo field — typing, uploading,
+                      // or emptying it — ends the org suggestion for good.
+                      setLogoUserEdited(true);
+                      setLogoUrl(patch.logoUrl);
+                    }
                     if (patch.bannerUrl !== undefined) setBannerUrl(patch.bannerUrl);
                   }}
                 />
+                {orgLogoSuggestion && logoUrl === orgLogoSuggestion.logoUrl ? (
+                  <p className="help-text" style={{ margin: "-4px 0 0" }}>
+                    {orgSettingsCopy.logoPrefillNote(orgLogoSuggestion.orgName)}
+                  </p>
+                ) : null}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button type="button" className="button secondary" onClick={() => setStep(1)}>
                     Back
