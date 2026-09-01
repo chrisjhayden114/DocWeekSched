@@ -73,7 +73,6 @@ describe("K-2.1 — Feature Guide completeness", () => {
     expect(conciergeSize.height).toBeGreaterThan(0);
     expect(FEATURE_GUIDE.venue_maps.imageSrc).toBe("/feature-guide/venue_maps.png");
     expect(FEATURE_GUIDE.cfp.imageSrc).toBe("/feature-guide/cfp.png");
-    expect(FEATURE_GUIDE.session_feedback.imageSrc).toBe("/feature-guide/session_feedback.png");
     expect(FEATURE_GUIDE.sponsors.imageSrc).toBe("/feature-guide/sponsors.png");
     expect(FEATURE_GUIDE.sponsor_outreach.imageSrc).toBe("/feature-guide/sponsor_outreach.png");
     expect(FEATURE_GUIDE.checkin.imageSrc).toBe("/feature-guide/checkin.png");
@@ -91,7 +90,6 @@ describe("K-2.1 — Feature Guide completeness", () => {
       "/feature-guide/concierge.png",
       "/feature-guide/venue_maps.png",
       "/feature-guide/cfp.png",
-      "/feature-guide/session_feedback.png",
       "/feature-guide/sponsors.png",
       "/feature-guide/sponsor_outreach.png",
       "/feature-guide/checkin.png",

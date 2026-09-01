@@ -59,7 +59,6 @@ describe("featureGuideImage resolution order", () => {
       "engagement_points",
       "certificates",
       "venue_maps",
-      "session_feedback",
       "sponsors",
       "sponsor_outreach",
       "checkin",

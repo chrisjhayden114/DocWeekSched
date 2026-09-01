@@ -89,7 +89,7 @@ describe("K-2.1 — Features tab + GuidePanel", () => {
           "/feature-guide/engagement_points.png",
           "/feature-guide/certificates.png",
           "/feature-guide/venue_maps.png",
-          "/feature-guide/session_feedback.png",
+          "/feature-guide/auto/session_feedback.png",
           "/feature-guide/sponsor_outreach.png",
         ]),
       );

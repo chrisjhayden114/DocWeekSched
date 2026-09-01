@@ -228,7 +228,6 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default in the registry. Free plans do not include polls; Per-event and above do. Focused and Talk showcase turn them off. Turning it off hides the card; existing polls stay.",
   },
   session_feedback: {
-    imageSrc: "/feature-guide/session_feedback.png",
     whatItDoes:
       "After a session’s end time, attendees can leave a 1–5 rating and an optional comment (up to 4,000 characters). One response per person per session; submitting again replaces the comment. Organizers get a count, average, histogram, and comments. The post-event recap can use this feedback when both features are on.",
     experience:
