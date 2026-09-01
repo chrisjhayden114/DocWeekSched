@@ -263,6 +263,17 @@ describe("K-2.1 — wiring (one source, no md duplicate)", () => {
     expect(page).toContain('loading="lazy"');
     expect(page).toContain("<FeatureArt category={group.category} />");
     expect(page).not.toContain("Retired — kept here so the key stays documented.");
+    // UI-2 — name, then image, then sections. Planned entries are text-only.
+    const nameAt = page.indexOf("{def.name}");
+    const artAt = page.indexOf("feature-guide-page-art");
+    const sectionsAt = page.indexOf("<FeatureGuideSections");
+    expect(nameAt).toBeGreaterThan(-1);
+    expect(artAt).toBeGreaterThan(nameAt);
+    expect(sectionsAt).toBeGreaterThan(artAt);
+    expect(page).toContain("feature-guide-category");
+    expect(page).toContain("def.plannedPhase");
+    expect(page).toContain("!planned && !imageSrc");
+    expect(page).toContain("!planned && imageSrc");
   });
 
   it("K-8 — Features rows, sidebar, and console tabs with a guide entry pass featureKey", () => {
@@ -353,6 +364,28 @@ describe("K-6 — feature card + carousel CSS", () => {
     expect(rule(".hover-info-trigger")).toContain("cursor: default");
     expect(rule(".hover-info-label")).toContain("cursor: default");
     expect(rule(".hover-info-label-slot")).toContain("cursor: default");
+  });
+
+  it("UI-2 — the guide page shows the whole image; hover cards keep the 140px cover band", () => {
+    const pageArt = rule(".feature-guide-page-art img,\n.feature-guide-page-art .feature-art");
+    expect(pageArt).toContain("max-height: 520px");
+    expect(pageArt).toContain("height: auto");
+    expect(pageArt).toContain("max-width: 100%");
+    expect(pageArt).toContain("object-fit: contain");
+    expect(pageArt).not.toContain("object-fit: cover");
+    expect(pageArt).toContain("border: 1px solid var(--gray-200)");
+    expect(pageArt).toContain("border-radius: var(--radius-card)");
+    expect(rule(".feature-guide-page-art")).toContain("justify-content: center");
+    // Hover cards are unchanged — the 140px cover band is the card crop, not the guide.
+    expect(rule(".hover-info-art")).toContain("height: 140px");
+    expect(rule(".hover-info-image,\n.hover-info-art img")).toContain("object-fit: cover");
+  });
+
+  it("UI-2 — category headings are underlined and heavier than feature names", () => {
+    const heading = rule(".mkt-prose h2.feature-guide-category");
+    expect(heading).toContain("font-weight: 700");
+    expect(heading).toMatch(/border-bottom:\s*1px solid/);
+    expect(rule(".mkt-prose h3")).toContain("font: 600");
   });
 
   it("the icebreaker carousel is a fixed viewport with internal scroll", () => {

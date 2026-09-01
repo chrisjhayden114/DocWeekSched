@@ -61,14 +61,16 @@ function formatHour(h: number): string {
 function TimetableBlock({
   placed,
   orderedTrackIds,
+  untrackedTint,
   onSelect,
 }: {
   placed: Placed;
   orderedTrackIds: string[];
+  untrackedTint?: string | null;
   onSelect?: (id: string) => void;
 }) {
   const { session, top, height, col, colCount } = placed;
-  const color = trackColor(session.trackId, session.trackExplicitColor, orderedTrackIds);
+  const color = trackColor(session.trackId, session.trackExplicitColor, orderedTrackIds, untrackedTint);
   const widthPct = 100 / colCount;
   const leftPct = col * widthPct;
   const interactive = Boolean(onSelect);
@@ -136,6 +138,7 @@ function TimetableGrid({
   startHour,
   endHour,
   orderedTrackIds,
+  untrackedTint,
   ariaLabel,
   onSelectSession,
 }: {
@@ -145,6 +148,7 @@ function TimetableGrid({
   startHour: number;
   endHour: number;
   orderedTrackIds: string[];
+  untrackedTint?: string | null;
   ariaLabel: string;
   onSelectSession?: (id: string) => void;
 }) {
@@ -202,6 +206,7 @@ function TimetableGrid({
                     key={p.session.id}
                     placed={p}
                     orderedTrackIds={orderedTrackIds}
+                    untrackedTint={untrackedTint}
                     onSelect={onSelectSession}
                   />
                 ))}
@@ -218,11 +223,13 @@ export function ScheduleGridView({
   sessions,
   timeZone,
   orderedTrackIds,
+  untrackedTint,
   onSelectSession,
 }: {
   sessions: TimetableSession[];
   timeZone: string;
   orderedTrackIds: string[];
+  untrackedTint?: string | null;
   onSelectSession?: (id: string) => void;
 }) {
   const { columns, byDay, startHour, endHour } = useMemo(() => {
@@ -250,6 +257,7 @@ export function ScheduleGridView({
       startHour={startHour}
       endHour={endHour}
       orderedTrackIds={orderedTrackIds}
+      untrackedTint={untrackedTint}
       ariaLabel="Grid schedule"
       onSelectSession={onSelectSession}
     />
@@ -265,11 +273,13 @@ export function ScheduleByRoomView({
   sessions,
   timeZone,
   orderedTrackIds,
+  untrackedTint,
   onSelectSession,
 }: {
   sessions: TimetableSession[];
   timeZone: string;
   orderedTrackIds: string[];
+  untrackedTint?: string | null;
   onSelectSession?: (id: string) => void;
 }) {
   const days = useMemo(() => {
@@ -305,6 +315,7 @@ export function ScheduleByRoomView({
               startHour={startHour}
               endHour={endHour}
               orderedTrackIds={orderedTrackIds}
+              untrackedTint={untrackedTint}
               ariaLabel={`By room schedule — ${weekday}${rest ? `, ${rest}` : ""}`}
               onSelectSession={onSelectSession}
             />

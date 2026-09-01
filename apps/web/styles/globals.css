@@ -1381,7 +1381,8 @@ textarea.input,
 /*
  * Session row (E29.1): 1px border, radius 4, 3px track color bar.
  * Tracked sessions get a ~6% wash of --track-color mixed toward white
- * (.schedule-event--tinted). Untracked rows stay the neutral white card.
+ * (.schedule-event--tinted). Untracked rows use the same wash with the
+ * event's untracked hue (greatest min hue-distance from the tracks).
  * A tight row, not a tall card — target ~72–88px at rest. Actions sit on the
  * title line (see .schedule-event-side), never stranded at the bottom.
  */
@@ -1654,8 +1655,9 @@ textarea.input,
 }
 
 /*
- * UI-1.1 — unchosen "Choose your session" rows. Warm gold at the same
- * 6–8% wash as track tints; the expanded options panel stays untouched.
+ * UI-1.1 / UI-2 — pick-one decision rows. Warm gold at the same 6–8%
+ * wash as track tints. Event Schedule keeps this on both Choose and
+ * Change; the expanded options panel stays untouched.
  */
 .breakout-slot--decision > .breakout-slot-header {
   /* Fallback first: browsers without color-mix keep the white card. */
@@ -6634,25 +6636,49 @@ button.schedule-meta-chip:hover {
   list-style: none;
 }
 
-.feature-guide-cat-art {
-  width: min(100%, 400px);
-  max-height: 220px;
-  aspect-ratio: 16 / 9;
+/*
+ * UI-2 — category heading is a section rule, heavier than the feature
+ * name (h3), so "Community" the section does not read as "Community" the feature.
+ */
+.mkt-prose h2.feature-guide-category {
+  font-weight: 700;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--gray-400);
+}
+
+.feature-guide-entry {
+  margin-bottom: 40px;
+}
+
+.feature-guide-entry-name {
+  margin-bottom: 8px;
+}
+
+/*
+ * UI-2 — guide page only: show the whole screenshot. Natural aspect,
+ * full column width, height auto, max-height 520px, centered when the
+ * height cap makes it narrower. Hover cards keep the 140px cover band.
+ */
+.feature-guide-page-art {
+  display: flex;
+  justify-content: center;
+  width: 100%;
   margin: 0 0 16px;
-  overflow: hidden;
+}
+
+.feature-guide-page-art img,
+.feature-guide-page-art .feature-art {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-card);
   background: var(--gray-50);
 }
 
-.feature-guide-cat-art img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.feature-guide-cat-art .feature-art,
 .hover-info-art .feature-art {
   display: block;
   width: 100%;

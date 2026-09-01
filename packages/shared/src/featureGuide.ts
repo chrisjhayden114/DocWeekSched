@@ -237,6 +237,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "On by default in the registry. Free plans do not include it; Per-event and above do. Most presets leave it on (including Focused and Talk showcase). Turning it off hides the card; submitted ratings stay.",
   },
   sponsors: {
+    imageSrc: "/feature-guide/sponsors.png",
     whatItDoes:
       "Sponsors are logos grouped by tier, shown on attendee surfaces, with optional exhibitor lead capture (name, email, company, notes). Organizers create and sort sponsors and can export booth leads as CSV. The public event payload can include sponsors when the feature is on.",
     experience:
@@ -254,6 +255,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "This needs Sponsors to be on, and it is included on the same plans as Sponsors. Free is capped at 25 prospects per event; paid plans have no cap. Turning it off hides the pipeline; the rows stay. {{product}} never sends outreach from our domain — you write and send from your own address, and Draft with AI is metered, review-only, and never auto-sent.",
   },
   checkin: {
+    imageSrc: "/feature-guide/checkin.png",
     whatItDoes:
       "QR check-in gives each attendee a personal code on their membership. Staff can scan at the door (including offline, with sync when the device is back online). A person can be checked in once per event; repeats are idempotent. Methods include self, staff scan, and QR scan.",
     experience:

@@ -68,9 +68,12 @@ describe("K-2.1 — Feature Guide completeness", () => {
     expect(FEATURE_GUIDE.venue_maps.imageSrc).toBe("/feature-guide/venue_maps.png");
     expect(FEATURE_GUIDE.cfp.imageSrc).toBe("/feature-guide/cfp.png");
     expect(FEATURE_GUIDE.session_feedback.imageSrc).toBe("/feature-guide/session_feedback.png");
+    expect(FEATURE_GUIDE.sponsors.imageSrc).toBe("/feature-guide/sponsors.png");
     expect(FEATURE_GUIDE.sponsor_outreach.imageSrc).toBe("/feature-guide/sponsor_outreach.png");
+    expect(FEATURE_GUIDE.checkin.imageSrc).toBe("/feature-guide/checkin.png");
     expect(FEATURE_GUIDE.certificates.imageSrc).toBe("/feature-guide/certificates.png");
     expect(FEATURE_GUIDE.readiness.imageSrc).toBe("/feature-guide/readiness.png");
+    expect(FEATURE_GUIDE.public_leaderboard.imageSrc).toBeUndefined();
     expect(featureGuideImageSrcs()).toEqual([
       "/feature-guide/community.png",
       "/feature-guide/community_meetups.png",
@@ -83,7 +86,9 @@ describe("K-2.1 — Feature Guide completeness", () => {
       "/feature-guide/venue_maps.png",
       "/feature-guide/cfp.png",
       "/feature-guide/session_feedback.png",
+      "/feature-guide/sponsors.png",
       "/feature-guide/sponsor_outreach.png",
+      "/feature-guide/checkin.png",
       "/feature-guide/certificates.png",
       "/feature-guide/readiness.png",
     ]);

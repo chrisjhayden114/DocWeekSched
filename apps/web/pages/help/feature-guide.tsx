@@ -11,6 +11,11 @@ import { SiteHeader } from "../../components/marketing/SiteHeader";
 /**
  * K-2.1 — the Feature Guide. Renders from featureGuide.ts (one source).
  * Not a markdown help article.
+ *
+ * UI-2 — name, then the whole image (never cropped), then the three
+ * sections. Planned entries stay text-only. Category headings are
+ * underlined and heavier so the section reads apart from a feature
+ * that shares the same word (Community the section vs Community the feature).
  */
 export default function FeatureGuidePage() {
   const title = marketingSeo.pages.featureGuide.title;
@@ -53,24 +58,30 @@ export default function FeatureGuidePage() {
             </nav>
             {groups.map((group) => (
               <section key={group.category} id={group.category} aria-labelledby={`guide-cat-${group.category}`}>
-                <h2 id={`guide-cat-${group.category}`}>{group.label}</h2>
+                <h2 className="feature-guide-category" id={`guide-cat-${group.category}`}>
+                  {group.label}
+                </h2>
                 {group.keys.map((key) => {
                   const def = FEATURE_BY_KEY[key];
                   const imageSrc = featureGuideImage(key);
+                  const planned = Boolean(def.plannedPhase);
                   return (
-                    <article key={key} id={key} style={{ marginBottom: 40 }}>
-                      <div className="feature-guide-cat-art">
-                        {imageSrc ? (
-                          <img src={imageSrc} alt="" loading="lazy" />
-                        ) : (
-                          <FeatureArt category={group.category} />
-                        )}
-                      </div>
-                      <h3 style={{ marginBottom: 8 }}>{def.name}</h3>
-                      {def.plannedPhase ? (
+                    <article key={key} id={key} className="feature-guide-entry">
+                      <h3 className="feature-guide-entry-name">{def.name}</h3>
+                      {planned ? (
                         <p className="text-meta" style={{ marginTop: 0 }}>
                           Planned — not shown in the app yet.
                         </p>
+                      ) : null}
+                      {!planned && imageSrc ? (
+                        <div className="feature-guide-page-art">
+                          <img src={imageSrc} alt="" loading="lazy" />
+                        </div>
+                      ) : null}
+                      {!planned && !imageSrc ? (
+                        <div className="feature-guide-page-art">
+                          <FeatureArt category={group.category} />
+                        </div>
                       ) : null}
                       <FeatureGuideSections featureKey={key} />
                     </article>

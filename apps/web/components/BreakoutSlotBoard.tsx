@@ -15,7 +15,12 @@ import {
   type BreakoutSlot,
   type BreakoutSlotSession,
 } from "../lib/breakoutSlots";
-import { sessionDecisionAmberClass, sessionTrackTintClass } from "../lib/trackColors";
+import {
+  pickOneRowIsAmber,
+  sessionDecisionAmberClass,
+  sessionTrackTintClass,
+  type AgendaScheduleView,
+} from "../lib/trackColors";
 
 export type BreakoutBoardSession = BreakoutSlotSession & {
   location?: string | null;
@@ -42,6 +47,14 @@ export type BreakoutSlotBoardProps<T extends BreakoutBoardSession> = {
   onOpenSession: (sessionId: string) => void;
   trackColor: (session: T) => string;
   timeZone: string;
+  /**
+   * UI-2 — Event Schedule keeps amber on the slot row in both Choose and
+   * Change states. My Schedule collapses a chosen slot to the session's
+   * track tint (the "Your 10:00 AM" card).
+   */
+  agendaView?: AgendaScheduleView;
+  /** Event-level untracked wash — lunch / no-track rows share card anatomy. */
+  untrackedTint?: string | null;
 };
 
 const FILTER_THRESHOLD = 8;
@@ -86,6 +99,8 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
   onOpenSession,
   trackColor,
   timeZone,
+  agendaView = "eventSchedule",
+  untrackedTint = null,
 }: BreakoutSlotBoardProps<T>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [filterText, setFilterText] = useState("");
@@ -203,7 +218,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                 return (
                   <article
                     key={slot.key}
-                    className={["schedule-event", "schedule-event--minimal", "breakout-minimal", sessionTrackTintClass(only.trackId, only.track?.color)].filter(Boolean).join(" ")}
+                    className={["schedule-event", "schedule-event--minimal", "breakout-minimal", sessionTrackTintClass(only.trackId, only.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
                     style={{ ["--track-color" as string]: trackColor(only) }}
                     onClick={() => onOpenSession(only.id)}
                   >
@@ -242,14 +257,15 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                 ? slot.sessions.find((s) => s.id === slot.chosenSessionId) ?? null
                 : null;
 
-              // Collapse-to-choice: the core calm mechanic. The unchosen
-              // options are not rendered at all.
-              if (chosenSession && !open) {
+              // My Schedule: collapse a chosen slot to the picked session's
+              // track tint. Event Schedule never does this — the row stays
+              // the decision control ("Change your session") with amber.
+              if (agendaView === "mySchedule" && chosenSession && !open) {
                 const room = roomLabel(chosenSession);
                 return (
                   <article
                     key={slot.key}
-                    className={["breakout-choice", sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color)].filter(Boolean).join(" ")}
+                    className={["breakout-choice", sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
                     style={{ ["--track-color" as string]: trackColor(chosenSession) }}
                   >
                     <button
@@ -281,7 +297,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
               return (
                 <section
                   key={slot.key}
-                  className={["breakout-slot", open ? "is-open" : "", sessionDecisionAmberClass(!chosenSession)].filter(Boolean).join(" ")}
+                  className={["breakout-slot", open ? "is-open" : "", sessionDecisionAmberClass(pickOneRowIsAmber(Boolean(chosenSession), agendaView))].filter(Boolean).join(" ")}
                 >
                   <button
                     type="button"

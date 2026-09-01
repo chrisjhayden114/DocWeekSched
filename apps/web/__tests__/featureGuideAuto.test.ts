@@ -60,7 +60,9 @@ describe("featureGuideImage resolution order", () => {
       "certificates",
       "venue_maps",
       "session_feedback",
+      "sponsors",
       "sponsor_outreach",
+      "checkin",
     ] as const) {
       const manual = FEATURE_GUIDE[key].imageSrc!;
       expect(featureGuideImage(key)).toBe(manual);

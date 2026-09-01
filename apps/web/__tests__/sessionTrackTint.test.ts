@@ -1,10 +1,15 @@
 /**
  * UI-1 — attendee agenda session cards: a very light track wash (mixed
- * toward white), not a white card with only a colored edge. Untracked
- * rows stay the neutral card. Grid / by-room share the same mix strength.
+ * toward white), not a white card with only a colored edge. Grid / by-room
+ * share the same mix strength.
  *
  * UI-1.1 — unchosen pick-one "Choose your session" rows get a warm amber
- * wash at the same strength; chosen "Your 10:00 AM" rows use the track tint.
+ * wash at the same strength; chosen "Your 10:00 AM" rows use the track tint
+ * on My Schedule.
+ *
+ * UI-2 — untracked rows get the same 6% wash, using a calm hue picked to
+ * sit furthest from the event's track hues. Event Schedule pick-one rows
+ * keep amber in both Choose and Change states.
  */
 
 import { readFileSync } from "node:fs";
@@ -17,6 +22,14 @@ import {
   SESSION_TRACK_TINT_CLASS,
   TRACK_FILL_MIX,
   TRACK_FILL_MIX_HOVER,
+  TRACK_PALETTE_HEX,
+  UNTRACKED_TINT_PALETTE,
+  hexHue,
+  hueDistance,
+  parseCssColorToHex,
+  pickOneRowIsAmber,
+  pickUntrackedTintHex,
+  resolveTrackHex,
   sessionDecisionAmberClass,
   sessionHasTrack,
   sessionTrackTintClass,
@@ -33,18 +46,7 @@ const breakoutSrc = readFileSync(join(webRoot, "components", "BreakoutSlotBoard.
 const AA = 4.5;
 
 /** Palette hexes from tokens.css — used to prove the 6% wash stays AA. */
-const TRACK_HEX = [
-  "#0960ab",
-  "#07662b",
-  "#892264",
-  "#c55113",
-  "#473bbd",
-  "#990f0f",
-  "#0f766e",
-  "#673ab7",
-  "#a16207",
-  "#505158",
-];
+const TRACK_HEX = [...TRACK_PALETTE_HEX];
 
 function blockBody(css: string, start: number): string {
   const open = css.indexOf("{", start);
@@ -84,12 +86,17 @@ describe("UI-1 — tinted vs neutral session card classes", () => {
     expect(SESSION_TRACK_TINT_CLASS).toBe("schedule-event--tinted");
   });
 
-  it("sessions with no track keep a neutral class list (no tint modifier)", () => {
+  it("sessions with no track and no untracked hue keep a neutral class list", () => {
     expect(sessionHasTrack(null)).toBe(false);
     expect(sessionHasTrack(undefined)).toBe(false);
     expect(sessionHasTrack("")).toBe(false);
     expect(sessionTrackTintClass(null)).toBe("");
     expect(sessionTrackTintClass(undefined, null)).toBe("");
+  });
+
+  it("untracked sessions get the tint modifier when the event hue is passed as explicit", () => {
+    expect(sessionTrackTintClass(null, UNTRACKED_TINT_PALETTE[0].hex)).toBe(SESSION_TRACK_TINT_CLASS);
+    expect(sessionHasTrack(null, UNTRACKED_TINT_PALETTE[0].hex)).toBe(true);
   });
 });
 
@@ -101,7 +108,7 @@ describe("UI-1 — list cards mix a 5–8% wash toward white", () => {
     expect(TRACK_FILL_MIX_HOVER).toBe(0.08);
   });
 
-  it("untracked .schedule-event stays the white card", () => {
+  it("the untinted .schedule-event fallback stays the white card", () => {
     const body = ruleBody(globalsCss, ".schedule-event");
     expect(body).toMatch(/background:\s*#ffffff/);
     expect(body).not.toMatch(/color-mix/);
@@ -153,10 +160,10 @@ describe("UI-1 — grid / by-room fills match the list wash", () => {
 
 describe("UI-1 — list surfaces apply the tint class from track presence", () => {
   it("the signed-in agenda, public agenda, and breakout rows call sessionTrackTintClass", () => {
-    expect(dashboardSrc).toContain("sessionTrackTintClass(s.trackId, s.track?.color)");
-    expect(publicSrc).toContain("sessionTrackTintClass(s.trackName)");
-    expect(breakoutSrc).toContain("sessionTrackTintClass(only.trackId, only.track?.color)");
-    expect(breakoutSrc).toContain("sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color)");
+    expect(dashboardSrc).toContain("sessionTrackTintClass(s.trackId, s.track?.color ?? untrackedTint)");
+    expect(publicSrc).toContain("sessionTrackTintClass(s.trackName, untrackedTint)");
+    expect(breakoutSrc).toContain("sessionTrackTintClass(only.trackId, only.track?.color ?? untrackedTint)");
+    expect(breakoutSrc).toContain("sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color ?? untrackedTint)");
   });
 
   it("the marketing demo rows are tinted (every demo session has a track)", () => {
@@ -201,12 +208,75 @@ describe("UI-1 — 6% wash keeps WCAG AA for card text", () => {
   });
 });
 
-describe("UI-1.1 — pick-one open decisions use amber, not a track tint", () => {
-  it("the helper puts the amber class only on an unchosen slot", () => {
+describe("UI-2 — untracked wash hue avoids the event's track hues", () => {
+  it("uses the first palette hue when the event has no tracks", () => {
+    expect(pickUntrackedTintHex([])).toBe(UNTRACKED_TINT_PALETTE[0].hex);
+    expect(pickUntrackedTintHex(["not-a-color"])).toBe(UNTRACKED_TINT_PALETTE[0].hex);
+  });
+
+  it("is deterministic — same track hexes always pick the same candidate", () => {
+    const tracks = [TRACK_PALETTE_HEX[0], TRACK_PALETTE_HEX[2], TRACK_PALETTE_HEX[4]];
+    const a = pickUntrackedTintHex(tracks);
+    const b = pickUntrackedTintHex([...tracks].reverse());
+    expect(a).toBe(b);
+    expect(UNTRACKED_TINT_PALETTE.map((c) => c.hex)).toContain(a);
+  });
+
+  it("picks the candidate with the greatest minimum hue distance from every track", () => {
+    // A teal-heavy event should reject slate-teal in favour of a farther hue.
+    const tealEvent = ["#0f766e", "#07662b"];
+    const chosen = pickUntrackedTintHex(tealEvent);
+    const trackHues = tealEvent.map(hexHue);
+    const score = (hex: string) => Math.min(...trackHues.map((h) => hueDistance(hexHue(hex), h)));
+    for (const candidate of UNTRACKED_TINT_PALETTE) {
+      expect(score(chosen)).toBeGreaterThanOrEqual(score(candidate.hex));
+    }
+    expect(chosen).not.toBe(UNTRACKED_TINT_PALETTE[0].hex);
+  });
+
+  it("resolves assigned palette slots and organizer hexes the same way trackColor does", () => {
+    expect(resolveTrackHex("t1", null, ["t1", "t2"])).toBe(TRACK_PALETTE_HEX[0]);
+    expect(resolveTrackHex("t2", null, ["t1", "t2"])).toBe(TRACK_PALETTE_HEX[1]);
+    expect(resolveTrackHex("t1", "#c55113", ["t1"])).toBe("#c55113");
+    expect(parseCssColorToHex("var(--track-3)")).toBe(TRACK_PALETTE_HEX[2]);
+  });
+
+  it("the 6% untracked wash stays AA under title text", () => {
+    const title = "#161616";
+    for (const candidate of UNTRACKED_TINT_PALETTE) {
+      expect(contrastRatio(mixTowardWhite(candidate.hex, TRACK_FILL_MIX), title)).toBeGreaterThanOrEqual(AA);
+    }
+  });
+
+  it("the signed-in and public agendas compute pickUntrackedTintHex once per event", () => {
+    expect(dashboardSrc).toContain("pickUntrackedTintHex");
+    expect(dashboardSrc).toContain("resolveTrackHex");
+    expect(publicSrc).toContain("pickUntrackedTintHex");
+    expect(breakoutSrc).toContain("untrackedTint");
+  });
+});
+
+describe("UI-1.1 / UI-2 — pick-one amber vs track tint by view and state", () => {
+  it("the helper puts the amber class only when the row is a decision", () => {
     expect(sessionDecisionAmberClass(true)).toBe(SESSION_DECISION_AMBER_CLASS);
     expect(sessionDecisionAmberClass(false)).toBe("");
     expect(SESSION_DECISION_AMBER_CLASS).toBe("breakout-slot--decision");
     expect(SESSION_DECISION_AMBER_CLASS).not.toBe(SESSION_TRACK_TINT_CLASS);
+  });
+
+  it("Event Schedule keeps amber in both Choose and Change; My Schedule only while unchosen", () => {
+    const matrix: Array<{ view: "eventSchedule" | "mySchedule"; chosen: boolean; amber: boolean }> = [
+      { view: "eventSchedule", chosen: false, amber: true },
+      { view: "eventSchedule", chosen: true, amber: true },
+      { view: "mySchedule", chosen: false, amber: true },
+      { view: "mySchedule", chosen: true, amber: false },
+    ];
+    for (const row of matrix) {
+      expect(pickOneRowIsAmber(row.chosen, row.view), `${row.view} chosen=${row.chosen}`).toBe(row.amber);
+      expect(sessionDecisionAmberClass(pickOneRowIsAmber(row.chosen, row.view))).toBe(
+        row.amber ? SESSION_DECISION_AMBER_CLASS : "",
+      );
+    }
   });
 
   it("the token layer pins a warm gold distinct from the track palette", () => {
@@ -234,11 +304,16 @@ describe("UI-1.1 — pick-one open decisions use amber, not a track tint", () =>
     expect(body).toMatch(/#ffffff/);
   });
 
-  it("unchosen slot rows get the amber class; chosen rows get the track tint, not amber", () => {
-    expect(breakoutSrc).toContain("sessionDecisionAmberClass(!chosenSession)");
-    expect(breakoutSrc).toContain("sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color)");
+  it("Event Schedule wires persistent amber; My Schedule collapses a chosen slot to the track tint", () => {
+    expect(breakoutSrc).toContain('agendaView = "eventSchedule"');
+    expect(breakoutSrc).toContain("pickOneRowIsAmber(Boolean(chosenSession), agendaView)");
+    expect(breakoutSrc).toContain('agendaView === "mySchedule" && chosenSession && !open');
+    expect(breakoutSrc).toContain("sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color ?? untrackedTint)");
+    expect(dashboardSrc).toContain('agendaView="eventSchedule"');
+    expect(dashboardSrc).toContain('agendaView === "My Schedule"');
+    expect(dashboardSrc).toContain("sessionTrackTintClass(s.trackId, s.track?.color ?? untrackedTint)");
     expect(breakoutSrc).toMatch(/className=\{?\["breakout-choice"/);
-    expect(breakoutSrc).not.toMatch(/sessionDecisionAmberClass\([^)]*chosenSession\.track/);
+    expect(breakoutSrc).not.toMatch(/sessionDecisionAmberClass\(!chosenSession\)/);
   });
 
   it("chosen collapsed rows reuse the UI-1 tint wash, not gray-25 or amber", () => {

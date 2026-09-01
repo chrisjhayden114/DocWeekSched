@@ -18,7 +18,7 @@ import { downloadProgramIcs } from "../../lib/calendarIcs";
 import { loginPathWithEvent } from "../../lib/entryRedirects";
 import { eventAccentStyle } from "../../lib/eventAccent";
 import { serializeJsonLd } from "../../lib/jsonLd";
-import { sessionTrackTintClass, trackColor } from "../../lib/trackColors";
+import { pickUntrackedTintHex, resolveTrackHex, sessionTrackTintClass, trackColor } from "../../lib/trackColors";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -252,6 +252,11 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
     [filterable],
   );
   const orderedTrackIds = trackOptions;
+  const untrackedTint = pickUntrackedTintHex(
+    trackOptions
+      .map((t) => resolveTrackHex(t, null, orderedTrackIds))
+      .filter((hex): hex is string => Boolean(hex)),
+  );
   const roomOptions = useMemo(
     () => [...new Set(filterable.map((s) => s.roomName).filter((r): r is string => Boolean(r)))],
     [filterable],
@@ -368,8 +373,8 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
                     {slotSessions.map((s) => (
                       <article
                         key={s.id}
-                        className={["schedule-event", sessionTrackTintClass(s.trackName)].filter(Boolean).join(" ")}
-                        style={{ ["--track-color" as string]: trackColor(s.trackName, null, orderedTrackIds) }}
+                        className={["schedule-event", sessionTrackTintClass(s.trackName, untrackedTint)].filter(Boolean).join(" ")}
+                        style={{ ["--track-color" as string]: trackColor(s.trackName, null, orderedTrackIds, untrackedTint) }}
                       >
                         <div className="schedule-event-main">
                           <h4 className="schedule-event-title">
@@ -468,6 +473,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
               sessions={toPublicTimetableSessions(filtered)}
               timeZone={timeZone}
               orderedTrackIds={orderedTrackIds}
+              untrackedTint={untrackedTint}
             />
           </div>
         ) : null}
@@ -477,6 +483,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
               sessions={toPublicTimetableSessions(filtered)}
               timeZone={timeZone}
               orderedTrackIds={orderedTrackIds}
+              untrackedTint={untrackedTint}
             />
           </div>
         ) : null}

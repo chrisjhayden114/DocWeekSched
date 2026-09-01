@@ -29,7 +29,7 @@ import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 import { buildBreakoutSlots, type BreakoutSlot } from "../lib/breakoutSlots";
 import { BreakoutSlotBoard } from "../components/BreakoutSlotBoard";
-import { sessionTrackTintClass, trackColor } from "../lib/trackColors";
+import { pickUntrackedTintHex, resolveTrackHex, sessionTrackTintClass, trackColor } from "../lib/trackColors";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/ScheduleViewSwitcher";
 import { SegmentedToggle } from "../components/SegmentedToggle";
@@ -875,6 +875,15 @@ export default function Dashboard() {
     return [...map.values()];
   }, [sessions]);
   const orderedTrackIds = useMemo(() => trackOptions.map((t) => t.id), [trackOptions]);
+  const untrackedTint = useMemo(
+    () =>
+      pickUntrackedTintHex(
+        trackOptions
+          .map((t) => resolveTrackHex(t.id, t.color, orderedTrackIds))
+          .filter((hex): hex is string => Boolean(hex)),
+      ),
+    [trackOptions, orderedTrackIds],
+  );
   const roomOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
     for (const s of sessions) {
@@ -1528,8 +1537,10 @@ export default function Dashboard() {
                         joinBusy={breakoutJoinBusy}
                         onJoin={breakoutJoin}
                         onOpenSession={setPeekSessionId}
-                        trackColor={(s) => trackColor(s.trackId, s.track?.color, orderedTrackIds)}
+                        trackColor={(s) => trackColor(s.trackId, s.track?.color, orderedTrackIds, untrackedTint)}
                         timeZone={agendaDisplayTimezone}
+                        agendaView="eventSchedule"
+                        untrackedTint={untrackedTint}
                       />
                     ) : (
                       <ListEmpty
@@ -1544,6 +1555,7 @@ export default function Dashboard() {
                     eventTimezone={event?.timezone || "UTC"}
                     displayTimezone={agendaDisplayTimezone}
                     orderedTrackIds={orderedTrackIds}
+                    untrackedTint={untrackedTint}
                     isAdmin={isAdmin}
                     myAttendance={myAttendance}
                     likedSessionIds={sessionLikesOn ? likedSessionIds : []}
@@ -1570,6 +1582,7 @@ export default function Dashboard() {
                       sessions={toTimetableSessions(filteredSessions, joiningSessionIds, bookmarkedSessionIds)}
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
+                      untrackedTint={untrackedTint}
                       onSelectSession={setPeekSessionId}
                     />
                   </div>
@@ -1580,6 +1593,7 @@ export default function Dashboard() {
                       sessions={toTimetableSessions(filteredSessions, joiningSessionIds, bookmarkedSessionIds)}
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
+                      untrackedTint={untrackedTint}
                       onSelectSession={setPeekSessionId}
                     />
                   </div>
@@ -1595,6 +1609,7 @@ export default function Dashboard() {
                     eventTimezone={event?.timezone || "UTC"}
                     displayTimezone={agendaDisplayTimezone}
                     orderedTrackIds={orderedTrackIds}
+                    untrackedTint={untrackedTint}
                     isAdmin={isAdmin}
                     myAttendance={myAttendance}
                     likedSessionIds={sessionLikesOn ? likedSessionIds : []}
@@ -1620,6 +1635,7 @@ export default function Dashboard() {
                       sessions={toTimetableSessions(myScheduledSessions, joiningSessionIds, bookmarkedSessionIds)}
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
+                      untrackedTint={untrackedTint}
                       onSelectSession={setPeekSessionId}
                     />
                   </div>
@@ -1630,6 +1646,7 @@ export default function Dashboard() {
                       sessions={toTimetableSessions(myScheduledSessions, joiningSessionIds, bookmarkedSessionIds)}
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
+                      untrackedTint={untrackedTint}
                       onSelectSession={setPeekSessionId}
                     />
                   </div>
@@ -2301,6 +2318,7 @@ function ScheduleBoard({
   eventTimezone,
   displayTimezone,
   orderedTrackIds = [],
+  untrackedTint = null,
   isAdmin,
   myAttendance,
   likedSessionIds,
@@ -2320,6 +2338,7 @@ function ScheduleBoard({
   eventTimezone: string;
   displayTimezone: string;
   orderedTrackIds?: string[];
+  untrackedTint?: string | null;
   isAdmin: boolean;
   myAttendance: SessionAttendance[];
   likedSessionIds: string[];
@@ -2485,9 +2504,9 @@ function ScheduleBoard({
                   const isMinimal = !joining && !speakerLabel;
                   return (
                     <article
-                      className={["schedule-event", isMinimal ? "schedule-event--minimal" : "", sessionTrackTintClass(s.trackId, s.track?.color)].filter(Boolean).join(" ")}
+                      className={["schedule-event", isMinimal ? "schedule-event--minimal" : "", sessionTrackTintClass(s.trackId, s.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
                       key={s.id}
-                      style={{ ["--track-color" as string]: trackColor(s.trackId, s.track?.color, orderedTrackIds) }}
+                      style={{ ["--track-color" as string]: trackColor(s.trackId, s.track?.color, orderedTrackIds, untrackedTint) }}
                       title={s.description || undefined}
                       onClick={() => onGoToSession(s.id)}
                     >
