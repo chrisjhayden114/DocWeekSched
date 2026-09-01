@@ -14,7 +14,7 @@ import type {
 } from "@event-app/shared";
 import { ASSISTANT_COPY, emptySetupFormState } from "@event-app/shared";
 import { apiFetch } from "../lib/api";
-import { isInternalHref, splitByLinks, unmatchedLinks } from "../lib/chatLinks";
+import { isInternalHref, prepareAssistantBody } from "../lib/chatLinks";
 import {
   copilotStepFromForm,
   hasKnownHandoffFields,
@@ -89,8 +89,7 @@ type ResolveConflictResponse = {
  * keeps the same internal-href-only gate.
  */
 function AssistantBody({ content, links }: { content: string; links?: ConciergeLink[] }) {
-  const segments = splitByLinks(content, links ?? []);
-  const leftover = unmatchedLinks(segments, links ?? []);
+  const { segments, leftover } = prepareAssistantBody(content, links ?? []);
   return (
     <>
       {segments.map((seg, i) =>

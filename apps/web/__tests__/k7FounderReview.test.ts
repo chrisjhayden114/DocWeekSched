@@ -42,8 +42,15 @@ function contrast(a: string, b: string): number {
 describe("K-7 — outreach a.button + organizer badge + guide panel stacking", () => {
   it("styles a.button like the primary button (white text, no link underline)", () => {
     const pinned = rule("a.button,\na.button:link,\na.button:visited,\na.button:hover,\na.button:active,\na.button:focus,\na.button:focus-visible");
-    expect(pinned).toContain("color: var(--action-fg)");
+    expect(pinned).toContain("color: #ffffff");
+    expect(pinned).toContain("-webkit-text-fill-color: #ffffff");
     expect(pinned).toContain("text-decoration: none");
+    expect(pinned).not.toContain("var(--action-fg)");
+    const secondary = rule(
+      "a.button.secondary,\na.button.secondary:link,\na.button.secondary:visited,\na.button.secondary:hover,\na.button.secondary:active,\na.button.secondary:focus,\na.button.secondary:focus-visible",
+    );
+    expect(secondary).toContain("color: #161616");
+    expect(secondary).toContain("-webkit-text-fill-color: #161616");
     expect(rule("a.button:hover:not(:disabled)")).toContain("background: var(--action-bg-hover)");
   });
 

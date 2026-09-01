@@ -8,7 +8,7 @@ import type {
 } from "@event-app/shared";
 import { ASSISTANT_COPY, CONCIERGE_STARTER_CHIPS } from "@event-app/shared";
 import { apiFetch } from "../lib/api";
-import { isInternalHref, splitByLinks, unmatchedLinks } from "../lib/chatLinks";
+import { isInternalHref, prepareAssistantBody } from "../lib/chatLinks";
 import { AiAnswerChip } from "./AiAnswerChip";
 import { AssistantMark } from "./AssistantMark";
 
@@ -49,8 +49,7 @@ const TOPIC_PREFILL_LABEL = CONCIERGE_STARTER_CHIPS.find((c) => c.id === "topic"
  * inline where their labels appear; whatever didn't match stays as chips.
  */
 function AssistantBody({ body, links }: { body: string; links?: ConciergeLink[] }) {
-  const segments = splitByLinks(body, links ?? []);
-  const leftover = unmatchedLinks(segments, links ?? []);
+  const { segments, leftover } = prepareAssistantBody(body, links ?? []);
   return (
     <>
       <div className="concierge-msg-body">

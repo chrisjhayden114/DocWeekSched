@@ -121,7 +121,9 @@ a:hover {
 }
 
 /* Anchors that use .button inherit `a { color: accent }` and look like a
-   black pill with blue link text. Pin the same fg/hover/focus as <button>. */
+   black pill with invisible (same-as-fill) text. :visited also drops
+   `var(--action-fg)` in some engines for history-privacy, so pin a literal
+   white fill-color in every link state — never a CSS variable. */
 a.button,
 a.button:link,
 a.button:visited,
@@ -129,7 +131,8 @@ a.button:hover,
 a.button:active,
 a.button:focus,
 a.button:focus-visible {
-  color: var(--action-fg);
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
   text-decoration: none;
 }
 
@@ -144,7 +147,8 @@ a.button.secondary:hover,
 a.button.secondary:active,
 a.button.secondary:focus,
 a.button.secondary:focus-visible {
-  color: var(--gray-900);
+  color: #161616;
+  -webkit-text-fill-color: #161616;
   text-decoration: none;
 }
 
@@ -2551,6 +2555,15 @@ button.schedule-meta-chip:hover {
   color: var(--gray-600);
   font-weight: 600;
   font-size: 26px;
+}
+
+.matchmaker-avatar.attendee-avatar {
+  width: 48px;
+  height: 48px;
+}
+
+.matchmaker-avatar.attendee-avatar-placeholder {
+  font-size: 18px;
 }
 
 .attendee-role-badge {

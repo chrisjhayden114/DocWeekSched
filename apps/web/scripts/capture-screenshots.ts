@@ -47,9 +47,12 @@ import {
   isPageScopeSelector,
   magnifyCss,
   pngSize,
+  padClip,
   subjectTopClip,
   topAlignedClip,
+  unionBoxes,
   type ComposedFrame,
+  type DocumentBox,
 } from "../screenshot-frame";
 import {
   SCREENSHOT_MANIFEST,
@@ -190,6 +193,39 @@ async function documentBox(page: Page, target: Locator, selector: string) {
   };
 }
 
+/**
+ * The painted bounds of `target` and every descendant, in document
+ * coordinates. Playwright's element screenshot uses the overflow-clipped
+ * border box, which is how a toolbar lost "By room" on the right.
+ */
+async function trueDocumentBox(page: Page, target: Locator, selector: string) {
+  const measured = await target.evaluate((el) => {
+    const nodes = [el, ...el.querySelectorAll("*")];
+    const boxes = nodes
+      .map((node) => node.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height }));
+    return {
+      boxes,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      width: document.documentElement.scrollWidth,
+      height: document.documentElement.scrollHeight,
+    };
+  });
+  if (!measured.boxes.length) throw new Error(`"${selector}" has no painted box`);
+  const shifted: DocumentBox[] = measured.boxes.map((box) => ({
+    x: box.x + measured.scrollX,
+    y: box.y + measured.scrollY,
+    width: box.width,
+    height: box.height,
+  }));
+  return {
+    box: unionBoxes(shifted),
+    doc: { width: measured.width, height: measured.height },
+  };
+}
+
 async function clipDocument(
   page: Page,
   clip: { x: number; y: number; width: number; height: number },
@@ -310,6 +346,11 @@ async function capture(
   } else if (shot.clipHeight != null) {
     const { box } = await documentBox(page, target, shot.selector);
     png = await clipDocument(page, subjectTopClip(box, shot.clipHeight));
+  } else if (shot.trueBounds || shot.clipPad) {
+    const { box, doc } = shot.trueBounds
+      ? await trueDocumentBox(page, target, shot.selector)
+      : await documentBox(page, target, shot.selector);
+    png = await clipDocument(page, padClip(box, shot.clipPad ?? 0, doc));
   } else {
     // Playwright scrolls the element into frame and bounds it exactly, which
     // is the whole point: headings included, no neighbouring column, no

@@ -31,6 +31,8 @@ import {
   stageHideSelectors,
   subjectTopClip,
   topAlignedClip,
+  padClip,
+  unionBoxes,
 } from "../screenshot-frame";
 import {
   SCREENSHOT_CARD_HEIGHT,
@@ -369,5 +371,24 @@ describe("top-aligned clips", () => {
   it("clips a docked panel to its own top edge and width", () => {
     const clip = subjectTopClip({ x: 1056, y: 64, width: 384, height: 1036 }, 420);
     expect(clip).toEqual({ x: 1056, y: 64, width: 384, height: 420 });
+  });
+});
+
+describe("true bounds clips", () => {
+  it("unions descendant boxes so an overflowing toolbar button is included", () => {
+    const bar = { x: 80, y: 200, width: 720, height: 108 };
+    const byRoom = { x: 760, y: 208, width: 72, height: 40 };
+    const union = unionBoxes([bar, byRoom]);
+    expect(union.x).toBe(80);
+    expect(union.width).toBe(752);
+    expect(union.height).toBe(108);
+  });
+
+  it("pads a clip so a flush-right control is not cut by the frame edge", () => {
+    const clip = padClip({ x: 80, y: 200, width: 720, height: 108 }, 16, {
+      width: 1440,
+      height: 1100,
+    });
+    expect(clip).toEqual({ x: 64, y: 184, width: 752, height: 140 });
   });
 });

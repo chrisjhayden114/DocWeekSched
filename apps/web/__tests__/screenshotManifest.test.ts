@@ -215,6 +215,15 @@ describe("screenshot manifest entries", () => {
     const shot = pageShot("session_feedback");
     expect(shot.selector).toBe(".session-feedback-card");
     expect(shot.hug).toBe(true);
+    expect(shot.magnify).toBe(2);
+  });
+
+  it("widens the Schedule toolbar clips so By room stays in frame", () => {
+    for (const key of ["timezone_toggle", "breakout_style"] as const) {
+      const shot = pageShot(key);
+      expect(shot.trueBounds, key).toBe(true);
+      expect(shot.clipPad, key).toBeGreaterThanOrEqual(12);
+    }
   });
 
   it("wires highlight CSS into the capture script and the live controls", () => {

@@ -204,26 +204,7 @@ export function MatchmakerPanel({
           {suggestions.map((s) => (
             <li key={s.id} className="matchmaker-item" style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                {s.user.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={s.user.photoUrl}
-                    alt=""
-                    width={48}
-                    height={48}
-                    style={{ borderRadius: 8, objectFit: "cover" }}
-                  />
-                ) : (
-                  <div
-                    aria-hidden
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 8,
-                      background: "var(--event-accent-tint)",
-                    }}
-                  />
-                )}
+                <MatchmakerAvatar photoUrl={s.user.photoUrl} name={s.user.name || "Attendee"} />
                 <div style={{ flex: 1 }}>
                   <strong>{s.user.name || "Attendee"}</strong>
                   {s.user.affiliation ? (
@@ -258,6 +239,28 @@ export function MatchmakerPanel({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** Same initials fallback the attendee directory rows use — never a bare gray box. */
+function MatchmakerAvatar({ photoUrl, name }: { photoUrl?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const showImg = Boolean(photoUrl) && !failed;
+  const letter = (name.trim().charAt(0) || "?").toUpperCase();
+  return showImg ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={photoUrl!}
+      alt=""
+      className="attendee-avatar matchmaker-avatar"
+      referrerPolicy="no-referrer"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    <div className="attendee-avatar attendee-avatar-placeholder matchmaker-avatar" aria-hidden>
+      {letter}
     </div>
   );
 }

@@ -93,6 +93,55 @@ export function subjectTopClip(box: DocumentBox, clipHeight: number): DocumentBo
   };
 }
 
+/** Union of one or more boxes — the painted bounds of an element and its children. */
+export function unionBoxes(boxes: readonly DocumentBox[]): DocumentBox {
+  if (boxes.length === 0) return { x: 0, y: 0, width: 1, height: 1 };
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const box of boxes) {
+    left = Math.min(left, box.x);
+    top = Math.min(top, box.y);
+    right = Math.max(right, box.x + box.width);
+    bottom = Math.max(bottom, box.y + box.height);
+  }
+  return {
+    x: left,
+    y: top,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top),
+  };
+}
+
+/** Grow a clip by `pad` CSS pixels on every side, clamped to the document. */
+export function padClip(box: DocumentBox, pad: number, doc?: DocumentSize): DocumentBox {
+  const grown: DocumentBox = {
+    x: box.x - pad,
+    y: box.y - pad,
+    width: box.width + 2 * pad,
+    height: box.height + 2 * pad,
+  };
+  if (!doc) {
+    return {
+      x: Math.max(0, Math.round(grown.x)),
+      y: Math.max(0, Math.round(grown.y)),
+      width: Math.max(1, Math.round(grown.width)),
+      height: Math.max(1, Math.round(grown.height)),
+    };
+  }
+  const x = Math.max(0, Math.round(grown.x));
+  const y = Math.max(0, Math.round(grown.y));
+  const right = Math.min(doc.width, Math.round(grown.x + grown.width));
+  const bottom = Math.min(doc.height, Math.round(grown.y + grown.height));
+  return {
+    x,
+    y,
+    width: Math.max(1, right - x),
+    height: Math.max(1, bottom - y),
+  };
+}
+
 /**
  * Every capture context runs at this device pixel ratio, so a source PNG holds
  * twice the pixels of the CSS box it photographed. That is what buys the frame

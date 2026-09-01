@@ -139,6 +139,17 @@ export type PageFeatureShot = ShotBase & {
    * padded with dead white.
    */
   hug?: boolean;
+  /**
+   * Photograph the union of the element's box and its descendants' boxes,
+   * not the overflow-clipped border box. A toolbar whose last button paints
+   * past the parent (or a highlight halo) otherwise loses its right edge.
+   */
+  trueBounds?: boolean;
+  /**
+   * Extra CSS pixels around the clip so a flush-right control and its
+   * outline stay inside the frame.
+   */
+  clipPad?: number;
 };
 
 /**
@@ -274,6 +285,10 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     selector: ".session-feedback-card",
     as: "attendee",
     hug: true,
+    // The hugged card is a short band in a 1200 frame; 2x is enough for the
+    // fill rule to occupy the width without inventing chrome (engagement_points
+    // uses the same mechanism at a higher factor for a 62px pill).
+    magnify: 2,
     note: "The card only exists after a session's end time — this one finished yesterday.",
   },
   waitlist_visibility: {
@@ -364,6 +379,10 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     selector: ".agenda-context-bar",
     as: "attendee",
     highlight: ".agenda-timezone-toggle--desktop",
+    // The last-run artifact clipped "By room" on the right: the bar's overflow
+    // box is narrower than the toolbar's painted descendants + highlight halo.
+    trueBounds: true,
+    clipPad: 16,
     note: "The My timezone / Event timezone control sits in the agenda filter rail.",
   },
   breakout_style: {
@@ -372,6 +391,8 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     as: "attendee",
     event: "breakouts",
     waitFor: ".agenda-context-bar",
+    trueBounds: true,
+    clipPad: 16,
     note: "Its own event: pick-one breakouts rewrites the agenda the other shots depend on.",
   },
   // MANUAL-1: founder-approved image overrides this auto shot — it will not show.

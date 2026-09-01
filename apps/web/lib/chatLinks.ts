@@ -8,6 +8,8 @@
  * matter what the payload claims.
  */
 
+import { stripAssistantEmphasis } from "./assistantText";
+
 export type ChatLink = { label: string; href: string };
 
 export type ChatSegment =
@@ -67,4 +69,18 @@ export function splitByLinks(body: string, links: ChatLink[]): ChatSegment[] {
 export function unmatchedLinks(segments: ChatSegment[], links: ChatLink[]): ChatLink[] {
   const inlined = new Set(segments.filter((s) => s.type === "link").map((s) => s.href));
   return links.filter((l) => !inlined.has(l.href));
+}
+
+/**
+ * Shared assistant render path used by ConciergeChat and SetupCopilotChat.
+ * Strips markdown emphasis, then splits deterministic links. Do not call
+ * this on user-typed messages.
+ */
+export function prepareAssistantBody(
+  body: string,
+  links: ChatLink[],
+): { segments: ChatSegment[]; leftover: ChatLink[] } {
+  const text = stripAssistantEmphasis(body);
+  const segments = splitByLinks(text, links);
+  return { segments, leftover: unmatchedLinks(segments, links) };
 }

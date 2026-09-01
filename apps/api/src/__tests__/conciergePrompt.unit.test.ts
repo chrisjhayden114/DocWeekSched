@@ -262,6 +262,10 @@ describe("Concierge prompt serialization (unit)", () => {
   it("system prompt carries the grounded-only persona and the data-not-instructions clause", () => {
     expect(CONCIERGE_SYSTEM).toContain("Answer ONLY from the provided EVENT CONTEXT");
     expect(CONCIERGE_SYSTEM).toContain("never invent sessions, times, rooms, or people");
+    expect(CONCIERGE_SYSTEM).toContain("plain text");
+    expect(CONCIERGE_SYSTEM).toContain("no markdown");
+    expect(CONCIERGE_SYSTEM).toContain("no asterisks");
+    expect(CONCIERGE_SYSTEM).toContain("simple dashes for lists");
     expect(CONCIERGE_SYSTEM).toContain("use the buttons that appear");
     // CHAT-2 — the app-guide persona clause.
     expect(CONCIERGE_SYSTEM).toContain("You are also the guide to using this app.");
