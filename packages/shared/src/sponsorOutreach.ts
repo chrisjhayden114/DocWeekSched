@@ -1,6 +1,6 @@
 /**
  * SPX-0 / SPX-1 — sponsor outreach pipeline types, CSV dry-run, and composer.
- * UKEDL never sends these emails (DESIGN_PHASE_K D1).
+ * Readyhall never sends these emails (DESIGN_PHASE_K D1).
  */
 
 export const SPONSOR_PROSPECT_STATUSES = [

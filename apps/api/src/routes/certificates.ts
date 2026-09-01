@@ -17,6 +17,7 @@ import {
   enqueueCertificateBatchIssue,
   issueCertificateForUser,
   renderCertificatePdf,
+  certificateVerifyUrl,
   validateTemplateEligibility,
   formatCertificateDates,
   certificateDesignBodySchema,
@@ -362,6 +363,7 @@ certificatesRouter.get(
         backgroundImageUrl: row.certificateTemplate.backgroundImageUrl,
         nameBox: row.certificateTemplate.nameBox,
         orientation: row.certificateTemplate.orientation,
+        verifyUrl: certificateVerifyUrl(row.publicId),
       });
     }
 

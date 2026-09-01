@@ -9,6 +9,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "gen:help": "node scripts/gen-help-content.mjs",
+    "gen:og": "node scripts/gen-og-image.mjs",
     "gen:auto-shots": "node scripts/gen-feature-guide-auto.mjs",
     "shots": "tsx scripts/capture-screenshots.ts"
   },

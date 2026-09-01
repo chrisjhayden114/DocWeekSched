@@ -85,7 +85,7 @@ export default function SpeakerReadinessPage() {
   const title = marketingSeo.pages.speakerReadiness.title;
   const description = marketingSeo.pages.speakerReadiness.description;
   const url = `${brand.primaryUrl}/speaker-readiness`;
-  const ogImage = `${brand.primaryUrl}/icons/icon-512.png`;
+  const ogImage = `${brand.primaryUrl}${brand.assets.ogImage}`;
   const mailto = speakerReadinessServiceMailto();
   const ctaLabel = `Email ${brand.supportEmail} with your presenter count and event date`;
   const freePresenterCap = PLAN_BY_SKU.free.limits.readinessPresentersPerEvent;

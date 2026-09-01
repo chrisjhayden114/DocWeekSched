@@ -14,7 +14,7 @@ import { NEUTRAL_EVENT_ACCENT } from "../../lib/eventAccent";
  *
  * Empty is a real answer everywhere: no colour means the neutral platform
  * accent (lib/eventAccent.ts derives it from an absent brandColor — this form
- * never substitutes a default of its own, and never UKEDL blue).
+ * never substitutes a default of its own, and never Readyhall blue).
  */
 
 export type EventBrandingValue = {

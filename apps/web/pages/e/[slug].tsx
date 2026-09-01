@@ -591,7 +591,7 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
     `${event.name} · ${formatRange(event.startDate, event.endDate, event.timezone)}`;
   const canonical = `${brand.primaryUrl}/e/${event.slug}`;
   const ogImage =
-    event.bannerUrl || event.displayLogoUrl || `${brand.primaryUrl}/icons/icon-512.png`;
+    event.bannerUrl || event.displayLogoUrl || `${brand.primaryUrl}${brand.assets.ogImage}`;
   const loginHref = loginPathWithEvent(event.slug);
 
   // schema.org Event structured data so shared links and search results render richly.
@@ -643,7 +643,7 @@ export default function PublicEventPage({ event, slug, notFound }: Props) {
         {slug === brand.demoEventSlug ? null : <meta name="robots" content="noindex, follow" />}
       </Head>
 
-      {/* F1.5.3 — this page belongs to the event, not to UKEDL: the accent
+      {/* F1.5.3 — this page belongs to the event, not to Readyhall: the accent
           variables come from the event's brandColor (contrast-safe), and
           .event-branded points primary actions at that accent. */}
       <div className="mkt-page event-branded" style={eventAccentStyle(event.brandColor)}>

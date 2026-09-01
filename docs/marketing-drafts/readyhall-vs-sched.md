@@ -1,4 +1,4 @@
-# UKEDL vs Sched: which fits an academic conference?
+# Readyhall vs Sched: which fits an academic conference?
 
 *Draft for a public comparison page. Competitor facts verified by web research
 2026-08-02 (see `ux-audit-capture/UX_AUDIT_03_VETERAN.md`). **Re-verify prices
@@ -21,7 +21,7 @@ weeks before show day.
 Choose **Sched** if you want a mature, general-purpose schedule tool and your
 sessions are simple: one title, some speakers, a room.
 
-Choose **UKEDL** if your programme has *papers and presentations inside
+Choose **Readyhall** if your programme has *papers and presentations inside
 sessions* — author or presenter order that matters, discussants, a review
 process — or if your programme already exists as a document and you would rather
 not re-type it.
@@ -33,27 +33,27 @@ In Sched, you build sessions one at a time or import a spreadsheet where one
 row equals one session and participants are joined in a single column. For a
 paper session with four papers and nine ordered authors, that model has
 nowhere to put the structure.
-In UKEDL, you upload the programme you already have — PDF, Word, Excel, CSV,
+In Readyhall, you upload the programme you already have — PDF, Word, Excel, CSV,
 or pasted text. The AI extracts sessions, papers, presentations, authors, rooms
 and tracks into a reviewable draft; nothing publishes until you approve it. A real
 7-page programme becomes a reviewable 22-session draft in about two minutes.
 
 **2. Papers and presentations as first-class records.**
-UKEDL models papers and presentations *inside* sessions with ordered authors
+Readyhall models papers and presentations *inside* sessions with ordered authors
 or presenters and discussants —
 the parent/child structure academic programmes actually use. Sched's data
 model has no paper object; papers become text in a description field.
 
 **3. Pricing.**
 Sched publishes prices (roughly $600–$3,900/year by tier, attendees counted
-in blocks — verify current figures at sched.com). UKEDL publishes prices too:
+in blocks — verify current figures at sched.com). Readyhall publishes prices too:
 free for events up to 50 attendees, $79/month Pro, or one-time per-event
 plans from $149. No sales call for either product — credit where due, Sched
 also sells self-serve.
 
 **4. Calm by default; networking when you want it.**
 No engagement leaderboards, no push-notification campaigns, no attendee-data
-monetisation. UKEDL does include opt-in networking — meet-ups, a photo feed,
+monetisation. Readyhall does include opt-in networking — meet-ups, a photo feed,
 icebreakers, targeted posts — but it's organizer-controlled, off by default, and
 never gamified. Academic attendees are colleagues, not an audience to activate.
 If gamification is what your event needs, neither we nor Sched are the tool —
@@ -61,14 +61,14 @@ that's Whova's territory.
 
 ## Speaker Readiness
 
-UKEDL sends each presenter a personal link — no account, no login. They
+Readyhall sends each presenter a personal link — no account, no login. They
 upload; you approve or reject. Reminders go out at 7 days, 2 days, and once
 when overdue. Sched requires speakers to create accounts and log in. If that
 account model is what you need, pick Sched.
 
 ## Honest reasons to pick Sched instead
 
-- You need built-in **payment processing** — UKEDL publishes fee info,
+- You need built-in **payment processing** — Readyhall publishes fee info,
   payment links, and PO/check instructions and tracks who has paid, but does
   not process payments itself. Pick Sched if you need built-in payment
   processing.
@@ -77,6 +77,6 @@ account model is what you need, pick Sched.
 
 ## Try the difference
 
-Paste your real programme into the demo at ukedl.com — the extraction runs in
+Paste your real programme into the demo at readyhall.com — the extraction runs in
 your browser against your actual document. If it doesn't save you an
 afternoon, use Sched with our blessing.

@@ -1,6 +1,6 @@
 /**
  * SPX-0 / SPX-1 — sponsor outreach pipeline + composer.
- * UKEDL never sends these emails.
+ * Readyhall never sends these emails.
  */
 
 import { Router } from "express";

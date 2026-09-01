@@ -15,9 +15,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const { apiOrigin, sentryIngestOrigin, buildCsp, buildSecurityHeaders } = require("../lib/securityHeaders") as {
   apiOrigin: (rawUrl?: string) => string;
   sentryIngestOrigin: (dsn?: string) => string | null;
-  buildCsp: (opts?: { apiUrl?: string; sentryDsn?: string }) => string;
+  buildCsp: (opts?: {
+    apiUrl?: string;
+    apiUrlAliases?: string | string[];
+    sentryDsn?: string;
+  }) => string;
   buildSecurityHeaders: (opts?: {
     apiUrl?: string;
+    apiUrlAliases?: string | string[];
     sentryDsn?: string;
     enforceCsp?: boolean;
   }) => Array<{ key: string; value: string }>;
@@ -36,7 +41,7 @@ function cspDirective(csp: string, name: string): string | null {
 }
 
 describe("buildSecurityHeaders — exact values", () => {
-  const map = headerMap(buildSecurityHeaders({ apiUrl: "https://api.ukedl.com" }));
+  const map = headerMap(buildSecurityHeaders({ apiUrl: "https://api.readyhall.com" }));
 
   it("HSTS one year + includeSubDomains, no preload", () => {
     expect(map.get("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains");
@@ -58,7 +63,7 @@ describe("buildSecurityHeaders — exact values", () => {
   });
 
   it("CSP_ENFORCE flips the header name without changing the policy", () => {
-    const enforced = headerMap(buildSecurityHeaders({ apiUrl: "https://api.ukedl.com", enforceCsp: true }));
+    const enforced = headerMap(buildSecurityHeaders({ apiUrl: "https://api.readyhall.com", enforceCsp: true }));
     expect(enforced.has("Content-Security-Policy")).toBe(true);
     expect(enforced.has("Content-Security-Policy-Report-Only")).toBe(false);
     expect(enforced.get("Content-Security-Policy")).toBe(map.get("Content-Security-Policy-Report-Only"));
@@ -66,7 +71,7 @@ describe("buildSecurityHeaders — exact values", () => {
 });
 
 describe("CSP policy string", () => {
-  const csp = buildCsp({ apiUrl: "https://api.ukedl.com" });
+  const csp = buildCsp({ apiUrl: "https://api.readyhall.com" });
 
   it("matches the approved directive set", () => {
     expect(cspDirective(csp, "default-src")).toBe("default-src 'self'");
@@ -75,7 +80,7 @@ describe("CSP policy string", () => {
     expect(cspDirective(csp, "font-src")).toBe("font-src 'self'");
     expect(cspDirective(csp, "img-src")).toBe("img-src 'self' data: blob: https:");
     expect(cspDirective(csp, "connect-src")).toBe(
-      "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
+      "connect-src 'self' https://api.readyhall.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
     );
     expect(cspDirective(csp, "worker-src")).toBe("worker-src 'self'");
     expect(cspDirective(csp, "manifest-src")).toBe("manifest-src 'self'");
@@ -95,7 +100,7 @@ describe("CSP policy string", () => {
   });
 
   it("connect-src uses the API origin (path/trailing slash stripped, bad URL falls back)", () => {
-    expect(apiOrigin("https://api.ukedl.com/some/path/")).toBe("https://api.ukedl.com");
+    expect(apiOrigin("https://api.readyhall.com/some/path/")).toBe("https://api.readyhall.com");
     expect(apiOrigin(undefined)).toBe("http://localhost:4000");
     expect(apiOrigin("not a url")).toBe("http://localhost:4000");
     expect(buildCsp({ apiUrl: "http://localhost:4000" })).toContain(
@@ -104,18 +109,18 @@ describe("CSP policy string", () => {
   });
 
   it("connect-src is 'self' + API origin + R2 when no Sentry DSN is set", () => {
-    const noDsn = buildCsp({ apiUrl: "https://api.ukedl.com" });
+    const noDsn = buildCsp({ apiUrl: "https://api.readyhall.com" });
     expect(cspDirective(noDsn, "connect-src")).toBe(
-      "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
+      "connect-src 'self' https://api.readyhall.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
     );
-    const emptyDsn = buildCsp({ apiUrl: "https://api.ukedl.com", sentryDsn: "  " });
+    const emptyDsn = buildCsp({ apiUrl: "https://api.readyhall.com", sentryDsn: "  " });
     expect(cspDirective(emptyDsn, "connect-src")).toBe(
-      "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
+      "connect-src 'self' https://api.readyhall.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com",
     );
   });
 
   it("connect-src includes the R2 presigned-upload origin (ER4.3 presenter portal)", () => {
-    const connectSrc = cspDirective(buildCsp({ apiUrl: "https://api.ukedl.com" }), "connect-src");
+    const connectSrc = cspDirective(buildCsp({ apiUrl: "https://api.readyhall.com" }), "connect-src");
     expect(connectSrc).toContain("https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com");
   });
 
@@ -125,18 +130,44 @@ describe("CSP policy string", () => {
     expect(sentryIngestOrigin(undefined)).toBeNull();
     expect(sentryIngestOrigin("not a dsn")).toBeNull();
 
-    const withDsn = buildCsp({ apiUrl: "https://api.ukedl.com", sentryDsn: dsn });
+    const withDsn = buildCsp({ apiUrl: "https://api.readyhall.com", sentryDsn: dsn });
     expect(cspDirective(withDsn, "connect-src")).toBe(
-      "connect-src 'self' https://api.ukedl.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com https://o424242.ingest.us.sentry.io",
+      "connect-src 'self' https://api.readyhall.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com https://o424242.ingest.us.sentry.io",
     );
     expect(withDsn).not.toContain("*");
     // script-src is untouched by the Sentry addition.
     expect(cspDirective(withDsn, "script-src")).toBe("script-src 'self'");
   });
 
+  it("BRAND-R1: transition API origins join connect-src, deduped and origin-only", () => {
+    const csp = buildCsp({
+      apiUrl: "https://api.readyhall.com",
+      apiUrlAliases: [
+        "https://api.readyhall.com/",
+        "https://api.ukedl.com/some/path",
+        "not a url",
+        "",
+      ],
+    });
+    expect(cspDirective(csp, "connect-src")).toBe(
+      "connect-src 'self' https://api.readyhall.com https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com https://api.ukedl.com",
+    );
+    expect(csp).not.toContain("*");
+  });
+
+  it("BRAND-R1: aliases also accept the comma-separated env form", () => {
+    const csp = buildCsp({
+      apiUrl: "http://localhost:4000",
+      apiUrlAliases: "https://api.readyhall.com, https://api.ukedl.com",
+    });
+    const connectSrc = cspDirective(csp, "connect-src");
+    expect(connectSrc).toContain("https://api.readyhall.com");
+    expect(connectSrc).toContain("https://api.ukedl.com");
+  });
+
   it("headers() wiring passes the DSN through to the CSP header", () => {
     const dsn = "https://key@o1.ingest.sentry.io/2";
-    const map = headerMap(buildSecurityHeaders({ apiUrl: "https://api.ukedl.com", sentryDsn: dsn }));
+    const map = headerMap(buildSecurityHeaders({ apiUrl: "https://api.readyhall.com", sentryDsn: dsn }));
     expect(map.get("Content-Security-Policy-Report-Only")).toContain("https://o1.ingest.sentry.io");
   });
 });

@@ -41,8 +41,36 @@ function sentryIngestOrigin(dsn) {
 const R2_PRESIGNED_UPLOAD_ORIGIN =
   "https://590a721c48bb256c21a7a5ba13d7ce60.r2.cloudflarestorage.com";
 
-function buildCsp({ apiUrl, sentryDsn } = {}) {
+/**
+ * Additional API origins for connect-src, comma or whitespace separated.
+ *
+ * BRAND-R needs two of them live at once: an enforced CSP naming only
+ * NEXT_PUBLIC_API_URL would block every request the moment that variable flips,
+ * for as long as a browser is still running the previously-built bundle. The
+ * caller supplies the list (next.config.js reads it from the brand config, so
+ * the API allowlist and this policy come from one place) — no host is written
+ * down here.
+ */
+function extraApiOrigins(raw) {
+  const entries = Array.isArray(raw) ? raw : String(raw || "").split(/[,\s]+/);
+  const origins = [];
+  for (const entry of entries) {
+    const trimmed = String(entry || "").trim();
+    if (!trimmed) continue;
+    try {
+      origins.push(new URL(trimmed).origin);
+    } catch {
+      // A malformed alias is skipped rather than widening the policy.
+    }
+  }
+  return origins;
+}
+
+function buildCsp({ apiUrl, apiUrlAliases, sentryDsn } = {}) {
   const connectSrc = ["'self'", apiOrigin(apiUrl), R2_PRESIGNED_UPLOAD_ORIGIN];
+  for (const origin of extraApiOrigins(apiUrlAliases)) {
+    if (!connectSrc.includes(origin)) connectSrc.push(origin);
+  }
   const ingest = sentryIngestOrigin(sentryDsn);
   if (ingest) connectSrc.push(ingest);
 
@@ -65,9 +93,9 @@ function buildCsp({ apiUrl, sentryDsn } = {}) {
 
 /**
  * Header list for next.config.js headers().
- * @param {{ apiUrl?: string, sentryDsn?: string, enforceCsp?: boolean }} opts
+ * @param {{ apiUrl?: string, apiUrlAliases?: string | string[], sentryDsn?: string, enforceCsp?: boolean }} opts
  */
-function buildSecurityHeaders({ apiUrl, sentryDsn, enforceCsp } = {}) {
+function buildSecurityHeaders({ apiUrl, apiUrlAliases, sentryDsn, enforceCsp } = {}) {
   return [
     // No `preload` yet — submitting to the preload list is a cutover item.
     { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
@@ -78,7 +106,7 @@ function buildSecurityHeaders({ apiUrl, sentryDsn, enforceCsp } = {}) {
     { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
     {
       key: enforceCsp ? "Content-Security-Policy" : "Content-Security-Policy-Report-Only",
-      value: buildCsp({ apiUrl, sentryDsn }),
+      value: buildCsp({ apiUrl, apiUrlAliases, sentryDsn }),
     },
   ];
 }

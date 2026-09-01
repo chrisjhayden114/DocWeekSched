@@ -39,6 +39,15 @@ export type CertificatePdfInput = {
   nameBox?: unknown;
   /** CERT-2 — page orientation for the IMAGE_BACKGROUND branch. */
   orientation?: CertificateOrientation | null;
+  /**
+   * Absolute public URL of the verification page for this certificate, printed
+   * under the id in the built-in layout. Passed in rather than composed here so
+   * the renderer stays free of environment lookups and the host follows
+   * WEB_BASE_URL through the BRAND-R domain cutover. Omitted → id only, which
+   * is what an IMAGE_BACKGROUND certificate gets: there is no free space on
+   * someone else's artwork to write on.
+   */
+  verifyUrl?: string | null;
 };
 
 function collectPdf(doc: PDFKit.PDFDocument): Promise<Buffer> {
@@ -214,6 +223,10 @@ function drawTextCertificate(doc: PDFKit.PDFDocument, input: CertificatePdfInput
     .fontSize(9)
     .fillColor("#888888")
     .text(`Certificate ID: ${input.merge.certificateId}`, { align: "center" });
+  const verifyUrl = input.verifyUrl?.trim();
+  if (verifyUrl) {
+    doc.text(`Verify at ${verifyUrl}`, { align: "center" });
+  }
 }
 
 export async function renderCertificatePdf(input: CertificatePdfInput): Promise<Buffer> {

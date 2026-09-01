@@ -7,17 +7,17 @@ import {
 import { ResendEmailProvider } from "../lib/email/resend";
 import { buildDigestEmail, buildReadinessReminderEmail, buildUnreadMessagesEmail } from "../lib/mail";
 
-const SETTINGS = "https://ukedl.com/dashboard?tab=Profile";
+const SETTINGS = "https://readyhall.com/dashboard?tab=Profile";
 
 describe("listUnsubscribeHeaders", () => {
   it("includes mailto, settings URL, and one-click Post", () => {
-    const headers = listUnsubscribeHeaders({ settingsUrl: SETTINGS, mailto: "support@ukedl.com" });
-    expect(headers["List-Unsubscribe"]).toBe(`<mailto:support@ukedl.com>, <${SETTINGS}>`);
+    const headers = listUnsubscribeHeaders({ settingsUrl: SETTINGS, mailto: "support@readyhall.com" });
+    expect(headers["List-Unsubscribe"]).toBe(`<mailto:support@readyhall.com>, <${SETTINGS}>`);
     expect(headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
   });
 
   it("builds the profile settings URL from the web origin", () => {
-    expect(notificationSettingsUrl("https://ukedl.com/")).toBe(SETTINGS);
+    expect(notificationSettingsUrl("https://readyhall.com/")).toBe(SETTINGS);
   });
 });
 
@@ -28,7 +28,7 @@ describe("recurring email classes carry unsubscribe headers and footer", () => {
       eventName: "DocWeek",
       count: 1,
       lines: ["Sam: hello"],
-      dashboardUrl: "https://ukedl.com/dashboard?tab=Messages",
+      dashboardUrl: "https://readyhall.com/dashboard?tab=Messages",
       settingsUrl: SETTINGS,
     });
     expect(built.headers["List-Unsubscribe"]).toContain("mailto:");
@@ -43,7 +43,7 @@ describe("recurring email classes carry unsubscribe headers and footer", () => {
       name: "Ada",
       eventName: "DocWeek",
       body: "• Item one",
-      dashboardUrl: "https://ukedl.com/dashboard",
+      dashboardUrl: "https://readyhall.com/dashboard",
       settingsUrl: SETTINGS,
     });
     expect(built.headers).toEqual(listUnsubscribeHeaders({ settingsUrl: SETTINGS }));
@@ -54,7 +54,7 @@ describe("recurring email classes carry unsubscribe headers and footer", () => {
     const built = buildReadinessReminderEmail({
       speakerName: "Dr. Ada",
       eventName: "DocWeek",
-      portalUrl: "https://ukedl.com/r/token",
+      portalUrl: "https://readyhall.com/r/token",
       timeZone: "UTC",
       settingsUrl: SETTINGS,
       items: [{ label: "Upload slides", dueAt: null, late: false }],
@@ -86,7 +86,7 @@ describe("Resend payload", () => {
     const provider = new ResendEmailProvider("re_test_key");
     await provider.send({
       to: "ada@example.com",
-      from: "UKEDL <noreply@example.com>",
+      from: "Readyhall <noreply@example.com>",
       subject: "Digest",
       html: "<p>hi</p>",
       headers: listUnsubscribeHeaders({ settingsUrl: SETTINGS }),
@@ -108,7 +108,7 @@ describe("Resend payload", () => {
     const provider = new ResendEmailProvider("re_test_key");
     await provider.send({
       to: "ada@example.com",
-      from: "UKEDL <noreply@example.com>",
+      from: "Readyhall <noreply@example.com>",
       subject: "Verify",
       html: "<p>hi</p>",
     });

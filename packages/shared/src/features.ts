@@ -299,7 +299,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     defaultOn: true,
   },
   {
-    // SPX-0 / SPX-1 (DESIGN_PHASE_K D1): pipeline + composer. UKEDL never
+    // SPX-0 / SPX-1 (DESIGN_PHASE_K D1): pipeline + composer. Readyhall never
     // sends outreach email. Entitled on every tier (Free included, capped
     // at outreachProspectsPerEvent 25); still depends on Sponsors being on.
     key: "sponsor_outreach",

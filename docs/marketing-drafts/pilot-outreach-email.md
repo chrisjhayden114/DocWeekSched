@@ -1,6 +1,6 @@
 # Pilot outreach emails — refreshed 2026-08-18 (original founder-approved 2026-08-07)
 
-Send from support@ukedl.com (Gmail Send-As, UKEDL Support signature).
+Send from support@readyhall.com (Gmail Send-As, Readyhall Support signature).
 Personalize the [bracketed] slots. One email per named conference/contact;
 no sequences, no follow-up cadence. Target: events running Oct 2026–Feb 2027.
 
@@ -42,13 +42,13 @@ each speaker a personal link where they upload their bio, slides, and forms —
 and politely reminds them before deadlines so you don't have to.
 
 If you like it, it's yours — plans start free and the pricing is public at
-ukedl.com/pricing (no sales calls, I promise; I'm one person, not a sales
+readyhall.com/pricing (no sales calls, I promise; I'm one person, not a sales
 team). If you don't, you've lost nothing and keep the site anyway.
 
 Best,
 Chris Hayden
-UKEDL — event software for academic conferences
-ukedl.com
+Readyhall — event software for academic conferences
+readyhall.com
 
 ---
 
@@ -59,7 +59,7 @@ ukedl.com
 Hi [Name],
 
 You may know I've been building event software on the side — it's real now,
-and running live events. It's called UKEDL: you hand it your program in
+and running live events. It's called Readyhall: you hand it your program in
 whatever state it exists (Excel, PDF, Word, or just describe the shape of the
 day) and it gives everyone an attendee-ready site — personal agendas, a
 pick-one view for parallel breakout blocks, the works. It also chases
@@ -94,7 +94,7 @@ side of PD days and regional conferences — usually as the person turning a
 giant spreadsheet of parallel workshops into something hundreds of teachers
 could actually navigate, then chasing every presenter for slides.
 
-I built UKEDL to do both jobs. Email me the program for [Conference Name] as
+I built Readyhall to do both jobs. Email me the program for [Conference Name] as
 it exists today — Excel, PDF, Word, anything — and I'll send you a live,
 attendee-ready site the same day: schedule views, personal agendas, and a
 pick-one view built exactly for blocks of twenty simultaneous workshops.
@@ -102,13 +102,13 @@ Presenters each get a personal link where they submit bios and slides, with
 automatic, polite deadline reminders — your team stops being the reminder.
 
 There's no catch and no sales process — I'm one person, not a sales team.
-Plans start free and pricing is public at ukedl.com/pricing. If the site isn't
+Plans start free and pricing is public at readyhall.com/pricing. If the site isn't
 useful, you keep it anyway and delete my email.
 
 Best,
 Chris Hayden
-UKEDL — event software for school PD days and conferences
-ukedl.com
+Readyhall — event software for school PD days and conferences
+readyhall.com
 
 ---
 
@@ -125,9 +125,9 @@ ukedl.com
    > 50–150, **$750** for 150–500; larger or complex events individually
    > scoped from **$1,250**. Includes import help, template setup, and direct
    > founder support. (Software-only Speaker Readiness is included in every
-   > UKEDL plan — this is the done-with-you service on top.)
+   > Readyhall plan — this is the done-with-you service on top.)
 
-3. Add support@ukedl.com as an org member as part of setup (FIX_PLAN support
+3. Add support@readyhall.com as an org member as part of setup (FIX_PLAN support
    stub: interim policy).
 4. Grant the pilot's org an INTERNAL-style manually-granted entitlement via
    Neon per the ER pilot process (no self-service billing during pilots).

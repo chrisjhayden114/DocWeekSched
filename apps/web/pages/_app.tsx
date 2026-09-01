@@ -36,6 +36,12 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content={brand.productName} />
         <link rel="manifest" href="/api/manifest" />
+        {/* .ico first for browsers that only look for one; the PNGs are what
+            modern tabs actually render at 16/32 CSS px. */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="64x64" href="/icons/favicon-64.png" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </Head>
       <Component {...pageProps} />

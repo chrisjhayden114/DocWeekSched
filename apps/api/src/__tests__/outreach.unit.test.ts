@@ -1,6 +1,6 @@
 /**
  * SPX-0 / SPX-1 — sponsor outreach pipeline + composer (pure).
- * UKEDL never sends these emails.
+ * Readyhall never sends these emails.
  */
 
 import { describe, expect, it, beforeEach } from "vitest";
@@ -170,7 +170,7 @@ describe("SPX-1 — merge fields + mailto", () => {
     contactName: "Jordan Lee",
     eventName: "Northbridge",
     eventDates: "Sep 1–2",
-    eventUrl: "https://ukedl.com/e/northbridge",
+    eventUrl: "https://readyhall.com/e/northbridge",
   };
 
   it("resolves known fields; missing contactName is empty; unknown stays literal", () => {
@@ -189,7 +189,7 @@ describe("SPX-1 — merge fields + mailto", () => {
   it("encodes newlines, ampersands, and non-ASCII org names in mailto", () => {
     const href = buildOutreachMailto({
       to: "pat@school.example",
-      cc: "me@ukedl.com",
+      cc: "me@readyhall.com",
       subject: "Ask: München & Friends",
       body: "Line 1\nLine 2 & more\n株式会社北橋",
     });

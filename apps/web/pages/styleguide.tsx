@@ -33,7 +33,7 @@ const ACCENTS: { name: string; varName: string }[] = [
   { name: "Event accent (runtime, per event)", varName: "--event-accent" },
   { name: "Event accent hover / links", varName: "--event-accent-hover" },
   { name: "Event accent tint (selected)", varName: "--event-accent-tint" },
-  { name: "UKEDL blue (marketing only)", varName: "--primary" },
+  { name: "Readyhall blue (marketing only)", varName: "--primary" },
   { name: "Success", varName: "--success" },
   { name: "Danger", varName: "--danger" },
   { name: "Warning", varName: "--warning" },

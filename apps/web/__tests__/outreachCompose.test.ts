@@ -14,7 +14,7 @@ const eventCtx = {
   contactName: "Jordan Lee",
   eventName: "Northbridge",
   eventDates: "Sep 1–2",
-  eventUrl: "https://ukedl.com/e/northbridge",
+  eventUrl: "https://readyhall.com/e/northbridge",
 };
 
 describe("SPX-1 — merge-field resolution", () => {
@@ -49,7 +49,7 @@ describe("SPX-1 — merge-field resolution", () => {
     expect(subject).toContain("Acme Labs");
     expect(subject).toContain("Northbridge");
     expect(body).toContain("Jordan Lee");
-    expect(body).toContain("https://ukedl.com/e/northbridge");
+    expect(body).toContain("https://readyhall.com/e/northbridge");
     expect(body).not.toMatch(/\{orgName\}/);
   });
 });
@@ -58,14 +58,14 @@ describe("SPX-1 — mailto encoding", () => {
   it("encodes newlines, ampersands, and non-ASCII org names", () => {
     const href = buildOutreachMailto({
       to: "pat@school.example",
-      cc: "me@ukedl.com",
+      cc: "me@readyhall.com",
       subject: "Ask: München & Friends",
       body: "Line 1\nLine 2 & more\n株式会社北橋",
     });
     expect(href.startsWith("mailto:pat@school.example?")).toBe(true);
     expect(href).toContain(`subject=${encodeURIComponent("Ask: München & Friends")}`);
     expect(href).toContain(`body=${encodeURIComponent("Line 1\nLine 2 & more\n株式会社北橋")}`);
-    expect(href).toContain(`cc=${encodeURIComponent("me@ukedl.com")}`);
+    expect(href).toContain(`cc=${encodeURIComponent("me@readyhall.com")}`);
     expect(href).toContain("%0A");
     expect(href).toContain("%26");
     expect(href).toContain(encodeURIComponent("München"));

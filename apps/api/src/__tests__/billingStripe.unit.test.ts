@@ -204,8 +204,8 @@ describe("planKey → price/mode mapping", () => {
         planKey,
         eventId: planKey.startsWith("per_event") ? "evt_db_1" : undefined,
         customerEmail: "buyer@example.com",
-        successUrl: "https://ukedl.com/organizer/billing?ok=1",
-        cancelUrl: "https://ukedl.com/organizer/billing?cancelled=1",
+        successUrl: "https://readyhall.com/organizer/billing?ok=1",
+        cancelUrl: "https://readyhall.com/organizer/billing?cancelled=1",
       });
       expect(result.url).toContain("checkout.stripe.com");
       expect(result.checkoutId).toBe("cs_test_1");
@@ -254,14 +254,14 @@ describe("planKey → price/mode mapping", () => {
       orgId: "org_1",
       planKey: "per_event_250",
       eventId: "evt_db_1",
-      successUrl: "https://ukedl.com/organizer/billing?ok=1",
-      cancelUrl: "https://ukedl.com/organizer/billing?cancelled=1",
+      successUrl: "https://readyhall.com/organizer/billing?ok=1",
+      cancelUrl: "https://readyhall.com/organizer/billing?cancelled=1",
     });
     await provider.createCheckout({
       orgId: "org_1",
       planKey: "pro_monthly",
-      successUrl: "https://ukedl.com/organizer/billing?ok=1",
-      cancelUrl: "https://ukedl.com/organizer/billing?cancelled=1",
+      successUrl: "https://readyhall.com/organizer/billing?ok=1",
+      cancelUrl: "https://readyhall.com/organizer/billing?cancelled=1",
     });
 
     expect(bodies[0].get("mode")).toBe("payment");

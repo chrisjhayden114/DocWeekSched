@@ -146,7 +146,7 @@ export default function NewEventWizard() {
   const [venueAddress, setVenueAddress] = useState("");
   const [onlineUrl, setOnlineUrl] = useState("");
   // BRAND-2: branding starts empty, which means the neutral platform accent
-  // (lib/eventAccent.ts). A new event must never be born wearing UKEDL blue.
+  // (lib/eventAccent.ts). A new event must never be born wearing Readyhall blue.
   const [brandColor, setBrandColor] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");

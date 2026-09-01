@@ -1,6 +1,7 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import { brand, webOriginAllowlist } from "@event-app/config";
 import { env } from "./lib/env";
 import { securityHeaders } from "./lib/securityHeaders";
 import { requireCsrf } from "./lib/middleware";
@@ -79,18 +80,15 @@ initSentry();
 
 const app = express();
 
-const configuredOrigin = env.webBaseUrl.trim().replace(/\/$/, "");
-const allowedOrigins = new Set<string>([configuredOrigin]);
-try {
-  const parsed = new URL(configuredOrigin);
-  if (parsed.hostname.startsWith("www.")) {
-    allowedOrigins.add(`${parsed.protocol}//${parsed.hostname.replace(/^www\./, "")}`);
-  } else {
-    allowedOrigins.add(`${parsed.protocol}//www.${parsed.hostname}`);
-  }
-} catch {
-  // Leave only configured origin if URL parsing fails.
-}
+// BRAND-R: WEB_BASE_URL alone is no longer the whole allowlist. During the
+// rename both brands' origins have to be accepted — a browser can still be on
+// ukedl.com from a bookmark or an emailed link while WEB_BASE_URL already says
+// readyhall.com, and vice versa before the DNS flip. The list lives in
+// packages/config so the web CSP is built from the same source, and
+// WEB_ORIGIN_ALIASES extends it without a deploy of new code.
+const allowedOrigins = new Set<string>(
+  webOriginAllowlist(env.webBaseUrl, env.webOriginAliases),
+);
 
 app.set("trust proxy", 1);
 app.use(requestIdMiddleware);
@@ -257,7 +255,7 @@ app.listen(env.apiPort, () => {
   if (env.cookieSameSite === "none") {
     log(
       "warn",
-      "[auth] COOKIE_SAMESITE=none (cross-site interim). Prefer api.ukedl.com + COOKIE_DOMAIN=.ukedl.com + SameSite=Lax.",
+      `[auth] COOKIE_SAMESITE=none (cross-site interim). Prefer api.${brand.domain} + COOKIE_DOMAIN=.${brand.domain} + SameSite=Lax.`,
     );
   } else if (env.cookieDomain) {
     log("info", `[auth] Session cookies Domain=${env.cookieDomain} SameSite=${env.cookieSameSite}`);

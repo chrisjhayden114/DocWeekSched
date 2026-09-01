@@ -35,7 +35,7 @@
   --gray-900: #161616;
 
   /* —— One accent —— */
-  /* --primary is UKEDL's own signature blue. After F1.5 it belongs to the
+  /* --primary is Readyhall's own signature blue. After F1.5 it belongs to the
      MARKETING site (and og assets); in-app accent usages read the runtime
      --event-accent variables below instead. */
   --primary: #0033a0;
@@ -61,8 +61,8 @@
   /*
    * 2. App chrome is NEUTRAL. Primary buttons are near-neutral (gray ramp),
    *    not blue — grays and whitespace carry the UI, the accent stays scarce.
-   *    The marketing site (.mkt-page) re-points these to UKEDL blue: that is
-   *    UKEDL's surface, not a customer event's. An event-branded surface
+   *    The marketing site (.mkt-page) re-points these to Readyhall blue: that is
+   *    Readyhall's surface, not a customer event's. An event-branded surface
    *    (.event-branded) re-points them to the event accent.
    */
   --action-bg: var(--gray-900);

@@ -1,4 +1,5 @@
 const { buildSecurityHeaders } = require("./lib/securityHeaders");
+const { brandTransition } = require("@event-app/config");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -10,6 +11,11 @@ const nextConfig = {
         source: "/(.*)",
         headers: buildSecurityHeaders({
           apiUrl: process.env.NEXT_PUBLIC_API_URL,
+          // BRAND-R: connect-src also names the API origins the cutover moves
+          // between, so flipping NEXT_PUBLIC_API_URL cannot break a bundle a
+          // browser is already running. Same list the API's CORS allowlist
+          // is built from (packages/config).
+          apiUrlAliases: brandTransition.extraApiOrigins,
           // Sentry ingest origin joins connect-src only when the DSN is set.
           sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
           // Report-Only by default; flip to enforcing via CSP_ENFORCE=1 at

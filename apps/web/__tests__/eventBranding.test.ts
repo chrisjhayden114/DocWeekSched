@@ -9,7 +9,7 @@ import { NEUTRAL_EVENT_ACCENT, accentFromBrand } from "../lib/eventAccent";
  *
  * Two things are pinned here. First, no surface that collects branding may
  * seed a colour of its own (the wizard and the settings panel both used to
- * seed UKEDL blue, so a neutral event silently adopted the platform brand on
+ * seed Readyhall blue, so a neutral event silently adopted the platform brand on
  * the next save). Second, the wizard and the settings panel collect branding
  * through the SAME component, so the upload size/type limits cannot drift
  * apart — the class of bug where one surface accepts what the other rejects.
@@ -26,22 +26,22 @@ const brandingFieldsSrc = readFileSync(
   "utf8",
 );
 
-/** UKEDL blue — the platform's own brand, never an event's default. */
-const UKEDL_BLUE = /#0033a0/i;
+/** Readyhall blue — the platform's own brand, never an event's default. */
+const READYHALL_BLUE = /#0033a0/i;
 
-describe("no branding surface seeds UKEDL blue", () => {
+describe("no branding surface seeds Readyhall blue", () => {
   it("the wizard starts with no colour chosen", () => {
-    expect(wizardSrc).not.toMatch(UKEDL_BLUE);
+    expect(wizardSrc).not.toMatch(READYHALL_BLUE);
     expect(wizardSrc).toContain('const [brandColor, setBrandColor] = useState("")');
   });
 
   it("the settings panel shows the stored colour or nothing", () => {
-    expect(settingsSrc).not.toMatch(UKEDL_BLUE);
+    expect(settingsSrc).not.toMatch(READYHALL_BLUE);
     expect(settingsSrc).toContain('brandColor: event.brandColor || ""');
   });
 
   it("the shared branding form offers the neutral accent, not a brand colour", () => {
-    expect(brandingFieldsSrc).not.toMatch(UKEDL_BLUE);
+    expect(brandingFieldsSrc).not.toMatch(READYHALL_BLUE);
     expect(brandingFieldsSrc).toContain("emptyHex={NEUTRAL_EVENT_ACCENT.accent}");
   });
 });
@@ -66,7 +66,7 @@ describe("an event with no chosen colour renders neutral", () => {
     ]) {
       const src = readFileSync(join(webDir, ...file), "utf8");
       expect(src, file.join("/")).toMatch(/eventAccentStyle\((?:view\?\.)?event(\?)?\.brandColor\)/);
-      expect(src, file.join("/")).not.toMatch(UKEDL_BLUE);
+      expect(src, file.join("/")).not.toMatch(READYHALL_BLUE);
     }
   });
 });

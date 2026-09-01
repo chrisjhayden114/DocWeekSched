@@ -2,7 +2,7 @@
  * SPX-0 / SPX-1 — sponsor outreach pipeline + composer against the real routes.
  * Does NOT set ALLOW_DESTRUCTIVE_DB.
  *
- * UKEDL never sends these emails. This suite asserts the pipeline contract:
+ * Readyhall never sends these emails. This suite asserts the pipeline contract:
  * limit, import dedupe, CONTACTED stamps lastContactedAt, add-as-sponsor is
  * idempotent, template CRUD, OUTREACH_DRAFT metering, and the feature gate
  * 404s when outreach is off.

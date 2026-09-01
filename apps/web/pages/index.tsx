@@ -153,7 +153,7 @@ export default function LandingPage() {
   // Category-first title/description convert searchers; the hero H1 tagline below converts humans.
   const title = marketingSeo.pages.home.title;
   const description = marketingSeo.pages.home.description;
-  const ogImage = `${brand.primaryUrl}/icons/icon-512.png`;
+  const ogImage = `${brand.primaryUrl}${brand.assets.ogImage}`;
 
   // schema.org SoftwareApplication with offers straight from the plan catalog (E25.4).
   const softwareJsonLd = {
@@ -205,8 +205,12 @@ export default function LandingPage() {
                 <p id="mkt-hero-brand" className="mkt-hero-brand">
                   {brand.productName}
                 </p>
+                {/* The short tagline is the line under the wordmark; the longer
+                    category descriptor still does its job in the footer, the
+                    SEO strings, and the JSON-LD description above. Two small
+                    lines stacked before the H1 read as boilerplate. */}
                 <p className="text-meta" style={{ margin: "0 0 8px" }}>
-                  {marketingSeo.categoryLine}
+                  {brand.shortTagline}
                 </p>
                 <h1 className="mkt-hero-headline">
                   Send, paste, or describe your program. Your event is live today.

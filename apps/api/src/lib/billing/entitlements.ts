@@ -12,6 +12,7 @@ import type { FeatureKey } from "@event-app/shared";
 import type { Organization, PlanTier, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "../db";
 import { HttpError } from "../authorization";
+import { publicWebBaseUrl } from "../webBaseUrl";
 
 export const GRACE_PERIOD_DAYS = 7;
 
@@ -130,7 +131,7 @@ export type UpgradePayload = {
 };
 
 export function upgradePayload(partial: Omit<UpgradePayload, "upgradeUrl" | "suggestedSkus"> & { suggestedSkus?: PlanSkuKey[] }): UpgradePayload {
-  const base = (process.env.WEB_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
+  const base = publicWebBaseUrl();
   return {
     ...partial,
     upgradeUrl: `${base}/pricing`,

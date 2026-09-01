@@ -1,5 +1,7 @@
 /* App service worker — cache agenda / My Agenda / session / maps once visited. */
-const CACHE = "app-shell-v3";
+// v4: BRAND-R replaced every file under /icons/, and those are precached — a
+// returning install would keep serving the old mark until the cache name moves.
+const CACHE = "app-shell-v4";
 const PRECACHE = [
   "/login",
   "/dashboard",

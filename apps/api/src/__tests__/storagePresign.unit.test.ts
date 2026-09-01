@@ -4,7 +4,7 @@ import { DataUrlStorageProvider } from "../lib/storage/dataUrl";
 
 describe("S3CompatibleStorageProvider.presignPut (ER4.3)", () => {
   const provider = new S3CompatibleStorageProvider({
-    bucket: "ukedl-uploads",
+    bucket: "readyhall-uploads",
     region: "auto",
     endpoint: "https://example.r2.cloudflarestorage.com",
     accessKeyId: "AKIA_TEST",
@@ -21,7 +21,7 @@ describe("S3CompatibleStorageProvider.presignPut (ER4.3)", () => {
     expect(result.headers["Content-Type"]).toBe("application/pdf");
     const url = new URL(result.uploadUrl);
     expect(url.origin).toBe("https://example.r2.cloudflarestorage.com");
-    expect(url.pathname).toContain("/ukedl-uploads/events/e1/readiness/a1/abc.pdf");
+    expect(url.pathname).toContain("/readyhall-uploads/events/e1/readiness/a1/abc.pdf");
     expect(url.searchParams.get("X-Amz-Algorithm")).toBe("AWS4-HMAC-SHA256");
     expect(url.searchParams.get("X-Amz-Expires")).toBe("600");
     expect(url.searchParams.get("X-Amz-SignedHeaders")).toBe("content-type;host");

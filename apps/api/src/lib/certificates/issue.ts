@@ -12,6 +12,7 @@ import { getStorageProvider } from "../storage";
 import { writeAuditLog } from "../ai/audit";
 import { formatCertificateDates, type CertificateMergeValues } from "./merge";
 import { renderCertificatePdf } from "./pdf";
+import { certificateVerifyUrl } from "./verifyUrl";
 import { isUserEligible } from "./eligibility";
 
 export const CERTIFICATE_READY_EMAIL_ENTITY = "certificate_ready_email";
@@ -99,6 +100,8 @@ export async function issueCertificateForUser(input: {
     backgroundImageUrl: template.backgroundImageUrl,
     nameBox: template.nameBox,
     orientation: template.orientation,
+    // Printed only by the built-in layout; an uploaded design has no room for it.
+    verifyUrl: certificateVerifyUrl(publicId),
   });
 
   const stored = await getStorageProvider().put({

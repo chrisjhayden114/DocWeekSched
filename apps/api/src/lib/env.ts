@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { existsSync } from "fs";
 import { resolve } from "path";
+import { brand } from "@event-app/config";
 import { log } from "./log";
 
 /** Load nearest .env — apps/api/.env or monorepo root. */
@@ -56,7 +57,17 @@ export const env = {
   webBaseUrl: process.env.WEB_BASE_URL || "http://localhost:3000",
   nodeEnv,
   isProd,
-  /** e.g. `.ukedl.com` once API is at api.ukedl.com; empty for localhost. */
+  /**
+   * Extra web origins for the CORS allowlist, comma-separated. The brand's own
+   * and the transition domains are already covered by `webOriginAllowlist` in
+   * packages/config; this is the escape hatch for a preview deploy or a
+   * one-off origin that nobody should have to ship code for.
+   */
+  webOriginAliases: (process.env.WEB_ORIGIN_ALIASES || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+  /** e.g. `.readyhall.com` once API is at api.readyhall.com; empty for localhost. */
   cookieDomain,
   cookieSameSite: cookieSameSite as "lax" | "strict" | "none",
   cookieSecure,
@@ -107,14 +118,18 @@ export function collectProductionPreflight(vars: NodeJS.ProcessEnv): PreflightRe
   if (!webBaseUrl) {
     fatal.push("WEB_BASE_URL is not set — emailed links, CORS, and redirects would target localhost.");
   } else if (isLocalhostUrl(webBaseUrl)) {
-    fatal.push(`WEB_BASE_URL=${webBaseUrl} is a localhost default — set the public web origin (e.g. https://ukedl.com).`);
+    fatal.push(
+      `WEB_BASE_URL=${webBaseUrl} is a localhost default — set the public web origin (e.g. ${brand.primaryUrl}).`,
+    );
   }
 
   const apiPublicUrl = vars.API_PUBLIC_URL?.trim() || "";
   if (!apiPublicUrl) {
     fatal.push("API_PUBLIC_URL is not set — ICS feed URLs would point at localhost.");
   } else if (isLocalhostUrl(apiPublicUrl)) {
-    fatal.push(`API_PUBLIC_URL=${apiPublicUrl} is a localhost default — set the public API origin (e.g. https://api.ukedl.com).`);
+    fatal.push(
+      `API_PUBLIC_URL=${apiPublicUrl} is a localhost default — set the public API origin (e.g. https://api.${brand.domain}).`,
+    );
   }
 
   if (!vars.RESEND_API_KEY?.trim() || (vars.EMAIL_PROVIDER || "").trim().toLowerCase() === "none") {

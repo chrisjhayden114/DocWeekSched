@@ -98,7 +98,7 @@ enum SessionResourceKind {
   FILE
 }
 
-/// SPX-0 — organizer-owned sponsor outreach pipeline. UKEDL never emails these.
+/// SPX-0 — organizer-owned sponsor outreach pipeline. Readyhall never emails these.
 enum SponsorProspectStatus {
   TO_CONTACT
   CONTACTED

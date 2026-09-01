@@ -6,7 +6,7 @@ import { SiteHeader } from "../../components/marketing/SiteHeader";
 
 /**
  * /compare/whova (Chunk E27). Body copy is founder-approved verbatim from
- * docs/marketing-drafts/ukedl-vs-whova.md — edit the draft, get it approved,
+ * docs/marketing-drafts/readyhall-vs-whova.md — edit the draft, get it approved,
  * then mirror the change here. SEO strings live in marketingSeo (config).
  */
 

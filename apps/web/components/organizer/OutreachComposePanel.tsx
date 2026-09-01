@@ -1,5 +1,5 @@
 /**
- * SPX-1 — draft-and-copy composer. UKEDL never sends these emails.
+ * SPX-1 — draft-and-copy composer. Readyhall never sends these emails.
  */
 
 import Link from "next/link";

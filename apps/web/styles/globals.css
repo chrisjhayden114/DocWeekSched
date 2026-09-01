@@ -5095,7 +5095,7 @@ button.schedule-meta-chip:hover {
   color: var(--gray-900);
   font: 400 17px/1.6 var(--font-body);
   -webkit-font-smoothing: antialiased;
-  /* F1.5 — UKEDL's own surface keeps its signature blue on primary actions;
+  /* F1.5 — Readyhall's own surface keeps its signature blue on primary actions;
      the neutral --action-* chrome applies to the app only. (An event-branded
      page overrides this again — see .event-branded at the end of this file.) */
   --action-bg: var(--primary);

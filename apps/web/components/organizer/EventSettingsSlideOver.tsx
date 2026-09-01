@@ -71,7 +71,7 @@ function initialForm(event: EventSettingsEvent): FormState {
     venueAddress: event.venueAddress || "",
     onlineUrl: event.onlineUrl || "",
     slug: event.slug,
-    // BRAND-2: no colour means no colour — seeding UKEDL blue here made any
+    // BRAND-2: no colour means no colour — seeding Readyhall blue here made any
     // save on a neutral event silently adopt the platform brand.
     brandColor: event.brandColor || "",
     logoUrl: event.logoUrl || "",

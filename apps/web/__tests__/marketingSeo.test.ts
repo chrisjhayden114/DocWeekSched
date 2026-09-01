@@ -19,7 +19,7 @@ describe("marketingSeo (E25) — search-facing titles and descriptions", () => {
     for (const [, page] of PAGES) {
       expect(page.title.startsWith(brand.productName)).toBe(false);
       expect(page.title.includes(brand.productName)).toBe(true);
-      // Brand sits in the trailing segment ("— UKEDL" or "— UKEDL conference software").
+      // Brand sits in the trailing segment ("— Readyhall" or "— Readyhall conference software").
       const tail = page.title.slice(page.title.lastIndexOf("—") + 1);
       expect(tail).toContain(brand.productName);
     }

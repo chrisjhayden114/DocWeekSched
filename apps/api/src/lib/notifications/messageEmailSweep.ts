@@ -8,10 +8,7 @@ import { sendUnreadMessagesEmail } from "../mail";
 import { DEFAULT_PREFS } from "./types";
 import { isInQuietHours, localDayKey } from "./timezone";
 import { emailEligibleDms, messageEmailDedupKey, type UnreadDm } from "./messageEmailRules";
-
-function webBase(): string {
-  return (process.env.WEB_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
-}
+import { publicWebBaseUrl } from "../webBaseUrl";
 
 function senderNameFromTitle(title: string): string {
   const prefix = "Message from ";
@@ -133,8 +130,8 @@ export async function sweepUnreadMessageEmails(now = new Date()): Promise<{ sent
     const uniqueConversationIds = [...new Set(eligible.map((r) => r.conversationId))];
     const dashboardUrl =
       uniqueConversationIds.length === 1
-        ? `${webBase()}/dashboard?tab=Messages&c=${uniqueConversationIds[0]}`
-        : `${webBase()}/dashboard?tab=Messages`;
+        ? `${publicWebBaseUrl()}/dashboard?tab=Messages&c=${uniqueConversationIds[0]}`
+        : `${publicWebBaseUrl()}/dashboard?tab=Messages`;
 
     await sendUnreadMessagesEmail({
       to: user.email,

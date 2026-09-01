@@ -61,8 +61,12 @@ describe("Phase 6 /help seed (unit)", () => {
   });
 
   it("help markdown uses {{product}} and never a hardcoded brand name", () => {
+    // Both names: the current one because hardcoding it is the mistake this
+    // guards, and the retired one because BRAND-R proved a literal survives a
+    // rename in exactly the files nobody re-reads.
     for (const a of loadArticles()) {
-      expect(a.raw, a.slug).not.toMatch(/\bUKEDL\b/);
+      expect(a.raw, a.slug).not.toMatch(/\bUKEDL\b/i);
+      expect(a.raw, a.slug).not.toMatch(new RegExp(`\\b${brand.productName}\\b`, "i"));
     }
     const outreach = loadArticles().find((a) => a.slug === "send-sponsor-outreach");
     expect(outreach!.raw).toContain("{{product}}");

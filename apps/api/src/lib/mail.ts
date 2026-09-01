@@ -1,13 +1,15 @@
 import { brand, readinessReminderCopy } from "@event-app/config";
+import { certificateVerifyUrl } from "./certificates/verifyUrl";
 import { getEmailProvider, type SendEmailResult } from "./email";
 import {
   listUnsubscribeHeaders,
   notificationSettingsFooterHtml,
   notificationSettingsUrl,
 } from "./email/listUnsubscribe";
+import { publicWebBaseUrl } from "./webBaseUrl";
 
 function recurringMailHeaders(): Record<string, string> {
-  const settingsUrl = notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000");
+  const settingsUrl = notificationSettingsUrl(publicWebBaseUrl());
   return listUnsubscribeHeaders({ settingsUrl, mailto: brand.supportEmail });
 }
 
@@ -118,8 +120,7 @@ export async function sendCertificateReadyEmail(opts: {
   certificateId: string;
 }): Promise<SendEmailResult> {
   const from = buildFromLine(opts.eventName);
-  const base = (process.env.WEB_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
-  const verifyUrl = `${base}/verify/${encodeURIComponent(opts.certificateId)}`;
+  const verifyUrl = certificateVerifyUrl(opts.certificateId);
   return getEmailProvider().send({
     to: opts.to,
     from,
@@ -171,7 +172,7 @@ export async function sendUnreadMessagesEmail(opts: {
     count: opts.count,
     lines: opts.lines,
     dashboardUrl: opts.dashboardUrl,
-    settingsUrl: notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+    settingsUrl: notificationSettingsUrl(publicWebBaseUrl()),
   });
   return getEmailProvider().send({
     to: opts.to,
@@ -219,7 +220,7 @@ export async function sendDigestEmail(opts: {
     eventName: opts.eventName,
     body: opts.body,
     dashboardUrl: opts.dashboardUrl,
-    settingsUrl: notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+    settingsUrl: notificationSettingsUrl(publicWebBaseUrl()),
   });
   return getEmailProvider().send({
     to: opts.to,
@@ -353,13 +354,13 @@ export function buildReadinessReminderEmail(opts: {
 <p>${readinessReminderCopy.linkFallback}<br/>${escapeHtml(opts.portalUrl)}</p>
 <p style="color:#555;font-size:13px;margin-top:16px">${readinessReminderCopy.alreadySent}</p>
 ${notificationSettingsFooterHtml(
-    opts.settingsUrl ?? notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+    opts.settingsUrl ?? notificationSettingsUrl(publicWebBaseUrl()),
   )}`;
   return {
     subject,
     html,
     headers: listUnsubscribeHeaders({
-      settingsUrl: opts.settingsUrl ?? notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+      settingsUrl: opts.settingsUrl ?? notificationSettingsUrl(publicWebBaseUrl()),
     }),
   };
 }
@@ -376,7 +377,7 @@ export async function sendReadinessReminderEmail(opts: {
   const headers = recurringMailHeaders();
   const built = buildReadinessReminderEmail({
     ...opts,
-    settingsUrl: notificationSettingsUrl(process.env.WEB_BASE_URL || "http://localhost:3000"),
+    settingsUrl: notificationSettingsUrl(publicWebBaseUrl()),
   });
   return getEmailProvider().send({
     to: opts.to,

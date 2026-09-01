@@ -9,8 +9,8 @@ import { collectProductionPreflight } from "../lib/env";
 /** Snapshot with everything a fully configured production deploy would set. */
 function fullProdVars(): NodeJS.ProcessEnv {
   return {
-    WEB_BASE_URL: "https://ukedl.com",
-    API_PUBLIC_URL: "https://api.ukedl.com",
+    WEB_BASE_URL: "https://readyhall.com",
+    API_PUBLIC_URL: "https://api.readyhall.com",
     RESEND_API_KEY: "re_x",
     VAPID_PUBLIC_KEY: "pub",
     VAPID_PRIVATE_KEY: "priv",
@@ -160,11 +160,11 @@ describe("module boot behavior", () => {
 
   it("production boot succeeds with public URLs set (warnings only)", async () => {
     process.env.NODE_ENV = "production";
-    process.env.WEB_BASE_URL = "https://ukedl.com";
-    process.env.API_PUBLIC_URL = "https://api.ukedl.com";
+    process.env.WEB_BASE_URL = "https://readyhall.com";
+    process.env.API_PUBLIC_URL = "https://api.readyhall.com";
     const mod = await import("../lib/env");
     expect(mod.env.isProd).toBe(true);
-    expect(mod.env.webBaseUrl).toBe("https://ukedl.com");
+    expect(mod.env.webBaseUrl).toBe("https://readyhall.com");
   });
 
   it("development boot is unaffected by localhost defaults", async () => {

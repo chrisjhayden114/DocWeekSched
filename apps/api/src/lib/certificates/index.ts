@@ -15,6 +15,7 @@ export {
   type CertificateMergeValues,
 } from "./merge";
 export { renderCertificatePdf, type CertificatePdfInput } from "./pdf";
+export { certificateVerifyUrl } from "./verifyUrl";
 export {
   certificateDesignBodySchema,
   resolveCertificateDesign,

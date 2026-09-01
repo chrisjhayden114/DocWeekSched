@@ -28,7 +28,7 @@ const MIN_CONTRAST = 4.5;
 
 /**
  * The no-brand-color default: the restrained blue-gray already used by the
- * slate theme (tokens.css), not UKEDL blue. #475569 on white is ~7.5:1.
+ * slate theme (tokens.css), not Readyhall blue. #475569 on white is ~7.5:1.
  */
 export const NEUTRAL_EVENT_ACCENT: EventAccent = {
   accent: "#475569",
