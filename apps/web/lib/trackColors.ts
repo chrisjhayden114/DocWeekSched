@@ -9,6 +9,30 @@
 
 const TRACK_COUNT = 10;
 
+/** List + grid session fill: ~6% track color mixed toward white (not gray). */
+export const TRACK_FILL_MIX = 0.06;
+/** Hover lift stays inside the 5–8% wash so text contrast does not move. */
+export const TRACK_FILL_MIX_HOVER = 0.08;
+
+/** Modifier on `.schedule-event` when the session has a track (or explicit color). */
+export const SESSION_TRACK_TINT_CLASS = "schedule-event--tinted";
+
+/** True when the card should use the light track wash instead of the neutral white. */
+export function sessionHasTrack(
+  trackId: string | null | undefined,
+  explicit?: string | null,
+): boolean {
+  return Boolean(trackId || explicit);
+}
+
+/** Empty string for untracked / lunch-style rows — they keep the white card. */
+export function sessionTrackTintClass(
+  trackId: string | null | undefined,
+  explicit?: string | null,
+): string {
+  return sessionHasTrack(trackId, explicit) ? SESSION_TRACK_TINT_CLASS : "";
+}
+
 function hashString(value: string): number {
   // djb2 — stable across sessions and platforms.
   let hash = 5381;

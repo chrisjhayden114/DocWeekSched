@@ -341,8 +341,8 @@ export default function StyleguidePage() {
             </div>
           </div>
           <p className="text-meta" style={{ margin: 0 }}>
-            White row, 1px <code>--gray-200</code> border, radius 4, 3px track color bar, 15px/600 title,
-            12px meta line.
+            Light track wash (~6% mixed toward white), 1px <code>--gray-200</code> border, radius 4,
+            3px track color bar, 15px/600 title, 12px meta line. Untracked rows stay white.
           </p>
         </Section>
 

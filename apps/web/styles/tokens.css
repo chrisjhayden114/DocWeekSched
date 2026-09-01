@@ -95,6 +95,9 @@
   --track-8: #673ab7;
   --track-9: #a16207;
   --track-10: #505158;
+  /* Session-card wash: mix the track hue toward white (never alpha over gray). */
+  --track-fill-mix: 6%;
+  --track-fill-mix-hover: 8%;
 
   /* —— Spacing (4/8/12/16/24/32/48) —— */
   --space-1: 4px;

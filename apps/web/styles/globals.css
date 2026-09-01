@@ -1379,7 +1379,9 @@ textarea.input,
 }
 
 /*
- * Session row (E29.1): white, 1px border, radius 4, 3px track color bar.
+ * Session row (E29.1): 1px border, radius 4, 3px track color bar.
+ * Tracked sessions get a ~6% wash of --track-color mixed toward white
+ * (.schedule-event--tinted). Untracked rows stay the neutral white card.
  * A tight row, not a tall card — target ~72–88px at rest. Actions sit on the
  * title line (see .schedule-event-side), never stranded at the bottom.
  */
@@ -1398,6 +1400,12 @@ textarea.input,
   transition: var(--transition);
 }
 
+.schedule-event--tinted {
+  /* Fallback first: browsers without color-mix keep the white card. */
+  background: #ffffff;
+  background: color-mix(in srgb, var(--track-color) var(--track-fill-mix, 6%), #ffffff);
+}
+
 .schedule-event::before {
   content: "";
   position: absolute;
@@ -1411,6 +1419,10 @@ textarea.input,
 .schedule-event:hover {
   border-color: var(--gray-300);
   background: var(--gray-25);
+}
+
+.schedule-event--tinted:hover {
+  background: color-mix(in srgb, var(--track-color) var(--track-fill-mix-hover, 8%), #ffffff);
 }
 
 .schedule-event .schedule-event-save {
@@ -7012,6 +7024,7 @@ button.schedule-meta-chip:hover {
   gap: var(--space-3);
   padding: 10px 12px 10px 15px;
   background: #ffffff;
+  background: color-mix(in srgb, var(--track-color, var(--track-1)) var(--track-fill-mix, 6%), #ffffff);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -7531,7 +7544,7 @@ button.schedule-meta-chip:hover {
   padding: 4px 6px;
   border: 1px solid color-mix(in srgb, var(--track-color, var(--gray-300)) 40%, #ffffff);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--track-color, var(--gray-300)) 16%, #ffffff);
+  background: color-mix(in srgb, var(--track-color, var(--gray-300)) var(--track-fill-mix, 6%), #ffffff);
   color: color-mix(in srgb, var(--track-color, var(--gray-700)) 72%, #161616);
   text-align: left;
   cursor: pointer;

@@ -18,7 +18,7 @@ import { downloadProgramIcs } from "../../lib/calendarIcs";
 import { loginPathWithEvent } from "../../lib/entryRedirects";
 import { eventAccentStyle } from "../../lib/eventAccent";
 import { serializeJsonLd } from "../../lib/jsonLd";
-import { trackColor } from "../../lib/trackColors";
+import { sessionTrackTintClass, trackColor } from "../../lib/trackColors";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -368,7 +368,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
                     {slotSessions.map((s) => (
                       <article
                         key={s.id}
-                        className="schedule-event"
+                        className={["schedule-event", sessionTrackTintClass(s.trackName)].filter(Boolean).join(" ")}
                         style={{ ["--track-color" as string]: trackColor(s.trackName, null, orderedTrackIds) }}
                       >
                         <div className="schedule-event-main">

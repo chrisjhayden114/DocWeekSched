@@ -15,12 +15,15 @@ import {
   type BreakoutSlot,
   type BreakoutSlotSession,
 } from "../lib/breakoutSlots";
+import { sessionTrackTintClass } from "../lib/trackColors";
 
 export type BreakoutBoardSession = BreakoutSlotSession & {
   location?: string | null;
   room?: { id: string; name: string } | null;
   speakers?: string | null;
   speaker?: { name: string } | null;
+  trackId?: string | null;
+  track?: { color?: string } | null;
   inPersonCapacity?: number | null;
   attendances?: { status: "JOINING" | "NOT_JOINING"; joinMode?: string | null }[];
 };
@@ -200,7 +203,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                 return (
                   <article
                     key={slot.key}
-                    className="schedule-event schedule-event--minimal breakout-minimal"
+                    className={["schedule-event", "schedule-event--minimal", "breakout-minimal", sessionTrackTintClass(only.trackId, only.track?.color)].filter(Boolean).join(" ")}
                     style={{ ["--track-color" as string]: trackColor(only) }}
                     onClick={() => onOpenSession(only.id)}
                   >

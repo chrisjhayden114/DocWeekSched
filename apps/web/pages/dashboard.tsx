@@ -29,7 +29,7 @@ import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 import { buildBreakoutSlots, type BreakoutSlot } from "../lib/breakoutSlots";
 import { BreakoutSlotBoard } from "../components/BreakoutSlotBoard";
-import { trackColor } from "../lib/trackColors";
+import { sessionTrackTintClass, trackColor } from "../lib/trackColors";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/ScheduleViewSwitcher";
 import { SegmentedToggle } from "../components/SegmentedToggle";
@@ -2485,7 +2485,7 @@ function ScheduleBoard({
                   const isMinimal = !joining && !speakerLabel;
                   return (
                     <article
-                      className={`schedule-event${isMinimal ? " schedule-event--minimal" : ""}`}
+                      className={["schedule-event", isMinimal ? "schedule-event--minimal" : "", sessionTrackTintClass(s.trackId, s.track?.color)].filter(Boolean).join(" ")}
                       key={s.id}
                       style={{ ["--track-color" as string]: trackColor(s.trackId, s.track?.color, orderedTrackIds) }}
                       title={s.description || undefined}

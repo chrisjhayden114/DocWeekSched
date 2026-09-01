@@ -57,7 +57,7 @@ export function DemoScheduleFrame() {
           {ROWS.map((row) => (
             <article
               key={row.title}
-              className="schedule-event mkt-browser-row"
+              className="schedule-event schedule-event--tinted mkt-browser-row"
               style={{ ["--track-color" as string]: row.track }}
             >
               <div className="schedule-event-main">
