@@ -3,12 +3,13 @@
  * restatement of the Features-tab one-liner.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { brand } from "@event-app/config";
 import { FEATURE_BY_KEY, FEATURE_GUIDE, FEATURE_REGISTRY, featureGuideGroups, featureGuideImageSrcs, type FeatureKey } from "@event-app/shared";
 import { applyBrandTokens } from "../lib/brandTokens";
+import { pngSize } from "../screenshot-frame";
 
 const KEYS = FEATURE_REGISTRY.map((f) => f.key);
 
@@ -65,6 +66,11 @@ describe("K-2.1 — Feature Guide completeness", () => {
     expect(FEATURE_GUIDE.community_general.imageSrc).toBe("/feature-guide/community_general.png");
     expect(FEATURE_GUIDE.engagement_points.imageSrc).toBe("/feature-guide/engagement_points.png");
     expect(FEATURE_GUIDE.concierge.imageSrc).toBe("/feature-guide/concierge.png");
+    const conciergePng = join(__dirname, "../public/feature-guide/concierge.png");
+    expect(existsSync(conciergePng), "concierge.png must stay at the wired filename").toBe(true);
+    const conciergeSize = pngSize(readFileSync(conciergePng));
+    expect(conciergeSize.width).toBeGreaterThan(0);
+    expect(conciergeSize.height).toBeGreaterThan(0);
     expect(FEATURE_GUIDE.venue_maps.imageSrc).toBe("/feature-guide/venue_maps.png");
     expect(FEATURE_GUIDE.cfp.imageSrc).toBe("/feature-guide/cfp.png");
     expect(FEATURE_GUIDE.session_feedback.imageSrc).toBe("/feature-guide/session_feedback.png");

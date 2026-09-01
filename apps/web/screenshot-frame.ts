@@ -115,8 +115,9 @@ export function maxFrameUpscale(dpr: number = CAPTURE_DEVICE_SCALE): number {
 
 /**
  * Modest even gutters. They exist for one reason: the hover card crops the art
- * slot with `object-fit: cover`, which shaves a few percent off each side, and
- * a subject pushed flush to the frame edge would lose its own border to that.
+ * slot with `object-fit: cover` + `object-position: left top`, which shaves a
+ * few percent off the right and bottom, and a subject pushed flush to the
+ * frame edge would lose its own border to that.
  */
 export const FRAME_PAD = 28;
 
@@ -157,7 +158,26 @@ export type ComposeOptions = {
    * pixels to spare rather than an enormous one.
    */
   dpr?: number;
+  /**
+   * Skip the 380px floor so a short card is not padded with dead white.
+   * Width stays SCREENSHOT_WIDTH; height hugs the subject plus gutters.
+   */
+  hug?: boolean;
 };
+
+/** Amber box the capture script paints around a `highlight` selector. */
+export const SHOT_HIGHLIGHT_COLOR = "#c9920a";
+
+export function highlightCss(selector: string): string {
+  return [
+    `${selector} {`,
+    `  outline: 3px solid var(--decision-amber, ${SHOT_HIGHLIGHT_COLOR}) !important;`,
+    "  outline-offset: 4px !important;",
+    "  border-radius: var(--radius-sm, 4px);",
+    "  box-shadow: 0 0 0 6px #ffffff !important;",
+    "}",
+  ].join("\n");
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -196,7 +216,7 @@ export function composedFrame(source: Size, opts: ComposeOptions = {}): Composed
     height: Math.round(
       clamp(
         image.height + (padded ? 2 * FRAME_PAD : 0),
-        SCREENSHOT_MIN_HEIGHT,
+        opts.hug ? 1 : SCREENSHOT_MIN_HEIGHT,
         SCREENSHOT_MAX_HEIGHT,
       ),
     ),

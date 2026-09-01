@@ -29,8 +29,19 @@ export const HOVER_INFO_BODY_LINES = 6;
 export const HOVER_INFO_CARD_WIDTH = 400;
 /** Card ceiling. Title + footer are reserved first; the body gets the remainder. */
 export const HOVER_INFO_CARD_MAX_HEIGHT = 480;
-export const HOVER_INFO_ART_HEIGHT = 140;
+/**
+ * Fixed art band. 170 leaves title + ≥2 body lines + footer inside 480:
+ * 170 (art) + 34 (inner pad) + 32 (title) + 45 (2×15/1.5) + 28 (footer) = 309.
+ */
+export const HOVER_INFO_ART_HEIGHT = 170;
+/** Wider than this (e.g. a 1200×380 toolbar) fits the band width instead of covering. */
+export const HOVER_INFO_WIDE_ASPECT = 3;
 export const HOVER_INFO_GUIDE_ACTION = "How to use this feature →";
+
+/** Toolbar-strip shots: cover would shave an edge, so the band shows the full width. */
+export function isWideHoverImage(width: number, height: number): boolean {
+  return height > 0 && width / height > HOVER_INFO_WIDE_ASPECT;
+}
 
 /** Warm a screenshot as soon as hover-intent starts, before the card mounts. */
 export function preloadImage(src: string): void {
@@ -110,6 +121,7 @@ export function HoverInfo({
   const [open, setOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
+  const [wideArt, setWideArt] = useState(false);
   const guide = featureKey ? FEATURE_GUIDE[featureKey] : undefined;
   const resolvedBody = body ?? (guide ? applyBrandTokens(guide.whatItDoes) : "");
   const resolvedImageSrc =
@@ -201,6 +213,21 @@ export function HoverInfo({
     bodyRef.current = el;
     setBodyEl(el);
   }, []);
+
+  useEffect(() => {
+    setWideArt(false);
+  }, [resolvedImageSrc]);
+
+  const measureArt = useCallback((img: HTMLImageElement) => {
+    setWideArt(isWideHoverImage(img.naturalWidth, img.naturalHeight));
+  }, []);
+
+  const attachArt = useCallback(
+    (img: HTMLImageElement | null) => {
+      if (img && img.complete && img.naturalWidth > 0) measureArt(img);
+    },
+    [measureArt],
+  );
 
   useIsomorphicLayoutEffect(() => {
     if (!bodyEl) {
@@ -319,8 +346,22 @@ export function HoverInfo({
             }}
           >
             {hasImage ? (
-              <div className="hover-info-art" data-hover-slot="art" aria-hidden>
-                {resolvedImageSrc ? <img className="hover-info-image" src={resolvedImageSrc} alt="" /> : image}
+              <div
+                className={["hover-info-art", wideArt ? "is-wide" : ""].filter(Boolean).join(" ")}
+                data-hover-slot="art"
+                aria-hidden
+              >
+                {resolvedImageSrc ? (
+                  <img
+                    ref={attachArt}
+                    className="hover-info-image"
+                    src={resolvedImageSrc}
+                    alt=""
+                    onLoad={(event) => measureArt(event.currentTarget)}
+                  />
+                ) : (
+                  image
+                )}
               </div>
             ) : null}
             <div className="hover-info-inner">

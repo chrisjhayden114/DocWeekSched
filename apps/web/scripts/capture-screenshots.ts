@@ -42,6 +42,7 @@ import {
   composedFrame,
   composedFrameHtml,
   describeFrame,
+  highlightCss,
   isAssistantOpenStorageKey,
   isPageScopeSelector,
   magnifyCss,
@@ -131,6 +132,7 @@ async function clearStage(page: Page, shot: PageFeatureShot): Promise<void> {
   if (shot.stageCss) await page.addStyleTag({ content: shot.stageCss });
   // Last, so a magnified subject is measured at the size it will be shot at.
   if (shot.magnify) await page.addStyleTag({ content: magnifyCss(shot.selector, shot.magnify) });
+  if (shot.highlight) await page.addStyleTag({ content: highlightCss(shot.highlight) });
 }
 
 /** Scroll the window and every overflow ancestor so the subject's top is at 0. */
@@ -268,8 +270,9 @@ async function composeFrame(
   background: string,
   outPath: string,
   dpr: number,
+  hug?: boolean,
 ): Promise<ComposedFrame> {
-  const frame = composedFrame(pngSize(png), { dpr });
+  const frame = composedFrame(pngSize(png), { dpr, hug });
   const src = `data:image/png;base64,${png.toString("base64")}`;
   await stage.setViewportSize(frame.stage);
   await stage.setContent(composedFrameHtml(src, frame, background), { waitUntil: "load" });
@@ -314,7 +317,7 @@ async function capture(
     png = await target.screenshot({ animations: "disabled", scale: "device" });
   }
 
-  return composeFrame(stage, png, await stageBackground(target), outPath, CAPTURE_DEVICE_SCALE);
+  return composeFrame(stage, png, await stageBackground(target), outPath, CAPTURE_DEVICE_SCALE, shot.hug);
 }
 
 /** Page `page` of a PDF as PNG bytes. Needs poppler-utils (see screenshots.yml). */

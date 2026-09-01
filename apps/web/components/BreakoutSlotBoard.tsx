@@ -171,7 +171,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
         <div className="breakout-option-main">
           <p className="breakout-option-title">
             <span>{session.title}</span>
-            {isInPersonFull(session) ? <span className="schedule-option-chip">Full — waitlist</span> : null}
+            {isInPersonFull(session) ? <span className="schedule-option-chip session-waitlist-chip">Full — waitlist</span> : null}
           </p>
           {room || speaker ? (
             <p className="breakout-option-meta">{[room, speaker].filter(Boolean).join(" · ")}</p>
@@ -226,7 +226,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                       <h4 className="schedule-event-title">
                         <span className="schedule-event-title-text">{only.title}</span>
                         {isInPersonFull(only) ? (
-                          <span className="schedule-option-chip">Full — waitlist</span>
+                          <span className="schedule-option-chip session-waitlist-chip">Full — waitlist</span>
                         ) : null}
                       </h4>
                       <p className="schedule-event-meta">

@@ -6657,7 +6657,8 @@ button.schedule-meta-chip:hover {
 /*
  * UI-2 — guide page only: show the whole screenshot. Natural aspect,
  * full column width, height auto, max-height 520px, centered when the
- * height cap makes it narrower. Hover cards keep the 140px cover band.
+ * height cap makes it narrower. Hover cards keep the 170px cover band
+ * (object-position: left top so titles stay in the crop).
  */
 .feature-guide-page-art {
   display: flex;
@@ -6706,14 +6707,14 @@ button.schedule-meta-chip:hover {
 }
 
 .hover-info-art {
-  flex: 0 0 140px;
+  flex: 0 0 170px;
   flex-shrink: 0;
-  height: 140px;
-  min-height: 140px;
-  max-height: 140px;
+  height: 170px;
+  min-height: 170px;
+  max-height: 170px;
   position: relative;
   overflow: hidden;
-  background: var(--gray-50);
+  background: var(--surface-page);
 }
 
 .hover-info-image,
@@ -6724,6 +6725,26 @@ button.schedule-meta-chip:hover {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: left top;
+}
+
+/*
+ * Very wide strips (aspect > 3:1): cover would shave an edge. Fit the
+ * full width, height auto, vertically centered on the page canvas.
+ */
+.hover-info-art.is-wide {
+  display: flex;
+  align-items: center;
+}
+
+.hover-info-art.is-wide .hover-info-image,
+.hover-info-art.is-wide img {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  object-fit: unset;
+  object-position: unset;
 }
 
 .hover-info-inner {

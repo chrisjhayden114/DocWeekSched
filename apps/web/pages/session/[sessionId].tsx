@@ -681,9 +681,14 @@ export default function SessionPage() {
                     {session.inPersonCapacity != null ? `/${session.inPersonCapacity}` : ""} in-person · {virtual}
                     {session.virtualCapacity != null ? `/${session.virtualCapacity}` : ""} virtual
                     {(session.inPersonCapacity != null && inPerson >= session.inPersonCapacity) ||
-                    (session.virtualCapacity != null && virtual >= session.virtualCapacity)
-                      ? " · Full — waitlist available from the agenda"
-                      : ""}
+                    (session.virtualCapacity != null && virtual >= session.virtualCapacity) ? (
+                      <>
+                        {" · "}
+                        <span className="session-waitlist-chip">Full — waitlist available from the agenda</span>
+                      </>
+                    ) : (
+                      ""
+                    )}
                   </p>
                 );
               })()}
@@ -1354,7 +1359,7 @@ export default function SessionPage() {
           ) : null}
 
           {feedbackOn && feedback?.sessionEnded ? (
-            <div className="card" style={{ marginTop: 16 }}>
+            <div className="card session-feedback-card" style={{ marginTop: 16 }}>
               <h3 style={{ marginTop: 0 }}>Session feedback</h3>
               {feedback.mine ? (
                 <p className="help-text">

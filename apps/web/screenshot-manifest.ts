@@ -24,12 +24,12 @@ export const SCREENSHOT_MAX_HEIGHT = 760;
 
 /**
  * A frame this tall is the only shape a hover card shows whole: the card crops
- * its art slot to 400x140 with `object-fit: cover`, and 1200x420 is the same
- * 20:7. A taller frame loses a band off the top and the bottom to that crop,
- * which is why a shot whose whole point is its page heading asks for this
- * height instead of the 760 a long page would otherwise fill.
+ * its art slot to 400x170 with `object-fit: cover` + `object-position: left top`,
+ * and 1200x510 is the same 40:17. A taller frame loses a band off the bottom
+ * to that crop, which is why a shot whose whole point is its page heading asks
+ * for this height instead of the 760 a long page would otherwise fill.
  */
-export const SCREENSHOT_CARD_HEIGHT = 420;
+export const SCREENSHOT_CARD_HEIGHT = 510;
 
 /**
  * How much of the manifest a capture run has to land before the run counts as
@@ -128,6 +128,17 @@ export type PageFeatureShot = ShotBase & {
    * not open mid-row.
    */
   alignTop?: boolean;
+  /**
+   * CSS selector inside the shot. Before capture, that element gets a 3px
+   * amber outline and a white halo so the feature reads on a busy surface.
+   * Must be real CSS — Playwright `:text-is()` is not valid in a stylesheet.
+   */
+  highlight?: string;
+  /**
+   * Hug the subject: skip the 380px frame floor so a short card is not
+   * padded with dead white.
+   */
+  hug?: boolean;
 };
 
 /**
@@ -248,6 +259,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     selector: ".schedule-list",
     as: "attendee",
     waitFor: ".agenda-context-bar",
+    highlight: "button.session-like-btn",
     note: "Likes live on agenda rows, so the card wall is the surface — not a session page.",
   },
   session_polls: {
@@ -259,14 +271,16 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
   // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
   session_feedback: {
     path: "/session/{endedSessionId}",
-    selector: '.card:has(> h3:text-is("Session feedback"))',
+    selector: ".session-feedback-card",
     as: "attendee",
+    hug: true,
     note: "The card only exists after a session's end time — this one finished yesterday.",
   },
   waitlist_visibility: {
     path: "/session/{fullSessionId}",
     selector: ".card.session-page-header",
     as: "attendee",
+    highlight: ".session-waitlist-chip",
     note: "The capped session: two seats taken, three people waiting with real positions.",
   },
   // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
@@ -349,6 +363,7 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
     path: "/dashboard?tab=Agenda",
     selector: ".agenda-context-bar",
     as: "attendee",
+    highlight: ".agenda-timezone-toggle--desktop",
     note: "The My timezone / Event timezone control sits in the agenda filter rail.",
   },
   breakout_style: {

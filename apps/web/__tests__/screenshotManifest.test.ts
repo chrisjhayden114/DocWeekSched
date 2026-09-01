@@ -4,6 +4,8 @@
  * assertions fail when the registry gains a shipped key nobody photographed.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FEATURE_BY_KEY, FEATURE_REGISTRY, type FeatureKey } from "@event-app/shared";
 import {
@@ -23,6 +25,8 @@ import {
   type FeatureShot,
   type PageFeatureShot,
 } from "../screenshot-manifest";
+import { highlightCss } from "../screenshot-frame";
+import { HOVER_INFO_ART_HEIGHT } from "../components/kit/HoverInfo";
 
 const eligible = eligibleScreenshotKeys();
 const entries = Object.entries(SCREENSHOT_MANIFEST) as Array<[FeatureKey, FeatureShot]>;
@@ -186,9 +190,41 @@ describe("screenshot manifest entries", () => {
     expect(SCREENSHOT_MAX_HEIGHT).toBeGreaterThan(SCREENSHOT_MIN_HEIGHT);
     expect(SCREENSHOT_CARD_HEIGHT).toBeGreaterThanOrEqual(SCREENSHOT_MIN_HEIGHT);
     expect(SCREENSHOT_CARD_HEIGHT).toBeLessThanOrEqual(SCREENSHOT_MAX_HEIGHT);
-    // 1200 x 420 is the 400 x 140 art slot's own aspect ratio, which is the
+    // 1200 x 510 is the 400 x 170 art slot's own aspect ratio, which is the
     // only shape a hover card shows without cropping a band off it.
-    expect(SCREENSHOT_WIDTH / SCREENSHOT_CARD_HEIGHT).toBeCloseTo(400 / 140, 2);
+    expect(SCREENSHOT_WIDTH / SCREENSHOT_CARD_HEIGHT).toBeCloseTo(400 / HOVER_INFO_ART_HEIGHT, 2);
+  });
+
+  it("boxes the control inside three busy surfaces without changing the shot context", () => {
+    expect(pageShot("timezone_toggle").highlight).toBe(".agenda-timezone-toggle--desktop");
+    expect(pageShot("session_likes").highlight).toBe("button.session-like-btn");
+    expect(pageShot("waitlist_visibility").highlight).toBe(".session-waitlist-chip");
+    expect(pageShot("timezone_toggle").selector).toBe(".agenda-context-bar");
+    expect(pageShot("session_likes").selector).toBe(".schedule-list");
+    expect(pageShot("waitlist_visibility").selector).toBe(".card.session-page-header");
+    for (const key of ["timezone_toggle", "session_likes", "waitlist_visibility"] as const) {
+      const sel = pageShot(key).highlight!;
+      expect(sel).not.toMatch(/:text-is|:has-text/);
+      expect(highlightCss(sel)).toContain("#c9920a");
+      expect(highlightCss(sel)).toContain("outline-offset: 4px");
+      expect(highlightCss(sel)).toContain("0 0 0 6px #ffffff");
+    }
+  });
+
+  it("hugs the session feedback card so the frame is the card, not dead white", () => {
+    const shot = pageShot("session_feedback");
+    expect(shot.selector).toBe(".session-feedback-card");
+    expect(shot.hug).toBe(true);
+  });
+
+  it("wires highlight CSS into the capture script and the live controls", () => {
+    const web = join(__dirname, "..");
+    const read = (...parts: string[]) => readFileSync(join(web, ...parts), "utf8");
+    expect(read("scripts", "capture-screenshots.ts")).toContain("highlightCss(shot.highlight)");
+    expect(read("pages", "dashboard.tsx")).toContain("session-like-btn");
+    expect(read("pages", "dashboard.tsx")).toContain("session-waitlist-chip");
+    expect(read("pages", "session", "[sessionId].tsx")).toContain("session-waitlist-chip");
+    expect(read("pages", "session", "[sessionId].tsx")).toContain("session-feedback-card");
   });
 
   it("names every eligible key in the registry, so notes stay reviewable", () => {

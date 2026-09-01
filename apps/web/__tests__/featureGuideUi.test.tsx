@@ -334,13 +334,14 @@ describe("K-6 — feature card + carousel CSS", () => {
     return blockBody(globalsCss, at);
   }
 
-  it("gives the preview image a fixed ~140px height so it never shrinks; title, body, and footer stay visible", () => {
-    expect(rule(".hover-info-art")).toContain("height: 140px");
+  it("gives the preview image a fixed ~170px height so it never shrinks; title, body, and footer stay visible", () => {
+    expect(rule(".hover-info-art")).toContain("height: 170px");
     expect(rule(".hover-info-art")).toContain("flex-shrink: 0");
     expect(rule(".hover-info-art")).toContain("overflow: hidden");
     expect(rule(".hover-info-art")).not.toContain("flex-shrink: 1");
     expect(rule(".hover-info-art")).not.toContain("min-height: 0");
     expect(rule(".hover-info-image,\n.hover-info-art img")).toContain("object-fit: cover");
+    expect(rule(".hover-info-image,\n.hover-info-art img")).toContain("object-position: left top");
     expect(rule(".hover-info-popover")).toContain("max-height: 480px");
     expect(rule(".hover-info-title")).toContain("overflow: visible");
     expect(rule(".hover-info-title")).toContain("flex-shrink: 0");
@@ -366,7 +367,7 @@ describe("K-6 — feature card + carousel CSS", () => {
     expect(rule(".hover-info-label-slot")).toContain("cursor: default");
   });
 
-  it("UI-2 — the guide page shows the whole image; hover cards keep the 140px cover band", () => {
+  it("UI-2 — the guide page shows the whole image; hover cards keep the 170px cover band", () => {
     const pageArt = rule(".feature-guide-page-art img,\n.feature-guide-page-art .feature-art");
     expect(pageArt).toContain("max-height: 520px");
     expect(pageArt).toContain("height: auto");
@@ -376,9 +377,17 @@ describe("K-6 — feature card + carousel CSS", () => {
     expect(pageArt).toContain("border: 1px solid var(--gray-200)");
     expect(pageArt).toContain("border-radius: var(--radius-card)");
     expect(rule(".feature-guide-page-art")).toContain("justify-content: center");
-    // Hover cards are unchanged — the 140px cover band is the card crop, not the guide.
-    expect(rule(".hover-info-art")).toContain("height: 140px");
+    // Hover cards crop; the guide page does not. Titles stay via left top.
+    expect(rule(".hover-info-art")).toContain("height: 170px");
     expect(rule(".hover-info-image,\n.hover-info-art img")).toContain("object-fit: cover");
+    expect(rule(".hover-info-image,\n.hover-info-art img")).toContain("object-position: left top");
+    expect(rule(".hover-info-art.is-wide")).toContain("align-items: center");
+    expect(rule(".hover-info-art.is-wide .hover-info-image,\n.hover-info-art.is-wide img")).toContain(
+      "height: auto",
+    );
+    expect(rule(".hover-info-art.is-wide .hover-info-image,\n.hover-info-art.is-wide img")).toContain(
+      "width: 100%",
+    );
   });
 
   it("UI-2 — category headings are underlined and heavier than feature names", () => {

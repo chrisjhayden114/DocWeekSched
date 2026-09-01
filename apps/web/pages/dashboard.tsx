@@ -2519,7 +2519,7 @@ function ScheduleBoard({
                             </span>
                           ) : null}
                           {inPersonFull || virtualFull ? (
-                            <span className="schedule-option-chip">Full — waitlist</span>
+                            <span className="schedule-option-chip session-waitlist-chip">Full — waitlist</span>
                           ) : null}
                         </h4>
                         <p className="schedule-event-meta">
@@ -2619,7 +2619,7 @@ function ScheduleBoard({
                           ) : null}
                           {likesEnabled && onToggleLike ? (
                             <button
-                              className={`row-action-btn${liked ? " is-active" : ""}`}
+                              className={`row-action-btn session-like-btn${liked ? " is-active" : ""}`}
                               type="button"
                               aria-pressed={liked}
                               aria-label={liked ? "Unlike session" : "Like session"}

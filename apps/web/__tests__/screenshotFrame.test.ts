@@ -26,6 +26,8 @@ import {
   magnifyCss,
   maxFrameUpscale,
   pngSize,
+  highlightCss,
+  SHOT_HIGHLIGHT_COLOR,
   stageHideSelectors,
   subjectTopClip,
   topAlignedClip,
@@ -246,6 +248,30 @@ describe("magnification", () => {
     expect(css).toContain("transform-origin: center center");
     // Geometry only: no colour, size, or state is invented.
     expect(css).not.toMatch(/color|background|font|opacity/);
+  });
+});
+
+describe("highlight boxes", () => {
+  it("paints a 3px amber outline with a white halo", () => {
+    const css = highlightCss(".agenda-timezone-toggle--desktop");
+    expect(css).toContain(".agenda-timezone-toggle--desktop {");
+    expect(css).toContain("outline: 3px solid");
+    expect(css).toContain(SHOT_HIGHLIGHT_COLOR);
+    expect(css).toContain("--decision-amber");
+    expect(css).toContain("outline-offset: 4px");
+    expect(css).toContain("box-shadow: 0 0 0 6px #ffffff");
+    expect(css).toContain("border-radius");
+  });
+});
+
+describe("hug frames", () => {
+  it("skips the 380px floor so a short card is not padded with dead white", () => {
+    const padded = composedFrame(retina({ width: 720, height: 160 }), { dpr: DPR });
+    expect(padded.stage.height).toBe(SCREENSHOT_MIN_HEIGHT);
+    const hugged = composedFrame(retina({ width: 720, height: 160 }), { dpr: DPR, hug: true });
+    expect(hugged.stage.height).toBeLessThan(SCREENSHOT_MIN_HEIGHT);
+    expect(hugged.stage.width).toBe(SCREENSHOT_WIDTH);
+    expect(hugged.image.height + 1).toBeGreaterThan(hugged.stage.height - 80);
   });
 });
 

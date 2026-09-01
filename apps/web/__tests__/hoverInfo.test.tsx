@@ -17,12 +17,16 @@ vi.mock("next/link", () => ({
 }));
 import {
   HoverInfo,
+  HOVER_INFO_ART_HEIGHT,
+  HOVER_INFO_BODY_MIN_LINES,
   HOVER_INFO_CARD_MAX_HEIGHT,
   HOVER_INFO_CLOSE_GRACE_MS,
   HOVER_INFO_GUIDE_ACTION,
   HOVER_INFO_OPEN_DELAY_MS,
+  HOVER_INFO_WIDE_ASPECT,
   preloadImage,
   isFadeClipped,
+  isWideHoverImage,
 } from "../components/kit/HoverInfo";
 import { ParticipantLabelsEditor } from "../components/organizer/ParticipantLabelsEditor";
 
@@ -448,5 +452,41 @@ describe("HoverInfo Wikipedia persistence + fade", () => {
 
   it("preloadImage is a no-op for an empty src", () => {
     expect(() => preloadImage("")).not.toThrow();
+  });
+
+  it("K-8 — 170px band still leaves title, ≥2 body lines, and footer inside 480", () => {
+    const title = 24 + 8;
+    const inner = 16 + 18;
+    const bodyMin = 15 * 1.5 * HOVER_INFO_BODY_MIN_LINES;
+    const footer = 12 + 16;
+    expect(HOVER_INFO_ART_HEIGHT).toBe(170);
+    expect(HOVER_INFO_ART_HEIGHT + inner + title + bodyMin + footer).toBeLessThanOrEqual(
+      HOVER_INFO_CARD_MAX_HEIGHT,
+    );
+  });
+
+  it("fits a toolbar-strip image to the band width instead of covering", () => {
+    expect(isWideHoverImage(1200, 380)).toBe(true);
+    expect(isWideHoverImage(1200, 400)).toBe(false);
+    expect(isWideHoverImage(400, 225)).toBe(false);
+    expect(HOVER_INFO_WIDE_ASPECT).toBe(3);
+
+    render(
+      <HoverInfo trigger="label" title="Strip" body="A wide toolbar shot." imageSrc="/wide-toolbar.png">
+        <strong>Strip</strong>
+      </HoverInfo>,
+    );
+    const wrap = clipper.querySelector<HTMLElement>(".hover-info")!;
+    fire(wrap, "mouseover");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_OPEN_DELAY_MS);
+    });
+    const img = tooltip()!.querySelector<HTMLImageElement>(".hover-info-image")!;
+    Object.defineProperty(img, "naturalWidth", { configurable: true, value: 1200 });
+    Object.defineProperty(img, "naturalHeight", { configurable: true, value: 380 });
+    act(() => {
+      img.dispatchEvent(new Event("load"));
+    });
+    expect(img.closest(".hover-info-art")!.classList.contains("is-wide")).toBe(true);
   });
 });
