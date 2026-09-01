@@ -17,6 +17,15 @@ export const TRACK_FILL_MIX_HOVER = 0.08;
 /** Modifier on `.schedule-event` when the session has a track (or explicit color). */
 export const SESSION_TRACK_TINT_CLASS = "schedule-event--tinted";
 
+/**
+ * Modifier on an unchosen pick-one slot row. Amber means an open decision —
+ * never a track hue, and never a row the attendee has already picked.
+ */
+export const SESSION_DECISION_AMBER_CLASS = "breakout-slot--decision";
+
+/** Saturated gold mixed at --track-fill-mix toward white (matches tokens.css). */
+export const DECISION_AMBER_HEX = "#c9920a";
+
 /** True when the card should use the light track wash instead of the neutral white. */
 export function sessionHasTrack(
   trackId: string | null | undefined,
@@ -31,6 +40,11 @@ export function sessionTrackTintClass(
   explicit?: string | null,
 ): string {
   return sessionHasTrack(trackId, explicit) ? SESSION_TRACK_TINT_CLASS : "";
+}
+
+/** Amber class only while the attendee still has to pick. */
+export function sessionDecisionAmberClass(isOpenDecision: boolean): string {
+  return isOpenDecision ? SESSION_DECISION_AMBER_CLASS : "";
 }
 
 function hashString(value: string): number {

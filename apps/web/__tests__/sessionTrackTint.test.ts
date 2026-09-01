@@ -2,6 +2,9 @@
  * UI-1 — attendee agenda session cards: a very light track wash (mixed
  * toward white), not a white card with only a colored edge. Untracked
  * rows stay the neutral card. Grid / by-room share the same mix strength.
+ *
+ * UI-1.1 — unchosen pick-one "Choose your session" rows get a warm amber
+ * wash at the same strength; chosen "Your 10:00 AM" rows use the track tint.
  */
 
 import { readFileSync } from "node:fs";
@@ -9,9 +12,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { contrastRatio } from "../lib/eventAccent";
 import {
+  DECISION_AMBER_HEX,
+  SESSION_DECISION_AMBER_CLASS,
   SESSION_TRACK_TINT_CLASS,
   TRACK_FILL_MIX,
   TRACK_FILL_MIX_HOVER,
+  sessionDecisionAmberClass,
   sessionHasTrack,
   sessionTrackTintClass,
 } from "../lib/trackColors";
@@ -150,6 +156,7 @@ describe("UI-1 — list surfaces apply the tint class from track presence", () =
     expect(dashboardSrc).toContain("sessionTrackTintClass(s.trackId, s.track?.color)");
     expect(publicSrc).toContain("sessionTrackTintClass(s.trackName)");
     expect(breakoutSrc).toContain("sessionTrackTintClass(only.trackId, only.track?.color)");
+    expect(breakoutSrc).toContain("sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color)");
   });
 
   it("the marketing demo rows are tinted (every demo session has a track)", () => {
@@ -191,5 +198,71 @@ describe("UI-1 — 6% wash keeps WCAG AA for card text", () => {
     // 6% of #0a0a0a on white → #f0f0f0 (mix toward white, not alpha-over-gray).
     expect(wash).toBe("#f0f0f0");
     expect(contrastRatio(wash, title)).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+describe("UI-1.1 — pick-one open decisions use amber, not a track tint", () => {
+  it("the helper puts the amber class only on an unchosen slot", () => {
+    expect(sessionDecisionAmberClass(true)).toBe(SESSION_DECISION_AMBER_CLASS);
+    expect(sessionDecisionAmberClass(false)).toBe("");
+    expect(SESSION_DECISION_AMBER_CLASS).toBe("breakout-slot--decision");
+    expect(SESSION_DECISION_AMBER_CLASS).not.toBe(SESSION_TRACK_TINT_CLASS);
+  });
+
+  it("the token layer pins a warm gold distinct from the track palette", () => {
+    expect(tokensCss).toMatch(/--decision-amber:\s*#c9920a/);
+    expect(DECISION_AMBER_HEX).toBe("#c9920a");
+    expect(TRACK_HEX.map((h) => h.toLowerCase())).not.toContain(DECISION_AMBER_HEX.toLowerCase());
+  });
+
+  it("unchosen slot rows mix --decision-amber toward white at the shared token strength", () => {
+    const body = ruleBody(globalsCss, ".breakout-slot--decision > .breakout-slot-header");
+    expect(body).toMatch(/color-mix\(in srgb,\s*var\(--decision-amber\)\s*var\(--track-fill-mix/);
+    expect(body).toMatch(/#ffffff/);
+    expect(body).not.toMatch(/--track-color/);
+  });
+
+  it("the amber left strip matches track-strip geometry (3px)", () => {
+    const body = ruleBody(globalsCss, ".breakout-slot--decision > .breakout-slot-header::before");
+    expect(body).toMatch(/width:\s*3px/);
+    expect(body).toMatch(/background:\s*var\(--decision-amber\)/);
+  });
+
+  it("hover on the amber row lifts at the same 8% pattern as UI-1", () => {
+    const body = ruleBody(globalsCss, ".breakout-slot--decision > .breakout-slot-header:hover");
+    expect(body).toMatch(/color-mix\(in srgb,\s*var\(--decision-amber\)\s*var\(--track-fill-mix-hover/);
+    expect(body).toMatch(/#ffffff/);
+  });
+
+  it("unchosen slot rows get the amber class; chosen rows get the track tint, not amber", () => {
+    expect(breakoutSrc).toContain("sessionDecisionAmberClass(!chosenSession)");
+    expect(breakoutSrc).toContain("sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color)");
+    expect(breakoutSrc).toMatch(/className=\{?\["breakout-choice"/);
+    expect(breakoutSrc).not.toMatch(/sessionDecisionAmberClass\([^)]*chosenSession\.track/);
+  });
+
+  it("chosen collapsed rows reuse the UI-1 tint wash, not gray-25 or amber", () => {
+    const tinted = ruleBody(globalsCss, ".breakout-choice.schedule-event--tinted");
+    expect(tinted).toMatch(/color-mix\(in srgb,\s*var\(--track-color\)\s*var\(--track-fill-mix/);
+    expect(tinted).toMatch(/#ffffff/);
+    expect(tinted).not.toMatch(/decision-amber|gray-25/);
+    const rest = ruleBody(globalsCss, ".breakout-choice");
+    expect(rest).toMatch(/background:\s*#ffffff/);
+    expect(rest).not.toMatch(/gray-25|decision-amber/);
+  });
+
+  it("grid / by-room do not render pick-one slot rows, so amber is list-only", () => {
+    const timetableSrc = readFileSync(join(webRoot, "components", "ScheduleTimetable.tsx"), "utf8");
+    expect(timetableSrc).not.toContain("breakout-slot");
+    expect(timetableSrc).not.toContain("sessionDecisionAmberClass");
+    expect(timetableSrc).not.toContain("Choose your session");
+  });
+
+  it("the 6% and 8% amber washes stay AA under title text", () => {
+    const title = "#161616";
+    const wash = mixTowardWhite(DECISION_AMBER_HEX, TRACK_FILL_MIX);
+    const hover = mixTowardWhite(DECISION_AMBER_HEX, TRACK_FILL_MIX_HOVER);
+    expect(contrastRatio(wash, title)).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio(hover, title)).toBeGreaterThanOrEqual(AA);
   });
 });

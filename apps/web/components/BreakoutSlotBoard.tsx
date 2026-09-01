@@ -15,7 +15,7 @@ import {
   type BreakoutSlot,
   type BreakoutSlotSession,
 } from "../lib/breakoutSlots";
-import { sessionTrackTintClass } from "../lib/trackColors";
+import { sessionDecisionAmberClass, sessionTrackTintClass } from "../lib/trackColors";
 
 export type BreakoutBoardSession = BreakoutSlotSession & {
   location?: string | null;
@@ -249,7 +249,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                 return (
                   <article
                     key={slot.key}
-                    className="breakout-choice"
+                    className={["breakout-choice", sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color)].filter(Boolean).join(" ")}
                     style={{ ["--track-color" as string]: trackColor(chosenSession) }}
                   >
                     <button
@@ -279,7 +279,10 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
 
               const visibleSessions = slot.sessions.filter((s) => matchesFilter(s, open ? filterText : ""));
               return (
-                <section key={slot.key} className={`breakout-slot${open ? " is-open" : ""}`}>
+                <section
+                  key={slot.key}
+                  className={["breakout-slot", open ? "is-open" : "", sessionDecisionAmberClass(!chosenSession)].filter(Boolean).join(" ")}
+                >
                   <button
                     type="button"
                     className="breakout-slot-header"

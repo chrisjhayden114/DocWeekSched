@@ -1547,7 +1547,8 @@ textarea.input,
   margin-bottom: var(--space-2);
 }
 
-/* Chosen slot: a single quiet line — the 20 unchosen options are gone. */
+/* Chosen slot: a single quiet line — the 20 unchosen options are gone.
+ * Track tint matches UI-1 session cards; amber is reserved for open decisions. */
 .breakout-choice {
   position: relative;
   display: flex;
@@ -1558,8 +1559,21 @@ textarea.input,
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
-  background: var(--gray-25);
+  background: #ffffff;
   overflow: hidden;
+}
+
+.breakout-choice.schedule-event--tinted {
+  background: #ffffff;
+  background: color-mix(in srgb, var(--track-color) var(--track-fill-mix, 6%), #ffffff);
+}
+
+.breakout-choice:hover {
+  background: var(--gray-25);
+}
+
+.breakout-choice.schedule-event--tinted:hover {
+  background: color-mix(in srgb, var(--track-color) var(--track-fill-mix-hover, 8%), #ffffff);
 }
 
 .breakout-choice::before {
@@ -1622,6 +1636,7 @@ textarea.input,
 }
 
 .breakout-slot-header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -1636,6 +1651,30 @@ textarea.input,
 
 .breakout-slot-header:hover {
   background: var(--gray-25);
+}
+
+/*
+ * UI-1.1 — unchosen "Choose your session" rows. Warm gold at the same
+ * 6–8% wash as track tints; the expanded options panel stays untouched.
+ */
+.breakout-slot--decision > .breakout-slot-header {
+  /* Fallback first: browsers without color-mix keep the white card. */
+  background: #ffffff;
+  background: color-mix(in srgb, var(--decision-amber) var(--track-fill-mix, 6%), #ffffff);
+}
+
+.breakout-slot--decision > .breakout-slot-header::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--decision-amber);
+}
+
+.breakout-slot--decision > .breakout-slot-header:hover {
+  background: color-mix(in srgb, var(--decision-amber) var(--track-fill-mix-hover, 8%), #ffffff);
 }
 
 .breakout-slot-time {
