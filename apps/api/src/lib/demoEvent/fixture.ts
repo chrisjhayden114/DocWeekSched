@@ -70,6 +70,8 @@ export function demoConferenceWindow(now = new Date()): { start: Date; end: Date
 export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
   const isDemo = mode === "public_demo";
   return {
+    // Public demo copy — hosted-by is brand.internalOrgName ("Readyhall"),
+    // applied on org create in reset.ts. Live demo row is edited by hand.
     name: isDemo ? `${brand.productName} Public Demo` : "Sample Teaching & Learning Institute",
     slug: isDemo ? brand.demoEventSlug : `sample-${Date.now().toString(36)}`,
     description: isDemo

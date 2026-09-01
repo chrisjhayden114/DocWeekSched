@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { brand } from "@event-app/config";
+import { buildDemoFixtureSpec } from "../lib/demoEvent/fixture";
 import { homeEventQueryRedirect, loginPathWithEvent } from "@event-app/shared";
 import { readdirSync, readFileSync, statSync } from "fs";
 import { join, relative } from "path";
@@ -81,5 +82,14 @@ describe("forbidden brand literals", () => {
     expect(brand.internalOrgSlug).toBe("colloquium-internal");
     expect(brand.domain).toBeTruthy();
     expect(brand.primaryUrl).toContain(brand.domain);
+  });
+
+  it("public demo fixture copy uses the current brand, never the retired name", () => {
+    const spec = buildDemoFixtureSpec("public_demo");
+    expect(spec.name).toBe(`${brand.productName} Public Demo`);
+    expect(spec.description).toMatch(new RegExp(`^A read-only demo of ${brand.productName}\\b`));
+    expect(spec.name).not.toMatch(/ukedl/i);
+    expect(spec.description).not.toMatch(/ukedl/i);
+    expect(brand.internalOrgName).not.toMatch(/ukedl/i);
   });
 });

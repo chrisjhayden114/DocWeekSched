@@ -72,11 +72,10 @@ export const brand = {
   primaryUrl: brandPrimaryUrl,
   supportEmail: firstSet(BRAND_ENV.supportEmail) ?? `support@${brandDomain}`,
   /**
-   * Legal-entity wording is deliberately NOT renamed: the sole proprietorship
-   * behind the product is still the one named here, and entity formation is
-   * still pending. Marketing says Readyhall; the legal line says who is liable.
+   * Legal operator — the LLC that is liable, not the product name.
+   * Marketing says Readyhall; footer / terms / privacy say this string.
    */
-  legalEntity: "UKEDL (sole proprietorship; entity formation pending)",
+  legalEntity: "iQuest Learning Solutions LLC",
   logoAlt: "Readyhall logo — an octopus holding a schedule grid",
   /**
    * Public paths of the shipped brand assets, relative to apps/web/public.
@@ -95,9 +94,10 @@ export const brand = {
    * Internal org slug is never rendered publicly — keeping the original value
    * so existing seeded demo data (dev) stays owned by the same org; the
    * demo-reset org check would otherwise refuse the old demo event.
+   * The name IS the public “Hosted by …” line on the demo event.
    */
   internalOrgSlug: "colloquium-internal",
-  internalOrgName: "Platform Internal",
+  internalOrgName: "Readyhall",
   /** Honest support hours — used by ToS / security / help. */
   supportHours: "Weekdays 9:00–17:00 US Pacific. Event-day coverage is best-effort.",
   /**

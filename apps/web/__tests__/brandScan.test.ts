@@ -1,5 +1,5 @@
 /**
- * BRAND-R1 — the retired brand name must not reach a user.
+ * BRAND-R1 / BRAND-R2 — the retired brand name must not reach a user.
  *
  * A rename is the failure mode where a grep looks clean and the old name is
  * still live in the one file nobody re-reads. This scans every surface a person
@@ -7,11 +7,9 @@
  * the retired name and the retired domain, and separately pins the brand config
  * fields that carry a name into copy.
  *
- * Two things are deliberately NOT renamed and are asserted as such, so a future
- * blanket find-and-replace fails here instead of shipping:
- *  - the legal entity, which is a real sole proprietorship and the party liable;
- *  - third-party hosts (the Better Stack status page) whose subdomain renames in
- *    a provider dashboard, not in this repo.
+ * The legal operator is the LLC. The retired name must not appear there, or
+ * on any other user-visible surface. Third-party hosts (the Better Stack
+ * status page) still rename in a provider dashboard, not in this repo.
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -69,6 +67,8 @@ describe("BRAND-R1 — no retired brand on a user-visible surface", () => {
     expect(brand.domain).not.toMatch(RETIRED);
     expect(brand.primaryUrl).not.toMatch(RETIRED);
     expect(brand.supportEmail).not.toMatch(RETIRED);
+    expect(brand.internalOrgName).toBe("Readyhall");
+    expect(brand.internalOrgName).not.toMatch(RETIRED);
     expect(brand.primaryUrl).toContain(brand.domain);
     expect(brand.supportEmail).toContain(brand.domain);
   });
@@ -83,9 +83,10 @@ describe("BRAND-R1 — no retired brand on a user-visible surface", () => {
     expect(brand.shortTagline).not.toMatch(RETIRED);
   });
 
-  it("the legal entity is NOT renamed — it names the party liable, not the product", () => {
-    expect(brand.legalEntity).toContain("UKEDL");
-    expect(brand.legalEntity).toContain("sole proprietorship");
+  it("the legal entity names the LLC and never the retired brand", () => {
+    expect(brand.legalEntity).toBe("iQuest Learning Solutions LLC");
+    expect(brand.legalEntity).not.toMatch(RETIRED);
+    expect(brand.legalEntity).not.toMatch(/sole proprietorship|entity formation pending/i);
   });
 
   it("the only retired host left is the status page, and it is overridable", () => {
