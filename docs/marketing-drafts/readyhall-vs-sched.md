@@ -13,7 +13,7 @@ Sched is good software. It has been the default "just publish the schedule"
 tool for a decade, and if you are running a film festival or a tech meetup it
 may be all you need. This page is about the specific case of **academic and
 education conferences** — sessions with papers and presentations, ordered
-authors, a CFP, and a programme that arrives as a PDF or Word document three
+authors, a CFP, and a program that arrives as a PDF or Word document three
 weeks before show day.
 
 ## The short version
@@ -21,27 +21,27 @@ weeks before show day.
 Choose **Sched** if you want a mature, general-purpose schedule tool and your
 sessions are simple: one title, some speakers, a room.
 
-Choose **Readyhall** if your programme has *papers and presentations inside
+Choose **Readyhall** if your program has *papers and presentations inside
 sessions* — author or presenter order that matters, discussants, a review
-process — or if your programme already exists as a document and you would rather
+process — or if your program already exists as a document and you would rather
 not re-type it.
 
 ## What's genuinely different
 
-**1. How your programme gets in.**
+**1. How your program gets in.**
 In Sched, you build sessions one at a time or import a spreadsheet where one
 row equals one session and participants are joined in a single column. For a
 paper session with four papers and nine ordered authors, that model has
 nowhere to put the structure.
-In Readyhall, you upload the programme you already have — PDF, Word, Excel, CSV,
+In Readyhall, you upload the program you already have — PDF, Word, Excel, CSV,
 or pasted text. The AI extracts sessions, papers, presentations, authors, rooms
 and tracks into a reviewable draft; nothing publishes until you approve it. A real
-7-page programme becomes a reviewable 22-session draft in about two minutes.
+7-page program becomes a reviewable 22-session draft in about two minutes.
 
 **2. Papers and presentations as first-class records.**
 Readyhall models papers and presentations *inside* sessions with ordered authors
 or presenters and discussants —
-the parent/child structure academic programmes actually use. Sched's data
+the parent/child structure academic programs actually use. Sched's data
 model has no paper object; papers become text in a description field.
 
 **3. Pricing.**
@@ -77,6 +77,6 @@ account model is what you need, pick Sched.
 
 ## Try the difference
 
-Paste your real programme into the demo at readyhall.com — the extraction runs in
+Paste your real program into the demo at readyhall.com — the extraction runs in
 your browser against your actual document. If it doesn't save you an
 afternoon, use Sched with our blessing.

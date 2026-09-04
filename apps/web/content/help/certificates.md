@@ -15,7 +15,7 @@ Certificates are included on Per-event plans and above. The **PD day / Training*
 
 On the **Certificates** tab of your event, create a template: a name for your own reference, who is eligible, optional hours — and one of two designs.
 
-**The built-in layout** needs no design work. You give it the title text, optional body text, and an optional signature image, and issued PDFs use this event's **accent colour** and **logo**. If neither is set, the certificate uses the platform layout — see [Brand your event](/help/event-branding).
+**The built-in layout** needs no design work. You give it the title text, optional body text, and an optional signature image, and issued PDFs use this event's **accent color** and **logo**. If neither is set, the certificate uses the platform layout — see [Brand your event](/help/event-branding).
 
 **Your own design** is described in the next section.
 
@@ -25,9 +25,9 @@ Most organizers already have a certificate: they made it in Canva, or a colleagu
 
 Switch **Design** to *Your own design*, pick landscape or portrait, and upload the PNG or JPG. A preview appears immediately with a sample name on it, and three controls change how that name is drawn:
 
-- **Name position** — a slider that moves the name up and down. The name is always centred left-to-right; there is no draggable box in this version.
+- **Name position** — a slider that moves the name up and down. The name is always centered left-to-right; there is no draggable box in this version.
 - **Name size** — a stepper, in points.
-- **Name colour** — dark or light, for pale and dark designs respectively.
+- **Name color** — dark or light, for pale and dark designs respectively.
 
 What you see in the preview is what renders: the preview and the PDF share the same placement code, so they cannot drift apart.
 
@@ -40,7 +40,7 @@ Practical limits, stated plainly:
 
 The built-in layout remains the no-design-needed path, and switching between the two kinds never affects eligibility, issuing, the ready email, or the verify page.
 
-## Eligibility — registration, not the door
+## Eligibility — one rule per template
 
 A template has one rule. Session rules count **joins** (the person registered for the session), not a staff scan at the door:
 
@@ -59,6 +59,8 @@ The ready email carries a link to the public verify page (and a note that they c
 ## Public verify
 
 Anyone with the certificate id can open `/verify/<id>` and see whether it matches a certificate we can confirm — name, event, date, optional hours. No account is required.
+
+A certificate on the built-in layout prints that address on the page itself — a **Verify at** line under the certificate id — so the credential carries its proof wherever it is forwarded or printed. On your own design the name is still the only thing we overlay, so put a verify line in the artwork if you want one on the page.
 
 ## Honest limits
 

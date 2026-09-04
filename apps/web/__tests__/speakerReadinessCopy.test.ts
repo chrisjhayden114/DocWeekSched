@@ -68,6 +68,10 @@ describe("Speaker Readiness reminder copy stays in sync (MKT-2)", () => {
     const home = readFileSync(join(__dirname, "../pages/index.tsx"), "utf8");
     expect(home).not.toContain("speakerReadinessPilotMailto");
     expect(home).not.toMatch(/Ask about a Speaker Readiness/);
-    expect(home).toContain("In every plan — Free includes your first 10 presenters.");
+    expect(home).toContain("In every plan");
+    // SITE-COPY-2 #20 — the cap comes from the same catalog entry
+    // /speaker-readiness reads, so the number can never be typed twice.
+    expect(home).toContain("PLAN_BY_SKU.free.limits.readinessPresentersPerEvent");
+    expect(home).not.toMatch(/first 10 presenters/);
   });
 });

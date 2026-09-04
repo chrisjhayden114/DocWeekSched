@@ -2,11 +2,12 @@
 title: Let attendees pick one session per block
 description: Turn the agenda into a slot-by-slot chooser so attendees select one workshop per parallel block.
 order: 3
+category: organizer
 ---
 
 # Let attendees pick one session per block
 
-On a PD day or a workshop programme, attendees don't browse a card wall — they pick one workshop per block. **Pick-one breakouts** turns the agenda into a slot-by-slot chooser that matches how those days actually run.
+On a PD day or a workshop program, attendees don't browse a card wall — they pick one workshop per block. **Pick-one breakouts** turns the agenda into a slot-by-slot chooser that matches how those days actually run.
 
 ## What counts as a block
 
@@ -32,7 +33,7 @@ On the **Agenda** tab, each block appears as a chooser:
 
 1. Open the block — the header reads **Choose your session (N options)**.
 2. Choose **Join** on the workshop you want.
-3. The block collapses to show your pick, labelled **Your choice ✓**.
+3. The block collapses to show your pick, labeled **Your choice ✓**.
 
 Blocks with more than eight options get a filter box so attendees can search by title, speaker, or room.
 
@@ -49,5 +50,5 @@ If the new workshop is full, they'll be offered the waitlist instead, and the sw
 ## Honest limits
 
 - The chooser is the **list** view of the event schedule. On a wide screen, attendees who switch to **Grid** or **By room** see the ordinary agenda, where nothing stops them joining two sessions in the same block.
-- Nothing on the server enforces one-per-block. Treat this as a much clearer way to present a breakout programme, not as a hard constraint you can rely on for catering numbers.
+- Nothing on the server enforces one-per-block. Treat this as a much clearer way to present a breakout program, not as a hard constraint you can rely on for catering numbers.
 - Session capacity and waitlists work exactly as they do elsewhere; see [Attendee FAQ](/help/attendee-faq).

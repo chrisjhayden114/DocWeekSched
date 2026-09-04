@@ -1,5 +1,5 @@
 import { brand, marketingSeo } from "@event-app/config";
-import { FEATURE_BY_KEY, featureGuideGroups } from "@event-app/shared";
+import { FEATURE_BY_KEY, featureGuideGroups, getFeatureGuide } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
 import { FeatureArt } from "../../components/featureArt";
@@ -75,7 +75,7 @@ export default function FeatureGuidePage() {
                       ) : null}
                       {!planned && imageSrc ? (
                         <div className="feature-guide-page-art">
-                          <img src={imageSrc} alt="" loading="lazy" />
+                          <img src={imageSrc} alt={getFeatureGuide(key).imageAlt ?? ""} loading="lazy" />
                         </div>
                       ) : null}
                       {!planned && !imageSrc ? (

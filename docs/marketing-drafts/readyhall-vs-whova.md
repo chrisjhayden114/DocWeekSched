@@ -20,7 +20,7 @@ scholarly and education events.
 Choose **Whova** if engagement mechanics are the point: leaderboards, contests,
 sponsor activations, an exhibitor hall.
 
-Choose **Readyhall** if your attendees are colleagues who want the programme, their
+Choose **Readyhall** if your attendees are colleagues who want the program, their
 own schedule, and quiet — with networking there when they want it, not forced on
 everyone — and you want to know the price without a sales call.
 
@@ -44,10 +44,10 @@ Papers and presentations nested in sessions with ordered authors or
 presenters, plus discussants; CFP with
 review and decisions; certificates; per-session in-person/virtual/async
 attendance. Whova is broader; for the specific shape of a scholarly
-programme, Readyhall is deeper.
+program, Readyhall is deeper.
 
-**4. Programme import.**
-Upload the PDF or Word programme you already have; the AI drafts sessions,
+**4. Program import.**
+Upload the PDF or Word program you already have; the AI drafts sessions,
 papers, presentations, authors, rooms and tracks for your review. Whova's strongest academic
 asset is direct HotCRP/OpenReview import — if your workflow lives in HotCRP,
 that is a genuine point in Whova's favour.

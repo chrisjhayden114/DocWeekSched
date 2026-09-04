@@ -14,6 +14,7 @@ export const HELP_SOURCE: Record<string, string> = {
 title: Getting started
 description: Create an organization, build your first event, invite attendees, and publish.
 order: 1
+category: organizer
 ---
 
 # Getting started
@@ -51,12 +52,12 @@ From the dashboard, use **Invite** to send links (email when configured). Inviti
 
 ## 4. Publish
 
-When the agenda looks right, publish the event so \`/e/your-slug\` is public. Publishing the event also publishes any **draft sessions** (for example, sessions created by Agenda ingest), so attendees see the full program. Draft sessions are labelled **Draft** on the Program tab; if you import more sessions after the event is live, use **Publish draft sessions** there to make them visible. Publishing marks **Publish** on the checklist.
+When the agenda looks right, publish the event so \`/e/your-slug\` is public. Publishing the event also publishes any **draft sessions** (for example, sessions created by Agenda ingest), so attendees see the full program. Draft sessions are labeled **Draft** on the Program tab; if you import more sessions after the event is live, use **Publish draft sessions** there to make them visible. Publishing marks **Publish** on the checklist.
 
 ## Where next
 
-- [Brand your event](/help/event-branding) — banner, logo, and accent colour.
-- [Let attendees pick one session per block](/help/breakout-pick-one) — for PD days and workshop programmes.
+- [Brand your event](/help/event-branding) — banner, logo, and accent color.
+- [Let attendees pick one session per block](/help/breakout-pick-one) — for PD days and workshop programs.
 - [Collect materials from presenters](/help/speaker-readiness) — stop chasing bios and slides by hand.
 - [Send sponsor outreach](/help/send-sponsor-outreach) — write the ask; you send it from your own address.
 - [Feature Guide](/help/feature-guide) — what each event feature does, where people see it, and what stays when you turn it off.
@@ -68,12 +69,13 @@ Explore a read-only sample conference at [/e/demo](/e/demo) — no account requi
 
 ## Need help?
 
-Email [{{support}}](mailto:{{support}}). Support hours: {{hours}}.
+Email [{{support}}](mailto:{{support}}). Support hours: {{hours}}
 `,
   "agenda-generator": `---
 title: Draft an agenda from a description
 description: No program file yet? Describe your days, rooms, and parallel blocks and review a drafted agenda.
 order: 2
+category: organizer
 ---
 
 # Draft an agenda from a description
@@ -133,11 +135,12 @@ Already have a program in a file? Use the **Upload file**, **Paste text**, **Fet
 title: Let attendees pick one session per block
 description: Turn the agenda into a slot-by-slot chooser so attendees select one workshop per parallel block.
 order: 3
+category: organizer
 ---
 
 # Let attendees pick one session per block
 
-On a PD day or a workshop programme, attendees don't browse a card wall — they pick one workshop per block. **Pick-one breakouts** turns the agenda into a slot-by-slot chooser that matches how those days actually run.
+On a PD day or a workshop program, attendees don't browse a card wall — they pick one workshop per block. **Pick-one breakouts** turns the agenda into a slot-by-slot chooser that matches how those days actually run.
 
 ## What counts as a block
 
@@ -163,7 +166,7 @@ On the **Agenda** tab, each block appears as a chooser:
 
 1. Open the block — the header reads **Choose your session (N options)**.
 2. Choose **Join** on the workshop you want.
-3. The block collapses to show your pick, labelled **Your choice ✓**.
+3. The block collapses to show your pick, labeled **Your choice ✓**.
 
 Blocks with more than eight options get a filter box so attendees can search by title, speaker, or room.
 
@@ -180,16 +183,19 @@ If the new workshop is full, they'll be offered the waitlist instead, and the sw
 ## Honest limits
 
 - The chooser is the **list** view of the event schedule. On a wide screen, attendees who switch to **Grid** or **By room** see the ordinary agenda, where nothing stops them joining two sessions in the same block.
-- Nothing on the server enforces one-per-block. Treat this as a much clearer way to present a breakout programme, not as a hard constraint you can rely on for catering numbers.
+- Nothing on the server enforces one-per-block. Treat this as a much clearer way to present a breakout program, not as a hard constraint you can rely on for catering numbers.
 - Session capacity and waitlists work exactly as they do elsewhere; see [Attendee FAQ](/help/attendee-faq).
 `,
   "participants-and-invites": `---
 title: Invite participants and manage the roster
 description: Invite people one at a time or from a spreadsheet, manage the roster, and define participant labels.
 order: 4
+category: organizer
 ---
 
 # Invite participants and manage the roster
+
+Build the roster weeks early and invite on your schedule — adding people and emailing them are separate steps, so nobody gets a premature invite.
 
 Everything about who's coming lives on the event's **Participants** tab: invitations, the roster, and the labels attendees can pick.
 
@@ -207,7 +213,7 @@ If email delivery isn't configured for your installation, you'll get **Copy invi
 Importing a spreadsheet does **not** email anyone until you say so. You see the whole list first, choose who's included, and then pick one of two actions.
 
 1. Under **Add participants from a spreadsheet**, choose your CSV file.
-2. Check **Column mapping**. Headers like \`email\`, \`name\`, \`description\`, \`bio\`, and \`photo_url\` are detected automatically — common variants (\`e-mail\`, \`full name\`, \`role\`, \`about\`, \`avatar\`) are recognised too. A \`label\` column is picked up when your event defines participant labels. Anything else you can map yourself, or set to **Skip**.
+2. Check **Column mapping**. Headers like \`email\`, \`name\`, \`description\`, \`bio\`, and \`photo_url\` are detected automatically — common variants (\`e-mail\`, \`full name\`, \`role\`, \`about\`, \`avatar\`) are recognized too. A \`label\` column is picked up when your event defines participant labels. Anything else you can map yourself, or set to **Skip**.
 3. Read the review. Every row is checked before anything happens, and problems are listed per row: **Missing email**, **Invalid email**, **Duplicate in file**, **Already on roster**, and any label your event doesn't define.
 4. Untick anyone you don't want (**Select all** / **Select none** does the whole list), and set each person's label from the **Label** dropdown if you use labels.
 5. Choose either:
@@ -263,6 +269,7 @@ Removing a label from the list clears it from everyone who had picked it, so ret
 title: Collect materials from presenters
 description: Build a template of requirements, assign it to speakers, and let automatic reminders do the chasing.
 order: 5
+category: organizer
 ---
 
 # Collect materials from presenters
@@ -271,7 +278,7 @@ order: 5
 
 Readiness is included in every plan, Free included. Turn it on yourself: open your event, go to the **Features** tab, and enable **Speaker & Session Readiness**. The event then grows a **Readiness** tab.
 
-On the Free plan you can track up to 10 presenters in one event; every paid plan tracks as many as your programme has. Assigning a template to more presenters than your plan covers is refused with an upgrade prompt rather than half-applied.
+On the Free plan you can track up to 10 presenters in one event; every paid plan tracks as many as your program has. Assigning a template to more presenters than your plan covers is refused with an upgrade prompt rather than half-applied.
 
 If you'd rather not run it yourself, there's a concierge service — we map your data, build the templates, send the invites, and stay hands-on through your event. Rates by scale are on the [Speaker Readiness](/speaker-readiness) page; the software is in your plan either way.
 
@@ -281,7 +288,7 @@ If you'd rather not run it yourself, there's a concierge service — we map your
 2. Choose **Add requirement** for each thing you need.
 3. For each one, set a **Label** (the presenter reads this), a **Kind**, optional **Help text**, whether it's **Required**, and an optional **Due date**.
 
-Kinds cover the shapes an ask can take: **Short text**, **Long text**, **Yes/no confirmation**, **Single select**, **Multiple select**, **Date**, **URL**, **File upload**, and **Agreement**. Label them however your event talks — a **File upload** labelled "Slides", a **Short text** labelled "Short bio".
+Kinds cover the shapes an ask can take: **Short text**, **Long text**, **Yes/no confirmation**, **Single select**, **Multiple select**, **Date**, **URL**, **File upload**, and **Agreement**. Label them however your event talks — a **File upload** labeled "Slides", a **Short text** labeled "Short bio".
 
 One kind behaves differently. **Internal task (organizer-only)** is tracked by you and never shown to the presenter or included in their reminders — use it for "AV booked" or "contract signed", the items that belong on your list rather than theirs.
 
@@ -303,7 +310,9 @@ Open **Details** on a speaker, enter their **Presenter email** under **Presenter
 
 They get a personal link that works for 30 days. No account, no password, no app — see [Submit your materials as a presenter](/help/presenter-portal) for what they see, which you're welcome to forward.
 
-That email address lives on the portal invite, not on the speaker's public record, so adding a presenter to your programme and collecting from them are separate decisions.
+Presenters can upload PDF, PowerPoint, Word, or images up to 250 MB, or paste a link (Google Slides, Canva, etc.).
+
+That email address lives on the portal invite, not on the speaker's public record, so adding a presenter to your program and collecting from them are separate decisions.
 
 **Resend portal invite** issues a fresh link and the link in their last email keeps working until its own expiry, so a resend never breaks a link someone already clicked. **Revoke** kills every link for that presenter at once.
 
@@ -338,13 +347,14 @@ One caveat: a submission sitting in **Submitted**, waiting on your approval, isn
 `,
   "event-branding": `---
 title: Brand your event
-description: Add a banner, logo, and accent colour, and see exactly where each one appears.
+description: Add a banner, logo, and accent color, and see exactly where each one appears.
 order: 6
+category: organizer
 ---
 
 # Brand your event
 
-Three settings make an event look like yours: a **banner**, a **logo**, and a **brand colour**. All three are optional, and skipping them is a real choice — the neutral default is deliberately plain rather than unfinished.
+Three settings make an event look like yours: a **banner**, a **logo**, and a **brand color**. All three are optional, and skipping them is a real choice — the neutral default is deliberately plain rather than unfinished.
 
 ## Where to set them
 
@@ -361,7 +371,7 @@ The fields are **Brand color**, **Logo URL** with a **Logo upload**, and **Banne
 
 **Banner** — two places only: the hero on the attendee **Agenda** tab, and the top of your public event page. It's deliberately not on every attendee tab; a banner above every screen stops being branding and becomes furniture. The presenter portal doesn't show it either.
 
-**Brand color** — accents buttons, links, and selected states across the attendee app, your public event page, session pages, the presenter portal, issued [certificates](/help/certificates), and your own organizer console while you're inside that event. If a colour would leave button text unreadable, it's darkened automatically for the button only, so your colour survives without costing legibility.
+**Brand color** — accents buttons, links, and selected states across the attendee app, your public event page, session pages, the presenter portal, issued [certificates](/help/certificates), and your own organizer console while you're inside that event. If a color would leave button text unreadable, it's darkened automatically for the button only, so your color survives without costing legibility.
 
 There's one more place branding surfaces: when someone shares a link to your public event page, the preview image is your banner, or your logo if there's no banner.
 
@@ -376,7 +386,7 @@ Any image format your browser can read is accepted, and files are resized and co
 
 ## What attendees see with nothing set
 
-Not a gap. The hero shows your event name and dates as text, with no image band; the accent falls back to a neutral slate grey; and link previews use the platform icon. A plain event page reads as calm rather than broken, which is why the create wizard is happy for you to skip the step: "Skip this and your event wears the neutral platform look. You can add or change any of it later in Event settings."
+Not a gap. The hero shows your event name and dates as text, with no image band; the accent falls back to a neutral slate gray; and link previews use the platform icon. A plain event page reads as calm rather than broken, which is why the create wizard is happy for you to skip the step: "Skip this and your event wears the neutral platform look. You can add or change any of it later in Event settings."
 
 ## Honest limits
 
@@ -396,7 +406,7 @@ There are two, and they serve different people. The **Event assistant** helps at
 
 ## Event assistant (for attendees)
 
-A button labelled **Event assistant** sits on the attendee dashboard and session pages. It's a wayfinder for one event: "when is the keynote", "where is room 201", "what's on after lunch".
+A button labeled **Event assistant** sits on the attendee dashboard and session pages. It's a wayfinder for one event: "when is the keynote", "where is room 201", "what's on after lunch".
 
 It answers from that event's own data — the schedule, the attendee's saved agenda, rooms and venue maps, speakers, published announcements, and the FAQ you write — plus how-to guidance about using the app itself. Every reply carries the chip **AI answer — based on this event's schedule**.
 
@@ -404,7 +414,7 @@ Asked something outside that, it declines rather than guessing: "I can only help
 
 It also can't act on its own. When an attendee asks to join a session, take a waitlist place, or export their agenda, a **Confirm** button appears and the attendee presses it.
 
-**To set it up:** it's the **Event assistant** toggle on your event's **Features** tab, on by default. The same tab has two editors worth five minutes of your time — an **FAQ** the assistant will answer from, and up to three **starter** questions shown in the panel. Answers are only as good as the programme and FAQ behind them.
+**To set it up:** it's the **Event assistant** toggle on your event's **Features** tab, on by default. The same tab has two editors worth five minutes of your time — an **FAQ** the assistant will answer from, and up to three **starter** questions shown in the panel. Answers are only as good as the program and FAQ behind them.
 
 **Limits:** messages are capped in length and rate, and each plan includes a per-event allowance of assistant replies. If an event runs through its allowance, attendees are told so in the chat and the conversation history stays.
 
@@ -414,7 +424,7 @@ Same technology, different job: it knows how this console works and what your ev
 
 **Creating an event.** Choose **Use the Setup assistant** on the new-event page. It asks short questions — name, dates, timezone, what kind of event, which features — and fills a preview card as you answer. When you're ready, **Create draft event** creates it as a draft. You can switch to manual entry at any point without losing what you've typed.
 
-You can also attach a programme document — PDF, Word, spreadsheet, or an image, up to 20 MB — and it will read it to answer the setup questions for you. It doesn't build your agenda from that file at this stage: upload the same file to **Agenda ingest** after the event exists, and the full programme gets extracted there for review.
+You can also attach a program document — PDF, Word, spreadsheet, or an image, up to 20 MB — and it will read it to answer the setup questions for you. It doesn't build your agenda from that file at this stage: upload the same file to **Agenda ingest** after the event exists, and the full program gets extracted there for review.
 
 **After the event exists.** The Setup assistant is a **dock** available on every organizer console page for that event — not only Overview or Features. On **Overview** it reads your event's actual state, names the next incomplete step — rooms, speakers, venue, draft sessions, publish — and links straight to it. **Ask the setup assistant** opens the dock for questions about running the event. On the **Features** tab you can ask for feature changes in plain words; it responds with a **Review feature changes** card listing exactly what would change, and nothing is applied until you choose **Confirm changes**.
 
@@ -432,9 +442,12 @@ AI drafts content for your review, and you remain responsible for what you publi
 title: Attendee FAQ
 description: How attendees open the schedule, save sessions, and join without an app download.
 order: 8
+category: attendee
 ---
 
 # Attendee FAQ
+
+Everything you need as an attendee — joining, your schedule, check-in, and certificates — in one place.
 
 ## How do I join an event?
 
@@ -448,13 +461,21 @@ No. {{product}} works in the browser on phone and desktop.
 
 After you join, open the dashboard. **Agenda** shows the full program; save sessions to build **My Schedule**.
 
+## Which timezone are the times in?
+
+Session times can show in the event's timezone or yours — use the toggle on the Agenda.
+
+## Why does the Agenda ask me to pick one session?
+
+If your organizer enabled breakout choices, the Agenda asks you to pick one session per breakout block.
+
 ## What is the Event assistant?
 
 If your organizer enabled it, a chat button on event pages opens the **Event assistant** — a wayfinder for that event only. Ask "when is X", "where is room 201", or "what's on after lunch"; it answers from that event's schedule, rooms, maps, and organizer FAQ, and links you to the session or map. It declines questions outside the event's data rather than guessing.
 
 ## Where is my check-in QR?
 
-If your organizer enabled check-in, your personal QR sits at the top of **Profile**, labelled **Event check-in QR**. Show it at registration. Staff can also type the same code by hand.
+If your organizer enabled check-in, your personal QR sits at the top of **Profile**, labeled **Event check-in QR**. Show it at registration. Staff can also type the same code by hand.
 
 ## How do certificates arrive?
 
@@ -476,6 +497,7 @@ Ask your event organizer first (they control the program and invites). For produ
 title: Submit your materials as a presenter
 description: For speakers — how your personal link works, what to upload, and what each status means.
 order: 9
+category: speaker
 ---
 
 # Submit your materials as a presenter
@@ -486,7 +508,7 @@ You're presenting at an event and the organizer sent you a link to send them you
 
 The link in your email opens straight onto your own page. There's no account to create, no password to choose, and no app to install — the link itself is what lets you in, which is why it's personal to you and worth not forwarding.
 
-Your page lists only the items that organizer needs from you. You won't see other speakers, and it isn't the event programme.
+Your page lists only the items that organizer needs from you. You won't see other speakers, and it isn't the event program.
 
 ## The link expires after 30 days
 
@@ -496,7 +518,7 @@ If a link has expired you'll see **This link isn't available**. Nothing is lost;
 
 ## What you'll be asked for
 
-Each item is labelled by the organizer, so you'll see their words — "Short bio", "Signed agreement", "Slides". Underneath, the item gives you whatever it needs: a text box for a bio, a date, a link field, a yes/no choice, a list to pick from, or a file picker. Anything the organizer added as guidance appears under the label.
+Each item is labeled by the organizer, so you'll see their words — "Short bio", "Signed agreement", "Slides". Underneath, the item gives you whatever it needs: a text box for a bio, a date, a link field, a yes/no choice, a list to pick from, or a file picker. Anything the organizer added as guidance appears under the label.
 
 Fill it in and choose **Submit**.
 
@@ -536,6 +558,8 @@ category: organizer
 ---
 
 # Send sponsor outreach from your own email address
+
+Sponsors say yes to people, not platforms. {{product}} drafts the ask and keeps your pipeline; the email leaves from your own address.
 
 Sponsor outreach lives on the event's **Sponsors** page. You write the ask; you send it. **{{product}}** never sends these emails for you.
 
@@ -585,6 +609,8 @@ category: organizer
 ---
 
 # Track registration fees without taking the money
+
+Most organizers already have a way to get paid — a PO process, an invoice, a checkout link. Publish it and track it without handing your attendees' money to a middleman.
 
 **Registration fees** lets you tell attendees how to pay and record who has paid. {{product}} never processes, holds, or guarantees the money — attendees pay you on your own link or process. Purchase orders and checks are first-class, not a footnote.
 
@@ -648,7 +674,7 @@ Certificates are included on Per-event plans and above. The **PD day / Training*
 
 On the **Certificates** tab of your event, create a template: a name for your own reference, who is eligible, optional hours — and one of two designs.
 
-**The built-in layout** needs no design work. You give it the title text, optional body text, and an optional signature image, and issued PDFs use this event's **accent colour** and **logo**. If neither is set, the certificate uses the platform layout — see [Brand your event](/help/event-branding).
+**The built-in layout** needs no design work. You give it the title text, optional body text, and an optional signature image, and issued PDFs use this event's **accent color** and **logo**. If neither is set, the certificate uses the platform layout — see [Brand your event](/help/event-branding).
 
 **Your own design** is described in the next section.
 
@@ -658,9 +684,9 @@ Most organizers already have a certificate: they made it in Canva, or a colleagu
 
 Switch **Design** to *Your own design*, pick landscape or portrait, and upload the PNG or JPG. A preview appears immediately with a sample name on it, and three controls change how that name is drawn:
 
-- **Name position** — a slider that moves the name up and down. The name is always centred left-to-right; there is no draggable box in this version.
+- **Name position** — a slider that moves the name up and down. The name is always centered left-to-right; there is no draggable box in this version.
 - **Name size** — a stepper, in points.
-- **Name colour** — dark or light, for pale and dark designs respectively.
+- **Name color** — dark or light, for pale and dark designs respectively.
 
 What you see in the preview is what renders: the preview and the PDF share the same placement code, so they cannot drift apart.
 
@@ -673,7 +699,7 @@ Practical limits, stated plainly:
 
 The built-in layout remains the no-design-needed path, and switching between the two kinds never affects eligibility, issuing, the ready email, or the verify page.
 
-## Eligibility — registration, not the door
+## Eligibility — one rule per template
 
 A template has one rule. Session rules count **joins** (the person registered for the session), not a staff scan at the door:
 
@@ -693,6 +719,8 @@ The ready email carries a link to the public verify page (and a note that they c
 
 Anyone with the certificate id can open \`/verify/<id>\` and see whether it matches a certificate we can confirm — name, event, date, optional hours. No account is required.
 
+A certificate on the built-in layout prints that address on the page itself — a **Verify at** line under the certificate id — so the credential carries its proof wherever it is forwarded or printed. On your own design the name is still the only thing we overlay, so put a verify line in the artwork if you want one on the page.
+
 ## Honest limits
 
 - There is no separate attendee Certificates tab. Eligible people download via the link or their profile after the event.
@@ -708,13 +736,15 @@ category: organizer
 
 # Check attendees in with a QR code
 
+The line at the door is the first thing attendees experience. QR check-in keeps it moving — scan, type, or queue offline and sync later.
+
 **QR check-in** gives each attendee a personal code on their membership. Staff scan it at the door, or type the same code by hand. A person can be checked in once per event; a second read of the same code is ignored.
 
 Check-in is included on Per-event plans and above. Turn it on from the event's **Features** tab if it is off.
 
 ## Where the attendee QR lives
 
-Each attendee's check-in QR sits at the top of **Profile**, labelled **Event check-in QR**. It encodes that person's per-event check-in code — the same value you can type or paste on the scanner. Invite emails also carry the code.
+Each attendee's check-in QR sits at the top of **Profile**, labeled **Event check-in QR**. It encodes that person's per-event check-in code — the same value you can type or paste on the scanner. Invite emails also carry the code.
 
 ## The scanner page
 
@@ -752,19 +782,21 @@ category: organizer
 
 # Open a call for presentations
 
+A good program comes from a good pipeline: open a public call, review fairly (blind if you want), and turn accepts into draft sessions without retyping.
+
 The **CFP** page is where you open a public call, collect submissions, run a review, and turn accepted work into draft sessions. Creating a form turns the **Call for proposals** feature on.
 
 The **Academic program** preset turns the feature on. Organizer CFP tools stay available so you can build the call; the public form follows the Features toggle.
 
 ## What you call it
 
-The default label is **Call for Presentations**. Rename it in **Event settings → More options → What do you call it?** — Call for Papers, Call for Workshops, whatever the programme actually is. That name is used in the organizer sidebar and console headings. Public pages still show each form's own title.
+The default label is **Call for Presentations**. Rename it in **Event settings → More options → What do you call it?** — Call for Papers, Call for Workshops, whatever the program actually is. That name is used in the organizer sidebar and console headings. Public pages still show each form's own title.
 
 ## The public form
 
 The public page lives at \`/e/<slug>/cfp\`. Submitters do not need an account — they confirm by email.
 
-A form collects name, email, title, and abstract, and can include **custom fields** (short text, long text, or a choice list) that appear on that page and are stored with the submission. It can cap how many submissions one person may send, and accept attachments (PDF or Word, up to 10 MB).
+A form collects name, email, title, and abstract, and can include **custom fields** (short text, long text, or a choice list) that appear on that page and are stored with the submission. It can cap how many submissions one person may send, and accept attachments (PDF, Word, plain text, or PNG/JPEG images, up to 10 MB).
 
 ## Review criteria
 
@@ -778,7 +810,7 @@ The dashboard shows counts by status and each reviewer's completed / assigned pr
 
 ## Accept → draft session
 
-Select submissions and **Bulk accept** or **Bulk reject**. Accept queues the decision email; it does not put the work on the public programme.
+Select submissions and **Bulk accept** or **Bulk reject**. Accept queues the decision email; it does not put the work on the public program.
 
 **Convert accepted → draft program** turns selected accepts into draft sessions you then schedule on **Program** — a standalone draft session, or an item inside an existing session. You review the changeset before anything is created. Draft sessions stay hidden from attendees until you publish them.
 
@@ -795,6 +827,8 @@ category: attendee
 ---
 
 # Use Community
+
+Hallway conversations are half the reason people come. Community gives every event five purpose-built channels so they have somewhere to happen.
 
 **Community** is the shared event board. Anyone on the roster can post; organizers can edit or delete threads and replies. It is not private chat — that is **Messages**.
 
@@ -853,6 +887,8 @@ order: 16
 
 # Contact
 
+A real person reads every message.
+
 ## Email
 
 Write to [{{support}}](mailto:{{support}}).
@@ -861,7 +897,7 @@ Write to [{{support}}](mailto:{{support}}).
 
 {{hours}}
 
-We do **not** promise 24/7 live human support. On event days we provide **best-effort** assistance during support hours. For platform status, see the [status page]({{status}}); for urgent incident updates, email [{{support}}](mailto:{{support}}).
+We do **not** promise 24/7 live human support. On event days we provide **best-effort** assistance during support hours. For platform status and incident updates, watch the [status page]({{status}}) — we post there first.
 
 ## What to include
 

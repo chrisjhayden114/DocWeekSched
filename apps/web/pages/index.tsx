@@ -68,7 +68,7 @@ const SHAPES = [
   {
     eyebrow: "School PD week",
     title: "PD week or training days",
-    body: "400 staff, 20 simultaneous workshops",
+    body: "400 staff picking one of 20 simultaneous workshops per block — everyone builds their own day, nobody re-types a grid.",
     does: `${brand.productName} gives a pick-one agenda view built for that shape.`,
   },
   {
@@ -156,6 +156,8 @@ const FAQ = [
 ] as const;
 
 export default function LandingPage() {
+  // Same catalog value /speaker-readiness reads, so the two pages cannot drift.
+  const freePresenterCap = PLAN_BY_SKU.free.limits.readinessPresentersPerEvent;
   // Category-first title/description convert searchers; the hero H1 tagline below converts humans.
   const title = marketingSeo.pages.home.title;
   const description = marketingSeo.pages.home.description;
@@ -347,9 +349,14 @@ export default function LandingPage() {
                   when overdue — so nobody on your team has to write them.
                 </li>
                 <li>
-                  <strong>In every plan — Free includes your first 10 presenters.</strong> Turn it on under
-                  Features when you want it —
-                  there is nothing to ask for.
+                  <strong>
+                    In every plan
+                    {freePresenterCap == null
+                      ? ""
+                      : ` — Free includes your first ${freePresenterCap} presenters`}
+                    .
+                  </strong>{" "}
+                  Turn it on under Features when you want it — there is nothing to ask for.
                 </li>
               </ul>
               <div className="mkt-hero-cta" style={{ marginTop: 28, marginBottom: 0 }}>
@@ -370,8 +377,8 @@ export default function LandingPage() {
                 What your attendees get
               </h2>
               <p className="mkt-standfirst">
-                Sell them the day, not an app store listing. You&apos;re the one who shops this site; they get the
-                event.
+                You&apos;re the one reading this page — your attendees just get the event: tap a link, see their
+                day.
               </p>
               <ul className="mkt-trust-list">
                 <li>
@@ -437,6 +444,12 @@ export default function LandingPage() {
                   </article>
                 ))}
               </div>
+              <p style={{ margin: "24px 0 0" }}>
+                Coming from Sched or Whova? See exactly what&apos;s different:{" "}
+                <Link href="/compare/sched">{brand.productName} vs Sched</Link>
+                {" · "}
+                <Link href="/compare/whova">{brand.productName} vs Whova</Link>.
+              </p>
             </div>
           </section>
 

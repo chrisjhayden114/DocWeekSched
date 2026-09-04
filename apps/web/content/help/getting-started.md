@@ -2,6 +2,7 @@
 title: Getting started
 description: Create an organization, build your first event, invite attendees, and publish.
 order: 1
+category: organizer
 ---
 
 # Getting started
@@ -39,12 +40,12 @@ From the dashboard, use **Invite** to send links (email when configured). Inviti
 
 ## 4. Publish
 
-When the agenda looks right, publish the event so `/e/your-slug` is public. Publishing the event also publishes any **draft sessions** (for example, sessions created by Agenda ingest), so attendees see the full program. Draft sessions are labelled **Draft** on the Program tab; if you import more sessions after the event is live, use **Publish draft sessions** there to make them visible. Publishing marks **Publish** on the checklist.
+When the agenda looks right, publish the event so `/e/your-slug` is public. Publishing the event also publishes any **draft sessions** (for example, sessions created by Agenda ingest), so attendees see the full program. Draft sessions are labeled **Draft** on the Program tab; if you import more sessions after the event is live, use **Publish draft sessions** there to make them visible. Publishing marks **Publish** on the checklist.
 
 ## Where next
 
-- [Brand your event](/help/event-branding) — banner, logo, and accent colour.
-- [Let attendees pick one session per block](/help/breakout-pick-one) — for PD days and workshop programmes.
+- [Brand your event](/help/event-branding) — banner, logo, and accent color.
+- [Let attendees pick one session per block](/help/breakout-pick-one) — for PD days and workshop programs.
 - [Collect materials from presenters](/help/speaker-readiness) — stop chasing bios and slides by hand.
 - [Send sponsor outreach](/help/send-sponsor-outreach) — write the ask; you send it from your own address.
 - [Feature Guide](/help/feature-guide) — what each event feature does, where people see it, and what stays when you turn it off.
@@ -56,4 +57,4 @@ Explore a read-only sample conference at [/e/demo](/e/demo) — no account requi
 
 ## Need help?
 
-Email [{{support}}](mailto:{{support}}). Support hours: {{hours}}.
+Email [{{support}}](mailto:{{support}}). Support hours: {{hours}}

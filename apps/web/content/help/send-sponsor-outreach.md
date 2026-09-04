@@ -7,6 +7,8 @@ category: organizer
 
 # Send sponsor outreach from your own email address
 
+Sponsors say yes to people, not platforms. {{product}} drafts the ask and keeps your pipeline; the email leaves from your own address.
+
 Sponsor outreach lives on the event's **Sponsors** page. You write the ask; you send it. **{{product}}** never sends these emails for you.
 
 ## Why we don't send them

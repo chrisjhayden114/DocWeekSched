@@ -7,13 +7,15 @@ category: organizer
 
 # Check attendees in with a QR code
 
+The line at the door is the first thing attendees experience. QR check-in keeps it moving — scan, type, or queue offline and sync later.
+
 **QR check-in** gives each attendee a personal code on their membership. Staff scan it at the door, or type the same code by hand. A person can be checked in once per event; a second read of the same code is ignored.
 
 Check-in is included on Per-event plans and above. Turn it on from the event's **Features** tab if it is off.
 
 ## Where the attendee QR lives
 
-Each attendee's check-in QR sits at the top of **Profile**, labelled **Event check-in QR**. It encodes that person's per-event check-in code — the same value you can type or paste on the scanner. Invite emails also carry the code.
+Each attendee's check-in QR sits at the top of **Profile**, labeled **Event check-in QR**. It encodes that person's per-event check-in code — the same value you can type or paste on the scanner. Invite emails also carry the code.
 
 ## The scanner page
 

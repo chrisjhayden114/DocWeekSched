@@ -68,7 +68,7 @@ const LIMITS = [
 ] as const;
 
 /** Illustrative fixture for the on-page email mock — not a customer claim. */
-const MOCK_EVENT = "Regional PD Day";
+const MOCK_EVENT = "Regional Conference";
 const MOCK_PRESENTER = "Jordan Lee";
 const MOCK_ITEMS = [
   { label: "Short bio", due: readinessReminderCopy.itemDue("Mar 12, 2027") },
@@ -308,10 +308,10 @@ export default function SpeakerReadinessPage() {
                   height={520}
                   loading="lazy"
                 />
-                <figcaption className="text-meta mkt-screenshot-caption">
-                  See the five who are missing something — not the hundred who aren&apos;t.
-                </figcaption>
               </figure>
+              <p style={{ margin: "24px 0 0" }}>
+                <Link href={`/e/${brand.demoEventSlug}`}>See it live in the demo →</Link>
+              </p>
             </div>
           </section>
 

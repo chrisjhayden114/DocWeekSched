@@ -2,9 +2,12 @@
 title: Invite participants and manage the roster
 description: Invite people one at a time or from a spreadsheet, manage the roster, and define participant labels.
 order: 4
+category: organizer
 ---
 
 # Invite participants and manage the roster
+
+Build the roster weeks early and invite on your schedule — adding people and emailing them are separate steps, so nobody gets a premature invite.
 
 Everything about who's coming lives on the event's **Participants** tab: invitations, the roster, and the labels attendees can pick.
 
@@ -22,7 +25,7 @@ If email delivery isn't configured for your installation, you'll get **Copy invi
 Importing a spreadsheet does **not** email anyone until you say so. You see the whole list first, choose who's included, and then pick one of two actions.
 
 1. Under **Add participants from a spreadsheet**, choose your CSV file.
-2. Check **Column mapping**. Headers like `email`, `name`, `description`, `bio`, and `photo_url` are detected automatically — common variants (`e-mail`, `full name`, `role`, `about`, `avatar`) are recognised too. A `label` column is picked up when your event defines participant labels. Anything else you can map yourself, or set to **Skip**.
+2. Check **Column mapping**. Headers like `email`, `name`, `description`, `bio`, and `photo_url` are detected automatically — common variants (`e-mail`, `full name`, `role`, `about`, `avatar`) are recognized too. A `label` column is picked up when your event defines participant labels. Anything else you can map yourself, or set to **Skip**.
 3. Read the review. Every row is checked before anything happens, and problems are listed per row: **Missing email**, **Invalid email**, **Duplicate in file**, **Already on roster**, and any label your event doesn't define.
 4. Untick anyone you don't want (**Select all** / **Select none** does the whole list), and set each person's label from the **Label** dropdown if you use labels.
 5. Choose either:

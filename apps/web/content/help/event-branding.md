@@ -1,12 +1,13 @@
 ---
 title: Brand your event
-description: Add a banner, logo, and accent colour, and see exactly where each one appears.
+description: Add a banner, logo, and accent color, and see exactly where each one appears.
 order: 6
+category: organizer
 ---
 
 # Brand your event
 
-Three settings make an event look like yours: a **banner**, a **logo**, and a **brand colour**. All three are optional, and skipping them is a real choice — the neutral default is deliberately plain rather than unfinished.
+Three settings make an event look like yours: a **banner**, a **logo**, and a **brand color**. All three are optional, and skipping them is a real choice — the neutral default is deliberately plain rather than unfinished.
 
 ## Where to set them
 
@@ -23,7 +24,7 @@ The fields are **Brand color**, **Logo URL** with a **Logo upload**, and **Banne
 
 **Banner** — two places only: the hero on the attendee **Agenda** tab, and the top of your public event page. It's deliberately not on every attendee tab; a banner above every screen stops being branding and becomes furniture. The presenter portal doesn't show it either.
 
-**Brand color** — accents buttons, links, and selected states across the attendee app, your public event page, session pages, the presenter portal, issued [certificates](/help/certificates), and your own organizer console while you're inside that event. If a colour would leave button text unreadable, it's darkened automatically for the button only, so your colour survives without costing legibility.
+**Brand color** — accents buttons, links, and selected states across the attendee app, your public event page, session pages, the presenter portal, issued [certificates](/help/certificates), and your own organizer console while you're inside that event. If a color would leave button text unreadable, it's darkened automatically for the button only, so your color survives without costing legibility.
 
 There's one more place branding surfaces: when someone shares a link to your public event page, the preview image is your banner, or your logo if there's no banner.
 
@@ -38,7 +39,7 @@ Any image format your browser can read is accepted, and files are resized and co
 
 ## What attendees see with nothing set
 
-Not a gap. The hero shows your event name and dates as text, with no image band; the accent falls back to a neutral slate grey; and link previews use the platform icon. A plain event page reads as calm rather than broken, which is why the create wizard is happy for you to skip the step: "Skip this and your event wears the neutral platform look. You can add or change any of it later in Event settings."
+Not a gap. The hero shows your event name and dates as text, with no image band; the accent falls back to a neutral slate gray; and link previews use the platform icon. A plain event page reads as calm rather than broken, which is why the create wizard is happy for you to skip the step: "Skip this and your event wears the neutral platform look. You can add or change any of it later in Event settings."
 
 ## Honest limits
 

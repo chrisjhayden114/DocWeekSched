@@ -331,7 +331,7 @@ export function CertificatesTab({
             />
             <span className="help-text">
               {form.kind === "TEXT"
-                ? "We lay out the certificate using your event's accent colour and logo. Nothing to design."
+                ? "We lay out the certificate using your event's accent color and logo. Nothing to design."
                 : CERTIFICATE_NAME_ONLY_NOTE}
             </span>
           </div>
@@ -493,7 +493,7 @@ export function CertificatesTab({
                 </div>
 
                 <div>
-                  <span className="field-label-text">Name colour</span>
+                  <span className="field-label-text">Name color</span>
                   <div className="cert-swatches">
                     <button
                       type="button"

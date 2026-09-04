@@ -2,6 +2,7 @@
 title: Submit your materials as a presenter
 description: For speakers — how your personal link works, what to upload, and what each status means.
 order: 9
+category: speaker
 ---
 
 # Submit your materials as a presenter
@@ -12,7 +13,7 @@ You're presenting at an event and the organizer sent you a link to send them you
 
 The link in your email opens straight onto your own page. There's no account to create, no password to choose, and no app to install — the link itself is what lets you in, which is why it's personal to you and worth not forwarding.
 
-Your page lists only the items that organizer needs from you. You won't see other speakers, and it isn't the event programme.
+Your page lists only the items that organizer needs from you. You won't see other speakers, and it isn't the event program.
 
 ## The link expires after 30 days
 
@@ -22,7 +23,7 @@ If a link has expired you'll see **This link isn't available**. Nothing is lost;
 
 ## What you'll be asked for
 
-Each item is labelled by the organizer, so you'll see their words — "Short bio", "Signed agreement", "Slides". Underneath, the item gives you whatever it needs: a text box for a bio, a date, a link field, a yes/no choice, a list to pick from, or a file picker. Anything the organizer added as guidance appears under the label.
+Each item is labeled by the organizer, so you'll see their words — "Short bio", "Signed agreement", "Slides". Underneath, the item gives you whatever it needs: a text box for a bio, a date, a link field, a yes/no choice, a list to pick from, or a file picker. Anything the organizer added as guidance appears under the label.
 
 Fill it in and choose **Submit**.
 

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { brand } from "@event-app/config";
 import { FEATURE_BY_KEY, FEATURE_GUIDE, FEATURE_REGISTRY, featureGuideGroups, featureGuideImageSrcs, type FeatureKey } from "@event-app/shared";
 import { applyBrandTokens } from "../lib/brandTokens";
+import { featureGuideImage } from "../lib/featureGuideImage";
 import { pngSize } from "../screenshot-frame";
 
 const KEYS = FEATURE_REGISTRY.map((f) => f.key);
@@ -54,6 +55,24 @@ describe("K-2.1 — Feature Guide completeness", () => {
       if (guide.imageSrc != null) {
         expect(guide.imageSrc.trim(), `${key}.imageSrc`).not.toBe("");
       }
+    }
+  });
+
+  // SITE-COPY-2 #9 — /help/feature-guide renders these screenshots as content,
+  // not decoration, so every one a reader can reach has to describe itself.
+  it("every screenshot the page renders carries alt text", () => {
+    for (const key of KEYS) {
+      const hasImage = featureGuideImage(key) != null;
+      const alt = FEATURE_GUIDE[key].imageAlt;
+      if (!hasImage) {
+        expect(alt, `${key} renders no screenshot, so alt text would describe nothing`).toBeUndefined();
+        continue;
+      }
+      expect(alt?.trim(), `${key}.imageAlt`).toBeTruthy();
+      // Alt that only repeats the feature name tells a screen reader nothing.
+      expect(alt?.trim().toLowerCase(), `${key}.imageAlt`).not.toBe(
+        FEATURE_BY_KEY[key as FeatureKey].name.toLowerCase(),
+      );
     }
   });
 

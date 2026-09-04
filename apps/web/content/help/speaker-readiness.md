@@ -2,6 +2,7 @@
 title: Collect materials from presenters
 description: Build a template of requirements, assign it to speakers, and let automatic reminders do the chasing.
 order: 5
+category: organizer
 ---
 
 # Collect materials from presenters
@@ -10,7 +11,7 @@ order: 5
 
 Readiness is included in every plan, Free included. Turn it on yourself: open your event, go to the **Features** tab, and enable **Speaker & Session Readiness**. The event then grows a **Readiness** tab.
 
-On the Free plan you can track up to 10 presenters in one event; every paid plan tracks as many as your programme has. Assigning a template to more presenters than your plan covers is refused with an upgrade prompt rather than half-applied.
+On the Free plan you can track up to 10 presenters in one event; every paid plan tracks as many as your program has. Assigning a template to more presenters than your plan covers is refused with an upgrade prompt rather than half-applied.
 
 If you'd rather not run it yourself, there's a concierge service — we map your data, build the templates, send the invites, and stay hands-on through your event. Rates by scale are on the [Speaker Readiness](/speaker-readiness) page; the software is in your plan either way.
 
@@ -20,7 +21,7 @@ If you'd rather not run it yourself, there's a concierge service — we map your
 2. Choose **Add requirement** for each thing you need.
 3. For each one, set a **Label** (the presenter reads this), a **Kind**, optional **Help text**, whether it's **Required**, and an optional **Due date**.
 
-Kinds cover the shapes an ask can take: **Short text**, **Long text**, **Yes/no confirmation**, **Single select**, **Multiple select**, **Date**, **URL**, **File upload**, and **Agreement**. Label them however your event talks — a **File upload** labelled "Slides", a **Short text** labelled "Short bio".
+Kinds cover the shapes an ask can take: **Short text**, **Long text**, **Yes/no confirmation**, **Single select**, **Multiple select**, **Date**, **URL**, **File upload**, and **Agreement**. Label them however your event talks — a **File upload** labeled "Slides", a **Short text** labeled "Short bio".
 
 One kind behaves differently. **Internal task (organizer-only)** is tracked by you and never shown to the presenter or included in their reminders — use it for "AV booked" or "contract signed", the items that belong on your list rather than theirs.
 
@@ -42,7 +43,9 @@ Open **Details** on a speaker, enter their **Presenter email** under **Presenter
 
 They get a personal link that works for 30 days. No account, no password, no app — see [Submit your materials as a presenter](/help/presenter-portal) for what they see, which you're welcome to forward.
 
-That email address lives on the portal invite, not on the speaker's public record, so adding a presenter to your programme and collecting from them are separate decisions.
+Presenters can upload PDF, PowerPoint, Word, or images up to 250 MB, or paste a link (Google Slides, Canva, etc.).
+
+That email address lives on the portal invite, not on the speaker's public record, so adding a presenter to your program and collecting from them are separate decisions.
 
 **Resend portal invite** issues a fresh link and the link in their last email keeps working until its own expiry, so a resend never breaks a link someone already clicked. **Revoke** kills every link for that presenter at once.
 

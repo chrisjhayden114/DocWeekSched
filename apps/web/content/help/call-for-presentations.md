@@ -7,19 +7,21 @@ category: organizer
 
 # Open a call for presentations
 
+A good program comes from a good pipeline: open a public call, review fairly (blind if you want), and turn accepts into draft sessions without retyping.
+
 The **CFP** page is where you open a public call, collect submissions, run a review, and turn accepted work into draft sessions. Creating a form turns the **Call for proposals** feature on.
 
 The **Academic program** preset turns the feature on. Organizer CFP tools stay available so you can build the call; the public form follows the Features toggle.
 
 ## What you call it
 
-The default label is **Call for Presentations**. Rename it in **Event settings → More options → What do you call it?** — Call for Papers, Call for Workshops, whatever the programme actually is. That name is used in the organizer sidebar and console headings. Public pages still show each form's own title.
+The default label is **Call for Presentations**. Rename it in **Event settings → More options → What do you call it?** — Call for Papers, Call for Workshops, whatever the program actually is. That name is used in the organizer sidebar and console headings. Public pages still show each form's own title.
 
 ## The public form
 
 The public page lives at `/e/<slug>/cfp`. Submitters do not need an account — they confirm by email.
 
-A form collects name, email, title, and abstract, and can include **custom fields** (short text, long text, or a choice list) that appear on that page and are stored with the submission. It can cap how many submissions one person may send, and accept attachments (PDF or Word, up to 10 MB).
+A form collects name, email, title, and abstract, and can include **custom fields** (short text, long text, or a choice list) that appear on that page and are stored with the submission. It can cap how many submissions one person may send, and accept attachments (PDF, Word, plain text, or PNG/JPEG images, up to 10 MB).
 
 ## Review criteria
 
@@ -33,7 +35,7 @@ The dashboard shows counts by status and each reviewer's completed / assigned pr
 
 ## Accept → draft session
 
-Select submissions and **Bulk accept** or **Bulk reject**. Accept queues the decision email; it does not put the work on the public programme.
+Select submissions and **Bulk accept** or **Bulk reject**. Accept queues the decision email; it does not put the work on the public program.
 
 **Convert accepted → draft program** turns selected accepts into draft sessions you then schedule on **Program** — a standalone draft session, or an item inside an existing session. You review the changeset before anything is created. Draft sessions stay hidden from attendees until you publish them.
 

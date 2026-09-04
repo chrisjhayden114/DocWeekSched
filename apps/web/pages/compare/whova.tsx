@@ -50,7 +50,7 @@ export default function CompareWhovaPage() {
             </p>
             <p>
               Choose <strong>{brand.productName}</strong> if your attendees are colleagues who want
-              the programme, their own schedule, and quiet — with networking there when they want
+              the program, their own schedule, and quiet — with networking there when they want
               it, not forced on everyone — and you want to know the price without a sales call.
             </p>
 
@@ -79,12 +79,12 @@ export default function CompareWhovaPage() {
               Papers and presentations nested in sessions with ordered authors or presenters, plus
               discussants; CFP with review and decisions; certificates; per-session
               in-person/virtual/async attendance. Whova is broader; for the specific shape of a
-              scholarly programme, {brand.productName} is deeper.
+              scholarly program, {brand.productName} is deeper.
             </p>
             <p>
-              <strong>4. Programme import.</strong>
+              <strong>4. Program import.</strong>
               <br />
-              Upload the PDF or Word programme you already have; the AI drafts sessions, papers,
+              Upload the PDF or Word program you already have; the AI drafts sessions, papers,
               presentations, authors, rooms and tracks for your review. Whova&apos;s strongest academic asset is
               direct HotCRP/OpenReview import — if your workflow lives in HotCRP, that is a genuine
               point in Whova&apos;s favour.
@@ -144,7 +144,7 @@ export default function CompareWhovaPage() {
               {" · "}
               <Link href="/pricing">Pricing</Link>
               {" · "}
-              <Link href="/">Paste your real programme into the demo</Link>
+              <Link href="/">Paste your real program into the demo</Link>
             </p>
           </article>
         </main>

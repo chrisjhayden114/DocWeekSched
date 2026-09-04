@@ -498,7 +498,7 @@ export default function StyleguidePage() {
           <div style={{ maxWidth: 560, border: "1px solid var(--gray-200)", borderRadius: "var(--radius-card)" }}>
             <EmptyState
               title="Invite your first speaker"
-              body="Speakers you add appear here with their sessions and papers. Import a programme or add one by hand."
+              body="Speakers you add appear here with their sessions and papers. Import a program or add one by hand."
               icon={<DemoIcon d={ICON_PEOPLE} />}
               actionLabel="Add speaker"
               onAction={() => undefined}

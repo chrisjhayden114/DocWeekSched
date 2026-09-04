@@ -122,8 +122,15 @@ export default function PricingPage() {
                 Open pricing
               </h1>
               <p className="mkt-standfirst">
+                Every plan includes the same core: send, paste, or describe your program and it&apos;s
+                live today — and Speaker Readiness, so presenters get ready without the chase.
+              </p>
+              <p className="mkt-standfirst">
                 Catalog amounts match what we charge before tax. Checkout is handled by Stripe
-                (merchant of record) — they collect payment and applicable sales tax/VAT.
+                (merchant of record) — they collect payment and applicable sales tax/VAT. (That&apos;s
+                checkout for your {brand.productName} plan. Attendee registration fees are different:
+                you publish payment instructions and {brand.productName} tracks who&apos;s paid — we
+                never process attendee money.)
               </p>
 
               <section className="mkt-price-lock" aria-labelledby="price-lock-heading">

@@ -10,7 +10,7 @@ There are two, and they serve different people. The **Event assistant** helps at
 
 ## Event assistant (for attendees)
 
-A button labelled **Event assistant** sits on the attendee dashboard and session pages. It's a wayfinder for one event: "when is the keynote", "where is room 201", "what's on after lunch".
+A button labeled **Event assistant** sits on the attendee dashboard and session pages. It's a wayfinder for one event: "when is the keynote", "where is room 201", "what's on after lunch".
 
 It answers from that event's own data — the schedule, the attendee's saved agenda, rooms and venue maps, speakers, published announcements, and the FAQ you write — plus how-to guidance about using the app itself. Every reply carries the chip **AI answer — based on this event's schedule**.
 
@@ -18,7 +18,7 @@ Asked something outside that, it declines rather than guessing: "I can only help
 
 It also can't act on its own. When an attendee asks to join a session, take a waitlist place, or export their agenda, a **Confirm** button appears and the attendee presses it.
 
-**To set it up:** it's the **Event assistant** toggle on your event's **Features** tab, on by default. The same tab has two editors worth five minutes of your time — an **FAQ** the assistant will answer from, and up to three **starter** questions shown in the panel. Answers are only as good as the programme and FAQ behind them.
+**To set it up:** it's the **Event assistant** toggle on your event's **Features** tab, on by default. The same tab has two editors worth five minutes of your time — an **FAQ** the assistant will answer from, and up to three **starter** questions shown in the panel. Answers are only as good as the program and FAQ behind them.
 
 **Limits:** messages are capped in length and rate, and each plan includes a per-event allowance of assistant replies. If an event runs through its allowance, attendees are told so in the chat and the conversation history stays.
 
@@ -28,7 +28,7 @@ Same technology, different job: it knows how this console works and what your ev
 
 **Creating an event.** Choose **Use the Setup assistant** on the new-event page. It asks short questions — name, dates, timezone, what kind of event, which features — and fills a preview card as you answer. When you're ready, **Create draft event** creates it as a draft. You can switch to manual entry at any point without losing what you've typed.
 
-You can also attach a programme document — PDF, Word, spreadsheet, or an image, up to 20 MB — and it will read it to answer the setup questions for you. It doesn't build your agenda from that file at this stage: upload the same file to **Agenda ingest** after the event exists, and the full programme gets extracted there for review.
+You can also attach a program document — PDF, Word, spreadsheet, or an image, up to 20 MB — and it will read it to answer the setup questions for you. It doesn't build your agenda from that file at this stage: upload the same file to **Agenda ingest** after the event exists, and the full program gets extracted there for review.
 
 **After the event exists.** The Setup assistant is a **dock** available on every organizer console page for that event — not only Overview or Features. On **Overview** it reads your event's actual state, names the next incomplete step — rooms, speakers, venue, draft sessions, publish — and links straight to it. **Ask the setup assistant** opens the dock for questions about running the event. On the **Features** tab you can ask for feature changes in plain words; it responds with a **Review feature changes** card listing exactly what would change, and nothing is applied until you choose **Confirm changes**.
 

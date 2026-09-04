@@ -92,7 +92,7 @@ export const ORGANIZER_GUIDE: AppGuideEntry[] = [
     id: "certificates",
     topic: "Certificates",
     href: "/organizer/events/{eventId}?tab=recap",
-    text: "If your plan includes it, define eligibility (any check-in, a minimum number of joined sessions, or a required-session list), then batch-issue from Recap. Eligible people get an email with a download link; anyone can confirm a certificate on the public /verify page. PDFs use this event's accent colour and logo.",
+    text: "If your plan includes it, define eligibility (any check-in, a minimum number of joined sessions, or a required-session list), then batch-issue from Recap. Eligible people get an email with a download link; anyone can confirm a certificate on the public /verify page. PDFs use this event's accent color and logo.",
   },
   {
     id: "maps-tab",

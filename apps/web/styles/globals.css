@@ -5762,13 +5762,6 @@ button.schedule-meta-chip:hover {
   height: auto;
 }
 
-.mkt-screenshot-caption {
-  display: block;
-  padding: 12px 16px 16px;
-  background: #ffffff;
-  border-top: 1px solid var(--gray-100);
-}
-
 .mkt-draft-banner {
   display: inline-block;
   margin: 0 0 12px;

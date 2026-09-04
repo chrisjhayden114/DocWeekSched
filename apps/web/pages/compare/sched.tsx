@@ -41,7 +41,7 @@ export default function CompareSchedPage() {
               for a decade, and if you are running a film festival or a tech meetup it may be all you
               need. This page is about the specific case of <strong>academic and education
               conferences</strong> — sessions with papers and presentations, ordered authors, a CFP,
-              and a programme that arrives as a PDF or Word document three weeks before show day.
+              and a program that arrives as a PDF or Word document three weeks before show day.
             </p>
 
             <h2>The short version</h2>
@@ -50,30 +50,30 @@ export default function CompareSchedPage() {
               your sessions are simple: one title, some speakers, a room.
             </p>
             <p>
-              Choose <strong>{brand.productName}</strong> if your programme has <em>papers and
+              Choose <strong>{brand.productName}</strong> if your program has <em>papers and
               presentations inside sessions</em> — author or presenter order that matters,
-              discussants, a review process — or if your programme already exists as a document and
+              discussants, a review process — or if your program already exists as a document and
               you would rather not re-type it.
             </p>
 
             <h2>What&apos;s genuinely different</h2>
             <p>
-              <strong>1. How your programme gets in.</strong>
+              <strong>1. How your program gets in.</strong>
               <br />
               In Sched, you build sessions one at a time or import a spreadsheet where one row equals
               one session and participants are joined in a single column. For a paper session with
               four papers and nine ordered authors, that model has nowhere to put the structure. In{" "}
-              {brand.productName}, you upload the programme you already have — PDF, Word, Excel, CSV,
+              {brand.productName}, you upload the program you already have — PDF, Word, Excel, CSV,
               or pasted text. The AI extracts sessions, papers, presentations, authors, rooms and
               tracks into a reviewable draft; nothing publishes until you approve it. A real 7-page
-              programme becomes a reviewable 22-session draft in about two minutes.
+              program becomes a reviewable 22-session draft in about two minutes.
             </p>
             <p>
               <strong>2. Papers and presentations as first-class records.</strong>
               <br />
               {brand.productName} models papers and presentations <em>inside</em> sessions with
               ordered authors or presenters and discussants — the parent/child structure academic
-              programmes actually use. Sched&apos;s data model has no paper object; papers become
+              programs actually use. Sched&apos;s data model has no paper object; papers become
               text in a description field.
             </p>
             <p>
@@ -117,7 +117,7 @@ export default function CompareSchedPage() {
 
             <h2>Try the difference</h2>
             <p>
-              Paste your real programme into the demo at <Link href="/">{brand.domain}</Link> — the
+              Paste your real program into the demo at <Link href="/">{brand.domain}</Link> — the
               extraction runs in your browser against your actual document. If it doesn&apos;t save
               you an afternoon, use Sched with our blessing.
             </p>
@@ -127,7 +127,7 @@ export default function CompareSchedPage() {
               {" · "}
               <Link href="/pricing">Pricing</Link>
               {" · "}
-              <Link href="/">Paste your real programme into the demo</Link>
+              <Link href="/">Paste your real program into the demo</Link>
             </p>
           </article>
         </main>

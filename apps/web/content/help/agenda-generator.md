@@ -2,6 +2,7 @@
 title: Draft an agenda from a description
 description: No program file yet? Describe your days, rooms, and parallel blocks and review a drafted agenda.
 order: 2
+category: organizer
 ---
 
 # Draft an agenda from a description

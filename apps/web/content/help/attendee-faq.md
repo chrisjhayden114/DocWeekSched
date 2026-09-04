@@ -2,9 +2,12 @@
 title: Attendee FAQ
 description: How attendees open the schedule, save sessions, and join without an app download.
 order: 8
+category: attendee
 ---
 
 # Attendee FAQ
+
+Everything you need as an attendee — joining, your schedule, check-in, and certificates — in one place.
 
 ## How do I join an event?
 
@@ -18,13 +21,21 @@ No. {{product}} works in the browser on phone and desktop.
 
 After you join, open the dashboard. **Agenda** shows the full program; save sessions to build **My Schedule**.
 
+## Which timezone are the times in?
+
+Session times can show in the event's timezone or yours — use the toggle on the Agenda.
+
+## Why does the Agenda ask me to pick one session?
+
+If your organizer enabled breakout choices, the Agenda asks you to pick one session per breakout block.
+
 ## What is the Event assistant?
 
 If your organizer enabled it, a chat button on event pages opens the **Event assistant** — a wayfinder for that event only. Ask "when is X", "where is room 201", or "what's on after lunch"; it answers from that event's schedule, rooms, maps, and organizer FAQ, and links you to the session or map. It declines questions outside the event's data rather than guessing.
 
 ## Where is my check-in QR?
 
-If your organizer enabled check-in, your personal QR sits at the top of **Profile**, labelled **Event check-in QR**. Show it at registration. Staff can also type the same code by hand.
+If your organizer enabled check-in, your personal QR sits at the top of **Profile**, labeled **Event check-in QR**. Show it at registration. Staff can also type the same code by hand.
 
 ## How do certificates arrive?
 

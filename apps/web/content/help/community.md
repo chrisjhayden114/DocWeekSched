@@ -7,6 +7,8 @@ category: attendee
 
 # Use Community
 
+Hallway conversations are half the reason people come. Community gives every event five purpose-built channels so they have somewhere to happen.
+
 **Community** is the shared event board. Anyone on the roster can post; organizers can edit or delete threads and replies. It is not private chat — that is **Messages**.
 
 Open the **Community** tab. Channel pills filter the feed. A composer sits above the posts. If your organizer turned a channel off, that pill is not there.

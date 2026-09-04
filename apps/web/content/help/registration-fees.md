@@ -7,6 +7,8 @@ category: organizer
 
 # Track registration fees without taking the money
 
+Most organizers already have a way to get paid — a PO process, an invoice, a checkout link. Publish it and track it without handing your attendees' money to a middleman.
+
 **Registration fees** lets you tell attendees how to pay and record who has paid. {{product}} never processes, holds, or guarantees the money — attendees pay you on your own link or process. Purchase orders and checks are first-class, not a footnote.
 
 Nothing here blocks registration. People can join whether or not they have paid.

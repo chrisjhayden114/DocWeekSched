@@ -423,10 +423,17 @@ describe("UX-3 #3 — /account quick fixes", () => {
 describe("UX-3 #4 — the readiness dashboard screenshot is real", () => {
   const page = read("pages", "speaker-readiness.tsx");
 
-  it("ships the founder's image with the promised alt text and caption", () => {
+  it("ships the founder's image with the promised alt text", () => {
     expect(page).toContain('src="/marketing/readiness-dashboard.png"');
     expect(page).toContain('alt="Readiness dashboard: every presenter at a glance"');
-    expect(page).toContain("See the five who are missing something — not the hundred who aren&apos;t.");
+  });
+
+  // SITE-COPY-2 #5 — the caption repeated the H2 verbatim; a demo link earns the space.
+  it("does not repeat the section heading as a caption, and offers the demo instead", () => {
+    expect(page).not.toContain("mkt-screenshot-caption");
+    expect(page).toContain("See it live in the demo →");
+    // The caption was the only user of the rule, so the CSS went with it.
+    expect(globalsCss).not.toContain("mkt-screenshot-caption");
   });
 
   it("leaves no placeholder behind", () => {
