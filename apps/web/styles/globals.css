@@ -5378,6 +5378,20 @@ button.schedule-meta-chip:hover {
   }
 }
 
+/* Four cards: 2x2 from tablet up, so the last row is never a lone orphan. */
+.mkt-feature-quad {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .mkt-feature-quad {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px;
+  }
+}
+
 .mkt-feature-card {
   padding: 0;
 }

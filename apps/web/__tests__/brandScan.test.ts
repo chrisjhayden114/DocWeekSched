@@ -20,6 +20,14 @@ import { brand, brandTransition, marketingSeo } from "@event-app/config";
 const WEB_ROOT = resolve(__dirname, "..");
 const RETIRED = /ukedl/i;
 
+/**
+ * Strings that may never be rendered. The retired brand, plus the TED
+ * trademark — the in-product and marketing name is "talk showcase"
+ * (DESIGN_PHASE_J.md). The one sanctioned descriptive use is the setup
+ * copilot's licence fact, which lives in packages/shared, outside this scan.
+ */
+const FORBIDDEN_VISIBLE = /ukedl|tedx/i;
+
 /** Sentry issue ids from before the rename — a reference to a report, not a name. */
 const SENTRY_ISSUE_ID = /UKEDL-[A-Z]+-\d+/;
 
@@ -46,7 +54,7 @@ function scanForRetiredBrand(): Hit[] {
     for (const file of walk(resolve(WEB_ROOT, dir))) {
       const lines = readFileSync(file, "utf8").split("\n");
       lines.forEach((text, index) => {
-        if (!RETIRED.test(text)) return;
+        if (!FORBIDDEN_VISIBLE.test(text)) return;
         if (SENTRY_ISSUE_ID.test(text)) return;
         hits.push({ file: relative(WEB_ROOT, file), line: index + 1, text: text.trim() });
       });
@@ -56,10 +64,10 @@ function scanForRetiredBrand(): Hit[] {
 }
 
 describe("BRAND-R1 — no retired brand on a user-visible surface", () => {
-  it("pages, components, and help content never say the retired name or domain", () => {
+  it("pages, components, and help content never say the retired name, domain, or TEDx", () => {
     const hits = scanForRetiredBrand();
     const report = hits.map((h) => `${h.file}:${h.line} — ${h.text}`).join("\n");
-    expect(hits, `retired brand still rendered:\n${report}`).toEqual([]);
+    expect(hits, `forbidden string still rendered:\n${report}`).toEqual([]);
   });
 
   it("the product name and every host derived from it are the new brand", () => {

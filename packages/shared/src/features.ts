@@ -533,7 +533,7 @@ export const FEATURE_PRESETS: FeaturePreset[] = [
     id: "talk_showcase",
     name: "Talk showcase",
     plainDescription:
-      "Single-stage short-talk events — TEDx-style showcases, storytelling nights, lightning-talk days.",
+      "Single-stage short-talk events — curated talk showcases, storytelling nights, lightning-talk days.",
     overrides: {
       community: true,
       community_meetups: false,

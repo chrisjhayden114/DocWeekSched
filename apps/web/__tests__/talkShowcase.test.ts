@@ -20,7 +20,7 @@ describe("Talk showcase preset (TALK-1)", () => {
     const preset = FEATURE_PRESETS.find((p) => p.id === "talk_showcase");
     expect(preset).toBeDefined();
     expect(preset!.name).toBe("Talk showcase");
-    expect(preset!.plainDescription).toMatch(/TEDx-style showcases, storytelling nights, lightning-talk days/);
+    expect(preset!.plainDescription).toMatch(/curated talk showcases, storytelling nights, lightning-talk days/);
     expect(EVENT_TYPE_PRESET.talk_showcase).toBe("talk_showcase");
     expect(setupEventTypeLabel("talk_showcase")).toBe("Talk showcase");
   });

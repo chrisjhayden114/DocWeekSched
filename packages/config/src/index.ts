@@ -271,7 +271,7 @@ export const authCopy = {
  */
 export const marketingSeo = {
   /** Plain category descriptor — rendered near the wordmark (footer, hero). */
-  categoryLine: "Calm event software for conferences and PD days in education.",
+  categoryLine: "Calm event software for conferences and professional gatherings.",
   /** Homepage <title>: category first, brand last — the pattern for every marketing title. */
   seoTitle: `Conference and PD day software — schedule builder + Speaker Readiness — ${brand.productName}`,
   pages: {
@@ -359,16 +359,16 @@ export const speakerReadinessService: {
   tiers: [
     {
       id: "education_small",
-      name: "Education & community",
-      scale: "Schools, PD days, TEDx-style — under 50 presenters",
+      name: "Community & small events",
+      scale: "Community conferences, PD days, talk showcases — under 50 attendees",
       price: "$150",
       priceNote: null,
       description: READINESS_SERVICE_PROMISE,
     },
     {
       id: "education_large",
-      name: "Education & community",
-      scale: "50–150 presenters",
+      name: "Community & small events",
+      scale: "50–150 attendees",
       price: "$350",
       priceNote: null,
       description: READINESS_SERVICE_PROMISE,
@@ -376,7 +376,7 @@ export const speakerReadinessService: {
     {
       id: "standard",
       name: "Standard concierge",
-      scale: "150–500 presenters",
+      scale: "150–500 attendees",
       price: "$750",
       priceNote: null,
       description: READINESS_SERVICE_PROMISE,
@@ -384,7 +384,7 @@ export const speakerReadinessService: {
     {
       id: "large",
       name: "Large or complex",
-      scale: "500+ presenters, multi-track associations",
+      scale: "500+ attendees, multi-track associations",
       price: "from $1,250",
       priceNote: "individually scoped",
       description: READINESS_SERVICE_PROMISE,

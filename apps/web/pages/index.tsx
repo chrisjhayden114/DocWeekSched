@@ -67,8 +67,8 @@ const SHAPES = [
   },
   {
     eyebrow: "School PD week",
-    title: "400 teachers, 20 simultaneous workshops",
-    body: "You're running a week of parallel sessions where each person picks one per block — and needs to see only their choice, not the whole grid.",
+    title: "PD week or training days",
+    body: "400 staff, 20 simultaneous workshops",
     does: `${brand.productName} gives a pick-one agenda view built for that shape.`,
   },
   {
@@ -76,6 +76,12 @@ const SHAPES = [
     title: "A two-person secretariat, five countries",
     body: "You're running the event across timezones, with a branded site and no bench of ops staff.",
     does: `${brand.productName} handles timezone display and event branding so the secretariat isn't also the IT team.`,
+  },
+  {
+    eyebrow: "Professional & industry",
+    title: "Professional summit",
+    body: "900 attendees, three tracks, sponsors, and a keynote — one live site, personal agendas for everyone.",
+    does: `${brand.productName} runs multi-track programs, sponsor placement, and per-person agendas without a separate app.`,
   },
 ] as const;
 
@@ -286,15 +292,15 @@ export default function LandingPage() {
 
           <section className="mkt-section mkt-section--alt" aria-labelledby="mkt-shape">
             <div className="mkt-section-inner">
-              <p className="mkt-eyebrow">Built for education events</p>
+              <p className="mkt-eyebrow">Who it&apos;s for</p>
               <h2 id="mkt-shape" className="mkt-h2">
                 Built for your event&apos;s shape
               </h2>
               <p className="mkt-standfirst">
-                Academic conferences, school PD days, and education associations — same product, different
-                recognition.
+                Academic conferences, PD days and staff training, association meetings, and professional
+                summits — same product, different recognition.
               </p>
-              <div className="mkt-feature-trio">
+              <div className="mkt-feature-quad">
                 {SHAPES.map((item) => (
                   <article key={item.eyebrow} className="mkt-feature-card">
                     <p className="mkt-eyebrow" style={{ marginBottom: 8 }}>
@@ -341,7 +347,8 @@ export default function LandingPage() {
                   when overdue — so nobody on your team has to write them.
                 </li>
                 <li>
-                  <strong>In every plan, Free included.</strong> Turn it on under Features when you want it —
+                  <strong>In every plan — Free includes your first 10 presenters.</strong> Turn it on under
+                  Features when you want it —
                   there is nothing to ask for.
                 </li>
               </ul>

@@ -87,7 +87,7 @@ export default function SpeakerReadinessPage() {
   const url = `${brand.primaryUrl}/speaker-readiness`;
   const ogImage = `${brand.primaryUrl}${brand.assets.ogImage}`;
   const mailto = speakerReadinessServiceMailto();
-  const ctaLabel = `Email ${brand.supportEmail} with your presenter count and event date`;
+  const ctaLabel = `Email ${brand.supportEmail} with your attendee count and event date`;
   const freePresenterCap = PLAN_BY_SKU.free.limits.readinessPresentersPerEvent;
 
   const jsonLd = {
@@ -387,7 +387,7 @@ export default function SpeakerReadinessPage() {
               </h2>
               <p className="mkt-standfirst" style={{ marginBottom: 20 }}>
                 Create your event and switch Readiness on under Features. Want it done with you?
-                Tell me your presenter count and event date and I&apos;ll reply.
+                Tell me your attendee count and event date and I&apos;ll reply.
               </p>
               <div className="mkt-hero-cta" style={{ marginBottom: 0 }}>
                 <Link className="button" href="/login?intent=create-event">

@@ -37,7 +37,7 @@ describe("marketingSeo (E25) — search-facing titles and descriptions", () => {
   });
 
   it("categoryLine names the category plainly", () => {
-    expect(marketingSeo.categoryLine).toBe("Calm event software for conferences and PD days in education.");
+    expect(marketingSeo.categoryLine).toBe("Calm event software for conferences and professional gatherings.");
     expect(marketingSeo.categoryLine.startsWith(brand.productName)).toBe(false);
   });
 

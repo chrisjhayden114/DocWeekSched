@@ -189,9 +189,9 @@ export default function PricingPage() {
                   <li>Two or more events a year, or you want the full AI suite: Pro.</li>
                 </ul>
                 <p className="text-meta" style={{ margin: "8px 0 0", maxWidth: 640 }}>
-                  For 51–250 attendees, Pro at $79/month is usually the better buy than the $149
-                  per-event tier — it costs less if your event wraps within a month or two and
-                  includes the full AI suite.
+                  For 51–250 attendees, compare Pro against the $149 per-event tier: Pro costs less
+                  if your event wraps within a month ($79) and adds the full AI suite; the per-event
+                  tier wins if you need the event live longer.
                 </p>
               </section>
 

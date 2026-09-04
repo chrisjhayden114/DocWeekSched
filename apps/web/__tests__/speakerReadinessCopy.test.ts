@@ -36,10 +36,10 @@ describe("Speaker Readiness reminder copy stays in sync (MKT-2)", () => {
     expect(
       speakerReadinessService.tiers.map((tier) => [tier.name, tier.scale, tier.price]),
     ).toEqual([
-      ["Education & community", "Schools, PD days, TEDx-style — under 50 presenters", "$150"],
-      ["Education & community", "50–150 presenters", "$350"],
-      ["Standard concierge", "150–500 presenters", "$750"],
-      ["Large or complex", "500+ presenters, multi-track associations", "from $1,250"],
+      ["Community & small events", "Community conferences, PD days, talk showcases — under 50 attendees", "$150"],
+      ["Community & small events", "50–150 attendees", "$350"],
+      ["Standard concierge", "150–500 attendees", "$750"],
+      ["Large or complex", "500+ attendees, multi-track associations", "from $1,250"],
     ]);
     expect(speakerReadinessService.tiers[3]!.priceNote).toBe("individually scoped");
     // One promise, identical on every tier — the page renders it once.
@@ -68,6 +68,6 @@ describe("Speaker Readiness reminder copy stays in sync (MKT-2)", () => {
     const home = readFileSync(join(__dirname, "../pages/index.tsx"), "utf8");
     expect(home).not.toContain("speakerReadinessPilotMailto");
     expect(home).not.toMatch(/Ask about a Speaker Readiness/);
-    expect(home).toContain("In every plan, Free included.");
+    expect(home).toContain("In every plan — Free includes your first 10 presenters.");
   });
 });
