@@ -25,7 +25,7 @@ export type HelpArticle = HelpArticleMeta & {
   bodyMarkdown: string;
 };
 
-function parseFrontMatter(raw: string): { meta: Record<string, string>; body: string } {
+export function parseFrontMatter(raw: string): { meta: Record<string, string>; body: string } {
   if (!raw.startsWith("---")) {
     return { meta: {}, body: raw };
   }
@@ -44,7 +44,10 @@ function parseFrontMatter(raw: string): { meta: Record<string, string>; body: st
   return { meta, body };
 }
 
-/** Minimal markdown → HTML for help articles (headings, lists, links, paragraphs, code). */
+/**
+ * Minimal markdown → HTML for help articles and blog posts (headings, lists,
+ * links, paragraphs, code, emphasis, thematic breaks).
+ */
 export function markdownToHtml(md: string): string {
   const lines = md.replace(/\r\n/g, "\n").split("\n");
   const out: string[] = [];
@@ -69,9 +72,16 @@ export function markdownToHtml(md: string): string {
       .replace(/>/g, "&gt;")
       .replace(/`([^`]+)`/g, "<code>$1</code>")
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      // Bold ran first, so any surviving pair of asterisks is emphasis.
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
 
   for (const line of lines) {
+    if (/^-{3,}$/.test(line.trim())) {
+      flushLists();
+      out.push("<hr />");
+      continue;
+    }
     const h = /^(#{1,3})\s+(.+)$/.exec(line);
     if (h) {
       flushLists();

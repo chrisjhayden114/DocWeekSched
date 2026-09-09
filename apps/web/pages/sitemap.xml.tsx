@@ -1,14 +1,19 @@
 import { brand } from "@event-app/config";
 import type { GetServerSideProps } from "next";
+import { listPosts } from "../lib/blog/blogContent";
 import { helpArticlePaths } from "../lib/help/articles";
 
 /**
- * Sitemap lists marketing pages + demo event + /help articles only.
+ * Sitemap lists marketing pages + demo event + /help articles + /blog posts.
  * Customer event slugs are NOT enumerated (opt-in indexing comes later).
+ *
+ * Only blog URLs carry <lastmod>: a post has a publication date worth telling
+ * a crawler about, while the marketing pages have no honest date to give.
  */
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const base = brand.primaryUrl.replace(/\/$/, "");
-  const paths = [
+  const posts = listPosts();
+  const entries: { path: string; lastmod?: string }[] = [
     "/",
     "/pricing",
     "/terms",
@@ -21,13 +26,19 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     "/help/feature-guide",
     ...helpArticlePaths(),
     `/e/${brand.demoEventSlug}`,
-  ];
-  const urls = paths
-    .map(
-      (path) => `  <url>
-    <loc>${base}${path === "/" ? "/" : path}</loc>
-  </url>`,
-    )
+  ].map((path) => ({ path }));
+
+  entries.push({ path: "/blog", ...(posts[0] ? { lastmod: posts[0].date } : {}) });
+  for (const post of posts) {
+    entries.push({ path: `/blog/${post.slug}`, lastmod: post.date });
+  }
+
+  const urls = entries
+    .map(({ path, lastmod }) => {
+      const loc = `  <url>
+    <loc>${base}${path === "/" ? "/" : path}</loc>`;
+      return lastmod ? `${loc}\n    <lastmod>${lastmod}</lastmod>\n  </url>` : `${loc}\n  </url>`;
+    })
     .join("\n");
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

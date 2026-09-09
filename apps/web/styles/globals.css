@@ -5951,6 +5951,39 @@ button.schedule-meta-chip:hover {
   color: var(--gray-700);
 }
 
+/* BLOG-1 — one card per post, single column: a short list should read as a
+   list rather than as one orphaned third of a feature grid. */
+.mkt-blog-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.mkt-blog-card {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+  background: #ffffff;
+}
+
+.mkt-blog-card-title {
+  margin: 0 0 6px;
+  font: 600 20px/28px var(--font-body);
+}
+
+.mkt-blog-card-date {
+  margin: 0 0 10px;
+}
+
+.mkt-blog-card-more {
+  margin: 12px 0 0;
+  font: 400 15px/24px var(--font-body);
+}
+
+.mkt-blog-byline {
+  margin: 0 0 24px;
+}
+
 /* —— Phase D app shell: persistent sidebar + top bar + mobile bottom tabs —— */
 .shell {
   --shell-topbar-height: 56px;

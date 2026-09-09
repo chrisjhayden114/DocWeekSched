@@ -316,12 +316,26 @@ export const marketingSeo = {
       description:
         "What each event feature does, where attendees and organizers see it, and what stays when you turn a toggle off.",
     },
+    blog: {
+      title: `Notes on running calmer conferences and PD days — the ${brand.productName} blog`,
+      description:
+        "Field notes from an organizer who builds the tool: collecting speaker materials, importing a program, and the decisions that make an event calmer.",
+    },
   },
 } as const;
 
 /** <title> for a help article: article topic first (what the searcher asked), brand last. */
 export function marketingArticleTitle(articleTitle: string): string {
   return `${articleTitle} — ${brand.productName} conference software`;
+}
+
+/**
+ * <title> for a blog post: the post's own headline first, then the publication.
+ * A post is read as a piece of writing, so the headline is the whole title —
+ * the pipe keeps the brand out of the sentence rather than inside it.
+ */
+export function marketingBlogPostTitle(postTitle: string): string {
+  return `${postTitle} | ${brand.productName} blog`;
 }
 
 /**

@@ -40,7 +40,9 @@ export default function HelpIndexPage({ articles }: Props) {
           <div className="mkt-section-inner mkt-prose">
             <p className="mkt-eyebrow">Resources</p>
             <h1>Help</h1>
-            <p>Guides for organizers and attendees.</p>
+            <p>
+              Guides for organizers and attendees. Also: <Link href="/blog">the blog</Link>.
+            </p>
             <p style={{ marginTop: 24 }}>
               <Link href="/help/feature-guide">
                 <strong>Feature Guide</strong>

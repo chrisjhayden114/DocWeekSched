@@ -26,6 +26,7 @@ export function SiteFooter() {
               <p className="mkt-footer-col-label">Resources</p>
               <nav aria-label="Resources">
                 <Link href="/help">Help</Link>
+                <Link href="/blog">Blog</Link>
                 <Link href="/security">Security</Link>
                 <a href={brand.statusPageUrl} rel="noopener noreferrer">
                   Status

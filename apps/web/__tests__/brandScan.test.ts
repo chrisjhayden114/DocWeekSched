@@ -31,7 +31,7 @@ const FORBIDDEN_VISIBLE = /ukedl|tedx/i;
 /** Sentry issue ids from before the rename — a reference to a report, not a name. */
 const SENTRY_ISSUE_ID = /UKEDL-[A-Z]+-\d+/;
 
-const SCANNED_DIRS = ["pages", "components", "content", "lib/help"] as const;
+const SCANNED_DIRS = ["pages", "components", "content", "lib/help", "lib/blog"] as const;
 const SCANNED_EXTENSIONS = [".ts", ".tsx", ".md", ".css"] as const;
 
 type Hit = { file: string; line: number; text: string };
@@ -64,10 +64,19 @@ function scanForRetiredBrand(): Hit[] {
 }
 
 describe("BRAND-R1 — no retired brand on a user-visible surface", () => {
-  it("pages, components, and help content never say the retired name, domain, or TEDx", () => {
+  it("pages, components, help, and blog content never say the retired name, domain, or TEDx", () => {
     const hits = scanForRetiredBrand();
     const report = hits.map((h) => `${h.file}:${h.line} — ${h.text}`).join("\n");
     expect(hits, `forbidden string still rendered:\n${report}`).toEqual([]);
+  });
+
+  it("the scan actually reaches the blog corpus — a published post is a visible surface", () => {
+    const scanned = SCANNED_DIRS.flatMap((dir) => walk(resolve(WEB_ROOT, dir))).map((f) =>
+      relative(WEB_ROOT, f),
+    );
+    const posts = scanned.filter((f) => f.startsWith("content/blog/") && f.endsWith(".md"));
+    expect(posts.length).toBeGreaterThan(0);
+    expect(posts).toContain("content/blog/stop-chasing-conference-speakers.md");
   });
 
   it("the product name and every host derived from it are the new brand", () => {
