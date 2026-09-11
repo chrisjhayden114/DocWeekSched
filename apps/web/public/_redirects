@@ -1,0 +1,19 @@
+# REDIR-1 (BRAND-R2 — docs/BRAND_R_RUNBOOK.md §3b): the retired domain 301s to
+# the primary, path for path, indefinitely.
+#
+# This file has to sit in public/. The Netlify Next.js runtime copies public/
+# verbatim into the publish directory at build time; a _redirects in the repo
+# root or written straight into .next is ignored (.next is emptied on build).
+#
+# Absolute `from` URLs scope each rule to one host, so readyhall.com, deploy
+# previews and api.ukedl.com (Render, not this site) are untouched. The `!`
+# forces the rule ahead of Next.js routing — without it, any path that still
+# resolves on the old origin would be served there instead of redirecting.
+# Netlify carries the query string across on its own.
+#
+# Requires ukedl.com + www to stay attached to the Netlify site as aliases, and
+# readyhall.com to be the primary domain. With ukedl.com still primary, these
+# fight Netlify's own alias-to-primary 301 and the pair loops.
+
+https://ukedl.com/*      https://readyhall.com/:splat  301!
+https://www.ukedl.com/*  https://readyhall.com/:splat  301!
