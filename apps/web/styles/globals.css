@@ -2118,6 +2118,156 @@ button.schedule-meta-chip:hover {
   color: var(--gray-400);
 }
 
+/* AGENDA-2 — collapsible sections. The head is a button so the whole label
+   row is the hit target, not just the chevron. */
+.agenda-filter-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.agenda-filter-section-head .agenda-filter-group-label {
+  padding-left: var(--space-2);
+}
+
+.agenda-filter-chevron {
+  width: 14px;
+  height: 14px;
+  margin-right: var(--space-2);
+  color: var(--gray-400);
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+  transition: var(--transition);
+}
+
+.agenda-filter-chevron.is-open {
+  transform: rotate(0deg);
+}
+
+/* A fixed-width box whether or not the tick is drawn, so labels in a group
+   stay on one left edge as rows are checked and unchecked. */
+.agenda-filter-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 1px solid var(--gray-300);
+  border-radius: 3px;
+  background: #ffffff;
+  color: var(--event-accent-on);
+}
+
+.agenda-filter-check svg {
+  width: 12px;
+  height: 12px;
+}
+
+.agenda-filter-row[aria-checked="true"] .agenda-filter-check {
+  border-color: var(--event-accent);
+  background: var(--event-accent);
+}
+
+.agenda-filter-glyph {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--gray-500);
+}
+
+.agenda-filter-row.is-active .agenda-filter-glyph {
+  color: var(--event-accent);
+}
+
+.agenda-filter-clear {
+  justify-self: start;
+  font: 400 13px/18px var(--font-body);
+  padding: var(--space-1) var(--space-2);
+}
+
+/* AGENDA-2 — speaker picker. */
+.agenda-speaker-picker {
+  position: relative;
+}
+
+.agenda-speaker-list {
+  position: absolute;
+  z-index: 40;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+
+.agenda-speaker-empty {
+  padding: var(--space-1) var(--space-2);
+}
+
+.agenda-speaker-option,
+.agenda-speaker-selected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 31px;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--gray-700);
+  font: 400 13px/18px var(--font-body);
+  text-align: left;
+}
+
+.agenda-speaker-option {
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.agenda-speaker-option:hover {
+  background: var(--gray-100);
+}
+
+.agenda-speaker-selected {
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
+  font-weight: 500;
+}
+
+.agenda-speaker-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.agenda-speaker-clear {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 var(--space-1);
+  cursor: pointer;
+}
+
 .agenda-filters-sheet {
   display: grid;
   gap: var(--space-4);

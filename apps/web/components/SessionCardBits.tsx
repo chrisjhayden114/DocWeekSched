@@ -13,6 +13,32 @@ import { speakerInitials, type PeekSpeaker } from "../lib/sessionPeek";
 export const CARD_AVATAR_LIMIT = 3;
 
 /**
+ * One face: the photo when there is one, initials otherwise.
+ *
+ * Shared rather than inlined because AGENDA-2's speaker filter needs the same
+ * face beside each name in the roster picker, and two copies of the photo /
+ * initials fallback would be two places for a missing photo to render as an
+ * empty gray box (the defect UI-3 fixed for the matchmaker).
+ */
+export function CardAvatar({
+  person,
+  className,
+}: {
+  person: PeekSpeaker;
+  className?: string;
+}) {
+  return (
+    <span className={className ? `card-avatar ${className}` : "card-avatar"} title={person.name}>
+      {person.photoUrl ? (
+        <img src={person.photoUrl} alt="" />
+      ) : (
+        <span aria-hidden>{speakerInitials(person.name)}</span>
+      )}
+    </span>
+  );
+}
+
+/**
  * Speaker avatars on a card: photo when there is one, initials otherwise, and
  * "+2" past the limit so the row height never depends on the speaker count.
  */
@@ -24,13 +50,7 @@ export function CardSpeakerAvatars({ speakers }: { speakers: readonly PeekSpeake
     <p className="schedule-event-speakers schedule-event-faces">
       <span className="card-avatars">
         {shown.map((person, idx) => (
-          <span key={person.id || `${person.name}-${idx}`} className="card-avatar" title={person.name}>
-            {person.photoUrl ? (
-              <img src={person.photoUrl} alt="" />
-            ) : (
-              <span aria-hidden>{speakerInitials(person.name)}</span>
-            )}
-          </span>
+          <CardAvatar key={person.id || `${person.name}-${idx}`} person={person} />
         ))}
         {overflow > 0 ? <span className="card-avatar card-avatar--more">{`+${overflow}`}</span> : null}
       </span>

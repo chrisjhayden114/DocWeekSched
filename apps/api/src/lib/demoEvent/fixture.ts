@@ -3,6 +3,7 @@
  */
 
 import { brand } from "@event-app/config";
+import type { SessionFormat } from "@event-app/shared";
 
 export type DemoFixtureMode = "public_demo" | "sample_draft";
 
@@ -44,6 +45,12 @@ export type DemoFixtureSpec = {
     title: string;
     description: string;
     trackIndex: number;
+    /**
+     * AGENDA-2 — one of SESSION_FORMATS. Set on every demo session so the
+     * public demo actually shows the format filter; an event that leaves them
+     * all null hides the section, which is right but demos nothing.
+     */
+    format: SessionFormat;
     /** Index into rooms; omit for no room. */
     roomIndex?: number;
     /** Minutes from 09:00 on dayOffset. */
@@ -149,6 +156,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Opening keynote: Designing calm learning days",
         description: "How organizers reduce noise without losing energy.",
         trackIndex: 0,
+        format: "keynote",
         roomIndex: 0,
         dayOffset: 0,
         startMinute: 0,
@@ -156,9 +164,21 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         speakerKeys: ["maya"],
       },
       {
+        title: "Coffee and registration",
+        description: "Badges, coffee, and a chance to find your first session.",
+        trackIndex: 0,
+        format: "break",
+        roomIndex: 0,
+        dayOffset: 0,
+        startMinute: 60,
+        durationMinutes: 30,
+        speakerKeys: [],
+      },
+      {
         title: "Workshop block A: Reading conferences",
         description: "Running short one-to-one reading check-ins without losing the room.",
         trackIndex: 1,
+        format: "workshop",
         roomIndex: 1,
         dayOffset: 0,
         startMinute: 90,
@@ -169,6 +189,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Workshop block A: Small-group math routines",
         description: "Routines a grade-level team can start on Monday.",
         trackIndex: 1,
+        format: "workshop",
         roomIndex: 2,
         dayOffset: 0,
         startMinute: 90,
@@ -179,6 +200,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Practice showcase: What worked this year",
         description: "Short talks from teams trying something new.",
         trackIndex: 2,
+        format: "lightning",
         roomIndex: 3,
         dayOffset: 0,
         startMinute: 240,
@@ -202,9 +224,21 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         ],
       },
       {
+        title: "Evening reception",
+        description: "Food, drinks, and the conversations the day started.",
+        trackIndex: 2,
+        format: "social",
+        roomIndex: 3,
+        dayOffset: 0,
+        startMinute: 390,
+        durationMinutes: 90,
+        speakerKeys: [],
+      },
+      {
         title: "Workshop block B: Feedback students actually use",
         description: "Hands-on session on written and spoken feedback.",
         trackIndex: 1,
+        format: "workshop",
         roomIndex: 1,
         dayOffset: 1,
         startMinute: 30,
@@ -215,6 +249,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Closing roundtable: What we will change next term",
         description: "Each team leaves with one commitment.",
         trackIndex: 0,
+        format: "panel",
         roomIndex: 0,
         dayOffset: 1,
         startMinute: 120,

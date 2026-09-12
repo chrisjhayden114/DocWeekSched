@@ -17,3 +17,4 @@ export * from "./appGuide";
 export * from "./organizerGuide";
 export * from "./entryRedirects";
 export * from "./deletedParticipant";
+export * from "./sessionFormat";

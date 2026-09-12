@@ -26,12 +26,26 @@ import { apiFetch, apiFetchAll, clearAuthClientState } from "../lib/api";
 import { matchesNameQuery } from "../lib/nameSearch";
 import { eventAccentStyle } from "../lib/eventAccent";
 import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
-import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
+import {
+  activeFilterCount,
+  filterSessions,
+  isGroupFilterable,
+  nowAndNext,
+  optionCounts,
+  overlappingSessionIds,
+} from "../lib/agendaFilters";
+import { useAgendaFilters } from "../components/useAgendaFilters";
 import { buildBreakoutSlots, type BreakoutSlot } from "../lib/breakoutSlots";
 import { BreakoutSlotBoard } from "../components/BreakoutSlotBoard";
 import { sessionDetailPath, sessionShareUrl } from "../lib/sessionPeek";
 import { pickUntrackedTintHex, resolveTrackHex, sessionTrackTintClass, trackColor } from "../lib/trackColors";
-import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
+import {
+  AgendaFilterRail,
+  AgendaFiltersSheet,
+  DayChips,
+  dayChipLabel,
+  formatFilterOptions,
+} from "../components/AgendaFilterPanel";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/ScheduleViewSwitcher";
 import { SegmentedToggle } from "../components/SegmentedToggle";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
@@ -106,6 +120,8 @@ type Session = {
   location?: string | null;
   roomId?: string | null;
   trackId?: string | null;
+  /** AGENDA-2 — one of SESSION_FORMATS, or null when the organizer never set one. */
+  format?: string | null;
   room?: { id: string; name: string } | null;
   track?: { id: string; name: string; color?: string } | null;
   items?: {
@@ -338,10 +354,8 @@ export default function Dashboard() {
   const [myAttendance, setMyAttendance] = useState<SessionAttendance[]>([]);
   const [likedSessionIds, setLikedSessionIds] = useState<string[]>([]);
   const [bookmarkedSessionIds, setBookmarkedSessionIds] = useState<string[]>([]);
-  const [agendaFilterTrack, setAgendaFilterTrack] = useState<string>("");
-  const [agendaFilterRoom, setAgendaFilterRoom] = useState<string>("");
-  const [agendaFilterDay, setAgendaFilterDay] = useState<string>("");
-  const [agendaSearch, setAgendaSearch] = useState("");
+  /** AGENDA-2 — day / formats / tracks / rooms / speaker / flags, held in the URL. */
+  const { filters: agendaFilters, setFilters: setAgendaFilters } = useAgendaFilters();
   const [agendaFiltersOpen, setAgendaFiltersOpen] = useState(false);
   /**
    * H4 / AGENDA-1 — the session peek behind every agenda card: an anchored
@@ -873,19 +887,20 @@ export default function Dashboard() {
         : myTimezone,
     [timezoneToggleOn, agendaTimeMode, event?.timezone, myTimezone],
   );
+  const joiningSessionIdSet = useMemo(
+    () => new Set(myAttendance.filter((item) => item.status === "JOINING").map((item) => item.sessionId)),
+    [myAttendance],
+  );
+  const agendaFilterCtx = useMemo(
+    () => ({
+      dayKey: (iso: string) => zonedDayKey(new Date(iso), agendaDisplayTimezone),
+      mySessionIds: joiningSessionIdSet,
+    }),
+    [agendaDisplayTimezone, joiningSessionIdSet],
+  );
   const filteredSessions = useMemo(
-    () =>
-      filterSessions(
-        sortedSessions,
-        {
-          trackId: agendaFilterTrack || null,
-          roomId: agendaFilterRoom || null,
-          dayKey: agendaFilterDay || null,
-          query: agendaSearch,
-        },
-        (iso) => zonedDayKey(new Date(iso), agendaDisplayTimezone),
-      ),
-    [sortedSessions, agendaFilterTrack, agendaFilterRoom, agendaFilterDay, agendaSearch, agendaDisplayTimezone],
+    () => filterSessions(sortedSessions, agendaFilters, agendaFilterCtx),
+    [sortedSessions, agendaFilters, agendaFilterCtx],
   );
   const agendaNowNext = useMemo(() => nowAndNext(filteredSessions), [filteredSessions]);
   /* First-appearance order across the event schedule — drives collision-free track colors. */
@@ -921,10 +936,7 @@ export default function Dashboard() {
     () => groupSessionsByDayAndTime(filteredSessions, agendaDisplayTimezone),
     [filteredSessions, agendaDisplayTimezone],
   );
-  const joiningSessionIds = useMemo(
-    () => myAttendance.filter((item) => item.status === "JOINING").map((item) => item.sessionId),
-    [myAttendance]
-  );
+  const joiningSessionIds = useMemo(() => [...joiningSessionIdSet], [joiningSessionIdSet]);
   /* H5 — pick-one breakouts: the Event Schedule List view becomes a timeslot
    * accordion, fed from the SAME filteredSessions (day/search/track/room
    * filters keep working). Flag off = zero difference anywhere. */
@@ -950,8 +962,61 @@ export default function Dashboard() {
     () => sortedSessions.filter((s) => joiningSessionIds.includes(s.id)).length,
     [sortedSessions, joiningSessionIds],
   );
-  const agendaActiveFilterCount =
-    (agendaFilterTrack ? 1 : 0) + (agendaFilterRoom ? 1 : 0) + (agendaSearch.trim() ? 1 : 0);
+  const agendaActiveFilterCount = activeFilterCount(agendaFilters);
+
+  /*
+   * AGENDA-2 — rail sections and their per-option counts, same rules as the
+   * public page: visibility from the unfiltered program so the rail does not
+   * reflow mid-interaction, counts from every group but the one being counted.
+   */
+  const agendaRailOptions = useMemo(() => {
+    const counts = (group: Parameters<typeof optionCounts>[3]) =>
+      optionCounts(sortedSessions, agendaFilters, agendaFilterCtx, group);
+
+    const formatCounts = counts("format");
+    const trackCounts = counts("track");
+    const roomCounts = counts("room");
+    const speakerCounts = counts("speaker");
+
+    const speakerRoster = new Map<string, { id: string; name: string; photoUrl?: string | null }>();
+    for (const s of sortedSessions) {
+      for (const row of s.sessionSpeakers ?? []) {
+        const id = row.speaker.id || row.speaker.name;
+        if (!speakerRoster.has(id)) {
+          speakerRoster.set(id, {
+            id,
+            name: row.speaker.name,
+            photoUrl: row.speaker.photoUrl ?? null,
+          });
+        }
+      }
+    }
+
+    return {
+      formats: isGroupFilterable(sortedSessions, "format")
+        ? formatFilterOptions(
+            [...new Set(sortedSessions.map((s) => s.format).filter((f): f is string => Boolean(f)))],
+            formatCounts,
+          )
+        : [],
+      tracks: isGroupFilterable(sortedSessions, "track")
+        ? trackOptions.map((t) => ({
+            id: t.id,
+            label: t.name,
+            dot: trackColor(t.id, t.color, orderedTrackIds),
+            count: trackCounts.get(t.id) ?? 0,
+          }))
+        : [],
+      rooms: isGroupFilterable(sortedSessions, "room")
+        ? roomOptions.map((r) => ({ id: r.id, label: r.name, count: roomCounts.get(r.id) ?? 0 }))
+        : [],
+      speakers: isGroupFilterable(sortedSessions, "speaker")
+        ? [...speakerRoster.values()]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((p) => ({ ...p, count: speakerCounts.get(p.id) ?? 0 }))
+        : [],
+    };
+  }, [sortedSessions, agendaFilters, agendaFilterCtx, trackOptions, roomOptions, orderedTrackIds]);
 
   /* AGENDA-1 — the session the peek is showing, and the pick-one slot it belongs
    * to (null unless breakout_style is on and the slot is a real choice), so the
@@ -1261,15 +1326,17 @@ export default function Dashboard() {
 
   /* Filter controls — right rail (≥1280px) + Filters sheet (timezone lives here on mobile). */
   const agendaFilterControls = (
-    <>
-      <input
-        className="input"
-        type="search"
-        placeholder="Search sessions, speakers, papers, presentations…"
-        aria-label="Search sessions"
-        value={agendaSearch}
-        onChange={(e) => setAgendaSearch(e.target.value)}
-      />
+    <AgendaFilterRail
+      filters={agendaFilters}
+      onChange={setAgendaFilters}
+      days={dayOptions}
+      formatOptions={agendaRailOptions.formats}
+      trackOptions={agendaRailOptions.tracks}
+      roomOptions={agendaRailOptions.rooms}
+      speakerOptions={agendaRailOptions.speakers}
+      showMySchedule
+      storageScope="app"
+    >
       {timezoneToggleOn ? (
         <div className="agenda-filter-group">
           <span className="agenda-filter-group-label">Timezone</span>
@@ -1286,28 +1353,7 @@ export default function Dashboard() {
           />
         </div>
       ) : null}
-      <FilterGroup
-        label="Day"
-        options={dayOptions.map((d) => ({ id: d, label: dayChipLabel(d) }))}
-        value={agendaFilterDay}
-        onChange={setAgendaFilterDay}
-        allLabel="All days"
-      />
-      <FilterGroup
-        label="Track"
-        options={trackOptions.map((t) => ({ id: t.id, label: t.name, dot: trackColor(t.id, t.color, orderedTrackIds) }))}
-        value={agendaFilterTrack}
-        onChange={setAgendaFilterTrack}
-        allLabel="All tracks"
-      />
-      <FilterGroup
-        label="Room"
-        options={roomOptions.map((r) => ({ id: r.id, label: r.name }))}
-        value={agendaFilterRoom}
-        onChange={setAgendaFilterRoom}
-        allLabel="All rooms"
-      />
-    </>
+    </AgendaFilterRail>
   );
 
   return (
@@ -1476,7 +1522,11 @@ export default function Dashboard() {
                   </button>
                 ) : null}
               </div>
-              <DayChips days={dayOptions} value={agendaFilterDay} onChange={setAgendaFilterDay} />
+              <DayChips
+                days={dayOptions}
+                value={agendaFilters.dayKey ?? ""}
+                onChange={(dayKey) => setAgendaFilters({ ...agendaFilters, dayKey: dayKey || null })}
+              />
             </div>
             {isAdmin ? (
               <div className="agenda-new-session-row">

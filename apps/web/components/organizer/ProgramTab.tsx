@@ -1,4 +1,5 @@
 import { programCopy } from "@event-app/config";
+import { SESSION_FORMATS, SESSION_FORMAT_LABELS } from "@event-app/shared";
 import { useRouter } from "next/router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -37,6 +38,8 @@ export type ProgramSession = {
   publishStatus?: string | null;
   trackId?: string | null;
   roomId?: string | null;
+  /** AGENDA-2 — one of SESSION_FORMATS, or null when the organizer never set one. */
+  format?: string | null;
   // Round-tripped on PUT (the API nulls omitted optional fields).
   description?: string | null;
   location?: string | null;
@@ -78,6 +81,8 @@ type SessionDraft = {
   endLocal: string;
   trackId: string;
   roomId: string;
+  /** AGENDA-2 — a SessionFormat, or "" for "not set" (the default). */
+  format: string;
 };
 
 const smallButton = { fontSize: 13, padding: "2px var(--space-2)" } as const;
@@ -116,8 +121,8 @@ function textToAuthors(text: string) {
 }
 
 /**
- * The inline row edit only offers title, times, track, and room, so it sends
- * only those. FIX-NULL: the server leaves the fields a PUT omits alone, so
+ * The inline row edit only offers title, times, track, room, and format, so it
+ * sends only those. FIX-NULL: the server leaves the fields a PUT omits alone, so
  * this no longer has to echo the presenter's materials back to defend them —
  * echoing risked writing whatever this list last loaded over a newer value,
  * and re-sending allowVirtualJoin: false moved virtual attendees in-person on
@@ -130,6 +135,7 @@ function sessionUpdatePayload(draft: SessionDraft, timezone: string) {
     endsAt: zonedDateTimeLocalToIso(draft.endLocal, timezone),
     trackId: draft.trackId || null,
     roomId: draft.roomId || null,
+    format: draft.format || null,
   };
 }
 
@@ -222,7 +228,14 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
 
   const [trackDraft, setTrackDraft] = useState({ name: "", color: "#0033A0" });
   const [roomDraft, setRoomDraft] = useState({ name: "" });
-  const emptySessionDraft: SessionDraft = { title: "", startLocal: "", endLocal: "", trackId: "", roomId: "" };
+  const emptySessionDraft: SessionDraft = {
+    title: "",
+    startLocal: "",
+    endLocal: "",
+    trackId: "",
+    roomId: "",
+    format: "",
+  };
   const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySessionDraft);
   const [paperDraft, setPaperDraft] = useState({ title: "", authorsText: "" });
   const emptyResourceDraft = { title: "", kind: "LINK" as "LINK" | "FILE", url: "", file: null as File | null };
@@ -245,6 +258,25 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
 
   const trackById = useMemo(() => new Map(tracks.map((t) => [t.id, t])), [tracks]);
   const roomById = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
+
+  /** AGENDA-2 — the program in the importer's own columns, for CSV export. */
+  const csvExportRows = useMemo(
+    () =>
+      sessions
+        .slice()
+        .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+        .map((s) => ({
+          title: s.title,
+          startsAt: s.startsAt,
+          endsAt: s.endsAt,
+          trackName: s.trackId ? trackById.get(s.trackId)?.name ?? null : null,
+          roomName: s.roomId ? roomById.get(s.roomId)?.name ?? null : null,
+          format: s.format ?? null,
+          speakers: s.speakers ?? null,
+          description: s.description ?? null,
+        })),
+    [sessions, trackById, roomById],
+  );
 
   // Drop selections for sessions that no longer exist (deleted elsewhere).
   useEffect(() => {
@@ -478,6 +510,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           endsAt: zonedDateTimeLocalToIso(sessionDraft.endLocal, event.timezone),
           trackId: sessionDraft.trackId || null,
           roomId: sessionDraft.roomId || null,
+          format: sessionDraft.format || null,
         }),
       });
     });
@@ -715,6 +748,22 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
           options={[
             { value: "", label: "No room" },
             ...rooms.map((r) => ({ value: r.id, label: r.name })),
+          ]}
+        />
+      </label>
+      {/*
+        AGENDA-2 — Format is what attendees filter the agenda by, and it stays
+        optional with an empty default: a half-labelled program is more honest
+        than one where every row says "Talk" because that was the first option.
+      */}
+      <label>
+        Format
+        <Select
+          value={draft.format}
+          onChange={(format) => update({ format })}
+          options={[
+            { value: "", label: "No format" },
+            ...SESSION_FORMATS.map((f) => ({ value: f, label: SESSION_FORMAT_LABELS[f] })),
           ]}
         />
       </label>
@@ -1226,6 +1275,7 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
                                   endLocal: toLocalInputValueInTimeZone(s.endsAt, event.timezone),
                                   trackId: s.trackId || "",
                                   roomId: s.roomId || "",
+                                  format: s.format || "",
                                 })
                               }
                             >
@@ -1610,8 +1660,8 @@ export function ProgramTab({ eventId, event, tracks, rooms, sessions, onChanged 
         </div>
       </div>
 
-      {/* ——— CSV import (non-AI fallback) ——— */}
-      <SessionCsvImport eventId={eventId} onCreated={onChanged} />
+      {/* ——— CSV import/export (non-AI fallback) ——— */}
+      <SessionCsvImport eventId={eventId} onCreated={onChanged} exportSessions={csvExportRows} />
 
       {confirm ? (
         <ConfirmDialog

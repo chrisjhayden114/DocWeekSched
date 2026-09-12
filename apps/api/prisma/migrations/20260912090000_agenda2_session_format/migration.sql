@@ -1,0 +1,41 @@
+-- AGENDA-2 — Session.format, the axis the agenda filters needed.
+-- NOT APPLIED by the agent — CI and Render's build run migrate deploy.
+--
+-- WHY A COLUMN AT ALL:
+-- The richer agenda filters let an attendee ask "show me the workshops" or
+-- "hide the breaks". Track cannot answer that: it is per-event free text, so
+-- one event's "Workshops" strand is another's "Practice" and a third event
+-- puts workshops in every strand. Format is the one axis that means the same
+-- thing in every program, which is exactly why it has to be stored rather than
+-- guessed from the title at read time — the organizer has to be able to
+-- correct a title-based guess, and a guess re-derived on every render can't be
+-- corrected.
+--
+-- MUST-CONFIRMS (read before deploy):
+-- 1) Additive only. One NEW nullable column on "Session": format TEXT. No
+--    DEFAULT, no NOT NULL, so the ADD COLUMN is metadata-only — no table
+--    rewrite, no backfill, no lock beyond a brief ACCESS EXCLUSIVE for the
+--    catalog update. "Session" is one of the larger tables here, which is the
+--    reason this is a bare nullable TEXT and nothing more.
+-- 2) NO new enum and NO ADD VALUE on any existing enum. The format vocabulary
+--    (keynote | talk | workshop | panel | lightning | poster | break | social |
+--    other) is closed in packages/shared/src/sessionFormat.ts and enforced in
+--    Zod on write. Keeping it out of the DB means adding a format later is a
+--    code deploy, not a migration that locks this table, and means an old pod
+--    mid-rolling-deploy cannot reject a value a new pod just wrote.
+-- 3) NO new table, index, or foreign key. Nothing filters on format in SQL —
+--    the agenda filters run client-side over the already-fetched day, so an
+--    index would cost writes and buy nothing.
+-- 4) NO drop, rename, retype, or NOT NULL on any existing column. Existing
+--    readers select Session columns explicitly or via Prisma's include and
+--    cannot break on an added nullable scalar.
+-- 5) Every existing session reads NULL, which is "format not set" — the state
+--    the product had before this migration. Applying this changes no UI on its
+--    own: the attendee's format filter hides itself entirely when no session
+--    in the event has a format.
+-- 6) Rollback = deploy the previous API commit. The column stays behind,
+--    unread and harmless. Schema rollbacks are forward-fix only (RUNBOOK §4).
+-- 7) Idempotent: ADD COLUMN IF NOT EXISTS.
+-- Do NOT set ALLOW_DESTRUCTIVE_DB. Do NOT run against production.
+
+ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "format" TEXT;

@@ -17,6 +17,7 @@ const row: PublicSessionRow = {
   location: null,
   startsAt: new Date("2026-06-08T16:00:00.000Z"),
   endsAt: new Date("2026-06-08T17:30:00.000Z"),
+  format: "lightning",
   track: { name: "Practice", color: "#8A4B08" },
   room: { id: "room-library", name: "Library" },
   sessionSpeakers: [
@@ -99,6 +100,17 @@ describe("toPublicSession", () => {
     expect(toPublicSession(row).location).toBe("Library");
     expect(toPublicSession({ ...row, location: "Tent B" }).location).toBe("Tent B");
     expect(toPublicSession({ ...row, location: null, room: null }).location).toBeNull();
+  });
+
+  it("carries the session format, and drops a value outside the vocabulary", () => {
+    // AGENDA-2. The column is a plain String, so a hand-edited or
+    // partially-migrated row can hold anything. The public payload is the last
+    // place to catch that: letting "roundtable" through would put an option in
+    // the attendee's format filter that nothing in the app can label.
+    expect(toPublicSession(row).format).toBe("lightning");
+    expect(toPublicSession({ ...row, format: null }).format).toBeNull();
+    expect(toPublicSession({ ...row, format: "roundtable" }).format).toBeNull();
+    expect(toPublicSession({ ...row, format: "Keynote" }).format).toBeNull();
   });
 
   it("never leaks a speaker's bio into the per-session rows", () => {

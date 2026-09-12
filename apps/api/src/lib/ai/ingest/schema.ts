@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SESSION_FORMATS } from "@event-app/shared";
 
 /** Per-field confidence 0–1; omitted fields default to 1 in UI. */
 export const fieldConfidenceSchema = z.record(z.string(), z.number().min(0).max(1)).optional();
@@ -19,6 +20,14 @@ export const extractedSessionSchema = z.object({
   endTime: z.string().optional(),
   room: z.string().optional(),
   track: z.string().optional(),
+  /**
+   * AGENDA-2 — the model may volunteer a format, but it is not asked to judge:
+   * confirm derives the stored value from title cues (inferSessionFormat) and
+   * only falls back to this when the source stated a format outright.
+   * `.catch(undefined)` so an invented value ("roundtable") drops the field
+   * instead of failing the whole extraction the organizer is waiting on.
+   */
+  format: z.enum(SESSION_FORMATS).optional().catch(undefined),
   speakers: z.array(z.string()).default([]),
   mode: z.enum(["IN_PERSON", "VIRTUAL", "HYBRID"]).optional(),
   items: z.array(extractedItemSchema).optional(),

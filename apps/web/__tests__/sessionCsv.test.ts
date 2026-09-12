@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseCsvToTable } from "../lib/csvTable";
 import {
+  SESSION_CSV_FIELDS,
   autoMapSessionCsv,
   parseCsvDateTime,
   sessionCsvTemplate,
+  sessionsToCsv,
   validateSessionCsvRows,
   type SessionCsvCreate,
 } from "../lib/sessionCsv";
@@ -125,6 +127,115 @@ describe("sessionCsv", () => {
     const row = results[0] as SessionCsvCreate;
     expect(row.kind).toBe("create");
     expect(row.outsideEventDates).toBe(true);
+  });
+
+  /* AGENDA-2 — format has to survive the export → edit → re-import round trip.
+     Exporting a column the importer ignores would silently clear every format
+     the moment an organizer edited their program in a spreadsheet. */
+  it("accepts a format from the vocabulary, case-insensitively", () => {
+    const results = validateSessionCsvRows({
+      rows: [
+        { title: "A", start: "2026-09-14 09:00", end: "2026-09-14 10:00", format: "workshop" },
+        { title: "B", start: "2026-09-14 09:00", end: "2026-09-14 10:00", format: "Keynote" },
+        { title: "C", start: "2026-09-14 09:00", end: "2026-09-14 10:00", format: "" },
+      ],
+      mapping: { title: "title", start: "start", end: "end", format: "format" },
+      tracks,
+      rooms,
+      event,
+    });
+    expect(results.map((r) => r.kind)).toEqual(["create", "create", "create"]);
+    expect((results[0] as SessionCsvCreate).payload.format).toBe("workshop");
+    expect((results[1] as SessionCsvCreate).payload.format).toBe("keynote");
+    // A blank cell leaves the format unset rather than sending "".
+    expect((results[2] as SessionCsvCreate).payload.format).toBeUndefined();
+    expect((results[2] as SessionCsvCreate).format).toBeNull();
+  });
+
+  it("errors on a format outside the vocabulary instead of dropping it", () => {
+    // A spreadsheet full of "Keynote Address" should be told once, not
+    // imported with every format quietly missing.
+    const results = validateSessionCsvRows({
+      rows: [{ title: "A", start: "2026-09-14 09:00", end: "2026-09-14 10:00", format: "roundtable" }],
+      mapping: { title: "title", start: "start", end: "end", format: "format" },
+      tracks,
+      rooms,
+      event,
+    });
+    expect(results[0]).toMatchObject({ kind: "error", rowIndex: 0 });
+    expect((results[0] as { message: string }).message).toContain("roundtable");
+    expect((results[0] as { message: string }).message).toContain("workshop");
+  });
+
+  it("auto-maps the format column and its aliases", () => {
+    expect(autoMapSessionCsv(["Format"])).toEqual({ Format: "format" });
+    expect(autoMapSessionCsv(["Session Type"])).toEqual({ "Session Type": "format" });
+    expect(autoMapSessionCsv(["Type"])).toEqual({ Type: "format" });
+  });
+
+  it("round-trips an exported program back through the importer", () => {
+    const exported = sessionsToCsv(
+      [
+        {
+          title: "Opening keynote: Designing calm days",
+          startsAt: "2026-09-14T16:00:00.000Z",
+          endsAt: "2026-09-14T17:00:00.000Z",
+          trackName: "Plenary",
+          roomName: "Hall A",
+          format: "keynote",
+          speakers: "Maya Chen, Jonas Okonkwo",
+          description: 'She said "calm", with a comma',
+        },
+        {
+          title: "Workshop block A",
+          startsAt: "2026-09-14T17:30:00.000Z",
+          endsAt: "2026-09-14T19:00:00.000Z",
+          trackName: null,
+          roomName: null,
+          format: null,
+          speakers: null,
+          description: null,
+        },
+      ],
+      event.timezone,
+    );
+
+    const parsed = parseCsvToTable(exported);
+    expect("error" in parsed).toBe(false);
+    if ("error" in parsed) return;
+
+    const results = validateSessionCsvRows({
+      rows: parsed.rows,
+      mapping: autoMapSessionCsv(parsed.headers),
+      tracks,
+      rooms,
+      event,
+    });
+
+    const first = results[0] as SessionCsvCreate;
+    expect(first.kind).toBe("create");
+    // Back to the instants it started from, through the event's wall clock.
+    expect(first.payload.startsAt).toBe("2026-09-14T16:00:00.000Z");
+    expect(first.payload.endsAt).toBe("2026-09-14T17:00:00.000Z");
+    expect(first.payload.format).toBe("keynote");
+    expect(first.payload.trackId).toBe("trk_1");
+    expect(first.payload.roomId).toBe("rm_1");
+    expect(first.payload.speakers).toBe("Maya Chen, Jonas Okonkwo");
+    // Quotes and commas survive the escaping.
+    expect(first.payload.description).toBe('She said "calm", with a comma');
+    expect(first.title).toBe("Opening keynote: Designing calm days");
+
+    const second = results[1] as SessionCsvCreate;
+    expect(second.kind).toBe("create");
+    expect(second.payload.format).toBeUndefined();
+    expect(second.payload.trackId).toBeNull();
+  });
+
+  it("writes the same header the importer reads", () => {
+    const header = sessionsToCsv([], "UTC").split("\n")[0];
+    expect(header).toBe("title,start,end,track,room,format,speakers,description");
+    expect(sessionCsvTemplate().split("\n")[0]).toBe(header);
+    expect(SESSION_CSV_FIELDS.join(",")).toBe(header);
   });
 
   it("returns a single file-level error when a required column is unmapped", () => {

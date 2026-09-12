@@ -14,7 +14,9 @@ import {
   AI_GENERATED_CHIP_LABEL,
   ASSISTANT_COPY,
   PHASE6_ONBOARDING_CHECKLIST,
+  inferSessionFormat,
   resolveFeatureEnabled,
+  type SessionFormat,
   type SetupCopilotFormState,
 } from "@event-app/shared";
 import { prisma } from "../../db";
@@ -32,6 +34,19 @@ function parseHm(t: string): { h: number; m: number } {
   if (!m) return { h: 9, m: 0 };
   return { h: Number(m[1]), m: Number(m[2]) };
 }
+
+/**
+ * AGENDA-2 — the drafter already knows what each block it invented is for, so
+ * the block kind is a better source than the title it generated. Only the three
+ * unambiguous kinds map; `welcome`, `session`, and `wrap` fall through to the
+ * title cue and usually end up null, which is the honest answer for a row the
+ * drafter named "Afternoon sessions".
+ */
+const FORMAT_BY_BLOCK_KIND: Partial<Record<string, SessionFormat>> = {
+  keynote: "keynote",
+  break: "break",
+  meal: "break",
+};
 
 function addDaysYmd(ymd: string, offset: number): { y: number; mo: number; d: number } {
   const base = new Date(ymd.includes("T") ? ymd : `${ymd}T12:00:00Z`);
@@ -161,6 +176,7 @@ export async function completeSetupCopilot(opts: {
           eventId: created.id,
           title: s.title,
           description: s.description,
+          format: FORMAT_BY_BLOCK_KIND[s.blockKind] ?? inferSessionFormat(s.title),
           startsAt,
           endsAt,
           publishStatus: SessionPublishStatus.DRAFT,

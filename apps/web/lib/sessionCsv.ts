@@ -5,7 +5,12 @@
  * can be unit-tested without a DOM.
  */
 
-import { isOutsideEventDates, zonedDateTimeLocalToIso } from "./eventTimezone";
+import { asSessionFormat, SESSION_FORMATS } from "@event-app/shared";
+import {
+  isOutsideEventDates,
+  toLocalInputValueInTimeZone,
+  zonedDateTimeLocalToIso,
+} from "./eventTimezone";
 
 export const SESSION_CSV_FIELDS = [
   "title",
@@ -13,6 +18,7 @@ export const SESSION_CSV_FIELDS = [
   "end",
   "track",
   "room",
+  "format",
   "speakers",
   "description",
 ] as const;
@@ -25,6 +31,7 @@ export const SESSION_CSV_MAPPING_OPTIONS: { value: string; label: string }[] = [
   { value: "end", label: "End (date + time)" },
   { value: "track", label: "Track name" },
   { value: "room", label: "Room name" },
+  { value: "format", label: "Format" },
   { value: "speakers", label: "Speakers" },
   { value: "description", label: "Description" },
   { value: "skip", label: "Skip" },
@@ -33,11 +40,63 @@ export const SESSION_CSV_MAPPING_OPTIONS: { value: string; label: string }[] = [
 /** Downloadable template: header row plus two illustrative rows. */
 export function sessionCsvTemplate(): string {
   return [
-    "title,start,end,track,room,speakers,description",
-    '"Opening keynote: Designing calm learning days",2026-09-14 09:00,2026-09-14 10:00,Keynote,Hall A,"Jordan Lee","Welcome and the year ahead"',
-    '"Workshop block A: Reading conferences",2026-09-14 10:30,2026-09-14 12:00,Workshops,Room 12,"Priya Raman, Sam Whitfield",',
+    "title,start,end,track,room,format,speakers,description",
+    '"Opening keynote: Designing calm learning days",2026-09-14 09:00,2026-09-14 10:00,Keynote,Hall A,keynote,"Jordan Lee","Welcome and the year ahead"',
+    '"Workshop block A: Reading conferences",2026-09-14 10:30,2026-09-14 12:00,Workshops,Room 12,workshop,"Priya Raman, Sam Whitfield",',
     "",
   ].join("\n");
+}
+
+/** One CSV cell: quoted only when it has to be, so the file stays readable. */
+function csvCell(value: string | null | undefined): string {
+  const text = value ?? "";
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+export type SessionCsvExportRow = {
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  trackName?: string | null;
+  roomName?: string | null;
+  format?: string | null;
+  speakers?: string | null;
+  description?: string | null;
+};
+
+/**
+ * Serialize the current program to the same columns the importer reads, so an
+ * organizer can export, edit in a spreadsheet, and re-import without losing a
+ * field on the way through. `format` is part of that round trip: exporting it
+ * but ignoring it on import would quietly clear every format on re-import.
+ *
+ * Times are written as the importer's wall-clock format in the event timezone,
+ * not ISO — a spreadsheet is where these get edited by hand.
+ */
+export function sessionsToCsv(
+  sessions: readonly SessionCsvExportRow[],
+  timezone: string,
+): string {
+  // "2026-09-14T09:00" → "2026-09-14 09:00", the shape parseCsvDateTime reads
+  // back and the shape a spreadsheet will not try to reinterpret.
+  const wall = (iso: string) => toLocalInputValueInTimeZone(iso, timezone).replace("T", " ");
+  const lines = ["title,start,end,track,room,format,speakers,description"];
+  for (const s of sessions) {
+    lines.push(
+      [
+        csvCell(s.title),
+        csvCell(wall(s.startsAt)),
+        csvCell(wall(s.endsAt)),
+        csvCell(s.trackName),
+        csvCell(s.roomName),
+        csvCell(s.format),
+        csvCell(s.speakers),
+        csvCell(s.description),
+      ].join(","),
+    );
+  }
+  lines.push("");
+  return lines.join("\n");
 }
 
 const HEADER_ALIASES: Record<string, SessionCsvField> = {
@@ -56,6 +115,10 @@ const HEADER_ALIASES: Record<string, SessionCsvField> = {
   track: "track",
   room: "room",
   location: "room",
+  format: "format",
+  "session type": "format",
+  type: "format",
+  kind: "format",
   speakers: "speakers",
   speaker: "speakers",
   presenters: "speakers",
@@ -106,6 +169,8 @@ export type SessionCsvCreate = {
   timeLabel: string;
   trackName: string | null;
   roomName: string | null;
+  /** AGENDA-2 — the resolved format, or null when the column was blank. */
+  format: string | null;
   /** True when the session falls outside the event's start/end days. */
   outsideEventDates: boolean;
   payload: {
@@ -114,6 +179,7 @@ export type SessionCsvCreate = {
     endsAt: string;
     trackId: string | null;
     roomId: string | null;
+    format?: string | null;
     speakers?: string;
     description?: string;
   };
@@ -217,6 +283,22 @@ export function validateSessionCsvRows(input: ValidateInput): SessionCsvRowResul
       roomId = room.id;
     }
 
+    // AGENDA-2 — the vocabulary is closed, so an unrecognized cell is a row
+    // error rather than a silent drop. A spreadsheet full of "Keynote Address"
+    // should be told once, not imported with every format missing.
+    const formatRaw = fieldValue(row, input.mapping, "format");
+    let format: string | null = null;
+    if (formatRaw) {
+      format = asSessionFormat(formatRaw.toLowerCase());
+      if (!format) {
+        return {
+          kind: "error",
+          rowIndex,
+          message: `Format "${formatRaw}" isn't one of ${SESSION_FORMATS.join(", ")} — fix the cell or leave it blank.`,
+        };
+      }
+    }
+
     const speakers = fieldValue(row, input.mapping, "speakers");
     const description = fieldValue(row, input.mapping, "description");
 
@@ -228,6 +310,7 @@ export function validateSessionCsvRows(input: ValidateInput): SessionCsvRowResul
       timeLabel: `${startLocal.slice(11, 16)}–${endLocal.slice(11, 16)}`,
       trackName: trackName || null,
       roomName: roomName || null,
+      format,
       outsideEventDates: isOutsideEventDates(
         startsAt,
         endsAt,
@@ -241,6 +324,7 @@ export function validateSessionCsvRows(input: ValidateInput): SessionCsvRowResul
         endsAt,
         trackId,
         roomId,
+        ...(format ? { format } : {}),
         ...(speakers ? { speakers } : {}),
         ...(description ? { description } : {}),
       },

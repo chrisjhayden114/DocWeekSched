@@ -8,6 +8,7 @@ import type { ChangesetRow } from "./changeset";
 import type { ExtractedItem, ExtractedSession } from "./schema";
 import { normalizeTitle } from "./schema";
 import { writeAuditLog } from "../audit";
+import { inferSessionFormat } from "@event-app/shared";
 
 export type ConfirmResult = {
   createdCount: number;
@@ -220,6 +221,11 @@ export async function confirmAgendaChangeset(input: {
     const roomId = await ensureRoom(input.prisma, input.eventId, row.session.room);
     const { startsAt, endsAt } = sessionBounds(row.session, input.timezone);
     const speakersText = row.session.speakers.join(", ") || null;
+    // AGENDA-2 — the title cue wins over anything the model volunteered: it is
+    // deterministic and reviewable, where a model's "format" for a row named
+    // "Paper session 3B" is a guess the organizer would have to go and undo.
+    // Null when the title says nothing, which is most rows.
+    const format = inferSessionFormat(row.session.title) ?? row.session.format ?? null;
 
     if (row.kind === "create") {
       const created = await input.prisma.session.create({
@@ -229,6 +235,7 @@ export async function confirmAgendaChangeset(input: {
           description: row.session.description || null,
           location: row.session.room || null,
           speakers: speakersText,
+          format,
           trackId,
           roomId,
           startsAt,
@@ -329,6 +336,9 @@ export async function confirmAgendaChangeset(input: {
           ...(row.session.description ? { description: row.session.description } : {}),
           ...(row.session.room ? { location: row.session.room } : {}),
           speakers: mergedSpeakersText,
+          // Same rule as description and room: a re-import that finds no cue
+          // must not erase a format the organizer picked by hand.
+          ...(format ? { format } : {}),
           ...(trackId ? { trackId } : {}),
           ...(roomId ? { roomId } : {}),
           startsAt,

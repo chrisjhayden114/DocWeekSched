@@ -4,7 +4,12 @@ import Head from "next/head";
 import Link from "next/link";
 import type { GetServerSideProps } from "next";
 import { useEffect, useMemo, useState } from "react";
-import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../../components/AgendaFilterPanel";
+import {
+  AgendaFilterRail,
+  AgendaFiltersSheet,
+  DayChips,
+  formatFilterOptions,
+} from "../../components/AgendaFilterPanel";
 import { BrandLogo } from "../../components/BrandLogo";
 import { EventHero } from "../../components/EventHero";
 import { FeeNotice } from "../../components/FeeNotice";
@@ -15,7 +20,14 @@ import { CardSpeakerAvatars } from "../../components/SessionCardBits";
 import { SessionPeekSurface } from "../../components/SessionPeekSurface";
 import { useSessionPeek } from "../../components/useSessionPeek";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
-import { filterSessions } from "../../lib/agendaFilters";
+import { useAgendaFilters } from "../../components/useAgendaFilters";
+import {
+  activeFilterCount,
+  filterSessions,
+  isGroupFilterable,
+  optionCounts,
+  printCountLine,
+} from "../../lib/agendaFilters";
 import { apiFetch, type AuthResponse, clearAuthClientState } from "../../lib/api";
 import { downloadProgramIcs } from "../../lib/calendarIcs";
 import { loginPathForSession, loginPathWithEvent } from "../../lib/entryRedirects";
@@ -69,6 +81,8 @@ export type PublicEventView = {
     trackColor?: string | null;
     roomName: string | null;
     roomId?: string | null;
+    /** AGENDA-2 — one of SESSION_FORMATS, or null when never set. */
+    format?: string | null;
     speakers: Array<{
       id?: string;
       name: string;
@@ -241,10 +255,8 @@ function PrintIcon() {
  * print program, ICS download. Filters run client-side on SSR data.
  */
 function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHref: string }) {
-  const [query, setQuery] = useState("");
-  const [day, setDay] = useState("");
-  const [track, setTrack] = useState("");
-  const [room, setRoom] = useState("");
+  // No "my schedule" out here — there is no signed-in attendee to have one.
+  const { filters, setFilters } = useAgendaFilters({ mySchedule: false });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [scheduleLayout, setScheduleLayout] = useState<ScheduleViewMode>("list");
   const peek = useSessionPeek();
@@ -267,6 +279,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
           location: s.location,
           speakers: s.speakers.map((sp) => sp.name).join(", ") || null,
           speakerPeople: s.speakers,
+          format: s.format ?? null,
           trackId: s.trackName || null,
           roomId: s.roomName || null,
           track: s.trackName ? { id: s.trackName, name: s.trackName, color: s.trackColor ?? undefined } : null,
@@ -295,15 +308,65 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
     [filterable],
   );
 
+  const filterCtx = useMemo(() => ({ dayKey: (iso: string) => zonedDayKey(iso, timeZone) }), [timeZone]);
+
   const filtered = useMemo(
-    () =>
-      filterSessions(
-        filterable,
-        { trackId: track || null, roomId: room || null, dayKey: day || null, query },
-        (iso) => zonedDayKey(iso, timeZone),
-      ),
-    [filterable, track, room, day, query, timeZone],
+    () => filterSessions(filterable, filters, filterCtx),
+    [filterable, filters, filterCtx],
   );
+
+  /*
+   * AGENDA-2 — rail sections and their per-option counts.
+   *
+   * Visibility is decided from the unfiltered program (isGroupFilterable) so a
+   * section never disappears mid-interaction, while the counts come from
+   * optionCounts, which re-runs every *other* group — so "Panel · 4" keeps
+   * telling you what switching to it would show.
+   */
+  const railOptions = useMemo(() => {
+    const counts = (group: Parameters<typeof optionCounts>[3]) =>
+      optionCounts(filterable, filters, filterCtx, group);
+
+    const formatCounts = counts("format");
+    const trackCounts = counts("track");
+    const roomCounts = counts("room");
+    const speakerCounts = counts("speaker");
+
+    const speakerRoster = new Map<string, { id: string; name: string; photoUrl?: string | null }>();
+    for (const s of filterable) {
+      for (const person of s.speakerPeople ?? []) {
+        const id = person.id || person.name;
+        if (!speakerRoster.has(id)) {
+          speakerRoster.set(id, { id, name: person.name, photoUrl: person.photoUrl ?? null });
+        }
+      }
+    }
+
+    return {
+      formats: isGroupFilterable(filterable, "format")
+        ? formatFilterOptions(
+            [...new Set(filterable.map((s) => s.format).filter((f): f is string => Boolean(f)))],
+            formatCounts,
+          )
+        : [],
+      tracks: isGroupFilterable(filterable, "track")
+        ? trackOptions.map((t) => ({
+            id: t,
+            label: t,
+            dot: trackColor(t, null, orderedTrackIds),
+            count: trackCounts.get(t) ?? 0,
+          }))
+        : [],
+      rooms: isGroupFilterable(filterable, "room")
+        ? roomOptions.map((r) => ({ id: r, label: r, count: roomCounts.get(r) ?? 0 }))
+        : [],
+      speakers: isGroupFilterable(filterable, "speaker")
+        ? [...speakerRoster.values()]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((p) => ({ ...p, count: speakerCounts.get(p.id) ?? 0 }))
+        : [],
+    };
+  }, [filterable, filters, filterCtx, trackOptions, roomOptions, orderedTrackIds]);
 
   const grouped = useMemo(() => {
     const byDay = new Map<string, typeof filtered>();
@@ -321,24 +384,38 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
     });
   }, [filtered, timeZone]);
 
-  /** Full unfiltered program for print (all days). */
+  /**
+   * AGENDA-2 — print follows the filters, ignoring only the day.
+   *
+   * A printout is what someone carries around the venue, and the filters are
+   * how they said what they care about; handing them the whole program instead
+   * throws that away. The day is the one filter print overrides, because a
+   * sheet of paper has no day chips — you want all three days of *your*
+   * sessions, not one. The header states what was included so a printout found
+   * on a table is not mistaken for the full program.
+   */
+  const printSessions = useMemo(
+    () => filterSessions(filterable, { ...filters, dayKey: null }, filterCtx),
+    [filterable, filters, filterCtx],
+  );
+
   const printGrouped = useMemo(() => {
-    const byDay = new Map<string, typeof filterable>();
-    for (const s of filterable) {
+    const byDay = new Map<string, typeof printSessions>();
+    for (const s of printSessions) {
       const key = zonedDayKey(s.startsAt, timeZone);
       byDay.set(key, [...(byDay.get(key) || []), s]);
     }
     return [...byDay.entries()].map(([dayKey, daySessions]) => {
-      const slots = new Map<string, typeof filterable>();
+      const slots = new Map<string, typeof printSessions>();
       for (const s of daySessions) {
         const label = slotTimeLabel(s.startsAt, timeZone);
         slots.set(label, [...(slots.get(label) || []), s]);
       }
       return { dayKey, slots: [...slots.entries()] };
     });
-  }, [filterable, timeZone]);
+  }, [printSessions, timeZone]);
 
-  const activeFilterCount = (track ? 1 : 0) + (room ? 1 : 0) + (query.trim() ? 1 : 0);
+  const activeCount = activeFilterCount(filters);
 
   const peekSession = useMemo(() => {
     const found = peek.openId ? filterable.find((s) => s.id === peek.openId) : null;
@@ -360,37 +437,16 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
   }, [peek.openId, filterable]);
 
   const filterControls = (
-    <>
-      <input
-        className="input"
-        type="search"
-        placeholder="Search sessions, speakers, papers, presentations…"
-        aria-label="Search sessions"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      <FilterGroup
-        label="Day"
-        options={dayOptions.map((d) => ({ id: d, label: dayChipLabel(d) }))}
-        value={day}
-        onChange={setDay}
-        allLabel="All days"
-      />
-      <FilterGroup
-        label="Track"
-        options={trackOptions.map((t) => ({ id: t, label: t, dot: trackColor(t, null, orderedTrackIds) }))}
-        value={track}
-        onChange={setTrack}
-        allLabel="All tracks"
-      />
-      <FilterGroup
-        label="Room"
-        options={roomOptions.map((r) => ({ id: r, label: r }))}
-        value={room}
-        onChange={setRoom}
-        allLabel="All rooms"
-      />
-    </>
+    <AgendaFilterRail
+      filters={filters}
+      onChange={setFilters}
+      days={dayOptions}
+      formatOptions={railOptions.formats}
+      trackOptions={railOptions.tracks}
+      roomOptions={railOptions.rooms}
+      speakerOptions={railOptions.speakers}
+      storageScope="public"
+    />
   );
 
   const listBody =
@@ -489,7 +545,10 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
                 className="button ghost"
                 onClick={() =>
                   downloadProgramIcs(
-                    filterable.map((s) => ({
+                    // AGENDA-2 — the same set print uses: the filters, minus the
+                    // day. A calendar file of one day of a three-day event is
+                    // almost never what someone filtering for "workshops" meant.
+                    printSessions.map((s) => ({
                       id: s.id,
                       title: s.title,
                       startsAt: s.startsAt,
@@ -517,10 +576,14 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
               aria-expanded={filtersOpen}
               onClick={() => setFiltersOpen(true)}
             >
-              Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}
+              Filters{activeCount ? ` · ${activeCount}` : ""}
             </button>
           </div>
-          <DayChips days={dayOptions} value={day} onChange={setDay} />
+          <DayChips
+            days={dayOptions}
+            value={filters.dayKey ?? ""}
+            onChange={(dayKey) => setFilters({ ...filters, dayKey: dayKey || null })}
+          />
         </div>
 
         <div className={`schedule-list-screen${scheduleLayout !== "list" ? " is-desktop-hidden" : ""}`}>
@@ -554,6 +617,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
           <header className="schedule-print-header">
             <h1>{event.name}</h1>
             <p>{formatRange(event.startDate, event.endDate, timeZone)}</p>
+            <p>{printCountLine(printSessions.length, filterable.length)}</p>
           </header>
           {printGrouped.map(({ dayKey, slots }) => {
             const { weekday, rest } = dayHeading(dayKey);

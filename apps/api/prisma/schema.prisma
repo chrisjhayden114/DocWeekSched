@@ -892,6 +892,11 @@ model Session {
   location          String?
   /// Legacy free-text speakers — kept alongside Speaker roster (Phase 2).
   speakers          String?
+  /// AGENDA-2 — what kind of session this is (keynote, workshop, break…).
+  /// Deliberately a nullable String, not an enum: the vocabulary is closed in
+  /// packages/shared and enforced in Zod, so widening it never needs a lock on
+  /// this table and a rolling deploy can't have two pods disagree on values.
+  format            String?
   imageUrl          String?
   zoomLink          String?
   recordingUrl      String?

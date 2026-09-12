@@ -15,6 +15,7 @@ import { uploadHttpError, validationErrorBody } from "../lib/errors";
 import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
 import { patchFields, trimmedOrNull } from "../lib/patchFields";
 import { getRequestId } from "../lib/requestId";
+import { SESSION_FORMATS } from "@event-app/shared";
 
 export const sessionsRouter = Router();
 
@@ -24,9 +25,17 @@ export const sessionsRouter = Router();
  */
 const optionalLink = z.string().max(5_000_000).nullable().optional();
 
+/**
+ * AGENDA-2 — the format vocabulary is closed here rather than in the database,
+ * so widening it never locks the Session table. z.enum rejects anything else
+ * with a 400 naming the allowed values, which is the report a human can act on.
+ */
+const optionalFormat = z.enum(SESSION_FORMATS).nullable().optional();
+
 const sessionSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
+  format: optionalFormat,
   location: z.string().max(500).nullable().optional(),
   speakers: z.string().optional(),
   imageUrl: optionalLink,
@@ -50,6 +59,9 @@ const sessionSchema = z.object({
 /** The nullable columns PUT /sessions/:id patches rather than replaces. */
 const SESSION_PATCH_FIELDS = [
   "location",
+  // AGENDA-2 — the inline row edit sends title/times/track/room only, so
+  // format has to survive a partial save like the materials columns do.
+  "format",
   "imageUrl",
   "zoomLink",
   "recordingUrl",
@@ -486,6 +498,7 @@ sessionsRouter.post(
         // On create there is nothing to preserve, so absent legitimately means null.
         location: trimmedOrNull(parsed.data.location),
         speakers: parsed.data.speakers,
+        format: parsed.data.format ?? null,
         imageUrl: trimmedOrNull(parsed.data.imageUrl),
         zoomLink: trimmedOrNull(parsed.data.zoomLink),
         recordingUrl: trimmedOrNull(parsed.data.recordingUrl),

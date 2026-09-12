@@ -4,7 +4,7 @@
  */
 
 import { SessionPublishStatus, type EventStatus } from "@prisma/client";
-import { eventLogoWithOrgFallback, hasFeeNotice, type FeeNotice } from "@event-app/shared";
+import { asSessionFormat, eventLogoWithOrgFallback, hasFeeNotice, type FeeNotice } from "@event-app/shared";
 import { can } from "./billing/entitlements";
 import { prisma } from "./db";
 import { featureEnabled } from "./features/featureEnabled";
@@ -32,6 +32,12 @@ export type PublicSessionPayload = {
   trackColor: string | null;
   roomName: string | null;
   roomId: string | null;
+  /**
+   * AGENDA-2 — one of SESSION_FORMATS, or null when the organizer never set
+   * one. The public agenda's format filter hides itself when every session
+   * reads null, so an event that ignores formats never sees the section.
+   */
+  format: string | null;
   speakers: Array<{
     id: string;
     name: string;
@@ -56,6 +62,7 @@ export type PublicSessionRow = {
   location: string | null;
   startsAt: Date;
   endsAt: Date;
+  format: string | null;
   track: { name: string; color: string | null } | null;
   room: { id: string; name: string } | null;
   sessionSpeakers: Array<{
@@ -89,6 +96,10 @@ export function toPublicSession(s: PublicSessionRow): PublicSessionPayload {
     trackColor: s.track?.color ?? null,
     roomName: s.room?.name ?? null,
     roomId: s.room?.id ?? null,
+    // Unknown values are dropped rather than passed through: the column is a
+    // plain String, so a hand-edited row must not reach the filter rail and
+    // create a format option nothing else in the app knows how to label.
+    format: asSessionFormat(s.format),
     speakers: s.sessionSpeakers.map((ss) => ({
       id: ss.speaker.id,
       name: ss.speaker.name,
@@ -244,6 +255,7 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
         location: true,
         startsAt: true,
         endsAt: true,
+        format: true,
         track: { select: { name: true, color: true } },
         room: { select: { id: true, name: true } },
         sessionSpeakers: {

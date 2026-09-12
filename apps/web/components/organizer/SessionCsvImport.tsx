@@ -5,10 +5,13 @@ import {
   SESSION_CSV_MAPPING_OPTIONS,
   autoMapSessionCsv,
   sessionCsvTemplate,
+  sessionsToCsv,
   validateSessionCsvRows,
   type SessionCsvCreate,
+  type SessionCsvExportRow,
   type SessionCsvRowResult,
 } from "../../lib/sessionCsv";
+import { sessionFormatLabel } from "@event-app/shared";
 import {
   LEGACY_XLS_MESSAGE,
   fileToDataUrl,
@@ -35,6 +38,11 @@ type Props = {
    * tab routes .xlsx here so spreadsheets never go to the model).
    */
   initialFile?: File | null;
+  /**
+   * AGENDA-2 — the current program, for the export half of the round trip.
+   * Omitted on the ingest page, where there is nothing to export yet.
+   */
+  exportSessions?: readonly SessionCsvExportRow[];
 };
 
 /**
@@ -44,7 +52,13 @@ type Props = {
  * Nothing is created without the explicit confirm step. Excel files are
  * converted to rows server-side (E21) — same review, no AI.
  */
-export function SessionCsvImport({ eventId, onCreated, bare, initialFile }: Props) {
+export function SessionCsvImport({
+  eventId,
+  onCreated,
+  bare,
+  initialFile,
+  exportSessions,
+}: Props) {
   const [event, setEvent] = useState<EventWindow | null>(null);
   const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
@@ -188,14 +202,27 @@ export function SessionCsvImport({ eventId, onCreated, bare, initialFile }: Prop
     }
   }, [initialFile, consumedInitialFile, onFile]);
 
-  function downloadTemplate() {
-    const blob = new Blob([sessionCsvTemplate()], { type: "text/csv;charset=utf-8" });
+  function downloadCsv(text: string, filename: string) {
+    const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "sessions-template.csv";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadTemplate() {
+    downloadCsv(sessionCsvTemplate(), "sessions-template.csv");
+  }
+
+  /**
+   * AGENDA-2 — export uses the importer's own columns, so "export, edit in
+   * Excel, re-import" is a round trip rather than a one-way door.
+   */
+  function downloadExport() {
+    if (!event || !exportSessions?.length) return;
+    downloadCsv(sessionsToCsv(exportSessions, event.timezone), "sessions.csv");
   }
 
   async function onConfirm() {
@@ -241,19 +268,31 @@ export function SessionCsvImport({ eventId, onCreated, bare, initialFile }: Prop
     <div className={bare ? undefined : "console-panel"}>
       <div className="console-panel-head">
         <p className="console-panel-label">Import sessions from a spreadsheet</p>
-        <button
-          type="button"
-          className="button ghost"
-          style={{ fontSize: 13, padding: "2px 10px" }}
-          onClick={downloadTemplate}
-        >
-          Download CSV template
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {exportSessions?.length && event ? (
+            <button
+              type="button"
+              className="button ghost"
+              style={{ fontSize: 13, padding: "2px 10px" }}
+              onClick={downloadExport}
+            >
+              Export sessions (.csv)
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="button ghost"
+            style={{ fontSize: 13, padding: "2px 10px" }}
+            onClick={downloadTemplate}
+          >
+            Download CSV template
+          </button>
+        </div>
       </div>
       <p className="help-text" style={{ marginTop: 0 }}>
         Already have your program in a spreadsheet? Upload a CSV or Excel (.xlsx) file (columns: title,
-        start, end, track, room, speakers, description — times as YYYY-MM-DD HH:MM in the event timezone).
-        You review every row before anything is created. No AI involved.
+        start, end, track, room, format, speakers, description — times as YYYY-MM-DD HH:MM in the event
+        timezone). You review every row before anything is created. No AI involved.
       </p>
       <input
         key={fileInputKey}
@@ -326,6 +365,8 @@ export function SessionCsvImport({ eventId, onCreated, bare, initialFile }: Prop
               const bits = [r.title, r.timeLabel];
               if (r.trackName) bits.push(r.trackName);
               if (r.roomName) bits.push(r.roomName);
+              const formatLabel = sessionFormatLabel(r.format);
+              if (formatLabel) bits.push(formatLabel);
               return bits.join(" · ") + (r.outsideEventDates ? " — outside event dates" : "");
             }}
           />
