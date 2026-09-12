@@ -80,7 +80,13 @@ export type HoverInfoProps = {
   hideIcon?: boolean;
 };
 
-function canHover(): boolean {
+/**
+ * True on devices with a real pointer. Every hover-to-open surface is gated on
+ * it: on touch there is no hover, so a hover handler would fire once on tap and
+ * leave the card stuck open. Exported for AGENDA-1's session peek popover,
+ * which shares this hover-intent model.
+ */
+export function canHover(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function"
     ? window.matchMedia("(hover: hover)").matches
     : false;

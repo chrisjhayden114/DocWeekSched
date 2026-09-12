@@ -1459,6 +1459,108 @@ textarea.input,
   flex: 1 1 auto;
 }
 
+/*
+ * AGENDA-1 — cards that open the session peek keep the title to one line: the
+ * card is a scannable row, and the full title is one hover away in the peek.
+ */
+.schedule-event-title-text--one-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Hover lift on a peekable card. Transform and shadow only — nothing that
+ * reflows the row underneath — and both durations come from the motion tokens,
+ * so prefers-reduced-motion collapses them.
+ */
+.schedule-event--peekable {
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .schedule-event--peekable:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-2);
+  }
+}
+
+.schedule-event--peekable:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Speaker faces on a card: fixed height whatever the speaker count. */
+.schedule-event-faces {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.card-avatars {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.card-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -6px;
+  border-radius: 50%;
+  border: 1.5px solid var(--surface-card);
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
+  font: 600 10px/1 var(--font-body);
+  overflow: hidden;
+}
+
+.card-avatar:first-child {
+  margin-left: 0;
+}
+
+.card-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-avatar--more {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.card-avatar-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "This session has handouts" — a hint, not a link; the peek has the links. */
+.card-materials-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  color: var(--gray-500);
+  font: 400 11px/16px var(--font-body);
+}
+
+.card-materials-hint svg {
+  width: 12px;
+  height: 12px;
+}
+
 .schedule-event-meta {
   margin: 2px 0 0;
   min-width: 0;
@@ -7780,6 +7882,7 @@ button.schedule-meta-chip:hover {
 }
 
 .session-peek-sheet {
+  position: relative;
   width: 100%;
   max-height: min(85vh, 640px);
   overflow-y: auto;
@@ -7813,24 +7916,18 @@ button.schedule-meta-chip:hover {
   }
 }
 
-.session-peek-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.session-peek-title {
-  margin: 0;
-  font: var(--text-h3);
-  color: var(--title-color);
-}
-
+/*
+ * —— AGENDA-1: shared peek body (SessionPeekContent) ——
+ * One set of rules for both surfaces: the bottom sheet above and the anchored
+ * popover below. Sched-style anatomy — a full-width action strip on top, then
+ * title, meta, description, speakers, papers, materials, footer.
+ */
 .session-peek-close {
-  flex-shrink: 0;
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
   width: var(--tap-target);
   height: var(--tap-target);
-  margin: -8px -8px 0 0;
   border: none;
   background: transparent;
   color: var(--gray-500);
@@ -7845,48 +7942,43 @@ button.schedule-meta-chip:hover {
   background: var(--gray-100);
 }
 
-.session-peek-meta {
-  margin: var(--space-1) 0 0;
-  font: var(--text-meta);
-  color: var(--meta-color);
-}
-
-.session-peek-speakers {
-  margin: var(--space-2) 0 0;
-  font: var(--text-label);
-  color: var(--text-color);
-}
-
-.session-peek-desc {
-  margin: var(--space-2) 0 0;
-  font: var(--text-body);
-  color: var(--text-color);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-}
-
-.session-peek-error {
-  margin: var(--space-3) 0 0;
-  font: var(--text-label);
-  color: var(--danger);
-}
-
-.session-peek-actions {
+/* a. Action bar — a full-width strip, primary action first. */
+.session-peek-bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-top: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--gray-200);
+  /* Room for the close button in the corner. */
+  padding-right: var(--tap-target);
 }
 
-/* Comfortable targets: every action in the sheet is at least 44px tall. */
-.session-peek-actions .button,
-.session-peek-leave,
-.session-peek-details,
-.session-peek-mode button {
+.session-peek-primary {
+  flex: 1 1 auto;
+  justify-content: center;
   min-height: var(--tap-target);
+  text-decoration: none;
+}
+
+.session-peek-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-color);
+  font: var(--text-label);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.session-peek-bar-btn:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
 }
 
 .session-peek-joined-pill {
@@ -7905,6 +7997,7 @@ button.schedule-meta-chip:hover {
   border: none;
   background: transparent;
   padding: 0 var(--space-2);
+  min-height: var(--tap-target);
   color: var(--gray-500);
   font: var(--text-label);
   cursor: pointer;
@@ -7915,19 +8008,79 @@ button.schedule-meta-chip:hover {
   color: var(--danger);
 }
 
-.session-peek-star.is-active {
-  background: var(--event-accent-tint);
+/* b. Title + meta. */
+.session-peek-title {
+  margin: var(--space-3) 0 0;
+  font: var(--text-h3);
+  color: var(--title-color);
+}
+
+.session-peek-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  margin: var(--space-1) 0 0;
+  font: var(--text-meta);
+  color: var(--meta-color);
+}
+
+.session-peek-meta-sep {
+  color: var(--gray-400);
+}
+
+/* c. Room → venue map pin. */
+.session-peek-room-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
   color: var(--event-accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-.session-peek-mode {
-  margin-top: var(--space-3);
+.session-peek-room-link:hover {
+  color: var(--event-accent-hover);
 }
 
-.session-peek-details {
+.session-peek-track {
   display: inline-flex;
   align-items: center;
-  margin-top: var(--space-3);
+  gap: 5px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--track-color, var(--gray-300)) var(--track-fill-mix, 6%), #ffffff);
+  color: var(--text-color);
+}
+
+.session-peek-track-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--track-color, var(--gray-300));
+}
+
+/* d. Description: six lines, then "More" expands in place. */
+.session-peek-desc {
+  margin: var(--space-3) 0 0;
+  font: var(--text-body);
+  color: var(--text-color);
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+
+.session-peek-desc.is-expanded {
+  display: block;
+  overflow: visible;
+}
+
+.session-peek-more {
+  margin-top: var(--space-1);
   border: none;
   background: transparent;
   padding: 0;
@@ -7936,9 +8089,219 @@ button.schedule-meta-chip:hover {
   cursor: pointer;
 }
 
-.session-peek-details:hover {
-  color: var(--event-accent-hover);
+.session-peek-more:hover {
   text-decoration: underline;
+}
+
+/* e. Speakers. */
+.session-peek-speaker-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.session-peek-speaker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.session-peek-avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--gray-100);
+}
+
+.session-peek-avatar--initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--event-accent-tint);
+  color: var(--event-accent);
+  font: var(--text-label);
+  font-weight: 600;
+}
+
+.session-peek-speaker-text {
+  display: grid;
+  min-width: 0;
+}
+
+.session-peek-speaker-name {
+  font: var(--text-label);
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.session-peek-speaker-credit {
+  font: var(--text-meta);
+  color: var(--meta-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Legacy free-text speakers line. */
+.session-peek-speakers {
+  margin: var(--space-3) 0 0;
+  font: var(--text-label);
+  color: var(--text-color);
+}
+
+/* f. Papers. */
+.session-peek-papers {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.session-peek-paper {
+  display: grid;
+  font: var(--text-meta);
+  color: var(--meta-color);
+}
+
+.session-peek-paper-title {
+  font: var(--text-label);
+  color: var(--text-color);
+}
+
+/* g. Materials. */
+.session-peek-materials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.session-peek-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--text-color);
+  font: var(--text-meta);
+  text-decoration: none;
+}
+
+.session-peek-chip:hover {
+  border-color: var(--gray-300);
+  background: var(--gray-50);
+}
+
+.session-peek-chip-glyph {
+  width: 14px;
+  height: 14px;
+  color: var(--gray-500);
+}
+
+.session-peek-error {
+  margin: var(--space-3) 0 0;
+  font: var(--text-label);
+  color: var(--danger);
+}
+
+.session-peek-mode {
+  margin-top: var(--space-3);
+}
+
+.session-peek-mode button {
+  min-height: var(--tap-target);
+}
+
+/* h. Footer. */
+.session-peek-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--gray-200);
+}
+
+.session-peek-star {
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--gray-600);
+  font: var(--text-label);
+  cursor: pointer;
+}
+
+.session-peek-star.is-active {
+  background: var(--event-accent-tint);
+  border-color: var(--event-accent);
+  color: var(--event-accent);
+}
+
+/*
+ * —— AGENDA-1: desktop session peek popover ——
+ * Non-modal, anchored beside the card by lib/popupAnchor's anchorBeside, with a
+ * caret pointing back at it. Geometry (top/left/width/max-height) is inline from
+ * the measurement; everything cosmetic lives here.
+ */
+.session-peek-pop {
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-3);
+  animation: motion-pop-in var(--motion-fast) var(--ease-out) both;
+}
+
+.session-peek-pop-scroll {
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+.session-peek-pop-close {
+  z-index: 1;
+}
+
+/* The caret is a rotated square: one square, two visible borders. */
+.session-peek-pop-caret {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--surface-card);
+  border: 1px solid var(--gray-200);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.session-peek-pop--right .session-peek-pop-caret {
+  left: -6px;
+  border-right: none;
+  border-top: none;
+}
+
+.session-peek-pop--left .session-peek-pop-caret {
+  right: -6px;
+  border-left: none;
+  border-bottom: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-peek-pop {
+    animation: none;
+  }
 }
 
 .schedule-print-program {

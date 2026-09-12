@@ -21,6 +21,7 @@ import {
   sessionTrackTintClass,
   type AgendaScheduleView,
 } from "../lib/trackColors";
+import { peekCardClick, peekCardKeyDown, type SessionPeekCardProps } from "./useSessionPeek";
 
 export type BreakoutBoardSession = BreakoutSlotSession & {
   location?: string | null;
@@ -44,7 +45,14 @@ export type BreakoutSlotBoardProps<T extends BreakoutBoardSession> = {
   onJoin: (sessionId: string, slot: BreakoutSlot<T>) => Promise<boolean | void> | void;
   /** Fired when [Change] re-expands an already-chosen slot. */
   onChange?: (slot: BreakoutSlot<T>) => void;
-  onOpenSession: (sessionId: string) => void;
+  /** Legacy row click. Superseded by `cardProps`, which anchors the peek. */
+  onOpenSession?: (sessionId: string) => void;
+  /**
+   * AGENDA-1 — hover / click / keyboard props from useSessionPeek. When passed,
+   * every row opens the peek popover beside itself instead of relying on the
+   * row's own click handler.
+   */
+  cardProps?: (sessionId: string, opts?: { native?: boolean }) => SessionPeekCardProps;
   trackColor: (session: T) => string;
   timeZone: string;
   /**
@@ -97,6 +105,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
   onJoin,
   onChange,
   onOpenSession,
+  cardProps,
   trackColor,
   timeZone,
   agendaView = "eventSchedule",
@@ -153,6 +162,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
     const chosen = slot.chosenSessionId === session.id;
     const speaker = firstSpeaker(session);
     const room = roomLabel(session);
+    const peek = cardProps?.(session.id);
     return (
       <div
         key={session.id}
@@ -160,13 +170,9 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
         style={{ ["--track-color" as string]: trackColor(session) }}
         role="button"
         tabIndex={0}
-        onClick={() => onOpenSession(session.id)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onOpenSession(session.id);
-          }
-        }}
+        {...peek}
+        onClick={peekCardClick(peek, () => onOpenSession?.(session.id))}
+        onKeyDown={peekCardKeyDown(peek, () => onOpenSession?.(session.id))}
       >
         <div className="breakout-option-main">
           <p className="breakout-option-title">
@@ -215,12 +221,14 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                 const only = slot.sessions[0]!;
                 const joined = slot.chosenSessionId === only.id;
                 const room = roomLabel(only);
+                const peek = cardProps?.(only.id);
                 return (
                   <article
                     key={slot.key}
                     className={["schedule-event", "schedule-event--minimal", "breakout-minimal", sessionTrackTintClass(only.trackId, only.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
                     style={{ ["--track-color" as string]: trackColor(only) }}
-                    onClick={() => onOpenSession(only.id)}
+                    {...peek}
+                    onClick={peekCardClick(peek, () => onOpenSession?.(only.id))}
                   >
                     <div className="schedule-event-main">
                       <h4 className="schedule-event-title">
@@ -262,6 +270,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
               // the decision control ("Change your session") with amber.
               if (agendaView === "mySchedule" && chosenSession && !open) {
                 const room = roomLabel(chosenSession);
+                const chosenPeek = cardProps?.(chosenSession.id, { native: true });
                 return (
                   <article
                     key={slot.key}
@@ -271,7 +280,8 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                     <button
                       type="button"
                       className="breakout-choice-body"
-                      onClick={() => onOpenSession(chosenSession.id)}
+                      {...chosenPeek}
+                      onClick={peekCardClick(chosenPeek, () => onOpenSession?.(chosenSession.id))}
                     >
                       <span className="breakout-choice-label">Your {start}</span>
                       <span className="breakout-choice-title">

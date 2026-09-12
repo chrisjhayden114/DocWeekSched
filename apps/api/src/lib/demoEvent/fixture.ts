@@ -27,6 +27,11 @@ export type DemoFixtureSpec = {
     title: string;
     affiliation: string;
     bio: string;
+    /**
+     * AGENDA-1 — the session peek shows a speaker's face. Served from the web
+     * app's public folder so the demo needs no uploads and no external host.
+     */
+    photoUrl?: string;
   }>;
   sponsors: Array<{
     name: string;
@@ -46,6 +51,8 @@ export type DemoFixtureSpec = {
     startMinute: number;
     durationMinutes: number;
     speakerKeys: string[];
+    /** Slide deck / handout, so the peek's materials row has something to show. */
+    fileUrl?: string;
     items?: Array<{
       title: string;
       abstract: string;
@@ -102,6 +109,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Instructional Coach",
         affiliation: "Riverside School District",
         bio: "Leads professional learning at a K-12 school.",
+        photoUrl: "/demo/speakers/maya-chen.svg",
       },
       {
         key: "jonas",
@@ -109,6 +117,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Head of Teaching and Learning",
         affiliation: "Northbridge Academy",
         bio: "Runs the school's coaching and mentoring program.",
+        photoUrl: "/demo/speakers/jonas-okonkwo.svg",
       },
       {
         key: "elena",
@@ -116,6 +125,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Curriculum Lead",
         affiliation: "Open Learning Collaborative",
         bio: "Designs training materials for classroom teams.",
+        photoUrl: "/demo/speakers/elena-ruiz.svg",
       },
     ],
     sponsors: [
@@ -174,6 +184,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         startMinute: 240,
         durationMinutes: 90,
         speakerKeys: ["jonas", "elena"],
+        fileUrl: "/demo/materials/practice-showcase-slides.pdf",
         items: [
           {
             title: "Ten minutes of reading conferences, every day",

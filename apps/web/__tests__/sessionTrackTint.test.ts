@@ -161,7 +161,10 @@ describe("UI-1 — grid / by-room fills match the list wash", () => {
 describe("UI-1 — list surfaces apply the tint class from track presence", () => {
   it("the signed-in agenda, public agenda, and breakout rows call sessionTrackTintClass", () => {
     expect(dashboardSrc).toContain("sessionTrackTintClass(s.trackId, s.track?.color ?? untrackedTint)");
-    expect(publicSrc).toContain("sessionTrackTintClass(s.trackName, untrackedTint)");
+    // AGENDA-1 — the public payload now carries trackColor, so the public rows
+    // prefer the organizer's own color over the untracked wash, exactly as the
+    // signed-in agenda above already did.
+    expect(publicSrc).toContain("sessionTrackTintClass(s.trackName, s.trackColor ?? untrackedTint)");
     expect(breakoutSrc).toContain("sessionTrackTintClass(only.trackId, only.track?.color ?? untrackedTint)");
     expect(breakoutSrc).toContain("sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color ?? untrackedTint)");
   });

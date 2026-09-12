@@ -1,5 +1,10 @@
 import { CSSProperties, RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AnchorAlign, anchorPopup } from "../../lib/popupAnchor";
+import {
+  AnchorAlign,
+  anchorBeside,
+  anchorPopup,
+  type BesidePlacement,
+} from "../../lib/popupAnchor";
 
 /** The popups only open after hydration, but the module is imported during the
  *  server render, where useLayoutEffect warns. */
@@ -17,6 +22,41 @@ export type UseAnchoredPopupOptions = {
   /** Called when the anchor goes stale — an outside scroll or a resize. */
   onClose: () => void;
 };
+
+/**
+ * Close the popup when its anchor goes stale. The popup is fixed and detached
+ * from the trigger, so anything that moves the trigger afterwards (an outside
+ * scroll, a resize) closes it rather than leaving it stranded.
+ */
+function useStaleAnchorClose(
+  open: boolean,
+  popupRef: RefObject<HTMLElement | null>,
+  onClose: () => void,
+): void {
+  const closeRef = useRef(onClose);
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => closeRef.current();
+    const onScroll = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target && popupRef.current?.contains(target)) return;
+      close();
+    };
+    window.addEventListener("resize", close);
+    // Capture phase: scroll events do not bubble, so a scrolling ancestor of the
+    // trigger has to be caught on the way down.
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", close);
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open, popupRef]);
+}
 
 /**
  * W-1 — position for a popup rendered through kit/Portal. The trigger's rect is
@@ -37,11 +77,6 @@ export function useAnchoredPopup({
   onClose,
 }: UseAnchoredPopupOptions): CSSProperties | undefined {
   const [style, setStyle] = useState<CSSProperties>();
-  const closeRef = useRef(onClose);
-
-  useEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
 
   useIsomorphicLayoutEffect(() => {
     if (!open) {
@@ -58,23 +93,61 @@ export function useAnchoredPopup({
     setStyle(placed.style);
   }, [open, align, maxHeight, maxWidth, triggerRef]);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = () => closeRef.current();
-    const onScroll = (event: Event) => {
-      const target = event.target as Node | null;
-      if (target && popupRef.current?.contains(target)) return;
-      close();
-    };
-    window.addEventListener("resize", close);
-    // Capture phase: scroll events do not bubble, so a scrolling ancestor of the
-    // trigger has to be caught on the way down.
-    document.addEventListener("scroll", onScroll, true);
-    return () => {
-      window.removeEventListener("resize", close);
-      document.removeEventListener("scroll", onScroll, true);
-    };
-  }, [open, popupRef]);
+  useStaleAnchorClose(open, popupRef, onClose);
 
   return style;
+}
+
+export type UseAnchoredSidePopupOptions = {
+  open: boolean;
+  triggerRef: RefObject<HTMLElement | null>;
+  popupRef: RefObject<HTMLElement | null>;
+  width: number;
+  maxHeight: number;
+  onClose: () => void;
+};
+
+export type AnchoredSidePlacement = {
+  style: CSSProperties;
+  placement: BesidePlacement;
+  /** Caret offset from the popup's top edge; undefined on the below/above fallback. */
+  caretTop?: number;
+};
+
+/**
+ * AGENDA-1 — the same portal-anchoring contract as `useAnchoredPopup`, but
+ * placed *beside* the trigger (sched.com's session popover) instead of under
+ * it, and returning the placement so the caller can point a caret at the card.
+ *
+ * Returns undefined until the measurement lands — hold the popup back for that
+ * render rather than flashing it at 0,0.
+ */
+export function useAnchoredSidePopup({
+  open,
+  triggerRef,
+  popupRef,
+  width,
+  maxHeight,
+  onClose,
+}: UseAnchoredSidePopupOptions): AnchoredSidePlacement | undefined {
+  const [placed, setPlaced] = useState<AnchoredSidePlacement>();
+
+  useIsomorphicLayoutEffect(() => {
+    if (!open) {
+      setPlaced(undefined);
+      return;
+    }
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const result = anchorBeside(
+      trigger.getBoundingClientRect(),
+      { width: window.innerWidth, height: window.innerHeight },
+      { width, maxHeight },
+    );
+    setPlaced({ style: result.style, placement: result.placement, caretTop: result.caretTop });
+  }, [open, width, maxHeight, triggerRef]);
+
+  useStaleAnchorClose(open, popupRef, onClose);
+
+  return placed;
 }

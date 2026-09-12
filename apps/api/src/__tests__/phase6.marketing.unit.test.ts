@@ -5,7 +5,12 @@
 import { describe, expect, it } from "vitest";
 import { brand } from "@event-app/config";
 import { buildDemoFixtureSpec } from "../lib/demoEvent/fixture";
-import { homeEventQueryRedirect, loginPathWithEvent } from "@event-app/shared";
+import {
+  homeEventQueryRedirect,
+  loginPathForSession,
+  loginPathWithEvent,
+  safeNextPath,
+} from "@event-app/shared";
 import { readdirSync, readFileSync, statSync } from "fs";
 import { join, relative } from "path";
 
@@ -20,6 +25,73 @@ describe("Phase 6 entry redirect contract", () => {
   it("join token flow destinations use /login?event=<slug>", () => {
     expect(loginPathWithEvent("demo")).toBe("/login?event=demo");
     expect(loginPathWithEvent("annual-2026")).toBe("/login?event=annual-2026");
+  });
+
+  /** AGENDA-1 — the public peek's "Full details" for a visitor with no account. */
+  it("public session details route through sign-in and come back to the session", () => {
+    expect(loginPathForSession("demo", "sess-1")).toBe(
+      "/login?event=demo&intent=join&next=%2Fsession%2Fsess-1",
+    );
+  });
+
+  it("only same-origin absolute paths survive as a post-login destination", () => {
+    expect(safeNextPath("/session/sess-1")).toBe("/session/sess-1");
+    expect(safeNextPath("/dashboard?tab=Maps")).toBe("/dashboard?tab=Maps");
+    // Protocol-relative and absolute URLs are off-site — never redirect there.
+    expect(safeNextPath("//evil.test/phish")).toBeNull();
+    expect(safeNextPath("https://evil.test")).toBeNull();
+    expect(safeNextPath("javascript:alert(1)")).toBeNull();
+    expect(safeNextPath("session/sess-1")).toBeNull();
+    expect(safeNextPath(null)).toBeNull();
+    expect(safeNextPath(undefined)).toBeNull();
+    expect(safeNextPath("")).toBeNull();
+  });
+});
+
+/**
+ * AGENDA-1 — /e/demo is the shop window for the session peek, so the fixture
+ * has to give it something to show: descriptions everywhere, speakers with
+ * photos, a session with slides, and a session with papers.
+ */
+describe("public demo fixture feeds the session peek", () => {
+  const spec = buildDemoFixtureSpec("public_demo");
+
+  it("gives every session a description", () => {
+    for (const session of spec.sessions) {
+      expect(session.description.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("gives every speaker a photo", () => {
+    for (const speaker of spec.speakers) {
+      expect(speaker.photoUrl).toMatch(/^\/demo\/speakers\/.+\.svg$/);
+    }
+  });
+
+  it("has at least two sessions with two speakers who both have photos", () => {
+    const withPhoto = new Set(spec.speakers.filter((s) => s.photoUrl).map((s) => s.key));
+    const multi = spec.sessions.filter(
+      (s) => s.speakerKeys.length >= 2 && s.speakerKeys.every((k) => withPhoto.has(k)),
+    );
+    expect(multi.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("has a session with slides and a session with papers", () => {
+    expect(spec.sessions.filter((s) => s.fileUrl).length).toBeGreaterThanOrEqual(1);
+    expect(spec.sessions.filter((s) => (s.items?.length ?? 0) > 0).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("has papers whose authors name a presenter", () => {
+    const papers = spec.sessions.flatMap((s) => s.items ?? []);
+    expect(papers.length).toBeGreaterThan(0);
+    for (const paper of papers) {
+      expect(paper.authors.some((a) => a.isPresenter)).toBe(true);
+    }
+  });
+
+  it("puts sessions in rooms so the room line and By-room view mean something", () => {
+    expect(spec.rooms.length).toBeGreaterThanOrEqual(2);
+    expect(spec.sessions.every((s) => s.roomIndex != null)).toBe(true);
   });
 });
 

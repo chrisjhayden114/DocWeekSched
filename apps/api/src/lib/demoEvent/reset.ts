@@ -210,6 +210,7 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
         title: s.title,
         affiliation: s.affiliation,
         bio: s.bio,
+        photoUrl: s.photoUrl ?? null,
         sortOrder: i,
       },
     });
@@ -243,6 +244,7 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
         roomId: room?.id ?? null,
         startsAt,
         endsAt,
+        fileUrl: sess.fileUrl ?? null,
         publishStatus: SessionPublishStatus.PUBLISHED,
         speakers: sess.speakerKeys
           .map((k) => spec.speakers.find((s) => s.key === k)?.name)
@@ -366,6 +368,7 @@ export async function createSampleEventForOrg(input: {
         title: s.title,
         affiliation: s.affiliation,
         bio: s.bio,
+        photoUrl: s.photoUrl ?? null,
         sortOrder: i,
       },
     });
@@ -399,6 +402,7 @@ export async function createSampleEventForOrg(input: {
         roomId: room?.id ?? null,
         startsAt,
         endsAt,
+        fileUrl: sess.fileUrl ?? null,
         publishStatus: SessionPublishStatus.PUBLISHED,
         speakers: sess.speakerKeys
           .map((k) => spec.speakers.find((s) => s.key === k)?.name)

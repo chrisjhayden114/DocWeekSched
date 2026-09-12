@@ -6,34 +6,53 @@ import { useEffect, useState } from "react";
 import { BrandLogo } from "../components/BrandLogo";
 import { Select } from "../components/Select";
 import { apiFetch, AuthResponse, API_URL, setCsrfToken, clearAuthClientState } from "../lib/api";
+import { safeNextPath } from "../lib/entryRedirects";
 import { readClientStorage, removeClientStorage, writeClientStorage } from "../lib/clientStorage";
 
 type LinkedEventPayload = { id: string; name: string };
 
 const POST_LOGIN_INTENT_KEY = "postLoginIntent";
+/** AGENDA-1 — the page a public-agenda visitor asked for before signing in. */
+const POST_LOGIN_NEXT_KEY = "postLoginNext";
 
-/** Persist a "Create your event" CTA intent so it survives register → verify → sign-in. */
+/**
+ * Persist a "Create your event" CTA intent, or an `intent=join&next=` deep
+ * link, so either survives register → verify → sign-in.
+ */
 function captureIntentFromUrl() {
   try {
-    const intent = new URLSearchParams(window.location.search).get("intent");
+    const params = new URLSearchParams(window.location.search);
+    const intent = params.get("intent");
     if (intent === "create-event") {
       window.localStorage.setItem(POST_LOGIN_INTENT_KEY, intent);
     }
+    const next = safeNextPath(params.get("next"));
+    if (next) window.localStorage.setItem(POST_LOGIN_NEXT_KEY, next);
   } catch {
     /* ignore */
   }
 }
 
 /**
- * Where to send a signed-in user. With a stored create-event intent, route to
- * organization/event creation instead of the attendee dashboard.
+ * Where to send a signed-in user: the page they were reaching for, else event
+ * creation for a create-event intent, else the attendee dashboard.
  */
 async function postLoginDestination(): Promise<string> {
   let intent: string | null = null;
+  let next: string | null = null;
   try {
     intent = window.localStorage.getItem(POST_LOGIN_INTENT_KEY);
+    next = safeNextPath(window.localStorage.getItem(POST_LOGIN_NEXT_KEY));
   } catch {
     /* ignore */
+  }
+  if (next) {
+    try {
+      window.localStorage.removeItem(POST_LOGIN_NEXT_KEY);
+    } catch {
+      /* ignore */
+    }
+    return next;
   }
   if (intent !== "create-event") return "/dashboard";
   try {

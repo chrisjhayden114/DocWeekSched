@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Jonas Okonkwo">
+  <!-- Demo-only speaker portrait: a flat illustration, not a real person. -->
+  <rect width="128" height="128" fill="#d9ebe0"/>
+  <circle cx="64" cy="49" r="21" fill="#2c6144"/>
+  <path d="M18 128c0-25.4 20.6-46 46-46s46 20.6 46 46z" fill="#3a7d59"/>
+</svg>

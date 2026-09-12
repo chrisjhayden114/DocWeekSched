@@ -8,6 +8,7 @@
 
 import { useMemo } from "react";
 import { trackColor } from "../lib/trackColors";
+import { peekCardClick, type SessionPeekCardProps } from "./useSessionPeek";
 import {
   GUTTER,
   PX_PER_HOUR,
@@ -63,17 +64,23 @@ function TimetableBlock({
   orderedTrackIds,
   untrackedTint,
   onSelect,
+  cardProps,
 }: {
   placed: Placed;
   orderedTrackIds: string[];
   untrackedTint?: string | null;
   onSelect?: (id: string) => void;
+  cardProps?: (sessionId: string, opts?: { native?: boolean }) => SessionPeekCardProps;
 }) {
   const { session, top, height, col, colCount } = placed;
   const color = trackColor(session.trackId, session.trackExplicitColor, orderedTrackIds, untrackedTint);
   const widthPct = 100 / colCount;
   const leftPct = col * widthPct;
-  const interactive = Boolean(onSelect);
+  // AGENDA-1 — a block that can open the session peek is a control, whether the
+  // caller wires the peek (cardProps) or the legacy onSelect. The block is
+  // already a <button>, so it needs the handlers, not a second button role.
+  const peek = cardProps?.(session.id, { native: true });
+  const interactive = Boolean(onSelect || peek);
   const style = {
     top,
     height,
@@ -119,8 +126,9 @@ function TimetableBlock({
       type="button"
       className={blockClass}
       style={style}
-      onClick={() => onSelect?.(session.id)}
       title={session.title}
+      {...peek}
+      onClick={peekCardClick(peek, () => onSelect?.(session.id))}
     >
       {content}
     </button>
@@ -141,6 +149,7 @@ function TimetableGrid({
   untrackedTint,
   ariaLabel,
   onSelectSession,
+  cardProps,
 }: {
   columns: { key: string; label: string }[];
   sessionsByColumn: Map<string, TimetableSession[]>;
@@ -151,6 +160,7 @@ function TimetableGrid({
   untrackedTint?: string | null;
   ariaLabel: string;
   onSelectSession?: (id: string) => void;
+  cardProps?: (sessionId: string, opts?: { native?: boolean }) => SessionPeekCardProps;
 }) {
   const bodyHeight = TOP_PAD + (endHour - startHour) * PX_PER_HOUR + 8;
   const hours = hourLabels(startHour, endHour);
@@ -208,6 +218,7 @@ function TimetableGrid({
                     orderedTrackIds={orderedTrackIds}
                     untrackedTint={untrackedTint}
                     onSelect={onSelectSession}
+                    cardProps={cardProps}
                   />
                 ))}
               </div>
@@ -225,12 +236,14 @@ export function ScheduleGridView({
   orderedTrackIds,
   untrackedTint,
   onSelectSession,
+  cardProps,
 }: {
   sessions: TimetableSession[];
   timeZone: string;
   orderedTrackIds: string[];
   untrackedTint?: string | null;
   onSelectSession?: (id: string) => void;
+  cardProps?: (sessionId: string, opts?: { native?: boolean }) => SessionPeekCardProps;
 }) {
   const { columns, byDay, startHour, endHour } = useMemo(() => {
     const byDay = groupByDay(sessions, timeZone);
@@ -260,6 +273,7 @@ export function ScheduleGridView({
       untrackedTint={untrackedTint}
       ariaLabel="Grid schedule"
       onSelectSession={onSelectSession}
+      cardProps={cardProps}
     />
   );
 }
@@ -275,12 +289,14 @@ export function ScheduleByRoomView({
   orderedTrackIds,
   untrackedTint,
   onSelectSession,
+  cardProps,
 }: {
   sessions: TimetableSession[];
   timeZone: string;
   orderedTrackIds: string[];
   untrackedTint?: string | null;
   onSelectSession?: (id: string) => void;
+  cardProps?: (sessionId: string, opts?: { native?: boolean }) => SessionPeekCardProps;
 }) {
   const days = useMemo(() => {
     const byDay = groupByDay(sessions, timeZone);
@@ -318,6 +334,7 @@ export function ScheduleByRoomView({
               untrackedTint={untrackedTint}
               ariaLabel={`By room schedule — ${weekday}${rest ? `, ${rest}` : ""}`}
               onSelectSession={onSelectSession}
+              cardProps={cardProps}
             />
           </section>
         );

@@ -29,12 +29,15 @@ import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import { filterSessions, nowAndNext, overlappingSessionIds } from "../lib/agendaFilters";
 import { buildBreakoutSlots, type BreakoutSlot } from "../lib/breakoutSlots";
 import { BreakoutSlotBoard } from "../components/BreakoutSlotBoard";
+import { sessionDetailPath, sessionShareUrl } from "../lib/sessionPeek";
 import { pickUntrackedTintHex, resolveTrackHex, sessionTrackTintClass, trackColor } from "../lib/trackColors";
 import { AgendaFiltersSheet, DayChips, FilterGroup, dayChipLabel } from "../components/AgendaFilterPanel";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../components/ScheduleViewSwitcher";
 import { SegmentedToggle } from "../components/SegmentedToggle";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
-import { SessionPeekSheet } from "../components/SessionPeekSheet";
+import { CardMaterialsHint, CardSpeakerAvatars } from "../components/SessionCardBits";
+import { SessionPeekSurface } from "../components/SessionPeekSurface";
+import { peekCardClick, useSessionPeek, type SessionPeekCardProps } from "../components/useSessionPeek";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { AutoGrowTextarea, Composer, EmptyState, FeedCard, FilterPills, Lightbox, PageHeader } from "../components/kit";
 import { galleryPreview } from "../lib/gallery";
@@ -105,8 +108,23 @@ type Session = {
   trackId?: string | null;
   room?: { id: string; name: string } | null;
   track?: { id: string; name: string; color?: string } | null;
-  items?: { id: string; title: string; sortOrder?: number; authors?: { name: string; sortOrder?: number }[] }[];
+  items?: {
+    id: string;
+    title: string;
+    sortOrder?: number;
+    authors?: { name: string; isPresenter?: boolean; sortOrder?: number }[];
+  }[];
   speakers?: string | null;
+  /** Linked roster rows from GET /sessions — the peek renders these with photos. */
+  sessionSpeakers?: {
+    speaker: {
+      id: string;
+      name: string;
+      title?: string | null;
+      affiliation?: string | null;
+      photoUrl?: string | null;
+    };
+  }[];
   zoomLink?: string | null;
   recordingUrl?: string | null;
   fileUrl?: string | null;
@@ -325,8 +343,12 @@ export default function Dashboard() {
   const [agendaFilterDay, setAgendaFilterDay] = useState<string>("");
   const [agendaSearch, setAgendaSearch] = useState("");
   const [agendaFiltersOpen, setAgendaFiltersOpen] = useState(false);
-  /** H4 — session peek sheet over the Grid / By-room timetables. */
-  const [peekSessionId, setPeekSessionId] = useState<string | null>(null);
+  /**
+   * H4 / AGENDA-1 — the session peek behind every agenda card: an anchored
+   * popover on desktop, the bottom sheet on touch. One instance, one open peek.
+   */
+  const peek = useSessionPeek();
+  const peekSessionId = peek.openId;
   const [peekJoinBusy, setPeekJoinBusy] = useState(false);
   /** H5 — pick-one breakout accordion: join busy + replace-confirm. */
   const [breakoutJoinBusy, setBreakoutJoinBusy] = useState(false);
@@ -930,6 +952,22 @@ export default function Dashboard() {
   );
   const agendaActiveFilterCount =
     (agendaFilterTrack ? 1 : 0) + (agendaFilterRoom ? 1 : 0) + (agendaSearch.trim() ? 1 : 0);
+
+  /* AGENDA-1 — the session the peek is showing, and the pick-one slot it belongs
+   * to (null unless breakout_style is on and the slot is a real choice), so the
+   * peek's primary action can be "Choose this session" with the same
+   * replace-confirm the board uses. */
+  const peekTarget = useMemo(
+    () => (peekSessionId ? sessions.find((s) => s.id === peekSessionId) ?? null : null),
+    [sessions, peekSessionId],
+  );
+  const peekPickOneSlot = useMemo(
+    () =>
+      peekSessionId
+        ? breakoutSlots.find((slot) => slot.isChoice && slot.sessions.some((s) => s.id === peekSessionId)) ?? null
+        : null,
+    [breakoutSlots, peekSessionId],
+  );
 
   const handleLogout = async () => {
     try {
@@ -1536,7 +1574,7 @@ export default function Dashboard() {
                         slots={breakoutSlots}
                         joinBusy={breakoutJoinBusy}
                         onJoin={breakoutJoin}
-                        onOpenSession={setPeekSessionId}
+                        cardProps={peek.getCardProps}
                         trackColor={(s) => trackColor(s.trackId, s.track?.color, orderedTrackIds, untrackedTint)}
                         timeZone={agendaDisplayTimezone}
                         agendaView="eventSchedule"
@@ -1573,6 +1611,7 @@ export default function Dashboard() {
                       setSessionDrawerOpen(true);
                     }}
                     onGoToSession={goToSessionPage}
+                    cardProps={peek.getCardProps}
                   />
                   )}
                 </div>
@@ -1583,7 +1622,7 @@ export default function Dashboard() {
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
                       untrackedTint={untrackedTint}
-                      onSelectSession={setPeekSessionId}
+                      cardProps={peek.getCardProps}
                     />
                   </div>
                 ) : null}
@@ -1594,7 +1633,7 @@ export default function Dashboard() {
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
                       untrackedTint={untrackedTint}
-                      onSelectSession={setPeekSessionId}
+                      cardProps={peek.getCardProps}
                     />
                   </div>
                 ) : null}
@@ -1627,6 +1666,7 @@ export default function Dashboard() {
                       setSessionDrawerOpen(true);
                     }}
                     onGoToSession={goToSessionPage}
+                    cardProps={peek.getCardProps}
                   />
                 </div>
                 {scheduleLayout === "grid" ? (
@@ -1636,7 +1676,7 @@ export default function Dashboard() {
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
                       untrackedTint={untrackedTint}
-                      onSelectSession={setPeekSessionId}
+                      cardProps={peek.getCardProps}
                     />
                   </div>
                 ) : null}
@@ -1647,30 +1687,56 @@ export default function Dashboard() {
                       timeZone={agendaDisplayTimezone}
                       orderedTrackIds={orderedTrackIds}
                       untrackedTint={untrackedTint}
-                      onSelectSession={setPeekSessionId}
+                      cardProps={peek.getCardProps}
                     />
                   </div>
                 ) : null}
               </>
             )}
-            <SessionPeekSheet
-              session={sessions.find((s) => s.id === peekSessionId) || null}
+            <SessionPeekSurface
+              peek={peek}
+              session={peekTarget}
               timeZone={agendaDisplayTimezone}
+              trackColor={
+                peekTarget
+                  ? trackColor(peekTarget.trackId, peekTarget.track?.color, orderedTrackIds, untrackedTint)
+                  : null
+              }
+              shareUrl={sessionShareUrl(
+                sessionDetailPath(peekSessionId ?? ""),
+                typeof window === "undefined" ? null : window.location.origin,
+              )}
+              detailsHref={sessionDetailPath(peekSessionId ?? "")}
               joined={peekSessionId ? joiningSessionIds.includes(peekSessionId) : false}
               joinMode={
                 peekSessionId
                   ? myAttendance.find((r) => r.sessionId === peekSessionId)?.joinMode ?? null
                   : null
               }
+              full={peekTarget ? sessionIsFull(peekTarget) : false}
+              pickOne={peekPickOneSlot !== null}
+              capacityNote={peekTarget && sessionIsFull(peekTarget) ? "Full — waitlist" : null}
               starred={peekSessionId ? bookmarkedSessionIds.includes(peekSessionId) : false}
               joinBusy={peekJoinBusy}
-              onClose={() => setPeekSessionId(null)}
+              roomMapHref={
+                peekTarget?.roomId && venueMapsOn && roomPins[peekTarget.roomId]
+                  ? `/dashboard?tab=Maps&mapId=${encodeURIComponent(roomPins[peekTarget.roomId]!.mapId)}&pinId=${encodeURIComponent(roomPins[peekTarget.roomId]!.pinId)}`
+                  : null
+              }
+              onRoomMap={
+                peekTarget?.roomId && venueMapsOn && roomPins[peekTarget.roomId]
+                  ? () => {
+                      peek.close();
+                      goToRoomOnMap(peekTarget.roomId!);
+                    }
+                  : undefined
+              }
               onJoin={async () => {
                 if (!peekSessionId) return;
                 setPeekJoinBusy(true);
                 try {
                   // Single-step join (H4): straight to IN_PERSON, no mode modal —
-                  // the mode switch appears inside the sheet once joined.
+                  // the mode switch appears inside the peek once joined.
                   return await patchSessionAttendance(
                     peekSessionId,
                     { status: "JOINING", joinMode: "IN_PERSON" },
@@ -1702,6 +1768,13 @@ export default function Dashboard() {
                   setPeekJoinBusy(false);
                 }
               }}
+              onChoose={
+                // Pick-one slots go through the board's replace-confirm, so
+                // swapping a choice from the peek is never silent either.
+                peekSessionId && peekPickOneSlot
+                  ? () => breakoutJoin(peekSessionId, peekPickOneSlot)
+                  : undefined
+              }
               onToggleStar={() => {
                 if (peekSessionId) void toggleSessionBookmark(peekSessionId);
               }}
@@ -2332,6 +2405,7 @@ function ScheduleBoard({
   onViewOnMap,
   onEditSession,
   onGoToSession,
+  cardProps,
 }: {
   grouped: Array<{ dayLabel: string; timeSlots: Array<{ timeLabel: string; sessions: Session[] }> }>;
   eventName: string;
@@ -2355,6 +2429,12 @@ function ScheduleBoard({
   onViewOnMap?: (roomId: string) => void;
   onEditSession: (session: Session) => void;
   onGoToSession: (sessionId: string) => void;
+  /**
+   * AGENDA-1 — hover / click / keyboard props from useSessionPeek. A card click
+   * now opens the peek beside the card; "Full details" inside it is the way to
+   * the session page.
+   */
+  cardProps?: (sessionId: string) => SessionPeekCardProps;
 }) {
   const [agendaModalSessionId, setAgendaModalSessionId] = useState<string | null>(null);
   const [calendarModalSessionId, setCalendarModalSessionId] = useState<string | null>(null);
@@ -2439,10 +2519,6 @@ function ScheduleBoard({
                   const joining = myStatus === "JOINING";
                   const myMode = myRow?.joinMode ?? "IN_PERSON";
                   const sessionAllowsVirtual = s.allowVirtualJoin !== false;
-                  const inPersonFull =
-                    s.inPersonCapacity != null && inPersonJoining >= s.inPersonCapacity;
-                  const virtualFull =
-                    s.virtualCapacity != null && virtualJoining >= s.virtualCapacity;
                   const paperCount = s.items?.length || 0;
                   const roomLabel = s.room?.name || s.location || null;
                   const countBits = [
@@ -2453,36 +2529,10 @@ function ScheduleBoard({
                   if (likeCount > 0) countBits.push(`${likeCount} like${likeCount === 1 ? "" : "s"}`);
                   if ((s.waitlistEntries?.length || 0) > 0) countBits.push(`${s.waitlistEntries!.length} waitlisted`);
                   const extraLinks: Array<{ key: string; node: ReactNode }> = [];
-                  if (s.recordingUrl) {
-                    extraLinks.push({
-                      key: "rec",
-                      node: (
-                        <a href={s.recordingUrl} target="_blank" rel="noreferrer" className="schedule-meta-chip" onClick={(event) => event.stopPropagation()}>
-                          Recording
-                        </a>
-                      ),
-                    });
-                  }
-                  if (s.fileLink) {
-                    extraLinks.push({
-                      key: "file",
-                      node: (
-                        <a href={s.fileLink} target="_blank" rel="noreferrer" className="schedule-meta-chip" onClick={(event) => event.stopPropagation()}>
-                          Resources
-                        </a>
-                      ),
-                    });
-                  }
-                  if (s.fileUrl) {
-                    extraLinks.push({
-                      key: "upload",
-                      node: (
-                        <a href={s.fileUrl} target="_blank" rel="noreferrer" className="schedule-meta-chip" onClick={(event) => event.stopPropagation()}>
-                          File
-                        </a>
-                      ),
-                    });
-                  }
+                  // AGENDA-1 — the individual Recording / Resources / File links
+                  // moved into the peek's materials row; the card keeps one quiet
+                  // glyph so a scan still shows which sessions have handouts.
+                  const hasMaterials = Boolean(s.fileUrl || s.fileLink || s.recordingUrl);
                   if (s.roomId && onViewOnMap && roomPins[s.roomId]) {
                     extraLinks.push({
                       key: "map",
@@ -2501,24 +2551,31 @@ function ScheduleBoard({
                     });
                   }
                   const speakerLabel = s.speakers || s.speaker?.name || "";
+                  const speakerFaces = (s.sessionSpeakers || []).map((row) => row.speaker);
                   const isMinimal = !joining && !speakerLabel;
+                  // The card opens the peek; "Full details" inside it is the
+                  // deliberate way to the session page.
+                  const peekProps = cardProps?.(s.id);
                   return (
                     <article
-                      className={["schedule-event", isMinimal ? "schedule-event--minimal" : "", sessionTrackTintClass(s.trackId, s.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
+                      className={["schedule-event", "schedule-event--peekable", isMinimal ? "schedule-event--minimal" : "", sessionTrackTintClass(s.trackId, s.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
                       key={s.id}
                       style={{ ["--track-color" as string]: trackColor(s.trackId, s.track?.color, orderedTrackIds, untrackedTint) }}
-                      title={s.description || undefined}
-                      onClick={() => onGoToSession(s.id)}
+                      {...peekProps}
+                      onClick={peekCardClick(peekProps, () => onGoToSession(s.id))}
                     >
                       <div className="schedule-event-main">
                         <h4 className="schedule-event-title">
-                          <span className="schedule-event-title-text">{s.title}</span>
+                          <span className="schedule-event-title-text schedule-event-title-text--one-line">
+                            {s.title}
+                          </span>
+                          {hasMaterials ? <CardMaterialsHint /> : null}
                           {paperCount > 0 ? (
                             <span className="schedule-option-chip">
                               {paperCount} paper{paperCount === 1 ? "" : "s"}
                             </span>
                           ) : null}
-                          {inPersonFull || virtualFull ? (
+                          {sessionIsFull(s) ? (
                             <span className="schedule-option-chip session-waitlist-chip">Full — waitlist</span>
                           ) : null}
                         </h4>
@@ -2577,7 +2634,9 @@ function ScheduleBoard({
                             </button>
                           </div>
                         ) : null}
-                        {speakerLabel ? (
+                        {speakerFaces.length > 0 ? (
+                          <CardSpeakerAvatars speakers={speakerFaces} />
+                        ) : speakerLabel ? (
                           <p className="schedule-event-speakers">{speakerLabel}</p>
                         ) : null}
                       </div>
@@ -3613,6 +3672,21 @@ function notificationKindIcon(kind: UserNotificationRow["kind"] | string) {
     default:
       return "•";
   }
+}
+
+/**
+ * Factual capacity check, shared by the card's "Full — waitlist" chip and the
+ * peek's footer chip so the two can never disagree.
+ */
+function sessionIsFull(s: Session): boolean {
+  const joining = (s.attendances || []).filter((a) => a.status === "JOINING");
+  const virtual = joining.filter((a) => a.joinMode === "VIRTUAL").length;
+  const asyncCount = joining.filter((a) => a.joinMode === "ASYNC").length;
+  const inPerson = joining.length - virtual - asyncCount;
+  return (
+    (s.inPersonCapacity != null && inPerson >= s.inPersonCapacity) ||
+    (s.virtualCapacity != null && virtual >= s.virtualCapacity)
+  );
 }
 
 function toTimetableSessions(

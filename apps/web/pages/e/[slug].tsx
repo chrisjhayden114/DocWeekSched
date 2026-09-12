@@ -11,13 +11,17 @@ import { FeeNotice } from "../../components/FeeNotice";
 import { HostedByLine } from "../../components/HostedByLine";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../../components/ScheduleViewSwitcher";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../../components/ScheduleTimetable";
+import { CardSpeakerAvatars } from "../../components/SessionCardBits";
+import { SessionPeekSurface } from "../../components/SessionPeekSurface";
+import { useSessionPeek } from "../../components/useSessionPeek";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { filterSessions } from "../../lib/agendaFilters";
 import { apiFetch, type AuthResponse, clearAuthClientState } from "../../lib/api";
 import { downloadProgramIcs } from "../../lib/calendarIcs";
-import { loginPathWithEvent } from "../../lib/entryRedirects";
+import { loginPathForSession, loginPathWithEvent } from "../../lib/entryRedirects";
 import { eventAccentStyle } from "../../lib/eventAccent";
 import { serializeJsonLd } from "../../lib/jsonLd";
+import { publicSessionAnchorId, publicSessionPath, sessionShareUrl } from "../../lib/sessionPeek";
 import { pickUntrackedTintHex, resolveTrackHex, sessionTrackTintClass, trackColor } from "../../lib/trackColors";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -49,6 +53,11 @@ export type PublicEventView = {
    * and no attendee's payment status is ever public.
    */
   payment?: FeeNoticeData | null;
+  /**
+   * AGENDA-1 — widened for the session peek: `trackColor` drives the peek's
+   * track chip, `roomId` lines a card up with a venue-map pin, and per-session
+   * `speakers[].id` joins to the event roster below for photos and bios.
+   */
   sessions: Array<{
     id: string;
     title: string;
@@ -57,14 +66,30 @@ export type PublicEventView = {
     startsAt: string;
     endsAt: string;
     trackName: string | null;
+    trackColor?: string | null;
     roomName: string | null;
-    speakers: Array<{ name: string }>;
+    roomId?: string | null;
+    speakers: Array<{
+      id?: string;
+      name: string;
+      title?: string | null;
+      affiliation?: string | null;
+      photoUrl?: string | null;
+    }>;
     items: Array<{
+      id?: string;
       title: string;
-      authors: Array<{ name: string }>;
+      authors: Array<{ name: string; isPresenter?: boolean }>;
     }>;
   }>;
-  speakers: Array<{ name: string; title: string | null; affiliation: string | null }>;
+  speakers: Array<{
+    id?: string;
+    name: string;
+    title: string | null;
+    affiliation: string | null;
+    bio?: string | null;
+    photoUrl?: string | null;
+  }>;
   sponsors: Array<{ name: string; tier: string; url: string | null }>;
 };
 
@@ -184,6 +209,7 @@ function toPublicTimetableSessions(sessions: Array<{
   startsAt: string;
   endsAt: string;
   trackName: string | null;
+  trackColor?: string | null;
   roomName: string | null;
   location: string | null;
 }>): TimetableSession[] {
@@ -196,6 +222,7 @@ function toPublicTimetableSessions(sessions: Array<{
     roomLabel: s.roomName || s.location || null,
     trackId: s.trackName,
     trackName: s.trackName,
+    trackExplicitColor: s.trackColor ?? null,
   }));
 }
 
@@ -220,10 +247,15 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
   const [room, setRoom] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [scheduleLayout, setScheduleLayout] = useState<ScheduleViewMode>("list");
+  const peek = useSessionPeek();
 
   const timeZone = event.timezone;
 
-  /* Map public sessions onto the shared filter shape (track/room names as ids). */
+  /*
+   * Map public sessions onto the shared filter shape (track/room names as ids).
+   * `speakers` stays the flattened string the filters search; `speakerPeople`
+   * keeps the real rows so the peek can render avatars and credits.
+   */
   const filterable = useMemo(
     () =>
       [...event.sessions]
@@ -234,10 +266,11 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
           description: s.description,
           location: s.location,
           speakers: s.speakers.map((sp) => sp.name).join(", ") || null,
+          speakerPeople: s.speakers,
           trackId: s.trackName || null,
           roomId: s.roomName || null,
-          track: s.trackName ? { id: s.trackName, name: s.trackName } : null,
-          room: s.roomName ? { id: s.roomName, name: s.roomName } : null,
+          track: s.trackName ? { id: s.trackName, name: s.trackName, color: s.trackColor ?? undefined } : null,
+          room: s.roomName ? { id: s.roomId || s.roomName, name: s.roomName } : null,
           items: s.items,
         })),
     [event.sessions],
@@ -307,6 +340,25 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
 
   const activeFilterCount = (track ? 1 : 0) + (room ? 1 : 0) + (query.trim() ? 1 : 0);
 
+  const peekSession = useMemo(() => {
+    const found = peek.openId ? filterable.find((s) => s.id === peek.openId) : null;
+    if (!found) return null;
+    return {
+      id: found.id,
+      title: found.title,
+      description: found.description,
+      location: found.location,
+      roomId: found.roomId,
+      room: found.room,
+      track: found.track,
+      // The array wins over the flattened filter string (see peekSpeakerList).
+      speakers: found.speakerPeople,
+      items: found.items,
+      startsAt: found.startsAt,
+      endsAt: found.endsAt,
+    };
+  }, [peek.openId, filterable]);
+
   const filterControls = (
     <>
       <input
@@ -373,12 +425,16 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
                     {slotSessions.map((s) => (
                       <article
                         key={s.id}
-                        className={["schedule-event", sessionTrackTintClass(s.trackName, untrackedTint)].filter(Boolean).join(" ")}
-                        style={{ ["--track-color" as string]: trackColor(s.trackName, null, orderedTrackIds, untrackedTint) }}
+                        id={publicSessionAnchorId(s.id)}
+                        className={["schedule-event", "schedule-event--peekable", sessionTrackTintClass(s.trackName, s.trackColor ?? untrackedTint)].filter(Boolean).join(" ")}
+                        style={{ ["--track-color" as string]: trackColor(s.trackName, s.trackColor, orderedTrackIds, untrackedTint) }}
+                        {...peek.getCardProps(s.id)}
                       >
                         <div className="schedule-event-main">
                           <h4 className="schedule-event-title">
-                            <span className="schedule-event-title-text">{s.title}</span>
+                            <span className="schedule-event-title-text schedule-event-title-text--one-line">
+                              {s.title}
+                            </span>
                             {s.items.length > 0 ? (
                               <span className="schedule-option-chip">
                                 {s.items.length} paper{s.items.length === 1 ? "" : "s"}
@@ -390,7 +446,11 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
                             {s.roomName || s.location ? ` · ${s.roomName || s.location}` : ""}
                             {s.trackName ? ` · ${s.trackName}` : ""}
                           </p>
-                          {s.speakers ? <p className="schedule-event-speakers">{s.speakers}</p> : null}
+                          {s.speakerPeople.length > 0 ? (
+                            <CardSpeakerAvatars speakers={s.speakerPeople} />
+                          ) : s.speakers ? (
+                            <p className="schedule-event-speakers">{s.speakers}</p>
+                          ) : null}
                           {s.items.length > 0 ? (
                             <ul className="schedule-row-papers">
                               {s.items.map((it, idx) => (
@@ -474,6 +534,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
               timeZone={timeZone}
               orderedTrackIds={orderedTrackIds}
               untrackedTint={untrackedTint}
+              cardProps={peek.getCardProps}
             />
           </div>
         ) : null}
@@ -484,6 +545,7 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
               timeZone={timeZone}
               orderedTrackIds={orderedTrackIds}
               untrackedTint={untrackedTint}
+              cardProps={peek.getCardProps}
             />
           </div>
         ) : null}
@@ -535,6 +597,30 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
       <AgendaFiltersSheet open={filtersOpen} onClose={() => setFiltersOpen(false)}>
         {filterControls}
       </AgendaFiltersSheet>
+
+      {/*
+        AGENDA-1 — the same peek a signed-in attendee gets, minus the actions
+        they have no account for. "Full details" carries them through sign-in to
+        the session page they asked for. The room is plain text here: the public
+        payload carries no venue-map pins, so there is nothing honest to link to.
+      */}
+      <SessionPeekSurface
+        peek={peek}
+        session={peekSession}
+        timeZone={timeZone}
+        isPublic
+        speakerRoster={event.speakers}
+        trackColor={
+          peekSession?.track
+            ? trackColor(peekSession.track.name, peekSession.track.color, orderedTrackIds, untrackedTint)
+            : null
+        }
+        shareUrl={sessionShareUrl(
+          publicSessionPath(event.slug, peekSession?.id ?? ""),
+          typeof window === "undefined" ? null : window.location.origin,
+        )}
+        detailsHref={peekSession ? loginPathForSession(event.slug, peekSession.id) : loginHref}
+      />
     </div>
   );
 }

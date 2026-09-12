@@ -11,6 +11,105 @@ import { featureEnabled } from "./features/featureEnabled";
 import { isSlugLinkActive } from "./inviteTokens";
 import { isPubliclyJoinable } from "./eventStatus";
 
+/**
+ * AGENDA-1 — one published session as the public page sees it.
+ *
+ * `trackColor`, `roomId` and `speakers[].photoUrl` were added for the session
+ * peek popover: the popover needs the organizer's track color for its chip, a
+ * stable room id to line a card up with a venue-map pin, and speaker photos so
+ * the public peek looks like the in-app one. Additive — every field the page
+ * already read is still here, so an older client keeps working unchanged.
+ */
+export type PublicSessionPayload = {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startsAt: string;
+  endsAt: string;
+  trackName: string | null;
+  /** Organizer's explicit track color, or null to let the palette decide. */
+  trackColor: string | null;
+  roomName: string | null;
+  roomId: string | null;
+  speakers: Array<{
+    id: string;
+    name: string;
+    title: string | null;
+    affiliation: string | null;
+    photoUrl: string | null;
+  }>;
+  items: Array<{
+    id: string;
+    title: string;
+    abstract: string | null;
+    sortOrder: number;
+    authors: Array<{ name: string; isPresenter: boolean; sortOrder: number }>;
+  }>;
+};
+
+/** The session row shape `toPublicSession` maps from (a Prisma select result). */
+export type PublicSessionRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  track: { name: string; color: string | null } | null;
+  room: { id: string; name: string } | null;
+  sessionSpeakers: Array<{
+    speaker: {
+      id: string;
+      name: string;
+      title: string | null;
+      affiliation: string | null;
+      photoUrl: string | null;
+    };
+  }>;
+  items: Array<{
+    id: string;
+    title: string;
+    abstract: string | null;
+    sortOrder: number;
+    authors: Array<{ name: string; isPresenter: boolean; sortOrder: number }>;
+  }>;
+};
+
+/** Pure row → payload mapping, so the public contract is unit-testable. */
+export function toPublicSession(s: PublicSessionRow): PublicSessionPayload {
+  return {
+    id: s.id,
+    title: s.title,
+    description: s.description,
+    location: s.location ?? s.room?.name ?? null,
+    startsAt: s.startsAt.toISOString(),
+    endsAt: s.endsAt.toISOString(),
+    trackName: s.track?.name ?? null,
+    trackColor: s.track?.color ?? null,
+    roomName: s.room?.name ?? null,
+    roomId: s.room?.id ?? null,
+    speakers: s.sessionSpeakers.map((ss) => ({
+      id: ss.speaker.id,
+      name: ss.speaker.name,
+      title: ss.speaker.title,
+      affiliation: ss.speaker.affiliation,
+      photoUrl: ss.speaker.photoUrl,
+    })),
+    items: s.items.map((it) => ({
+      id: it.id,
+      title: it.title,
+      abstract: it.abstract,
+      sortOrder: it.sortOrder,
+      authors: it.authors.map((a) => ({
+        name: a.name,
+        isPresenter: a.isPresenter,
+        sortOrder: a.sortOrder,
+      })),
+    })),
+  };
+}
+
 export type PublicEventPayload = {
   id: string;
   name: string;
@@ -49,24 +148,7 @@ export type PublicEventPayload = {
    * public.
    */
   payment: FeeNotice | null;
-  sessions: Array<{
-    id: string;
-    title: string;
-    description: string | null;
-    location: string | null;
-    startsAt: string;
-    endsAt: string;
-    trackName: string | null;
-    roomName: string | null;
-    speakers: Array<{ id: string; name: string; title: string | null; affiliation: string | null }>;
-    items: Array<{
-      id: string;
-      title: string;
-      abstract: string | null;
-      sortOrder: number;
-      authors: Array<{ name: string; isPresenter: boolean; sortOrder: number }>;
-    }>;
-  }>;
+  sessions: PublicSessionPayload[];
   speakers: Array<{
     id: string;
     name: string;
@@ -162,13 +244,13 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
         location: true,
         startsAt: true,
         endsAt: true,
-        track: { select: { name: true } },
-        room: { select: { name: true } },
+        track: { select: { name: true, color: true } },
+        room: { select: { id: true, name: true } },
         sessionSpeakers: {
           orderBy: { sortOrder: "asc" },
           select: {
             speaker: {
-              select: { id: true, name: true, title: true, affiliation: true },
+              select: { id: true, name: true, title: true, affiliation: true, photoUrl: true },
             },
           },
         },
@@ -238,33 +320,7 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     organizationSupportEmail: event.organization.supportEmail,
     showPoweredByBadge: !hideBadge,
     payment,
-    sessions: sessions.map((s) => ({
-      id: s.id,
-      title: s.title,
-      description: s.description,
-      location: s.location ?? s.room?.name ?? null,
-      startsAt: s.startsAt.toISOString(),
-      endsAt: s.endsAt.toISOString(),
-      trackName: s.track?.name ?? null,
-      roomName: s.room?.name ?? null,
-      speakers: s.sessionSpeakers.map((ss) => ({
-        id: ss.speaker.id,
-        name: ss.speaker.name,
-        title: ss.speaker.title,
-        affiliation: ss.speaker.affiliation,
-      })),
-      items: s.items.map((it) => ({
-        id: it.id,
-        title: it.title,
-        abstract: it.abstract,
-        sortOrder: it.sortOrder,
-        authors: it.authors.map((a) => ({
-          name: a.name,
-          isPresenter: a.isPresenter,
-          sortOrder: a.sortOrder,
-        })),
-      })),
-    })),
+    sessions: sessions.map(toPublicSession),
     speakers: speakers.map((sp) => ({
       id: sp.id,
       name: sp.name,
