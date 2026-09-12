@@ -32,6 +32,7 @@ import type { Server } from "http";
 import { EventMemberRole, OrgRole, PrismaClient, SessionPublishStatus } from "@prisma/client";
 import { hashPassword, signToken } from "../lib/auth";
 import { upsertFeatureOverrides } from "../lib/features";
+import { getPublicEventBySlug } from "../lib/publicEvent";
 import { _resetRateLimitBucketsForTests } from "../lib/rateLimit";
 import { materialsRouter } from "../routes/materials";
 import { readinessRouter } from "../routes/readiness";
@@ -52,14 +53,18 @@ describe("shared presenter materials (DB, AGENDA-3)", () => {
     stranger?: string;
     org?: string;
     event?: string;
+    slug?: string;
     speaker?: string;
     session?: string;
     otherSession?: string;
     deckRequirement?: string;
     releaseRequirement?: string;
+    agreementRequirement?: string;
     deckAssignment?: string;
     releaseAssignment?: string;
+    agreementAssignment?: string;
     sharedDeck?: string;
+    sharedAgreement?: string;
     unsharedRelease?: string;
     rejectedDeck?: string;
     supersededDeck?: string;
@@ -118,6 +123,9 @@ describe("shared presenter materials (DB, AGENDA-3)", () => {
         startDate: new Date("2027-03-01T12:00:00Z"),
         endDate: new Date("2027-03-03T12:00:00Z"),
         status: "ACTIVE",
+        // So getPublicEventBySlug resolves: the public payload is one of the
+        // read paths a leak could travel down, and it has to be exercised.
+        slugInviteEnabled: true,
         organizationId: org.id,
         createdById: admin.id,
         memberships: {
@@ -129,6 +137,7 @@ describe("shared presenter materials (DB, AGENDA-3)", () => {
       },
     });
     ids.event = event.id;
+    ids.slug = event.slug;
 
     const speaker = await prisma.speaker.create({
       data: { eventId: event.id, name: "Dr. Ada Keynote" },
@@ -185,8 +194,25 @@ describe("shared presenter materials (DB, AGENDA-3)", () => {
         config: {},
       },
     });
+    // An AGREEMENT: the speaker signed a recording consent, the organizer
+    // approved it, and someone flipped the share flag on. Everything about
+    // this row says "serve me" except the one thing that decides — the
+    // requirement's kind. It carries a perfectly valid PDF on the allowlist,
+    // so the requirement-kind filter is the ONLY thing keeping it off the
+    // agenda, which is exactly what this fixture is for.
+    const agreementRequirement = await prisma.readinessRequirement.create({
+      data: {
+        templateId: template.id,
+        eventId: event.id,
+        label: "Recording consent agreement",
+        kind: "agreement",
+        sortOrder: 2,
+        config: { shareByDefault: true },
+      },
+    });
     ids.deckRequirement = deckRequirement.id;
     ids.releaseRequirement = releaseRequirement.id;
+    ids.agreementRequirement = agreementRequirement.id;
 
     const deckAssignment = await prisma.readinessAssignment.create({
       data: {
@@ -204,8 +230,17 @@ describe("shared presenter materials (DB, AGENDA-3)", () => {
         speakerId: speaker.id,
       },
     });
+    const agreementAssignment = await prisma.readinessAssignment.create({
+      data: {
+        organizationId: org.id,
+        eventId: event.id,
+        requirementId: agreementRequirement.id,
+        speakerId: speaker.id,
+      },
+    });
     ids.deckAssignment = deckAssignment.id;
     ids.releaseAssignment = releaseAssignment.id;
+    ids.agreementAssignment = agreementAssignment.id;
 
     const file = {
       fileName: "deck.pdf",
@@ -225,6 +260,18 @@ describe("shared presenter materials (DB, AGENDA-3)", () => {
       },
     });
     ids.sharedDeck = sharedDeck.id;
+
+    const sharedAgreement = await prisma.readinessSubmission.create({
+      data: {
+        ...file,
+        fileName: "recording-consent-signed.pdf",
+        assignmentId: agreementAssignment.id,
+        eventId: event.id,
+        approvedAt: new Date(),
+        sharedWithAttendees: true,
+      },
+    });
+    ids.sharedAgreement = sharedAgreement.id;
 
     // Approved, but the organizer never shared it — a signed legal document.
     const unsharedRelease = await prisma.readinessSubmission.create({
@@ -628,6 +675,93 @@ describe("shared presenter materials (DB, AGENDA-3)", () => {
           .sharedWithAttendees,
       ).toBe(false);
       await prisma.readinessSubmission.delete({ where: { id: submission.id } });
+    });
+  });
+
+  /**
+   * The requirement-kind restriction lives in SHARED_MATERIAL_WHERE, so it is
+   * applied by the database on every read. These tests walk all four read
+   * paths with the most dangerous row we can build — a signed agreement that
+   * is approved, shared, current, and holds a valid PDF — because a filter
+   * that exists in one query and is forgotten in another is the shape this
+   * kind of leak actually takes.
+   */
+  describe("a requirement kind that is not a handout", () => {
+    beforeAll(() => setVisibility("PUBLIC"));
+
+    it("is absent from GET /sessions/:id/materials", async () => {
+      const { status, body } = await listMaterials(anonHeaders);
+      expect(status).toBe(200);
+      expect(body!.map((m) => m.id)).toEqual([ids.sharedDeck]);
+      expect(body!.map((m) => m.title)).not.toContain("Recording consent agreement");
+    });
+
+    it("is absent from the in-app GET /sessions list", async () => {
+      const res = await fetch(`${base}/sessions`, { headers: authHeaders(ids.admin!, "ADMIN") });
+      expect(res.status).toBe(200);
+      const rows = (await res.json()) as Array<{
+        id: string;
+        hasMaterials: boolean;
+        materials: MaterialRow[];
+      }>;
+      const keynote = rows.find((r) => r.id === ids.session)!;
+      expect(keynote.materials.map((m) => m.id)).toEqual([ids.sharedDeck]);
+      // An organizer reading their own agenda is the loosest caller there is,
+      // and the filter is in the query rather than in the viewer check.
+      expect(keynote.hasMaterials).toBe(true);
+
+      const unrelated = rows.find((r) => r.id === ids.otherSession)!;
+      expect(unrelated.materials).toEqual([]);
+      expect(unrelated.hasMaterials).toBe(false);
+    });
+
+    it("is absent from the public event payload", async () => {
+      const payload = await getPublicEventBySlug(ids.slug!);
+      expect(payload).not.toBeNull();
+      const keynote = payload!.sessions.find((s) => s.id === ids.session)!;
+      expect(keynote.materials.map((m) => m.id)).toEqual([ids.sharedDeck]);
+      expect(JSON.stringify(payload)).not.toContain("recording-consent-signed.pdf");
+      expect(JSON.stringify(payload)).not.toContain(ids.sharedAgreement);
+    });
+
+    it("cannot be streamed, by anyone, on a PUBLIC event", async () => {
+      // 404 rather than 403: to this route the row does not exist, so an id
+      // that was never shareable is indistinguishable from one made up.
+      expect((await fetchFile(ids.sharedAgreement!, anonHeaders)).status).toBe(404);
+      expect((await fetchFile(ids.sharedAgreement!, authHeaders(ids.member!))).status).toBe(404);
+      expect((await fetchFile(ids.sharedAgreement!, authHeaders(ids.admin!, "ADMIN"))).status).toBe(404);
+    });
+
+    it("stays on the organizer's review board, where it belongs", async () => {
+      // It is not hidden data — the organizer collected it on purpose and can
+      // still open it through the readiness route. It is just not a handout.
+      const res = await fetch(`${base}/readiness/files/${ids.sharedAgreement}`, {
+        headers: authHeaders(ids.admin!, "ADMIN"),
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("a shared file whose type is off the allowlist", () => {
+    beforeAll(() => setVisibility("PUBLIC"));
+
+    it("is never advertised as a chip it cannot honour", async () => {
+      // The list and the file route have to agree about what is servable.
+      // Listing this would put a chip on the agenda that answers 415 when an
+      // attendee clicks it.
+      const { body } = await listMaterials(anonHeaders);
+      expect(body!.map((m) => m.id)).not.toContain(ids.badMimeDeck);
+
+      const payload = await getPublicEventBySlug(ids.slug!);
+      const keynote = payload!.sessions.find((s) => s.id === ids.session)!;
+      expect(keynote.materials.map((m) => m.id)).not.toContain(ids.badMimeDeck);
+    });
+
+    it("still answers 415 to someone holding the link directly", async () => {
+      // Omitting it from the list is a courtesy; the refusal is the guarantee,
+      // and it names the real cause so the organizer can fix the upload.
+      const res = await fetchFile(ids.badMimeDeck!, anonHeaders);
+      expect(res.status).toBe(415);
     });
   });
 

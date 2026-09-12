@@ -137,6 +137,52 @@ describe("toSharedMaterial", () => {
     expect(toSharedMaterial({ ...empty, valueText: "mailto:a@b.test" })).toBeNull();
   });
 
+  it("yields nothing for a requirement kind that is not a handout", () => {
+    // The SQL clause already excludes these, and this is the second lock on
+    // the same door: a caller who fetches rows with a looser where must not be
+    // able to turn a signed agreement into a chip on the public agenda.
+    for (const kind of ["confirm", "agreement", "short_text", "long_text", "internal_checklist"]) {
+      const row = {
+        ...fileRow,
+        assignment: { ...fileRow.assignment, requirement: { label: "Recording consent", kind, config: {} } },
+      };
+      expect(toSharedMaterial(row)).toBeNull();
+    }
+  });
+
+  it("yields nothing for a stored file whose type is off the allowlist", () => {
+    // A chip the file route would answer with 415 is worse than no chip: the
+    // attendee sees something promising and gets an error for clicking it.
+    expect(toSharedMaterial({ ...fileRow, fileMime: "text/html" })).toBeNull();
+    expect(toSharedMaterial({ ...fileRow, fileMime: null })).toBeNull();
+
+    // Narrowing a requirement's allowlist retracts the chips it no longer
+    // admits, exactly as it retracts the stream.
+    const pdfOnly = {
+      ...fileRow,
+      fileMime: "image/png",
+      assignment: {
+        ...fileRow.assignment,
+        requirement: { label: "Slide deck", kind: "file", config: { allowedMimeTypes: ["application/pdf"] } },
+      },
+    };
+    expect(toSharedMaterial(pdfOnly)).toBeNull();
+    expect(toSharedMaterial({ ...pdfOnly, fileMime: "application/pdf" })!.mime).toBe("application/pdf");
+  });
+
+  it("does not apply the allowlist to a link, which stores no file at all", () => {
+    const link = {
+      ...fileRow,
+      fileName: null,
+      fileMime: null,
+      fileStorageKey: null,
+      fileUrl: null,
+      valueText: "https://e.test/handout",
+      assignment: { ...fileRow.assignment, requirement: { label: "Handout", kind: "url", config: {} } },
+    };
+    expect(toSharedMaterial(link)!.kind).toBe("link");
+  });
+
   it("treats a data-URL upload as a file, like the storage-key path", () => {
     const legacy = { ...fileRow, fileStorageKey: null, fileUrl: "data:application/pdf;base64,AAAA" };
     expect(toSharedMaterial(legacy)!.kind).toBe("file");

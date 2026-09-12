@@ -136,13 +136,44 @@ function httpLink(value: string | null): string | null {
 }
 
 /**
+ * Whether this requirement's allowlist admits this stored type, as a
+ * predicate. The list path needs the answer, the file path needs the 415, and
+ * they must not be allowed to disagree about it.
+ */
+export function materialMimeAllowed(
+  config: Record<string, unknown> | null | undefined,
+  mime: string | null | undefined,
+): boolean {
+  const normalized = (mime || "").trim().toLowerCase();
+  if (!normalized) return false;
+  return fileRulesForRequirement(config).allowedMimeTypes.includes(normalized);
+}
+
+/**
  * Row → payload. Returns null for a submission that is shared and approved but
- * holds nothing openable (an empty file requirement, or a `url` answer that is
- * not a URL) — the agenda shows no chip rather than a chip that 404s.
+ * holds nothing an attendee could open:
+ *
+ *  - a requirement kind that is not a handout at all. `SHARED_MATERIAL_WHERE`
+ *    already excludes these in SQL; re-checking here means a caller who
+ *    fetches rows with a looser clause still cannot turn a signed agreement
+ *    or a free-text answer into a chip.
+ *  - an empty file requirement, or a `url` answer that is not a URL.
+ *  - a stored file whose type is off the requirement's allowlist. That list is
+ *    applied at READ time, so it can be narrowed after a file has landed —
+ *    and a chip the file route would answer with 415 is worse than no chip.
+ *
+ * In every case the agenda shows no chip rather than a chip that fails.
  */
 export function toSharedMaterial(row: SubmissionRow): SharedMaterial | null {
-  const label = row.assignment.requirement.label?.trim() || "";
+  const requirement = row.assignment.requirement;
+  if (!(SHAREABLE_REQUIREMENT_KINDS as readonly string[]).includes(requirement.kind)) {
+    return null;
+  }
+  const label = requirement.label?.trim() || "";
   if (hasStoredFile(row)) {
+    if (!materialMimeAllowed(requirement.config as Record<string, unknown> | null, row.fileMime)) {
+      return null;
+    }
     return {
       id: row.id,
       title: label || row.fileName?.trim() || "Materials",
@@ -328,12 +359,13 @@ export async function findSharedMaterialFile(
  *
  * 415 with a plain reason, not a 404: the file is real and the caller is
  * allowed to know it exists — it is the type that cannot be handed out, and
- * the organizer is the one who can fix that.
+ * the organizer is the one who can fix that. The list path screens the same
+ * types silently (`toSharedMaterial`), so in practice nobody reaches this
+ * except by holding a link from before the allowlist narrowed.
  */
 export function assertMaterialMimeAllowed(file: SharedMaterialFile): string {
-  const { allowedMimeTypes } = fileRulesForRequirement(file.requirementConfig);
   const mime = (file.fileMime || "").trim().toLowerCase();
-  if (!mime || !allowedMimeTypes.includes(mime)) {
+  if (!materialMimeAllowed(file.requirementConfig, mime)) {
     throw new HttpError(415, {
       error:
         "This file's type is not one this event can hand out. Ask the organizer to upload it as a PDF, PowerPoint, Word file, or image.",
