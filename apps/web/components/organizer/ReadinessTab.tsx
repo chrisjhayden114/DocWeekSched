@@ -763,7 +763,11 @@ export function ReadinessTab({
     }
   }
 
-  async function reviewSubmission(submissionId: string, action: "approve" | "reject", reason?: string) {
+  async function reviewSubmission(
+    submissionId: string,
+    action: "approve" | "reject" | "share" | "unshare",
+    reason?: string,
+  ) {
     setRowBusyId(submissionId);
     setDetailError(null);
     try {
@@ -2019,6 +2023,31 @@ export function ReadinessTab({
                             Reject…
                           </button>
                         </div>
+                      ) : null}
+                      {/*
+                        AGENDA-3 — sharing is offered only once approved, and
+                        only for something an attendee could actually open. The
+                        state is shown as a checkbox rather than a button so the
+                        board always reads out whether a deck is on the agenda,
+                        including the ones that shared themselves on approval.
+                      */}
+                      {a.latestSubmission.approvedAt && a.latestSubmission.canShare ? (
+                        <label
+                          style={{ display: "flex", alignItems: "center", gap: 8, margin: 0 }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(a.latestSubmission.sharedWithAttendees)}
+                            disabled={busy || rowBusyId === a.latestSubmission.id}
+                            onChange={(e) =>
+                              void reviewSubmission(
+                                a.latestSubmission!.id,
+                                e.target.checked ? "share" : "unshare",
+                              )
+                            }
+                          />
+                          <span>Share with attendees</span>
+                        </label>
                       ) : null}
                     </div>
                   ) : null}

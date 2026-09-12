@@ -113,6 +113,14 @@ export type OverviewLatestSubmission = {
   approvedAt: string | null;
   rejectedAt: string | null;
   rejectedReason: string | null;
+  /** AGENDA-3 — this submission is on the attendee-facing agenda. */
+  sharedWithAttendees?: boolean;
+  /**
+   * AGENDA-3 — false for anything an attendee could not open (a confirmation,
+   * a date, an empty file slot), so the board never offers a toggle the API
+   * would refuse.
+   */
+  canShare?: boolean;
 };
 
 export type OverviewAssignment = {

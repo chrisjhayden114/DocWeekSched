@@ -52,6 +52,14 @@ export type FilterableSession = {
   fileUrl?: string | null;
   fileLink?: string | null;
   recordingUrl?: string | null;
+  /**
+   * AGENDA-3 — presenter materials shared through Speaker Readiness. Two
+   * shapes because the two pages get told different amounts: in-app and on a
+   * PUBLIC event the array is present, while a signed-out visitor to an
+   * attendees-only event gets only the flag. Either one means "yes".
+   */
+  materials?: Array<unknown> | null;
+  hasMaterials?: boolean | null;
 };
 
 export type AgendaFilters = {
@@ -65,7 +73,7 @@ export type AgendaFilters = {
   roomIds: string[];
   /** Single: "sessions with this person", not a set-of-people query. */
   speakerId: string | null;
-  /** fileUrl, fileLink, or recordingUrl present. */
+  /** An organizer link column, or a shared presenter deck, is present. */
   hasMaterials: boolean;
   /** In-app only — the public page has no schedule to compare against. */
   mySchedule: boolean;
@@ -98,9 +106,18 @@ export function clearAgendaFilters(filters: AgendaFilters): AgendaFilters {
 /** The groups a session can be filtered by, for per-option counts. */
 export type AgendaFilterGroup = "format" | "track" | "room" | "speaker";
 
-/** Materials, as the "Has slides or materials" toggle defines them. */
+/**
+ * Materials, as the "Has slides or materials" toggle defines them.
+ *
+ * AGENDA-3 adds the presenter's own shared deck to the organizer's three
+ * columns. An attendee filtering for "sessions with slides" does not care
+ * which of the two paths put them there, and a session whose only handout came
+ * through Speaker Readiness would otherwise be filtered out of its own answer.
+ */
 export function hasSessionMaterials(s: FilterableSession): boolean {
-  return Boolean(s.fileUrl || s.fileLink || s.recordingUrl);
+  return Boolean(
+    s.fileUrl || s.fileLink || s.recordingUrl || s.hasMaterials || (s.materials?.length ?? 0) > 0,
+  );
 }
 
 /**

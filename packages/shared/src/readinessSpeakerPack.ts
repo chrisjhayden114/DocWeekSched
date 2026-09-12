@@ -26,7 +26,13 @@ export type SpeakerPackRequirement = {
   label: string;
   kind: SpeakerPackRequirementKind;
   helpText?: string;
-  config?: { options?: string[] };
+  config?: {
+    options?: string[];
+    /** ER4.3 — deck rules (size cap, allowlist) and AGENDA-3's share default. */
+    deck?: boolean;
+    /** AGENDA-3 — approving this requirement puts it on the attendee agenda. */
+    shareByDefault?: boolean;
+  };
   required?: boolean;
 };
 
@@ -38,7 +44,13 @@ export const SPEAKER_PACK_REQUIREMENTS: readonly SpeakerPackRequirement[] = [
   { label: "Draft 1 script", kind: "file" },
   { label: "Draft 2 script", kind: "file" },
   { label: "Final script", kind: "file" },
-  { label: "Slides 16:9", kind: "file" },
+  /**
+   * AGENDA-3 — the one requirement in the pack that exists to be SEEN. Marking
+   * it a deck gets it the deck upload rules, and shareByDefault puts it on the
+   * agenda the moment an organizer approves it. Every other file here — the
+   * headshot, the drafts, the signed release — stays organizer-only.
+   */
+  { label: "Slides 16:9", kind: "file", config: { deck: true, shareByDefault: true } },
   {
     label: "Signed speaker release",
     kind: "file",

@@ -10,7 +10,12 @@ import { AutoGrowTextarea, Composer, EmptyState, FilterPills } from "../../compo
 import { OnlineMeetingLink } from "../../components/OnlineMeetingLink";
 import { SegmentedToggle } from "../../components/SegmentedToggle";
 import { ConciergeChat } from "../../components/ConciergeChat";
-import { apiFetch, clearAuthClientState } from "../../lib/api";
+import { API_URL, apiFetch, clearAuthClientState } from "../../lib/api";
+import {
+  formatMaterialSize,
+  sharedMaterialHref,
+  type PeekSharedMaterial,
+} from "../../lib/sessionPeek";
 import { downloadSessionIcs } from "../../lib/calendarIcs";
 import { formatEventTimeRange } from "../../lib/dateFormat";
 import { eventAccentStyle } from "../../lib/eventAccent";
@@ -239,6 +244,9 @@ export default function SessionPage() {
   const [communityOn, setCommunityOn] = useState(true);
   const [roomMapPin, setRoomMapPin] = useState<{ mapId: string; pinId: string } | null>(null);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
+  /** AGENDA-3 — presenter materials shared through Speaker Readiness. */
+  const [sharedMaterials, setSharedMaterials] = useState<PeekSharedMaterial[]>([]);
+  const [materialsError, setMaterialsError] = useState<string | null>(null);
 
   const refreshUser = useCallback(async (t: string) => {
     const fresh = await apiFetch<User>("/auth/me", {}, t);
@@ -389,6 +397,40 @@ export default function SessionPage() {
       cancelled = true;
     };
   }, [token, session?.roomId, session?.id, user?.role, user?.isEventAdmin]);
+
+  /**
+   * AGENDA-3 — the shared decks for this session.
+   *
+   * A failure here sets an error rather than leaving the list empty: "no
+   * materials" and "we could not load the materials" must not look the same,
+   * or a broken fetch reads as a presenter who never sent anything.
+   */
+  useEffect(() => {
+    if (!token || !sessionId) return;
+    const ev = withEventHeaders(window.localStorage.getItem("activeEventId"));
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await apiFetch<PeekSharedMaterial[]>(
+          `/sessions/${sessionId}/materials`,
+          ev,
+          token,
+        );
+        if (cancelled) return;
+        setSharedMaterials(rows);
+        setMaterialsError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setSharedMaterials([]);
+        setMaterialsError(
+          err instanceof Error ? err.message : "Could not load this session's materials",
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, sessionId]);
 
   useEffect(() => {
     void reloadPollsAndFeedback();
@@ -726,6 +768,44 @@ export default function SessionPage() {
                 </Link>
               ) : null}
             </div>
+
+            {/*
+              AGENDA-3 — what the presenters handed over, as opposed to the
+              organizer's own links above. Hidden entirely when there is
+              nothing, so a session without a deck grows no empty heading.
+            */}
+            {sharedMaterials.length > 0 || materialsError ? (
+              <section style={{ marginBottom: 12 }}>
+                <h3 className="text-h3" style={{ margin: "0 0 8px" }}>
+                  Materials
+                </h3>
+                {materialsError ? (
+                  <p className="text-meta" style={{ margin: 0, color: "var(--danger)" }}>
+                    {materialsError}
+                  </p>
+                ) : (
+                  <div className="session-peek-materials" style={{ marginTop: 0 }}>
+                    {sharedMaterials.map((material) => {
+                      const href = sharedMaterialHref(material, API_URL);
+                      if (!href) return null;
+                      const size = formatMaterialSize(material.sizeBytes);
+                      return (
+                        <a
+                          key={material.id}
+                          className="session-peek-chip"
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {material.title}
+                          {size ? <span className="session-peek-chip-size">{size}</span> : null}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            ) : null}
 
             <div className="session-page-toolbar">
               <div

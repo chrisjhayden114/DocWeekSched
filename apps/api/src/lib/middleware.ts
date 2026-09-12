@@ -63,6 +63,40 @@ export const requireAuth = (req: AuthedRequest, res: Response, next: NextFunctio
 };
 
 /**
+ * AGENDA-3 — resolve the caller when a token is present, and carry on when it
+ * is not.
+ *
+ * For surfaces an event may choose to open to anonymous visitors (shared
+ * presenter materials). The ROUTE decides what anonymous is allowed to see, so
+ * this must never answer 401 on its own. A token that is missing, expired,
+ * stale or belongs to a deactivated account all read the same way — anonymous
+ * — because none of them can buy more access than no token at all, and
+ * failing the request here would break the very case this exists for.
+ */
+export const optionalAuth = (req: AuthedRequest, _res: Response, next: NextFunction) => {
+  const token = readSessionToken(req);
+  if (!token) return next();
+
+  void (async () => {
+    try {
+      const payload = verifyToken(token);
+      const row = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: { deactivatedAt: true, role: true, sessionVersion: true },
+      });
+      const tokenVersion = typeof payload.sessionVersion === "number" ? payload.sessionVersion : 0;
+      if (row && !row.deactivatedAt && tokenVersion === row.sessionVersion) {
+        req.user = { id: payload.userId, role: row.role };
+      }
+    } catch {
+      // Anonymous is a genuine, expected outcome here, not a swallowed failure:
+      // an unreadable token grants nothing, and the route still authorizes.
+    }
+    next();
+  })();
+};
+
+/**
  * CSRF protection for cookie-authenticated mutating requests.
  * Bearer-only requests (no session cookie) skip CSRF (legacy/mobile).
  * Required when SameSite=None interim mode is active; also enabled for Lax defense-in-depth.

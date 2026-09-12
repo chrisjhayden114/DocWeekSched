@@ -113,6 +113,44 @@ describe("toPublicSession", () => {
     expect(toPublicSession({ ...row, format: "Keynote" }).format).toBeNull();
   });
 
+  it("says materials exist without naming them when the event is attendees-only", () => {
+    // AGENDA-3. This is the whole privacy split in one assertion: a signed-out
+    // visitor to an ATTENDEES event learns there ARE slides — enough for the
+    // card glyph and the "has materials" filter — and learns nothing else. A
+    // filename can carry a working title, a draft number, or a person's name.
+    const shared = [
+      { id: "sub-1", title: "Slide deck", kind: "file" as const, mime: "application/pdf", sizeBytes: 2_400_000, url: null },
+    ];
+    const gated = toPublicSession(row, { shared, isPublic: false });
+    expect(gated.hasMaterials).toBe(true);
+    expect(gated.materials).toEqual([]);
+  });
+
+  it("hands over the metadata, and only the metadata, when the event is public", () => {
+    const shared = [
+      { id: "sub-1", title: "Slide deck", kind: "file" as const, mime: "application/pdf", sizeBytes: 2_400_000, url: null },
+      { id: "sub-2", title: "Handout", kind: "link" as const, mime: null, sizeBytes: null, url: "https://e.test/h" },
+    ];
+    const open = toPublicSession(row, { shared, isPublic: true });
+    expect(open.hasMaterials).toBe(true);
+    expect(open.materials.map((m) => m.title)).toEqual(["Slide deck", "Handout"]);
+    // A FILE never carries a URL: it is fetched from GET /materials/:id/file,
+    // which re-runs the gate. Only a link the presenter typed carries one.
+    expect(open.materials[0]!.url).toBeNull();
+    expect(open.materials[1]!.url).toBe("https://e.test/h");
+  });
+
+  it("reads as no materials when the caller passes none, however it is called", () => {
+    for (const payload of [
+      toPublicSession(row),
+      toPublicSession(row, { shared: [], isPublic: true }),
+      toPublicSession(row, { shared: [], isPublic: false }),
+    ]) {
+      expect(payload.hasMaterials).toBe(false);
+      expect(payload.materials).toEqual([]);
+    }
+  });
+
   it("never leaks a speaker's bio into the per-session rows", () => {
     // Bios belong to the event-level roster, which the page joins by id.
     expect(Object.keys(toPublicSession(row).speakers[0]!)).toEqual([

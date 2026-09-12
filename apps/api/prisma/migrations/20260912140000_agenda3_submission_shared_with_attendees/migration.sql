@@ -1,0 +1,44 @@
+-- AGENDA-3 — ReadinessSubmission.sharedWithAttendees, the organizer's "yes,
+-- the room may see this deck" bit.
+-- NOT APPLIED by the agent — CI and Render's build run migrate deploy.
+--
+-- WHY A COLUMN AT ALL:
+-- Speaker Readiness already collects the decks. Until now every one of them
+-- was organizer-only: the file routes demand manage rights, and nothing the
+-- attendee can reach ever reads the table. "Presentation slides attached" on
+-- the agenda is the whole point of collecting a deck, but approval is NOT
+-- consent to publish — an organizer approves a deck to confirm it arrived and
+-- is the right file, which is a different question from whether the speaker
+-- meant it to leave the review board. Deriving sharing from approvedAt would
+-- retroactively publish every deck already approved on every live event the
+-- moment this deploys. So sharing is its own bit, stored, defaulting to off,
+-- and set only by an explicit organizer action.
+--
+-- MUST-CONFIRMS (read before deploy):
+-- 1) Additive only. One NEW column on "ReadinessSubmission":
+--    sharedWithAttendees BOOLEAN NOT NULL DEFAULT false.
+-- 2) NOT NULL WITH a DEFAULT, added in one statement. On PostgreSQL 11+ that
+--    is metadata-only: the default lives in the catalog and existing rows are
+--    NOT rewritten, so there is no table rewrite and no long lock even though
+--    this table holds every submission ever made (it supersedes, never
+--    deletes). No backfill needed.
+-- 3) NO new enum and NO ADD VALUE on any existing enum. NO new table, index,
+--    or foreign key. Nothing filters on this column in SQL on its own — every
+--    read that consults it is already narrowed by eventId + assignmentId, both
+--    of which are indexed.
+-- 4) NO drop, rename, retype, or NOT NULL on any existing column. Existing
+--    readers select ReadinessSubmission columns explicitly or via Prisma's
+--    include and cannot break on an added scalar.
+-- 5) EVERY existing submission reads false, which is "not shared" — exactly
+--    the state the product had before this migration, where no attendee-facing
+--    surface could reach a submission at all. Applying this publishes nothing
+--    and changes no UI on its own.
+-- 6) Rollback = deploy the previous API commit. The column stays behind,
+--    unread and harmless, and because the old code has no attendee-facing
+--    materials route, rolling back re-closes access on its own. Schema
+--    rollbacks are forward-fix only (RUNBOOK §4).
+-- 7) Idempotent: ADD COLUMN IF NOT EXISTS.
+-- Do NOT set ALLOW_DESTRUCTIVE_DB. Do NOT run against production.
+
+ALTER TABLE "ReadinessSubmission"
+  ADD COLUMN IF NOT EXISTS "sharedWithAttendees" BOOLEAN NOT NULL DEFAULT false;

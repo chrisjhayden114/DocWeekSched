@@ -4,7 +4,14 @@
  */
 
 import { SessionPublishStatus, type EventStatus } from "@prisma/client";
-import { asSessionFormat, eventLogoWithOrgFallback, hasFeeNotice, type FeeNotice } from "@event-app/shared";
+import {
+  asSessionFormat,
+  eventLogoWithOrgFallback,
+  hasFeeNotice,
+  materialsArePublic,
+  type FeeNotice,
+} from "@event-app/shared";
+import { sharedMaterialsByEvent } from "./readiness/materials";
 import { can } from "./billing/entitlements";
 import { prisma } from "./db";
 import { featureEnabled } from "./features/featureEnabled";
@@ -38,6 +45,21 @@ export type PublicSessionPayload = {
    * reads null, so an event that ignores formats never sees the section.
    */
   format: string | null;
+  /**
+   * AGENDA-3 — true when a presenter has shared materials on this session,
+   * whatever the event's materialsVisibility is. The card's Slides glyph and
+   * the "Has slides or materials" filter read THIS, so an attendees-only event
+   * still gets an honest agenda: the visitor is told the slides exist and
+   * where to sign in, rather than being shown a chip that 403s.
+   */
+  hasMaterials: boolean;
+  /**
+   * The materials themselves — METADATA ONLY, and only when the event's
+   * materialsVisibility is PUBLIC. Under ATTENDEES this is empty even though
+   * `hasMaterials` is true: a signed-out visitor learns that slides exist, not
+   * what they are called or how big they are.
+   */
+  materials: PublicSessionMaterial[];
   speakers: Array<{
     id: string;
     name: string;
@@ -52,6 +74,21 @@ export type PublicSessionPayload = {
     sortOrder: number;
     authors: Array<{ name: string; isPresenter: boolean; sortOrder: number }>;
   }>;
+};
+
+/**
+ * AGENDA-3 — one shared handout on the public page. No storage key, no
+ * submission internals, no speaker id: a title, what kind of thing it is, and
+ * enough to render a chip. A file is fetched from GET /materials/:id/file,
+ * which re-runs the whole gate; only a link carries its URL here.
+ */
+export type PublicSessionMaterial = {
+  id: string;
+  title: string;
+  kind: "file" | "link";
+  mime: string | null;
+  sizeBytes: number | null;
+  url: string | null;
 };
 
 /** The session row shape `toPublicSession` maps from (a Prisma select result). */
@@ -83,8 +120,19 @@ export type PublicSessionRow = {
   }>;
 };
 
-/** Pure row → payload mapping, so the public contract is unit-testable. */
-export function toPublicSession(s: PublicSessionRow): PublicSessionPayload {
+/**
+ * Pure row → payload mapping, so the public contract is unit-testable.
+ *
+ * `materials` is passed in rather than looked up: the caller batches one query
+ * for the whole program, and keeping the PUBLIC/ATTENDEES split here means the
+ * rule that a signed-out visitor sees a count but not a filename is pinned by
+ * a unit test instead of living inside a database call.
+ */
+export function toPublicSession(
+  s: PublicSessionRow,
+  materials?: { shared: PublicSessionMaterial[]; isPublic: boolean },
+): PublicSessionPayload {
+  const shared = materials?.shared ?? [];
   return {
     id: s.id,
     title: s.title,
@@ -100,6 +148,8 @@ export function toPublicSession(s: PublicSessionRow): PublicSessionPayload {
     // plain String, so a hand-edited row must not reach the filter rail and
     // create a format option nothing else in the app knows how to label.
     format: asSessionFormat(s.format),
+    hasMaterials: shared.length > 0,
+    materials: materials?.isPublic ? shared : [],
     speakers: s.sessionSpeakers.map((ss) => ({
       id: ss.speaker.id,
       name: ss.speaker.name,
@@ -212,6 +262,7 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
       paymentPriceText: true,
       paymentUrl: true,
       paymentInstructions: true,
+      materialsVisibility: true,
       status: true,
       organizationId: true,
       organization: {
@@ -243,6 +294,12 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     instructions: event.paymentInstructions,
   };
   const payment = paidAttendanceOn && hasFeeNotice(feeNotice) ? feeNotice : null;
+
+  // AGENDA-3 — one batched read for the whole program. `sharedMaterialsByEvent`
+  // applies the shared + approved + current rules itself and returns nothing at
+  // all when the organizer has the readiness feature switched off.
+  const materialsBySession = await sharedMaterialsByEvent(event.id);
+  const materialsArePublicHere = materialsArePublic(event.materialsVisibility);
 
   const [sessions, speakers, sponsors] = await Promise.all([
     prisma.session.findMany({
@@ -332,7 +389,12 @@ export async function getPublicEventBySlug(slugRaw: string): Promise<PublicEvent
     organizationSupportEmail: event.organization.supportEmail,
     showPoweredByBadge: !hideBadge,
     payment,
-    sessions: sessions.map(toPublicSession),
+    sessions: sessions.map((s) =>
+      toPublicSession(s, {
+        shared: materialsBySession.get(s.id) ?? [],
+        isPublic: materialsArePublicHere,
+      }),
+    ),
     speakers: speakers.map((sp) => ({
       id: sp.id,
       name: sp.name,

@@ -360,8 +360,13 @@ readinessRouter.post(
 // Organizer review + proxied files (ER4 / O5)
 // ---------------------------------------------------------------------------
 
+/**
+ * AGENDA-3 — `share` / `unshare` join review here rather than getting their own
+ * route: they are the same organizer decision about the same row, guarded by
+ * the same manage check, and one endpoint keeps the audit trail in one place.
+ */
 const reviewSchema = z.object({
-  action: z.enum(["approve", "reject"]),
+  action: z.enum(["approve", "reject", "share", "unshare"]),
   reason: z.string().max(2000).optional(),
 });
 

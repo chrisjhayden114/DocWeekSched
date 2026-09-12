@@ -3,6 +3,7 @@ import { writeAuditLog } from "../ai";
 import { HttpError } from "../authorization";
 import { assertReadinessPresenterCap } from "../billing/entitlements";
 import { prisma } from "../db";
+import { isShareableSubmission } from "./materials";
 import {
   deriveAssignmentState,
   rollupSubject,
@@ -116,6 +117,16 @@ export async function getReadinessOverview(eventId: string, now: Date = new Date
             approvedAt: latest.approvedAt,
             rejectedAt: latest.rejectedAt,
             rejectedReason: latest.reviewNote,
+            // AGENDA-3 — what the review board's "Share with attendees" toggle
+            // reads. `canShare` is false for anything an attendee could not
+            // open, so the board never offers a toggle the API would reject.
+            sharedWithAttendees: latest.sharedWithAttendees,
+            canShare: isShareableSubmission({
+              valueText: latest.valueText,
+              fileUrl: latest.fileUrl,
+              fileStorageKey: latest.fileStorageKey,
+              requirementKind: a.requirement.kind,
+            }),
           }
         : null,
     };

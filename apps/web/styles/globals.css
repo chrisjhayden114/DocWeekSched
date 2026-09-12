@@ -8195,6 +8195,18 @@ button.schedule-meta-chip:hover {
   color: var(--event-accent-hover);
 }
 
+/*
+ * AGENDA-3 — the track chip owns a row. It used to trail the room behind a
+ * separator on the meta line, which left a dangling "·" on the line above
+ * whenever the chip wrapped.
+ */
+.session-peek-track-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: var(--space-1) 0 0;
+  font: var(--text-meta);
+}
+
 .session-peek-track {
   display: inline-flex;
   align-items: center;
@@ -8355,6 +8367,17 @@ button.schedule-meta-chip:hover {
   width: 14px;
   height: 14px;
   color: var(--gray-500);
+}
+
+/* AGENDA-3 — "2.4 MB" after a shared file's title, quieter than the title. */
+.session-peek-chip-size {
+  color: var(--meta-color);
+}
+
+.session-peek-materials-note {
+  margin: var(--space-3) 0 0;
+  font: var(--text-meta);
+  color: var(--meta-color);
 }
 
 .session-peek-error {

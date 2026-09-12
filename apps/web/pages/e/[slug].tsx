@@ -16,7 +16,7 @@ import { FeeNotice } from "../../components/FeeNotice";
 import { HostedByLine } from "../../components/HostedByLine";
 import { ScheduleViewSwitcher, type ScheduleViewMode } from "../../components/ScheduleViewSwitcher";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../../components/ScheduleTimetable";
-import { CardSpeakerAvatars } from "../../components/SessionCardBits";
+import { CardMaterialsHint, CardSpeakerAvatars } from "../../components/SessionCardBits";
 import { SessionPeekSurface } from "../../components/SessionPeekSurface";
 import { useSessionPeek } from "../../components/useSessionPeek";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
@@ -24,6 +24,7 @@ import { useAgendaFilters } from "../../components/useAgendaFilters";
 import {
   activeFilterCount,
   filterSessions,
+  hasSessionMaterials,
   isGroupFilterable,
   optionCounts,
   printCountLine,
@@ -33,7 +34,12 @@ import { downloadProgramIcs } from "../../lib/calendarIcs";
 import { loginPathForSession, loginPathWithEvent } from "../../lib/entryRedirects";
 import { eventAccentStyle } from "../../lib/eventAccent";
 import { serializeJsonLd } from "../../lib/jsonLd";
-import { publicSessionAnchorId, publicSessionPath, sessionShareUrl } from "../../lib/sessionPeek";
+import {
+  publicSessionAnchorId,
+  publicSessionPath,
+  sessionShareUrl,
+  type PeekSharedMaterial,
+} from "../../lib/sessionPeek";
 import { pickUntrackedTintHex, resolveTrackHex, sessionTrackTintClass, trackColor } from "../../lib/trackColors";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -83,6 +89,14 @@ export type PublicEventView = {
     roomId?: string | null;
     /** AGENDA-2 — one of SESSION_FORMATS, or null when never set. */
     format?: string | null;
+    /**
+     * AGENDA-3 — a presenter has shared materials on this session. Always
+     * present; `materials` is filled in only when the event's materials are
+     * PUBLIC, so an attendees-only event still lights the card's Slides glyph
+     * without naming the files.
+     */
+    hasMaterials?: boolean;
+    materials?: PeekSharedMaterial[];
     speakers: Array<{
       id?: string;
       name: string;
@@ -433,7 +447,19 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
       items: found.items,
       startsAt: found.startsAt,
       endsAt: found.endsAt,
+      // Empty on an attendees-only event even when hasMaterials is true —
+      // that case renders the sign-in note instead (see materialsNote below).
+      materials: found.materials ?? [],
     };
+  }, [peek.openId, filterable]);
+
+  /**
+   * AGENDA-3 — this session has materials, but the payload did not carry them:
+   * the event shares with attendees only and nobody is signed in here.
+   */
+  const peekMaterialsGated = useMemo(() => {
+    const found = peek.openId ? filterable.find((s) => s.id === peek.openId) : null;
+    return Boolean(found?.hasMaterials) && (found?.materials?.length ?? 0) === 0;
   }, [peek.openId, filterable]);
 
   const filterControls = (
@@ -496,6 +522,8 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
                                 {s.items.length} paper{s.items.length === 1 ? "" : "s"}
                               </span>
                             ) : null}
+                            {/* AGENDA-3 — the same quiet hint the in-app card carries. */}
+                            {hasSessionMaterials(s) ? <CardMaterialsHint /> : null}
                           </h4>
                           <p className="schedule-event-meta">
                             {rowTimeRange(s.startsAt, s.endsAt, timeZone)}
@@ -684,6 +712,13 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
           typeof window === "undefined" ? null : window.location.origin,
         )}
         detailsHref={peekSession ? loginPathForSession(event.slug, peekSession.id) : loginHref}
+        /*
+          AGENDA-3 — the event shares materials with attendees only, so this
+          visitor gets told they exist and where to sign in, rather than a chip
+          that would 403. When the event is PUBLIC the payload carries the
+          materials themselves and this stays false.
+        */
+        materialsNote={Boolean(peekMaterialsGated)}
       />
     </div>
   );

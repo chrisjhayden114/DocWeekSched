@@ -22,8 +22,10 @@ import {
   speakerInitials,
   type PeekMaterialKind,
   type PeekPaper,
+  type PeekSharedMaterial,
   type PeekSpeaker,
 } from "../lib/sessionPeek";
+import { API_URL } from "../lib/api";
 
 export type AgendaJoinMode = "VIRTUAL" | "IN_PERSON" | "ASYNC";
 
@@ -57,6 +59,8 @@ export type PeekSession = {
   fileLink?: string | null;
   recordingUrl?: string | null;
   zoomLink?: string | null;
+  /** AGENDA-3 — shared presenter materials, already gated by the API. */
+  materials?: PeekSharedMaterial[] | null;
 };
 
 export type SessionPeekContentProps = {
@@ -96,6 +100,13 @@ export type SessionPeekContentProps = {
   /** Pick-one slot: goes through the slot's replace-confirm. */
   onChoose?: () => Promise<boolean | void> | void;
   onToggleStar?: () => void;
+  /**
+   * AGENDA-3 — this session HAS shared materials, but this viewer may not open
+   * them (an attendees-only event, read by a signed-out visitor). Mutually
+   * exclusive with `session.materials` in practice: the API sends one or the
+   * other, never both.
+   */
+  materialsNote?: boolean;
   /** Venue map deep link for the room, when venue_maps is on and a pin is linked. */
   roomMapHref?: string | null;
   /** In-app: focus the pin without a page load. */
@@ -112,6 +123,10 @@ function MaterialGlyph({ kind }: { kind: PeekMaterialKind }) {
     recording: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M10 9l5 3-5 3z",
     // A camera body: the online meeting link.
     online: "M3 7h11v10H3z M14 11l7-4v10l-7-4",
+    // A picture: a frame with a horizon and a sun.
+    image: "M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4 M15 9h.01",
+    // A chain link: a shared URL rather than an uploaded file.
+    link: "M10 14a4 4 0 0 0 6 0l2-2a4 4 0 0 0-6-6l-1 1 M14 10a4 4 0 0 0-6 0l-2 2a4 4 0 0 0 6 6l1-1",
   };
   return (
     <svg className="session-peek-chip-glyph" viewBox="0 0 24 24" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -153,6 +168,7 @@ export function SessionPeekContent({
   onChangeMode,
   onChoose,
   onToggleStar,
+  materialsNote = false,
   roomMapHref,
   onRoomMap,
 }: SessionPeekContentProps) {
@@ -204,7 +220,7 @@ export function SessionPeekContent({
   const meta = peekMetaParts(session, timeZone);
   const people = peekSpeakerList(session, speakerRoster);
   const legacySpeakers = people.length === 0 ? peekSpeakers({ ...session, speakers: typeof session.speakers === "string" ? session.speakers : null }) : "";
-  const materials = peekMaterials(session, { includeOnline: !isPublic });
+  const materials = peekMaterials(session, { includeOnline: !isPublic, apiUrl: API_URL });
   const papers = session.items ?? [];
   const action = peekPrimaryAction({ isPublic, joined, full, pickOne });
   // A pick-one option always routes through the slot's replace-confirm, even
@@ -272,14 +288,26 @@ export function SessionPeekContent({
       <h3 className="session-peek-title" id={titleId}>
         {session.title}
       </h3>
+      {/*
+        The meta line carries time and room ONLY. The track used to sit here
+        behind a third separator, and when the chip wrapped to the next line
+        the separator stayed behind on the first — "A101 ·" with nothing after
+        it. A chip that wraps as a unit cannot be introduced by a character on
+        the previous line, so the track gets its own row below and no separator
+        at all. peekMeta() still joins all three for the one-string callers.
+      */}
       <p className="session-peek-meta">
         <span>{meta.time}</span>
         {/* c. The room links to its map pin when one is linked. */}
         {meta.room ? (
           <>
-            <span className="session-peek-meta-sep" aria-hidden>
-              ·
-            </span>
+            {/*
+              Real spaces around the dot, and no aria-hidden: the separator has
+              to exist in textContent so a screen reader reads "GMT+8 · A101"
+              as two facts rather than running them into one word. The visible
+              spacing comes from the row's gap, so the spaces cost nothing.
+            */}
+            <span className="session-peek-meta-sep">{" · "}</span>
             {onRoomMap ? (
               <button type="button" className="session-peek-room-link" onClick={onRoomMap}>
                 {meta.room}
@@ -293,21 +321,18 @@ export function SessionPeekContent({
             )}
           </>
         ) : null}
-        {meta.track ? (
-          <>
-            <span className="session-peek-meta-sep" aria-hidden>
-              ·
-            </span>
-            <span
-              className="session-peek-track"
-              style={trackColor ? { ["--track-color" as string]: trackColor } : undefined}
-            >
-              <span className="session-peek-track-dot" aria-hidden />
-              {meta.track}
-            </span>
-          </>
-        ) : null}
       </p>
+      {meta.track ? (
+        <p className="session-peek-track-row">
+          <span
+            className="session-peek-track"
+            style={trackColor ? { ["--track-color" as string]: trackColor } : undefined}
+          >
+            <span className="session-peek-track-dot" aria-hidden />
+            {meta.track}
+          </span>
+        </p>
+      ) : null}
 
       {/* d. Description, clamped, expanding in place. */}
       {session.description ? (
@@ -375,7 +400,7 @@ export function SessionPeekContent({
         <div className="session-peek-materials">
           {materials.map((material) => (
             <a
-              key={material.kind}
+              key={material.key}
               className="session-peek-chip"
               href={material.href}
               target="_blank"
@@ -383,9 +408,25 @@ export function SessionPeekContent({
             >
               <MaterialGlyph kind={material.kind} />
               {material.label}
+              {material.sizeLabel ? (
+                <span className="session-peek-chip-size">{material.sizeLabel}</span>
+              ) : null}
             </a>
           ))}
         </div>
+      ) : null}
+
+      {/*
+        AGENDA-3 — an attendees-only event, seen by someone who has not signed
+        in. Saying nothing would make the agenda look like it has no slides;
+        rendering a chip would hand them a link that 403s. So say what is true
+        and where to go.
+      */}
+      {materialsNote ? (
+        <p className="session-peek-materials-note">
+          Slides available to attendees.{" "}
+          <a href={detailsHref}>Sign in to open them</a>
+        </p>
       ) : null}
 
       {/* The mode switch appears only once joined — joining itself is one step. */}

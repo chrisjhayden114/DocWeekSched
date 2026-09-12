@@ -6,8 +6,14 @@ import { prisma } from "../lib/db";
 import { awardEngagementPoints, POINTS } from "../lib/points";
 import { resolveEventFromRequest } from "../lib/requestEvent";
 import { getStorageProvider } from "../lib/storage";
-import { AuthedRequest, requireAuth, requireCsrf } from "../lib/middleware";
+import { AuthedRequest, optionalAuth, requireAuth, requireCsrf } from "../lib/middleware";
+import { publicRateLimit, testUnlimitedMax } from "../lib/rateLimit";
 import { requireFeature } from "../lib/features";
+import {
+  requireMaterialsViewer,
+  sharedMaterialsByEvent,
+  sharedMaterialsForSession,
+} from "../lib/readiness/materials";
 import { sessionVisibilityWhere, isSessionAttendeeVisible } from "../lib/ai/ingest/visibility";
 import { recordSessionScheduleChange } from "../lib/ai/ops/scheduleChange";
 import { authorOrDeleted } from "../lib/authorDisplay";
@@ -224,7 +230,19 @@ sessionsRouter.get(
     });
     const page = slicePage(rows, take);
     setPageHeaders(res, page);
-    return res.json(page.items);
+
+    // AGENDA-3 — shared presenter materials ride along on the list rather than
+    // being fetched per card. Every caller here is already a member of the
+    // event, which is exactly the ATTENDEES bar, so no extra gate is needed —
+    // and one batched query beats one round trip per session for the card
+    // glyph, the peek's materials row, and the "has materials" filter.
+    const materials = await sharedMaterialsByEvent(event.id);
+    return res.json(
+      page.items.map((session) => {
+        const shared = materials.get(session.id) ?? [];
+        return { ...session, materials: shared, hasMaterials: shared.length > 0 };
+      }),
+    );
   }),
 );
 
@@ -317,6 +335,43 @@ sessionsRouter.post(
       roomId: parsed.data.roomId,
     });
     return res.json(result);
+  }),
+);
+
+/**
+ * AGENDA-3 — the presenter materials shared on this session.
+ *
+ * Not behind requireAuth: an event whose materialsVisibility is PUBLIC hands
+ * these to a signed-out visitor reading the public agenda. The gate is
+ * `requireMaterialsViewer`, which 403s an anonymous caller on an ATTENDEES
+ * event, and `isSessionAttendeeVisible`, which keeps a draft session's
+ * materials with the draft session.
+ */
+sessionsRouter.get(
+  "/:id/materials",
+  publicRateLimit({ max: testUnlimitedMax(60) }),
+  optionalAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const session = await prisma.session.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        eventId: true,
+        publishStatus: true,
+        event: { select: { status: true } },
+      },
+    });
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const viewer = await requireMaterialsViewer(session.eventId, req.user?.id ?? null);
+    const visible = isSessionAttendeeVisible({
+      canManageEvent: viewer.canManageEvent,
+      eventStatus: session.event.status,
+      publishStatus: session.publishStatus,
+    });
+    if (!visible) return res.status(404).json({ error: "Session not found" });
+
+    return res.json(await sharedMaterialsForSession(session.eventId, session.id));
   }),
 );
 

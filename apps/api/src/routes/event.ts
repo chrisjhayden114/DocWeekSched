@@ -6,6 +6,7 @@ import {
   EVENT_TRANSFER_RECOMMENDATION,
   EVENT_TRANSFER_SAME_ORG_MESSAGE,
   EVENT_TRANSFER_TARGET_ROLE_MESSAGE,
+  MATERIALS_VISIBILITIES,
   describeEventTransferBlockers,
   eventLogoWithOrgFallback,
 } from "@event-app/shared";
@@ -128,6 +129,13 @@ const eventSchema = z.object({
   paymentInstructions: z.string().max(PAYMENT_INSTRUCTIONS_MAX_CHARS).optional().nullable(),
   // K-2 — organizer-facing CFP name. Empty/null clears back to the default.
   cfpLabel: z.string().max(60).optional().nullable(),
+  /**
+   * AGENDA-3 — closed vocabulary, enforced here rather than by a database
+   * enum. Not nullable: the column is NOT NULL with a default, so "leave it
+   * alone" is `undefined`, and there is no such thing as an event with no
+   * answer to "who may open a shared deck".
+   */
+  materialsVisibility: z.enum(MATERIALS_VISIBILITIES).optional(),
 });
 
 const publicEventSelect = {
@@ -451,6 +459,11 @@ eventRouter.put(
         // paymentUrl is already validated http(s) or null from paymentUrlField,
         // so it bypasses patchFields' string trimming but keeps its contract.
         ...(parsed.data.paymentUrl === undefined ? {} : { paymentUrl: parsed.data.paymentUrl }),
+        // Not in EVENT_PATCH_FIELDS: patchFields clears on null, and this
+        // column has no "unset" state to clear to.
+        ...(parsed.data.materialsVisibility === undefined
+          ? {}
+          : { materialsVisibility: parsed.data.materialsVisibility }),
         timezone: parsed.data.timezone,
         startDate: new Date(parsed.data.startDate),
         endDate: new Date(parsed.data.endDate),

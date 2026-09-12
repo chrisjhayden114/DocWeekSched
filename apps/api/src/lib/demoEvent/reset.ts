@@ -16,6 +16,12 @@ import { prisma } from "../db";
 import { assertDestructiveAllowed } from "../destructiveGuard";
 import { upsertFeatureOverrides } from "../features/featureEnabled";
 import { newJoinToken } from "../inviteTokens";
+import {
+  DEMO_DECK_DATA_URL,
+  DEMO_DECK_FILE_NAME,
+  DEMO_DECK_MIME,
+  DEMO_DECK_SIZE_BYTES,
+} from "./demoDeck";
 import { buildDemoFixtureSpec, demoConferenceWindow } from "./fixture";
 
 export const DEMO_RESET_JOB = "demo.event.reset";
@@ -72,6 +78,16 @@ async function wipeEventChildren(eventId: string): Promise<void> {
     where: { sessionItem: { session: { eventId } } },
   });
   await prisma.sessionItem.deleteMany({ where: { session: { eventId } } });
+  // AGENDA-3 — readiness rows, deepest first. Submissions and assignments would
+  // cascade off the speaker delete below, but templates and requirements are
+  // event-scoped and would survive, and ReadinessTemplate is unique on
+  // (eventId, name) — so a second reset would collide instead of re-seeding.
+  await prisma.readinessSubmission.deleteMany({ where: { eventId } });
+  await prisma.readinessReminderSend.deleteMany({ where: { eventId } });
+  await prisma.readinessAssignment.deleteMany({ where: { eventId } });
+  await prisma.readinessRequirement.deleteMany({ where: { eventId } });
+  await prisma.readinessTemplate.deleteMany({ where: { eventId } });
+  await prisma.readinessPortalAccess.deleteMany({ where: { eventId } });
   await prisma.sessionSpeaker.deleteMany({ where: { session: { eventId } } });
   await prisma.sessionResource.deleteMany({ where: { session: { eventId } } });
   await prisma.sessionBookmark.deleteMany({ where: { session: { eventId } } });
@@ -147,6 +163,9 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
         activatedAt: new Date(),
         organizationId: org.id,
         slugInviteEnabled: true,
+        // AGENDA-3 — the demo is a shop window: a visitor with no account has
+        // to be able to open the shared deck, or the feature cannot be seen.
+        materialsVisibility: "PUBLIC",
         joinTokenHash: joinHash,
         attendeeCap: 10_000,
       },
@@ -167,6 +186,7 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
         activatedAt: event.activatedAt ?? new Date(),
         organizationId: org.id,
         slugInviteEnabled: true,
+        materialsVisibility: "PUBLIC",
         joinTokenRevokedAt: null,
       },
     });
@@ -178,6 +198,9 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
     messaging_dms: false,
     messaging_groups: false,
     messaging_event_chat: false,
+    // AGENDA-3 — the demo shows a presenter's shared deck on the agenda, which
+    // only exists behind the readiness feature.
+    readiness: true,
   });
 
   const tracks = [];
@@ -284,8 +307,78 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
     }
   }
 
+  await seedDemoSharedDeck(event.id, org.id, speakerByKey.get("maya"));
+
   clearDemoEventIdCache();
   return { eventId: event.id, slug: brand.demoEventSlug, created };
+}
+
+/**
+ * AGENDA-3 — one approved, shared deck, so /e/demo shows the readiness path
+ * working rather than only the organizer's own `fileUrl` column.
+ *
+ * Deliberately hung on the OPENING KEYNOTE, whose session row has no fileUrl:
+ * the "Slides" chip that appears there can only have come from a presenter's
+ * submission, which is the thing being demonstrated. (The practice showcase
+ * keeps its fileUrl chip, so the demo shows both sources side by side.)
+ *
+ * The assignment's subject is the SPEAKER, not the session, which also
+ * exercises the speaker → sessions fan-out in sharedMaterialsByEvent.
+ */
+async function seedDemoSharedDeck(
+  eventId: string,
+  organizationId: string,
+  speakerId: string | undefined,
+): Promise<void> {
+  if (!speakerId) return;
+
+  const template = await prisma.readinessTemplate.create({
+    data: {
+      eventId,
+      organizationId,
+      name: "Speaker pack",
+      description: "Materials every speaker owes before show day.",
+    },
+  });
+
+  const requirement = await prisma.readinessRequirement.create({
+    data: {
+      templateId: template.id,
+      eventId,
+      label: "Slide deck",
+      helpText: "The slides you will present from.",
+      kind: "file",
+      // Both flags on purpose: `deck` picks up the deck upload rules, and
+      // `shareByDefault` is what puts an approved deck on the agenda.
+      config: { deck: true, shareByDefault: true },
+      required: true,
+      sortOrder: 0,
+    },
+  });
+
+  const assignment = await prisma.readinessAssignment.create({
+    data: {
+      organizationId,
+      eventId,
+      requirementId: requirement.id,
+      speakerId,
+      status: "READY",
+    },
+  });
+
+  await prisma.readinessSubmission.create({
+    data: {
+      assignmentId: assignment.id,
+      eventId,
+      fileName: DEMO_DECK_FILE_NAME,
+      fileMime: DEMO_DECK_MIME,
+      fileSizeBytes: DEMO_DECK_SIZE_BYTES,
+      fileUrl: DEMO_DECK_DATA_URL,
+      submittedVia: "portal",
+      approvedAt: new Date(),
+      sharedWithAttendees: true,
+    },
+  });
 }
 
 /**

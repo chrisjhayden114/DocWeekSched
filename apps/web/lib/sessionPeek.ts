@@ -131,12 +131,32 @@ export function paperAuthors(paper: PeekPaper): Array<{ name: string; isPresente
 }
 
 /** File-type glyph shown on a materials chip and on the card's "has slides" hint. */
-export type PeekMaterialKind = "slides" | "resources" | "recording" | "online";
+export type PeekMaterialKind = "slides" | "resources" | "recording" | "online" | "image" | "link";
 
 export type PeekMaterial = {
   kind: PeekMaterialKind;
   label: string;
   href: string;
+  /**
+   * AGENDA-3 — "2.4 MB", rendered after the label. Null for the organizer's
+   * own link columns, whose size we do not know and must not guess.
+   */
+  sizeLabel?: string | null;
+  /** Stable React key: shared materials can repeat a `kind` on one session. */
+  key: string;
+};
+
+/**
+ * AGENDA-3 — one presenter handout shared through Speaker Readiness, exactly
+ * as `GET /sessions/:id/materials` and the public payload return it.
+ */
+export type PeekSharedMaterial = {
+  id: string;
+  title: string;
+  kind: "file" | "link";
+  mime?: string | null;
+  sizeBytes?: number | null;
+  url?: string | null;
 };
 
 export type PeekMaterialSource = {
@@ -144,24 +164,87 @@ export type PeekMaterialSource = {
   fileLink?: string | null;
   recordingUrl?: string | null;
   zoomLink?: string | null;
+  /** AGENDA-3 — shared readiness submissions for this session. */
+  materials?: PeekSharedMaterial[] | null;
 };
+
+/** Where a shared FILE is fetched from. Links carry their own URL instead. */
+export function sharedMaterialHref(material: PeekSharedMaterial, apiUrl: string): string | null {
+  if (material.kind === "link") return material.url?.trim() || null;
+  return `${apiUrl.replace(/\/+$/, "")}/materials/${encodeURIComponent(material.id)}/file`;
+}
+
+/**
+ * Which glyph a shared material gets. A deck, a document, an image and a link
+ * are four different things to someone scanning an agenda on a phone, and the
+ * MIME is the only honest signal we have.
+ */
+export function sharedMaterialGlyph(material: PeekSharedMaterial): PeekMaterialKind {
+  if (material.kind === "link") return "link";
+  const mime = (material.mime || "").toLowerCase();
+  if (mime === "application/pdf" || mime.includes("powerpoint") || mime.includes("presentationml")) {
+    return "slides";
+  }
+  if (mime === "image/png" || mime === "image/jpeg") return "image";
+  return "resources";
+}
+
+/**
+ * "2.4 MB" — decimal units, because that is what an operating system shows a
+ * presenter when they look at the file they uploaded. Returns null rather than
+ * "0 B" for a missing or nonsensical size: no size at all is more honest than
+ * a wrong one, and the chip simply omits it.
+ */
+export function formatMaterialSize(bytes: number | null | undefined): string | null {
+  if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes <= 0) return null;
+  if (bytes < 1000) return `${Math.round(bytes)} B`;
+  if (bytes < 1_000_000) return `${Math.round(bytes / 1000)} KB`;
+  const mb = bytes / 1_000_000;
+  return `${mb >= 10 ? Math.round(mb) : Math.round(mb * 10) / 10} MB`;
+}
 
 /**
  * The materials row, in a fixed order. `zoomLink` is in-app only — a public
  * page must never leak a meeting URL to someone who has not joined.
  *
- * AGENDA-3 extension point: Speaker Readiness materials belong here. Append
- * them after these chips (they are per-session uploads with the same shape:
- * kind + label + href), so the row's layout and the "hidden when empty" rule
- * keep working without touching any caller.
+ * AGENDA-3: shared Speaker Readiness materials are appended AFTER the
+ * organizer's own columns. The organizer's links are what the event says about
+ * the session; a shared deck is what the presenter handed over, and a
+ * presenter can hand over several. Ordering them last keeps every existing
+ * agenda looking exactly as it did.
+ *
+ * `apiUrl` is required to render a shared FILE, which streams from the API
+ * rather than from a URL in the payload. Without one, files are dropped rather
+ * than pointed at the web origin, where they would 404.
  */
-export function peekMaterials(session: PeekMaterialSource, opts?: { includeOnline?: boolean }): PeekMaterial[] {
+export function peekMaterials(
+  session: PeekMaterialSource,
+  opts?: { includeOnline?: boolean; apiUrl?: string },
+): PeekMaterial[] {
   const out: PeekMaterial[] = [];
-  if (session.fileUrl) out.push({ kind: "slides", label: "Slides", href: session.fileUrl });
-  if (session.fileLink) out.push({ kind: "resources", label: "Resources", href: session.fileLink });
-  if (session.recordingUrl) out.push({ kind: "recording", label: "Recording", href: session.recordingUrl });
+  if (session.fileUrl) {
+    out.push({ kind: "slides", label: "Slides", href: session.fileUrl, key: "slides" });
+  }
+  if (session.fileLink) {
+    out.push({ kind: "resources", label: "Resources", href: session.fileLink, key: "resources" });
+  }
+  if (session.recordingUrl) {
+    out.push({ kind: "recording", label: "Recording", href: session.recordingUrl, key: "recording" });
+  }
   if (opts?.includeOnline && session.zoomLink) {
-    out.push({ kind: "online", label: "Join online", href: session.zoomLink });
+    out.push({ kind: "online", label: "Join online", href: session.zoomLink, key: "online" });
+  }
+  for (const material of session.materials ?? []) {
+    if (material.kind === "file" && !opts?.apiUrl) continue;
+    const href = sharedMaterialHref(material, opts?.apiUrl ?? "");
+    if (!href) continue;
+    out.push({
+      kind: sharedMaterialGlyph(material),
+      label: material.title,
+      href,
+      sizeLabel: formatMaterialSize(material.sizeBytes),
+      key: `shared-${material.id}`,
+    });
   }
   return out;
 }

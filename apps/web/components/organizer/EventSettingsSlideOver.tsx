@@ -1,7 +1,14 @@
 import { overviewCopy } from "@event-app/config";
+import {
+  MATERIALS_VISIBILITY_HELP,
+  materialsVisibilityOrDefault,
+  materialsVisibilitySelectOptions,
+  type MaterialsVisibility,
+} from "@event-app/shared";
 import { FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { AutoGrowTextarea, SlideOver, SlideOverMoreOptions } from "../kit";
+import { Select } from "../Select";
 import { HoverInfo } from "../kit/HoverInfo";
 import { TimezoneSelect } from "../TimezoneSelect";
 import { EventBrandingFields } from "./EventBrandingFields";
@@ -24,6 +31,8 @@ export type EventSettingsEvent = {
   bannerUrl?: string | null;
   logoUrl?: string | null;
   cfpLabel?: string | null;
+  /** AGENDA-3 — ATTENDEES | PUBLIC. Absent on an older payload reads as the default. */
+  materialsVisibility?: string | null;
   /** ORG-2 — gates the draft-only "Move to another organization" section. */
   status?: string;
 };
@@ -58,6 +67,7 @@ type FormState = {
   logoUrl: string;
   bannerUrl: string;
   cfpLabel: string;
+  materialsVisibility: MaterialsVisibility;
 };
 
 function initialForm(event: EventSettingsEvent): FormState {
@@ -77,6 +87,7 @@ function initialForm(event: EventSettingsEvent): FormState {
     logoUrl: event.logoUrl || "",
     bannerUrl: event.bannerUrl || "",
     cfpLabel: event.cfpLabel || "",
+    materialsVisibility: materialsVisibilityOrDefault(event.materialsVisibility),
   };
 }
 
@@ -170,6 +181,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
           logoUrl: form.logoUrl.trim() || null,
           bannerUrl: form.bannerUrl.trim() || null,
           cfpLabel: form.cfpLabel.trim() || null,
+          materialsVisibility: form.materialsVisibility,
           timezone: form.timezone,
           startDate: startIso,
           endDate: endIso,
@@ -295,6 +307,28 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
                   onChange={(e) => set("cfpLabel", e.target.value)}
                 />
                 <span className="help-text">e.g. Call for Papers</span>
+              </label>
+              {/*
+                AGENDA-3 — who may open a deck a presenter shared. Plain
+                language on both options: the organizer is deciding whether a
+                speaker's slides end up on the open web, and that has to be
+                readable without knowing what "ATTENDEES" means internally.
+              */}
+              <label>
+                <FieldHelp
+                  title="Who can open shared materials"
+                  help="Presenters upload slides and handouts through Speaker Readiness. When you share one with attendees, this setting decides who can open it."
+                />
+                <Select
+                  value={form.materialsVisibility}
+                  onChange={(value) =>
+                    set("materialsVisibility", materialsVisibilityOrDefault(value))
+                  }
+                  options={materialsVisibilitySelectOptions()}
+                />
+                <span className="help-text">
+                  {MATERIALS_VISIBILITY_HELP[form.materialsVisibility]}
+                </span>
               </label>
               <EventBrandingFields
                 value={{

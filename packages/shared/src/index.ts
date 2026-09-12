@@ -18,3 +18,4 @@ export * from "./organizerGuide";
 export * from "./entryRedirects";
 export * from "./deletedParticipant";
 export * from "./sessionFormat";
+export * from "./materialsVisibility";

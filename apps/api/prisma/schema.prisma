@@ -732,6 +732,11 @@ model Event {
   cfpLabel             String?              @db.VarChar(60)
   /// CHAT-2 — organizer-configured Event assistant starter questions (JSON string[], max 3 × 80 chars). null = defaults.
   assistantStartersJson String?
+  /// AGENDA-3 — who may open a presenter's shared materials: ATTENDEES (signed-in
+  /// members, the default) or PUBLIC (anyone who can read the public event page).
+  /// Vocabulary lives in packages/shared/src/materialsVisibility.ts and is enforced
+  /// by Zod on write, so widening it never locks this table.
+  materialsVisibility  String               @default("ATTENDEES")
   /// PAY-T0 — the organizer's own registration fee, shown to attendees when the
   /// `paid_attendance` feature is on. Free text price (e.g. "$120 · $95
   /// members"), an http(s) link to THEIR payment page, and PO/check
@@ -2282,6 +2287,11 @@ model ReadinessSubmission {
   fileUrl       String?      // storage URL (see audit §11.4 privacy decision)
   fileStorageKey String?
   aiGenerated   Boolean @default(false)
+  /// AGENDA-3 — the organizer said this may be shown to attendees on the agenda.
+  /// Off by default, and never enough on its own: a submission must ALSO be
+  /// approved, not rejected and not superseded before it is served, and the
+  /// event's materialsVisibility decides who counts as "attendee".
+  sharedWithAttendees Boolean @default(false)
   submittedVia  String       // portal | organizer | ai
   supersededAt  DateTime?    // EventRecapSection pattern: resubmission supersedes, never deletes
   approvedAt    DateTime?

@@ -29,6 +29,7 @@ import { readClientStorage, writeClientStorage } from "../lib/clientStorage";
 import {
   activeFilterCount,
   filterSessions,
+  hasSessionMaterials,
   isGroupFilterable,
   nowAndNext,
   optionCounts,
@@ -37,7 +38,7 @@ import {
 import { useAgendaFilters } from "../components/useAgendaFilters";
 import { buildBreakoutSlots, type BreakoutSlot } from "../lib/breakoutSlots";
 import { BreakoutSlotBoard } from "../components/BreakoutSlotBoard";
-import { sessionDetailPath, sessionShareUrl } from "../lib/sessionPeek";
+import { sessionDetailPath, sessionShareUrl, type PeekSharedMaterial } from "../lib/sessionPeek";
 import { pickUntrackedTintHex, resolveTrackHex, sessionTrackTintClass, trackColor } from "../lib/trackColors";
 import {
   AgendaFilterRail,
@@ -145,6 +146,13 @@ type Session = {
   recordingUrl?: string | null;
   fileUrl?: string | null;
   fileLink?: string | null;
+  /**
+   * AGENDA-3 — presenter materials shared through Speaker Readiness, sent
+   * inline by GET /sessions. Everyone reading this list is already a member of
+   * the event, which is exactly what attendees-only visibility asks for.
+   */
+  materials?: PeekSharedMaterial[] | null;
+  hasMaterials?: boolean;
   imageUrl?: string | null;
   startsAt: string;
   endsAt: string;
@@ -2582,7 +2590,7 @@ function ScheduleBoard({
                   // AGENDA-1 — the individual Recording / Resources / File links
                   // moved into the peek's materials row; the card keeps one quiet
                   // glyph so a scan still shows which sessions have handouts.
-                  const hasMaterials = Boolean(s.fileUrl || s.fileLink || s.recordingUrl);
+                  const hasMaterials = hasSessionMaterials(s);
                   if (s.roomId && onViewOnMap && roomPins[s.roomId]) {
                     extraLinks.push({
                       key: "map",

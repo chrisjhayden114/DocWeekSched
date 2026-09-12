@@ -18,6 +18,7 @@ import {
   READINESS_DATA_URL_MAX_BYTES,
   readStoredFile,
 } from "./files";
+import { isShareableSubmission, sharesOnApproval } from "./materials";
 import {
   CLEARED_GRACE_SLOT,
   hashPortalToken,
@@ -785,10 +786,10 @@ export async function submitPortalAssignment(
     });
     await tx.readinessAssignment.update({
       where: { id: assignment.id },
-      data: { status: "SUBMITTED" },
+        data: { status: "SUBMITTED" },
+      });
+      return submission;
     });
-    return submission;
-  });
 
   await prisma.readinessPortalAccess.update({
     where: { id: access.id },
@@ -829,17 +830,58 @@ export async function streamPortalFile(rawToken: string, submissionId: string, n
 export async function reviewSubmission(
   eventId: string,
   submissionId: string,
-  input: { action: "approve" | "reject"; reason?: string | null },
+  input: { action: "approve" | "reject" | "share" | "unshare"; reason?: string | null },
   actorUserId: string,
   now = new Date(),
 ) {
   const submission = await prisma.readinessSubmission.findFirst({
     where: { id: submissionId, eventId },
-    include: { assignment: true },
+    include: { assignment: { include: { requirement: true } } },
   });
   if (!submission) throw new HttpError(404, { error: "Submission not found" });
   if (submission.supersededAt) {
     throw new HttpError(400, { error: "This submission has been replaced by a newer one." });
+  }
+
+  const requirement = submission.assignment.requirement;
+  const requirementConfig = (requirement.config ?? {}) as Record<string, unknown>;
+
+  // AGENDA-3 — sharing is its own action, not a side effect of review, so an
+  // organizer can change their mind about the agenda without re-reviewing.
+  if (input.action === "share" || input.action === "unshare") {
+    const share = input.action === "share";
+    if (share && !submission.approvedAt) {
+      throw new HttpError(400, {
+        error: "Approve this submission before sharing it with attendees.",
+      });
+    }
+    if (
+      share &&
+      !isShareableSubmission({
+        valueText: submission.valueText,
+        fileUrl: submission.fileUrl,
+        fileStorageKey: submission.fileStorageKey,
+        requirementKind: requirement.kind,
+      })
+    ) {
+      throw new HttpError(400, {
+        error: "Only an uploaded file or a link can be shared with attendees.",
+      });
+    }
+    const updated = await prisma.readinessSubmission.update({
+      where: { id: submission.id },
+      data: { sharedWithAttendees: share },
+    });
+    await writeAuditLog({
+      organizationId: submission.assignment.organizationId,
+      eventId,
+      actorUserId,
+      action: "OTHER",
+      entityType: "ReadinessAssignment",
+      entityId: submission.assignmentId,
+      payload: { action: input.action, submissionId: submission.id },
+    });
+    return updated;
   }
 
   if (input.action === "reject") {
@@ -856,6 +898,10 @@ export async function reviewSubmission(
           reviewNote: reason,
           approvedAt: null,
           approvedById: null,
+          // Un-approving un-shares. A deck that is no longer approved must
+          // leave the agenda in the same write that un-approves it, rather
+          // than relying on every reader to re-derive that.
+          sharedWithAttendees: false,
         },
       });
       await tx.readinessAssignment.update({
@@ -876,6 +922,20 @@ export async function reviewSubmission(
     return updated;
   }
 
+  // AGENDA-3 — a deck requirement shares itself on approval (see
+  // sharesOnApproval), which is what "Presentation slides attached" on the
+  // agenda requires to happen without a second organizer chore. Anything that
+  // is not an openable file or link can never be shared, whatever the config
+  // says, so a `confirm` requirement cannot be configured into a leak.
+  const autoShare =
+    sharesOnApproval(requirementConfig) &&
+    isShareableSubmission({
+      valueText: submission.valueText,
+      fileUrl: submission.fileUrl,
+      fileStorageKey: submission.fileStorageKey,
+      requirementKind: requirement.kind,
+    });
+
   const updated = await prisma.$transaction(async (tx) => {
     const row = await tx.readinessSubmission.update({
       where: { id: submission.id },
@@ -885,6 +945,7 @@ export async function reviewSubmission(
         rejectedAt: null,
         rejectedById: null,
         reviewNote: null,
+        ...(autoShare ? { sharedWithAttendees: true } : {}),
       },
     });
     await tx.readinessAssignment.update({
@@ -900,7 +961,7 @@ export async function reviewSubmission(
     action: "OTHER",
     entityType: "ReadinessAssignment",
     entityId: submission.assignmentId,
-    payload: { action: "approve", submissionId: submission.id },
+    payload: { action: "approve", submissionId: submission.id, shared: autoShare },
   });
   return updated;
 }

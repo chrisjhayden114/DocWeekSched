@@ -1,0 +1,47 @@
+-- AGENDA-3 — Event.materialsVisibility, the ceiling on who may open a shared deck.
+-- NOT APPLIED by the agent — CI and Render's build run migrate deploy.
+--
+-- WHY A COLUMN AT ALL:
+-- Sharing a deck with "attendees" means different things to different events.
+-- A school district's internal practice day means the twelve people who
+-- joined; an open research conference means the program page is the
+-- proceedings and the decks should outlive the login. Both are legitimate, the
+-- answer is per-event and permanent enough to be a setting rather than a
+-- per-file prompt, and getting it wrong is a privacy incident in one direction
+-- and a dead link in the other. That is a stored organizer decision, not
+-- something to infer from event status or plan.
+--
+-- MUST-CONFIRMS (read before deploy):
+-- 1) Additive only. One NEW column on "Event":
+--    materialsVisibility TEXT NOT NULL DEFAULT 'ATTENDEES'.
+-- 2) NOT NULL WITH a DEFAULT, added in one statement. On PostgreSQL 11+ that
+--    is metadata-only: the default is stored in the catalog and existing rows
+--    are NOT rewritten, so there is no table rewrite and no long lock. No
+--    backfill needed.
+-- 3) NO new enum and NO ADD VALUE on any existing enum. The vocabulary
+--    (ATTENDEES | PUBLIC) is closed in packages/shared/src/materialsVisibility.ts
+--    and enforced by Zod on write, matching AGENDA-2's Session.format. Keeping
+--    it out of the database means adding a third value later is a code deploy
+--    rather than a migration that locks "Event", and means an old pod
+--    mid-rolling-deploy cannot reject a value a new pod just wrote. The read
+--    side narrows through materialsVisibilityOrDefault(), which collapses any
+--    value it does not recognise to ATTENDEES — an unreadable row fails
+--    CLOSED, never open.
+-- 4) NO new table, index, or foreign key. This is read once per request
+--    alongside the event row that is already being loaded by primary key.
+-- 5) NO drop, rename, retype, or NOT NULL on any existing column. Existing
+--    readers select Event columns explicitly and cannot break on an added
+--    scalar. Note "Event" is the widest row in the schema and the one every
+--    request touches, which is exactly why this is a bare TEXT with a default
+--    and nothing more.
+-- 6) EVERY existing event reads 'ATTENDEES', the closed setting. Combined with
+--    the companion migration (sharedWithAttendees defaults false), applying
+--    both exposes ZERO files: there is nothing shared to gate yet. Applying
+--    this changes no UI and no behaviour on its own.
+-- 7) Rollback = deploy the previous API commit. The column stays behind,
+--    unread and harmless. Schema rollbacks are forward-fix only (RUNBOOK §4).
+-- 8) Idempotent: ADD COLUMN IF NOT EXISTS.
+-- Do NOT set ALLOW_DESTRUCTIVE_DB. Do NOT run against production.
+
+ALTER TABLE "Event"
+  ADD COLUMN IF NOT EXISTS "materialsVisibility" TEXT NOT NULL DEFAULT 'ATTENDEES';
