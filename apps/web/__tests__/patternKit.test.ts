@@ -137,6 +137,19 @@ describe("F1.1 — warmer tokens extend the scale (nothing replaced)", () => {
     expect(tokensCss).toMatch(/--surface-inner:/);
   });
 
+  it("UI-4 extends the border and elevation scales the same way", () => {
+    // The quiet inner rules and the near-black outline are different jobs, so
+    // the dark line is a new token rather than a re-pointing of --border*.
+    expect(tokensCss).toMatch(/--border:\s*var\(--gray-200\)/);
+    expect(tokensCss).toMatch(/--border-strong:\s*var\(--gray-300\)/);
+    expect(tokensCss).toMatch(/--border-dark-85:\s*rgba\(22, 22, 22, 0\.85\)/);
+    // Same for elevation: --shadow-popover is added beside --shadow-1..3.
+    expect(tokensCss).toMatch(/--shadow-1:/);
+    expect(tokensCss).toMatch(/--shadow-2:/);
+    expect(tokensCss).toMatch(/--shadow-3:/);
+    expect(tokensCss).toMatch(/--shadow-popover:\s*0 1px 2px[^;]+,\s*0 16px 40px[^;]+;/);
+  });
+
   it("kit surfaces are token-driven: cards and pills use the new radii", () => {
     expect(globalsCss).toMatch(/\.kit-feed-card {[^}]*border-radius: var\(--radius-card\)/s);
     expect(globalsCss).toMatch(/\.kit-stat-card {[^}]*border-radius: var\(--radius-card\)/s);

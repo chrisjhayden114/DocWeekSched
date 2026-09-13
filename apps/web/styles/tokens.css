@@ -133,12 +133,31 @@
   --surface-card: #ffffff; /* content cards sitting on the page */
   --surface-inner: var(--gray-50); /* inset wells inside a white card */
 
+  /*
+   * —— UI-4 contrast: the dark hairline ——
+   * --border / --border-strong (gray-200 / gray-300) are the quiet rules that
+   * separate rows inside a surface. This is the other job: a near-black
+   * outline that holds its edge when a floating panel sits on any of the
+   * light grays (--gray-25 → --gray-100). Session cards take --gray-900 flat;
+   * a panel softens it to 85% so the shadow does the rest of the work.
+   * Literal rgba rather than a color-mix on --gray-900, because a custom
+   * property has no fallback slot for browsers without color-mix.
+   */
+  --border-dark-85: rgba(22, 22, 22, 0.85); /* --gray-900 at 85% */
+
   /* —— Elevation (borders do the separation work) —— */
   --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
   --shadow-2: 0 4px 6px -2px rgba(16, 24, 40, 0.03), 0 12px 16px -4px rgba(16, 24, 40, 0.08);
   /* E29.2: reserved for genuinely floating surfaces only — modals, the
      assistant sheet, dropdowns/popovers. Depth as punctuation, not decoration. */
   --shadow-3: 0 8px 12px -6px rgba(16, 24, 40, 0.08), 0 24px 48px -12px rgba(16, 24, 40, 0.18);
+  /*
+   * UI-4 — the session peek reads as a pop-up, not another panel in the
+   * page's gray stack. Two layers: a tight contact shadow that seats the
+   * edge, and a broad cast shadow that lifts it off whatever is behind.
+   * --shadow-3 is deliberately left alone; other floating surfaces use it.
+   */
+  --shadow-popover: 0 1px 2px rgba(22, 22, 22, 0.2), 0 16px 40px rgba(22, 22, 22, 0.24);
 
   /* —— Focus (E29.2) —— */
   /* Keyboard focus: 2px accent outline at 2px offset (globals :focus-visible).

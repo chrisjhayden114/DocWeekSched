@@ -1383,21 +1383,28 @@ textarea.input,
 }
 
 /*
- * Session row (E29.1): 1px border, radius 4, 3px track color bar.
+ * Session row (E29.1): 1px border, radius 4, and a track color bar.
  * Tracked sessions get a ~6% wash of --track-color mixed toward white
  * (.schedule-event--tinted). Untracked rows use the same wash with the
  * event's untracked hue (greatest min hue-distance from the tracks).
  * A tight row, not a tall card — target ~72–88px at rest. Actions sit on the
  * title line (see .schedule-event-side), never stranded at the bottom.
+ *
+ * UI-4 — the outline is --gray-900, not the gray-200 rule. At a 6% wash the
+ * card fill and the page's light grays are within a couple of percent of each
+ * other, so a quiet border left the cards to dissolve into the canvas; a
+ * near-black hairline is what makes each one a discrete object. The strip
+ * carries the track identity at 6px and full saturation, which is why the
+ * body fill can stay as faint as it is.
  */
 .schedule-event {
   position: relative;
   display: flex;
   gap: var(--space-2);
   align-items: flex-start;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--gray-900);
   border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   background: #ffffff;
   overflow: hidden;
   box-shadow: none;
@@ -1411,18 +1418,22 @@ textarea.input,
   background: color-mix(in srgb, var(--track-color) var(--track-fill-mix, 6%), #ffffff);
 }
 
+/* The left strip follows the card radius, so it reads as part of the card
+   even on the mobile layout, where the card is not clipping its overflow. */
 .schedule-event::before {
   content: "";
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 6px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   background: var(--track-color, var(--gray-300));
 }
 
+/* Hover lifts the fill only — the outline stays 1px --gray-900 at every
+   state, so nothing about hover, pinning or focus moves the layout. */
 .schedule-event:hover {
-  border-color: var(--gray-300);
   background: var(--gray-25);
 }
 
@@ -1490,8 +1501,11 @@ textarea.input,
   }
 }
 
+/* UI-4 — a soft inner glow alone was invisible against a near-black outline,
+   so the ring is a real 2px outline held 2px clear of the card's own line. */
 .schedule-event--peekable:focus-visible {
-  outline: none;
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
   box-shadow: var(--focus-ring);
 }
 
@@ -1663,8 +1677,8 @@ textarea.input,
   gap: var(--space-2);
   min-height: var(--tap-target);
   margin-bottom: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--gray-200);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border: 1px solid var(--gray-900);
   border-radius: var(--radius-sm);
   background: #ffffff;
   overflow: hidden;
@@ -1689,7 +1703,8 @@ textarea.input,
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 6px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   background: var(--track-color, var(--gray-300));
 }
 
@@ -1736,7 +1751,7 @@ textarea.input,
 /* Open / collapsed choice slot. */
 .breakout-slot {
   margin-bottom: var(--space-2);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--gray-900);
   border-radius: var(--radius-sm);
   background: #ffffff;
   overflow: hidden;
@@ -1749,7 +1764,7 @@ textarea.input,
   gap: var(--space-2);
   width: 100%;
   min-height: var(--tap-target);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   border: none;
   background: transparent;
   text-align: left;
@@ -1777,8 +1792,15 @@ textarea.input,
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 6px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   background: var(--decision-amber);
+}
+
+/* Open, the header is mid-card: the strip runs on to the options below it,
+   so only its top corner follows the radius. */
+.breakout-slot--decision.is-open > .breakout-slot-header::before {
+  border-bottom-left-radius: 0;
 }
 
 .breakout-slot--decision > .breakout-slot-header:hover {
@@ -1832,8 +1854,8 @@ textarea.input,
   align-items: center;
   gap: var(--space-3);
   min-height: var(--tap-target);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--gray-200);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border: 1px solid var(--gray-900);
   border-radius: var(--radius-sm);
   background: #ffffff;
   overflow: hidden;
@@ -1847,12 +1869,12 @@ textarea.input,
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 6px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   background: var(--track-color, var(--gray-300));
 }
 
 .breakout-option:hover {
-  border-color: var(--gray-300);
   background: var(--gray-25);
 }
 
@@ -4828,7 +4850,7 @@ button.schedule-meta-chip:hover {
     flex: 1 1 auto;
     width: 100%;
     max-height: none;
-    padding: 8px 8px 4px 12px;
+    padding: 8px 8px 4px 16px;
     overflow: visible;
     align-items: start;
     display: grid;
@@ -5541,12 +5563,13 @@ button.schedule-meta-chip:hover {
 
 .mkt-browser-row {
   cursor: default;
-  padding: 8px 10px 8px 13px;
+  padding: 8px 10px 8px 16px;
 }
 
+/* The demo frame is a picture of the agenda, so it keeps the card's outline;
+   only the hover lift is cancelled, since these rows are not interactive. */
 .mkt-browser-row:hover {
   background: #ffffff;
-  border-color: var(--gray-200);
 }
 
 .mkt-ingest-demo {
@@ -7413,10 +7436,10 @@ button.schedule-meta-chip:hover {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: 10px 12px 10px 15px;
+  padding: 10px 12px 10px 18px;
   background: #ffffff;
   background: color-mix(in srgb, var(--track-color, var(--track-1)) var(--track-fill-mix, 6%), #ffffff);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--gray-900);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
@@ -7427,7 +7450,8 @@ button.schedule-meta-chip:hover {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 6px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   background: var(--track-color, var(--track-1));
 }
 
@@ -7924,6 +7948,12 @@ button.schedule-meta-chip:hover {
   pointer-events: none;
 }
 
+/*
+ * UI-4 — a timetable cell is the same object as a list card, so it gets the
+ * same anatomy: the near-black hairline and the 6px full-saturation strip.
+ * The strip replaces the old track-tinted border as the thing that says
+ * which track this is, which is why the border can go neutral and dark.
+ */
 .schedule-grid-block {
   position: absolute;
   z-index: 1;
@@ -7932,8 +7962,8 @@ button.schedule-meta-chip:hover {
   align-items: flex-start;
   gap: 2px;
   margin: 0;
-  padding: 4px 6px;
-  border: 1px solid color-mix(in srgb, var(--track-color, var(--gray-300)) 40%, #ffffff);
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--gray-900);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--track-color, var(--gray-300)) var(--track-fill-mix, 6%), #ffffff);
   color: color-mix(in srgb, var(--track-color, var(--gray-700)) 72%, #161616);
@@ -7944,9 +7974,19 @@ button.schedule-meta-chip:hover {
   transition: var(--transition);
 }
 
+.schedule-grid-block::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: var(--track-color, var(--gray-300));
+}
+
 .schedule-grid-block:hover {
   filter: brightness(0.97);
-  border-color: color-mix(in srgb, var(--track-color, var(--gray-300)) 55%, #ffffff);
 }
 
 /* Read-only surfaces (public event page): a block is a card, not a control. */
@@ -7954,7 +7994,6 @@ button.schedule-meta-chip:hover {
 .schedule-grid-block--static:hover {
   cursor: default;
   filter: none;
-  border-color: color-mix(in srgb, var(--track-color, var(--gray-300)) 40%, #ffffff);
 }
 
 .schedule-grid-block-title {
@@ -8037,9 +8076,9 @@ button.schedule-meta-chip:hover {
   max-height: min(85vh, 640px);
   overflow-y: auto;
   background: var(--surface-card);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-dark-85);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: var(--shadow-3);
+  box-shadow: var(--shadow-popover);
   padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
   animation: session-peek-up var(--motion-slow) var(--ease-out) both;
 }
@@ -8072,6 +8111,8 @@ button.schedule-meta-chip:hover {
  * popover below. Sched-style anatomy — a full-width action strip on top, then
  * title, meta, description, speakers, papers, materials, footer.
  */
+/* UI-4 — gray-600 on white (≈7.4:1), not gray-500's marginal 4.7:1: the X
+   has to hold its own inside a panel framed by a near-black outline. */
 .session-peek-close {
   position: absolute;
   top: var(--space-2);
@@ -8080,7 +8121,7 @@ button.schedule-meta-chip:hover {
   height: var(--tap-target);
   border: none;
   background: transparent;
-  color: var(--gray-500);
+  color: var(--gray-600);
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
@@ -8088,7 +8129,7 @@ button.schedule-meta-chip:hover {
 }
 
 .session-peek-close:hover {
-  color: var(--gray-700);
+  color: var(--gray-900);
   background: var(--gray-100);
 }
 
@@ -8099,7 +8140,9 @@ button.schedule-meta-chip:hover {
   flex-wrap: wrap;
   gap: var(--space-2);
   padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--gray-200);
+  /* UI-4 — gray-300, so the strip still reads as a divider and not a smudge
+     once the panel is framed by the near-black outline. */
+  border-bottom: 1px solid var(--gray-300);
   /* Room for the close button in the corner. */
   padding-right: var(--tap-target);
 }
@@ -8433,10 +8476,10 @@ button.schedule-meta-chip:hover {
   z-index: 1100;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-dark-85);
   border-radius: var(--radius-card);
   background: var(--surface-card);
-  box-shadow: var(--shadow-3);
+  box-shadow: var(--shadow-popover);
   animation: motion-pop-in var(--motion-fast) var(--ease-out) both;
 }
 
@@ -8449,13 +8492,21 @@ button.schedule-meta-chip:hover {
   z-index: 1;
 }
 
-/* The caret is a rotated square: one square, two visible borders. */
+/*
+ * The caret is a rotated square carrying the panel's own outline on its two
+ * outer edges, so the line runs unbroken around the point. The square is
+ * centred ON the panel's border line (half the width, minus the 6px inset),
+ * which puts its two vertices exactly where the border resumes and lets its
+ * fill cover the segment of border running behind it. Painted as a child of
+ * the panel, it sits above that border; the scroll body's 16px padding keeps
+ * text off its inner half.
+ */
 .session-peek-pop-caret {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   background: var(--surface-card);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-dark-85);
   transform: translateY(-50%) rotate(45deg);
 }
 
@@ -8600,6 +8651,27 @@ button.schedule-meta-chip:hover {
     margin: 2px 0 0;
     font: 400 9.5pt/1.35 Inter, Helvetica, Arial, sans-serif;
     color: #000;
+  }
+
+  /*
+   * UI-4 — on paper the outline is the only separation left, so it stays a
+   * 1px hairline: thicker lines eat the row and cost toner. Depth is a
+   * screen idea; every pop-up shadow comes off, since a printed gradient is
+   * a gray smudge around the panel rather than a lift off the page.
+   */
+  .schedule-event,
+  .breakout-choice,
+  .breakout-slot,
+  .breakout-option,
+  .schedule-grid-block {
+    border-width: 1px !important;
+    box-shadow: none !important;
+  }
+
+  .session-peek-pop,
+  .session-peek-sheet,
+  .session-peek-backdrop {
+    box-shadow: none !important;
   }
 }
 

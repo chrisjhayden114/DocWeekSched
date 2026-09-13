@@ -121,10 +121,13 @@ describe("UI-1 — list cards mix a 5–8% wash toward white", () => {
     expect(body).not.toMatch(/transparent|gray-25|gray-50|gray-100/);
   });
 
-  it("the 3px left strip is unchanged", () => {
+  it("the left strip is a 6px full-saturation band following the card radius (UI-4)", () => {
     const body = ruleBody(globalsCss, ".schedule-event::before");
-    expect(body).toMatch(/width:\s*3px/);
+    expect(body).toMatch(/width:\s*6px/);
+    // The strip is the track's base color, never the 6% wash the body carries.
     expect(body).toMatch(/background:\s*var\(--track-color,\s*var\(--gray-300\)\)/);
+    expect(body).not.toMatch(/color-mix|track-fill-mix/);
+    expect(body).toMatch(/border-radius:\s*var\(--radius-sm\)\s*0\s*0\s*var\(--radius-sm\)/);
   });
 
   it("hover on a tinted card lifts the wash toward white, not gray", () => {
@@ -295,10 +298,11 @@ describe("UI-1.1 / UI-2 — pick-one amber vs track tint by view and state", () 
     expect(body).not.toMatch(/--track-color/);
   });
 
-  it("the amber left strip matches track-strip geometry (3px)", () => {
+  it("the amber left strip matches track-strip geometry (6px, UI-4)", () => {
     const body = ruleBody(globalsCss, ".breakout-slot--decision > .breakout-slot-header::before");
-    expect(body).toMatch(/width:\s*3px/);
+    expect(body).toMatch(/width:\s*6px/);
     expect(body).toMatch(/background:\s*var\(--decision-amber\)/);
+    expect(body).toMatch(/border-radius:\s*var\(--radius-sm\)\s*0\s*0\s*var\(--radius-sm\)/);
   });
 
   it("hover on the amber row lifts at the same 8% pattern as UI-1", () => {
@@ -342,5 +346,207 @@ describe("UI-1.1 / UI-2 — pick-one amber vs track tint by view and state", () 
     const hover = mixTowardWhite(DECISION_AMBER_HEX, TRACK_FILL_MIX_HOVER);
     expect(contrastRatio(wash, title)).toBeGreaterThanOrEqual(AA);
     expect(contrastRatio(hover, title)).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+/**
+ * UI-4 — the contrast pass. A 6% wash puts the card fill within a couple of
+ * percent of the page's light grays, so the gray-200 rule that used to edge
+ * these cards had nothing to work with and they dissolved into the canvas.
+ * The near-black hairline is what makes each card a discrete object, and the
+ * 6px full-saturation strip is what carries the track identity now that the
+ * body fill is deliberately faint.
+ */
+const CARD_SURFACES = [
+  ".schedule-event",
+  ".breakout-choice",
+  ".breakout-slot",
+  ".breakout-option",
+  ".schedule-grid-block",
+] as const;
+
+/** Every card surface that paints its own colored left strip. */
+const STRIP_SURFACES = [
+  ".schedule-event::before",
+  ".breakout-choice::before",
+  ".breakout-option::before",
+  ".schedule-grid-block::before",
+  ".breakout-slot--decision > .breakout-slot-header::before",
+] as const;
+
+/** Reads a literal hex off a :root token, so contrast math tracks the tokens. */
+function tokenHex(name: string): string {
+  const match = new RegExp(`${name}:\\s*(#[0-9a-fA-F]{3,8})`).exec(tokensCss);
+  expect(match, `${name} should be a literal hex in tokens.css`).not.toBeNull();
+  return match![1]!.toLowerCase();
+}
+
+describe("UI-4 — the dark hairline that makes a card an object", () => {
+  it("adds outline and pop-up tokens without disturbing the ones in use", () => {
+    expect(tokensCss).toMatch(/--border-dark-85:\s*rgba\(22,\s*22,\s*22,\s*0\.85\)/);
+    // rgba(22, 22, 22) IS --gray-900 (#161616) — a custom property has no
+    // fallback slot, so the alpha has to be written out rather than mixed.
+    expect(tokenHex("--gray-900")).toBe("#161616");
+    // --border-strong was already taken (gray-300, the quiet inner rule).
+    expect(tokensCss).toMatch(/--border-strong:\s*var\(--gray-300\)/);
+  });
+
+  it("defines --shadow-popover as two layers and leaves --shadow-3 alone", () => {
+    const popover = /--shadow-popover:\s*([^;]+);/.exec(tokensCss)?.[1] ?? "";
+    // A tight contact layer plus a broad cast layer — that pair is what reads
+    // as "floating above" rather than "another panel in the stack".
+    expect(popover).toMatch(/0 1px 2px rgba\(22,\s*22,\s*22,\s*0\.2\)/);
+    expect(popover).toMatch(/0 16px 40px rgba\(22,\s*22,\s*22,\s*0\.24\)/);
+    expect(tokensCss).toMatch(
+      /--shadow-3:\s*0 8px 12px -6px rgba\(16, 24, 40, 0\.08\), 0 24px 48px -12px rgba\(16, 24, 40, 0\.18\);/,
+    );
+  });
+
+  it("outlines every card surface with the same 1px near-black line", () => {
+    for (const selector of CARD_SURFACES) {
+      const body = ruleBody(globalsCss, selector);
+      expect(body, selector).toMatch(/border:\s*1px solid var\(--gray-900\)/);
+      expect(body, selector).not.toMatch(/border:\s*1px solid var\(--(gray-200|gray-300|border|line)\)/);
+    }
+  });
+
+  it("gives every strip the same 6px width and left-hand radius", () => {
+    for (const selector of STRIP_SURFACES) {
+      const body = ruleBody(globalsCss, selector);
+      expect(body, selector).toMatch(/width:\s*6px/);
+      expect(body, selector).toMatch(/border-radius:\s*var\(--radius-sm\)\s*0\s*0\s*var\(--radius-sm\)/);
+    }
+  });
+
+  it("clears the 6px strip with left padding, so it never sits under the title", () => {
+    // --space-4 (16px) leaves 10px between the strip and the first glyph.
+    for (const selector of [".schedule-event", ".breakout-choice", ".breakout-option", ".breakout-slot-header"]) {
+      expect(ruleBody(globalsCss, selector), selector).toMatch(
+        /padding:\s*var\(--space-2\) var\(--space-3\) var\(--space-2\) var\(--space-4\)/,
+      );
+    }
+    // Timetable cells are tighter: lanes bottom out at 132px wide.
+    expect(ruleBody(globalsCss, ".schedule-grid-block")).toMatch(/padding:\s*4px 6px 4px 12px/);
+    // The phone layout re-declares the card's padding and must clear it too.
+    const phone = /\.schedule-events > \.schedule-event \{([\s\S]*?)\}/g;
+    const paddings = [...globalsCss.matchAll(phone)]
+      .map((m) => /padding:\s*([^;]+);/.exec(m[1]!)?.[1])
+      .filter((p): p is string => Boolean(p));
+    expect(paddings).toEqual(["8px 8px 4px 16px"]);
+  });
+
+  it("never thickens or lightens the outline on hover — the layout cannot shift", () => {
+    for (const selector of [".schedule-event:hover", ".breakout-option:hover", ".schedule-grid-block:hover"]) {
+      const body = ruleBody(globalsCss, selector);
+      expect(body, selector).not.toMatch(/border/);
+    }
+    // The pinned/hover lift is transform + shadow only, inside @media (hover: hover).
+    const lift = /\.schedule-event--peekable:hover \{([^}]*)\}/.exec(globalsCss)?.[1] ?? "";
+    expect(lift).toMatch(/transform:\s*translateY\(-1px\)/);
+    expect(lift).toMatch(/box-shadow:\s*var\(--shadow-2\)/);
+    expect(lift).not.toMatch(/border/);
+  });
+
+  it("keeps the focus ring visible against the dark outline at a 2px offset", () => {
+    const body = ruleBody(globalsCss, ".schedule-event--peekable:focus-visible");
+    expect(body).toMatch(/outline:\s*2px solid var\(--focus-ring-color\)/);
+    expect(body).toMatch(/outline-offset:\s*2px/);
+    // The old `outline: none` left only a soft glow, which a near-black
+    // border swallowed whole.
+    expect(body).not.toMatch(/outline:\s*none/);
+  });
+
+  it("keeps the grid cell's track identity in the strip, not in a tinted border", () => {
+    const body = ruleBody(globalsCss, ".schedule-grid-block");
+    // The border used to be a 40% track mix; the strip carries that job now.
+    expect(body).not.toMatch(/border:[^;]*color-mix/);
+    expect(ruleBody(globalsCss, ".schedule-grid-block::before")).toMatch(
+      /background:\s*var\(--track-color,\s*var\(--gray-300\)\)/,
+    );
+  });
+});
+
+describe("UI-4 — the session peek reads as a floating panel", () => {
+  it("frames the popover and the mobile sheet with gray-900 at 85%", () => {
+    for (const selector of [".session-peek-pop", ".session-peek-sheet"]) {
+      const body = ruleBody(globalsCss, selector);
+      expect(body, selector).toMatch(/border:\s*1px solid var\(--border-dark-85\)/);
+      expect(body, selector).toMatch(/box-shadow:\s*var\(--shadow-popover\)/);
+      expect(body, selector).not.toMatch(/var\(--shadow-3\)/);
+    }
+  });
+
+  it("runs the same outline around the caret, so the line is continuous", () => {
+    const caret = ruleBody(globalsCss, ".session-peek-pop-caret");
+    expect(caret).toMatch(/border:\s*1px solid var\(--border-dark-85\)/);
+    expect(caret).toMatch(/background:\s*var\(--surface-card\)/);
+    // The square is centred on the panel's border line: half of 12px, less
+    // the 6px inset. Its fill then covers the border segment behind it and
+    // its two vertices land exactly where the border resumes.
+    expect(caret).toMatch(/width:\s*12px/);
+    expect(caret).toMatch(/height:\s*12px/);
+    // Two edges hidden per placement — the two that face into the panel.
+    const right = ruleBody(globalsCss, ".session-peek-pop--right .session-peek-pop-caret");
+    expect(right).toMatch(/left:\s*-6px/);
+    expect(right).toMatch(/border-right:\s*none/);
+    expect(right).toMatch(/border-top:\s*none/);
+    const left = ruleBody(globalsCss, ".session-peek-pop--left .session-peek-pop-caret");
+    expect(left).toMatch(/right:\s*-6px/);
+    expect(left).toMatch(/border-left:\s*none/);
+    expect(left).toMatch(/border-bottom:\s*none/);
+  });
+
+  it("leaves --shadow-3 to the surfaces that still depend on it", () => {
+    // Dropping or redefining it would move every other floating surface.
+    expect(globalsCss).toMatch(/box-shadow:\s*var\(--shadow-3\)/);
+  });
+
+  it("holds WCAG AA for the action bar against the new frame", () => {
+    const bar = ruleBody(globalsCss, ".session-peek-bar");
+    expect(bar).toMatch(/border-bottom:\s*1px solid var\(--gray-300\)/);
+
+    // "Added ✓" — a green fill inside the strip.
+    const pill = ruleBody(globalsCss, ".session-peek-joined-pill");
+    expect(pill).toMatch(/background:\s*var\(--success-50\)/);
+    expect(pill).toMatch(/color:\s*var\(--success\)/);
+    expect(contrastRatio(tokenHex("--success-50"), tokenHex("--success"))).toBeGreaterThanOrEqual(AA);
+
+    // The X close, resting and hovered.
+    const close = ruleBody(globalsCss, ".session-peek-close");
+    expect(close).toMatch(/color:\s*var\(--gray-600\)/);
+    expect(contrastRatio("#ffffff", tokenHex("--gray-600"))).toBeGreaterThanOrEqual(AA);
+    const closeHover = ruleBody(globalsCss, ".session-peek-close:hover");
+    expect(closeHover).toMatch(/color:\s*var\(--gray-900\)/);
+    expect(contrastRatio(tokenHex("--gray-100"), tokenHex("--gray-900"))).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+describe("UI-4 — print keeps the hairline and drops the lift", () => {
+  const printBlock = blockBody(globalsCss, globalsCss.indexOf("@media print"));
+
+  it("pins every card outline to 1px and strips card shadows", () => {
+    const open = printBlock.indexOf(".schedule-grid-block {");
+    expect(open, "print needs a card outline rule").toBeGreaterThan(-1);
+    const rule = blockBody(printBlock, open);
+    expect(rule).toMatch(/border-width:\s*1px\s*!important/);
+    expect(rule).toMatch(/box-shadow:\s*none\s*!important/);
+    // Walk back over the comma-separated selector list ahead of the brace.
+    const selectors = printBlock
+      .slice(0, open + ".schedule-grid-block".length)
+      .split(/\*\/|\}/)
+      .pop()!
+      .split(",")
+      .map((s) => s.trim());
+    for (const selector of CARD_SURFACES) {
+      expect(selectors, selector).toContain(selector);
+    }
+  });
+
+  it("prints no popover shadow at all", () => {
+    expect(printBlock).toMatch(
+      /\.session-peek-pop,\s*\.session-peek-sheet,\s*\.session-peek-backdrop \{\s*box-shadow:\s*none\s*!important;\s*\}/,
+    );
+    expect(printBlock).not.toContain("--shadow-popover");
+    expect(printBlock).not.toContain("--shadow-3");
   });
 });
