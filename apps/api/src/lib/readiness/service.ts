@@ -4,6 +4,7 @@ import { HttpError } from "../authorization";
 import { assertReadinessPresenterCap } from "../billing/entitlements";
 import { prisma } from "../db";
 import { isShareableSubmission } from "./materials";
+import { mergeRequirementConfig } from "./requirementConfig";
 import {
   deriveAssignmentState,
   rollupSubject,
@@ -377,7 +378,16 @@ export async function updateRequirement(
       ...(patch.label !== undefined ? { label: patch.label.trim() } : {}),
       ...(patch.kind !== undefined ? { kind: patch.kind } : {}),
       ...(patch.helpText !== undefined ? { helpText: patch.helpText?.trim() || null } : {}),
-      ...(patch.config !== undefined ? { config: patch.config as Prisma.InputJsonValue } : {}),
+      // READY-SHARE-1 — merged, never replaced: a caller that knows about one
+      // config key must not drop the others (see mergeRequirementConfig).
+      ...(patch.config !== undefined
+        ? {
+            config: mergeRequirementConfig(
+              existing.config,
+              patch.config,
+            ) as Prisma.InputJsonValue,
+          }
+        : {}),
       ...(patch.required !== undefined ? { required: patch.required } : {}),
       ...(patch.dueAt !== undefined ? { dueAt: patch.dueAt } : {}),
       ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),

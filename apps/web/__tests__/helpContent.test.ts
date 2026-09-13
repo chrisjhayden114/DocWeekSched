@@ -92,14 +92,27 @@ describe("HELP-3 — AGENDA-1/2/3 help sections", () => {
       expect(md).toMatch(/\*\*Reject…\*\* .*un-approves it and un-shares it in the same step/);
     });
 
-    it("names the one requirement that shares on approval, and says there is no switch for it", () => {
-      // SPEAKER_PACK_REQUIREMENTS is the only place the product ships
-      // shareByDefault, so the help may name that requirement and nothing else.
+    it("quotes the requirement-level switch exactly as ReadinessTab renders it", () => {
+      // READY-SHARE-1 — the editor now has the switch this page used to say it
+      // lacked. Both the label and the badge are asserted against the
+      // component's own strings, so renaming either fails here.
+      expect(readinessTab).toContain(
+        'const SHARE_BY_DEFAULT_LABEL = "Share approved files with attendees automatically"',
+      );
+      expect(md).toContain("**Share approved files with attendees automatically**");
+      expect(readinessTab).toContain('const AUTO_SHARE_BADGE_LABEL = "Auto-shares"');
+      expect(md).toContain("**Auto-shares**");
+      expect(md).not.toMatch(/editor has no switch/);
+    });
+
+    it("names the one requirement that arrives sharing on approval", () => {
+      // SPEAKER_PACK_REQUIREMENTS is the only place the product SHIPS
+      // shareByDefault on, so the help may name that requirement and no other.
       const autoShared = SPEAKER_PACK_REQUIREMENTS.filter((r) => r.config?.shareByDefault === true);
       expect(autoShared.map((r) => r.label)).toEqual(["Slides 16:9"]);
       expect(md).toContain("**Slides 16:9**");
       expect(md).toContain(`**${SPEAKER_PACK_TEMPLATE_NAME}**`);
-      expect(md).toContain("the requirement editor has no switch for it");
+      expect(md).toContain("starts off on every requirement you build");
     });
 
     it("says plainly that turning the feature off withdraws shared materials", () => {
@@ -113,9 +126,18 @@ describe("HELP-3 — AGENDA-1/2/3 help sections", () => {
   describe("presenter-portal — what a presenter should expect", () => {
     const md = help("presenter-portal");
 
-    it("warns that an approved deck may reach the agenda, and that it is opt-in", () => {
+    it("warns that an approved deck may reach the agenda, by either route", () => {
       expect(md).toContain("## Your deck may end up on the agenda");
-      expect(md).toContain("nothing you send is shared unless they turn it on for that submission");
+      // READY-SHARE-1 — a requirement can be set to share on approval, so the
+      // page must not promise a presenter that every share is a separate act
+      // on their submission. Both paths, and the approval floor under both.
+      expect(md).toContain("What reaches attendees is the organizer's decision");
+      expect(md).toContain("as soon as the organizer approves them");
+      expect(md).toContain("chooses to share that one submission");
+      expect(md).toContain("Nothing is ever shared before it's approved");
+      expect(md).not.toContain(
+        "nothing you send is shared unless they turn it on for that submission",
+      );
     });
 
     it("does not send presenters to a notes field the portal has no room for", () => {

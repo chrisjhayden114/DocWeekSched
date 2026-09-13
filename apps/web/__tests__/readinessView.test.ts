@@ -7,7 +7,9 @@ import {
   isLate,
   isOpenStatus,
   isReadinessFilePreviewable,
+  isShareableRequirementKind,
   needsAttention,
+  requirementAutoShares,
   subjectKey,
   summaryCounts,
   REQUIREMENT_KIND_HELPERS,
@@ -486,5 +488,59 @@ describe("isReadinessFilePreviewable (ER4.5)", () => {
     ).toBe(false);
     expect(isReadinessFilePreviewable(null, "deck.pdf")).toBe(true);
     expect(isReadinessFilePreviewable(null, "talk.pptx")).toBe(false);
+  });
+});
+
+/**
+ * READY-SHARE-1 — these two mirror the API's `SHAREABLE_REQUIREMENT_KINDS` and
+ * `sharesOnApproval` (apps/api/src/lib/readiness/materials.ts, whose own cases
+ * are pinned in apps/api/src/__tests__/materials.unit.test.ts). The editor's
+ * checkbox and the requirement row's badge read them, so a copy that drifted
+ * would promise an organizer the opposite of what approval actually does.
+ */
+describe("isShareableRequirementKind", () => {
+  it("admits file and url, and nothing an attendee could never open", () => {
+    expect(isShareableRequirementKind("file")).toBe(true);
+    expect(isShareableRequirementKind("url")).toBe(true);
+    for (const kind of [
+      "short_text",
+      "long_text",
+      "confirm",
+      "select",
+      "multi_select",
+      "date",
+      "agreement",
+      "internal_checklist",
+      "",
+      null,
+      undefined,
+    ]) {
+      expect(isShareableRequirementKind(kind), String(kind)).toBe(false);
+    }
+  });
+});
+
+describe("requirementAutoShares", () => {
+  it("is off unless something says otherwise", () => {
+    expect(requirementAutoShares(undefined)).toBe(false);
+    expect(requirementAutoShares(null)).toBe(false);
+    expect(requirementAutoShares({})).toBe(false);
+    expect(requirementAutoShares({ maxBytes: 100 })).toBe(false);
+    // Only a real boolean counts, exactly as the API reads it.
+    expect(requirementAutoShares({ shareByDefault: "true" })).toBe(false);
+  });
+
+  it("reads an explicit setting in both directions", () => {
+    expect(requirementAutoShares({ shareByDefault: true })).toBe(true);
+    expect(requirementAutoShares({ deck: true, shareByDefault: false })).toBe(false);
+  });
+
+  it("ticks the box for a deck requirement that predates the checkbox", () => {
+    // Otherwise the editor would show sharing off for a requirement that does
+    // share, and turn it off for real on the next label edit.
+    expect(requirementAutoShares({ deck: true })).toBe(true);
+    expect(requirementAutoShares({ isDeck: true })).toBe(true);
+    expect(requirementAutoShares({ role: "Deck" })).toBe(true);
+    expect(requirementAutoShares({ kind: "deck" })).toBe(true);
   });
 });

@@ -20,7 +20,9 @@ import {
   isLate,
   isOpenStatus,
   isReadinessFilePreviewable,
+  isShareableRequirementKind,
   needsAttention,
+  requirementAutoShares,
   subjectKey,
   summaryCounts,
   READINESS_OFFICE_DOWNLOAD_NOTE,
@@ -75,6 +77,12 @@ type RequirementDraft = {
   required: boolean;
   /** datetime-local value ("" = no due date). */
   dueAt: string;
+  /**
+   * READY-SHARE-1 — `config.shareByDefault`. Offered on file/url only, and
+   * read through requirementAutoShares so a deck requirement that predates
+   * the checkbox opens with it already ticked.
+   */
+  shareByDefault: boolean;
 };
 
 type ConfirmState =
@@ -99,6 +107,17 @@ type ActivityEntry = { at: string; actorName: string; summary: string };
 
 /** The needs-attention card shows this many rows until "Show all". */
 const ATTENTION_PREVIEW = 8;
+
+/**
+ * READY-SHARE-1 — the requirement-level auto-share switch. Named constants
+ * because help/speaker-readiness.md documents this control by name and
+ * __tests__/helpContent.test.ts holds the two together.
+ */
+const SHARE_BY_DEFAULT_LABEL = "Share approved files with attendees automatically";
+const SHARE_BY_DEFAULT_HELP =
+  "When you approve a submission for this requirement it appears on the agenda for attendees. You can still unshare any single submission.";
+/** Badge on a requirement row that shares on approval. */
+const AUTO_SHARE_BADGE_LABEL = "Auto-shares";
 
 /** ISO → datetime-local input value, in the organizer's local time. */
 function toLocalInput(iso: string | null | undefined): string {
@@ -183,6 +202,7 @@ const emptyRequirementDraft = (): RequirementDraft => ({
   helpText: "",
   required: true,
   dueAt: "",
+  shareByDefault: false,
 });
 
 export function ReadinessTab({
@@ -431,6 +451,7 @@ export function ReadinessTab({
       helpText: requirement.helpText ?? "",
       required: requirement.required,
       dueAt: toLocalInput(requirement.dueAt),
+      shareByDefault: requirementAutoShares(requirement.config),
     });
     setTplError(null);
   }
@@ -446,9 +467,19 @@ export function ReadinessTab({
         helpText: reqDraft.helpText.trim() || null,
         required: reqDraft.required,
         dueAt: fromLocalInput(reqDraft.dueAt),
-        // Omit config on edit so API maxBytes/allowedMimeTypes overrides survive.
-        // New file requirements get {}; validation defaults to the deck rule.
-        ...(reqDraft.id ? {} : { config: {} }),
+        /*
+         * READY-SHARE-1 — the editor owns exactly one config key. The routes
+         * merge config, so `deck` and any API maxBytes/allowedMimeTypes
+         * override survive a Label/Kind/Help/Required/Due edit. On a kind that
+         * can never be shared we send no config at all on edit, which leaves a
+         * stored setting intact for a requirement flipped back to File upload;
+         * a new one still starts from {} and validates on the deck rule.
+         */
+        ...(isShareableRequirementKind(reqDraft.kind)
+          ? { config: { shareByDefault: reqDraft.shareByDefault } }
+          : reqDraft.id
+            ? {}
+            : { config: {} }),
       };
       if (reqDraft.id) {
         await organizerFetch(`/readiness/requirements/${reqDraft.id}`, eventId, {
@@ -967,6 +998,29 @@ export function ReadinessTab({
           />
           Required
         </label>
+        {/*
+          READY-SHARE-1 — config.shareByDefault, offered only where a
+          submission could be something an attendee opens. The kinds that can
+          never reach the agenda (an agreement, a dietary note) must not carry
+          a switch implying they could.
+        */}
+        {isShareableRequirementKind(reqDraft.kind) ? (
+          <div>
+            <label
+              style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, minHeight: 44 }}
+            >
+              <input
+                type="checkbox"
+                checked={reqDraft.shareByDefault}
+                onChange={(e) => setReqDraft({ ...reqDraft, shareByDefault: e.target.checked })}
+              />
+              <span>{SHARE_BY_DEFAULT_LABEL}</span>
+            </label>
+            <p className="help-text" style={{ margin: 0 }}>
+              {SHARE_BY_DEFAULT_HELP}
+            </p>
+          </div>
+        ) : null}
         {reqDraft.kind === "file" ? (
           <p className="help-text" style={{ margin: 0 }}>
             PDF, PowerPoint, Word, or image — up to 20 MB — or paste a link (Google
@@ -1588,9 +1642,20 @@ export function ReadinessTab({
                       }}
                     >
                       <div>
-                        <div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 6,
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                          }}
+                        >
                           {r.label}
                           {r.required ? null : <span className="text-meta"> — optional</span>}
+                          {/* READY-SHARE-1 — so a row that publishes on approval says so. */}
+                          {isShareableRequirementKind(r.kind) && requirementAutoShares(r.config) ? (
+                            <StatusChip status="default" label={AUTO_SHARE_BADGE_LABEL} />
+                          ) : null}
                         </div>
                         <div className="text-meta">
                           {REQUIREMENT_KIND_LABELS[r.kind as ReadinessRequirementKind] ?? r.kind}

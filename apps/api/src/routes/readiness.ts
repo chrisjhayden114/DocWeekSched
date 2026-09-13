@@ -15,6 +15,7 @@ import {
   streamOrganizerFile,
 } from "../lib/readiness/portal";
 import { pipeStoredFileToResponse } from "../lib/readiness/files";
+import { requirementConfigSchema } from "../lib/readiness/requirementConfig";
 import {
   assignTemplate,
   createRequirement,
@@ -155,7 +156,7 @@ const requirementSchema = z.object({
   label: z.string().min(1).max(200),
   kind: z.enum(READINESS_REQUIREMENT_KINDS),
   helpText: z.string().max(2000).nullable().optional(),
-  config: z.record(z.unknown()).optional(),
+  config: requirementConfigSchema.optional(),
   required: z.boolean().optional(),
   dueAt: z.string().datetime().nullable().optional(),
   sortOrder: z.number().int().optional(),

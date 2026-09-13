@@ -417,6 +417,66 @@ describe("readiness data layer (DB, ER2)", () => {
     ).toBe(0);
   }, 60_000);
 
+  /**
+   * READY-SHARE-1 — the organizer editor writes one config key and knows
+   * nothing about the others, so a requirement PATCH has to merge. Before it
+   * did, saving a label edit replaced the whole blob, which is why the editor
+   * omitted `config` entirely and could not persist a share setting at all.
+   */
+  it("requirement config round-trips: an edit that says nothing about a key keeps it", async () => {
+    const requirement = await createRequirement(ids.eventA!, ids.templateA!, {
+      label: "Slides 16:9",
+      kind: "file",
+      config: { deck: true, maxBytes: 50_000_000, shareByDefault: true },
+      sortOrder: 9,
+    });
+    expect(requirement.config).toEqual({
+      deck: true,
+      maxBytes: 50_000_000,
+      shareByDefault: true,
+    });
+
+    // The Label/Kind/Help/Required/Due path: no config in the patch at all.
+    const renamed = await updateRequirement(ids.eventA!, requirement.id, {
+      label: "Slides (16:9)",
+      helpText: "Export as PDF",
+      required: false,
+      dueAt: new Date("2027-03-01T09:00:00Z"),
+    });
+    expect(renamed.label).toBe("Slides (16:9)");
+    expect(renamed.config).toEqual({
+      deck: true,
+      maxBytes: 50_000_000,
+      shareByDefault: true,
+    });
+
+    // Turning the checkbox off sends only that key; the deck rules stay.
+    const unshared = await updateRequirement(ids.eventA!, requirement.id, {
+      config: { shareByDefault: false },
+    });
+    expect(unshared.config).toEqual({
+      deck: true,
+      maxBytes: 50_000_000,
+      shareByDefault: false,
+    });
+
+    // And a requirement stored with no config at all takes the key cleanly.
+    const plain = await createRequirement(ids.eventA!, ids.templateA!, {
+      label: "Handout link",
+      kind: "url",
+      sortOrder: 10,
+    });
+    expect(plain.config).toEqual({});
+    const shared = await updateRequirement(ids.eventA!, plain.id, {
+      config: { shareByDefault: true },
+    });
+    expect(shared.config).toEqual({ shareByDefault: true });
+
+    await prisma.readinessRequirement.deleteMany({
+      where: { id: { in: [requirement.id, plain.id] } },
+    });
+  }, 60_000);
+
   it("existing event/speaker/session data is untouched by the whole workflow", async () => {
     expect(await snapshotUntouched()).toBe(untouchedSnapshot);
   }, 60_000);

@@ -64,7 +64,9 @@ An approved submission can go on the agenda, where attendees see it on the sessi
 
 It's off by default, and nothing is shared until you tick it. An event that shares nothing looks exactly as it did before.
 
-One case shares itself. A requirement marked as the presenter's deck puts its submission on the agenda the moment you approve it, so approving and sharing aren't two chores. In the product today the only requirement built that way is **Slides 16:9** in the **Speaker pack** template — the requirement editor has no switch for it, so a template you build yourself shares nothing until you tick a submission by hand.
+A requirement can also share itself. Edit a **File upload** or **URL** requirement in a template and tick **Share approved files with attendees automatically**: every submission you approve for it then appears on the agenda in the same step, so approving and sharing aren't two chores. You can still untick **Share with attendees** on any single submission afterwards. A requirement set that way carries an **Auto-shares** badge in the template's requirement list.
+
+The checkbox starts off on every requirement you build, and it isn't offered on the kinds that could never reach the agenda. The one requirement that arrives with it already on is **Slides 16:9** in the **Speaker pack** template.
 
 Only **File upload** and **URL** items can be shared at all. An **Agreement**, a **Yes/no confirmation**, and every text answer never can: the checkbox doesn't appear on them, so a signed release or a dietary note can't reach the agenda by accident.
 

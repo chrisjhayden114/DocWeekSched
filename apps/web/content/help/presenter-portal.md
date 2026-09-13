@@ -37,7 +37,7 @@ After you submit, PDFs and images preview in place. PowerPoint and Word files do
 
 ## Your deck may end up on the agenda
 
-Once the organizer approves a file or a link, they can choose to put it on the event agenda, where attendees open it from the session. That's their decision and it's per item — nothing you send is shared unless they turn it on for that submission, and they can turn it off again at any point. Text answers and agreements are never shared. If you'd rather a file stayed between the two of you, say so to the organizer; this page has nowhere to leave a note, so email them.
+Once the organizer approves a file or a link, they can choose to put it on the event agenda, where attendees open it from the session. What reaches attendees is the organizer's decision, and it takes one of two shapes: some items — a slide deck, usually — are set up to go on the agenda as soon as the organizer approves them, and everything else goes up only if the organizer chooses to share that one submission. Nothing is ever shared before it's approved, and the organizer can take anything down again at any point. Text answers and agreements are never shared. If you'd rather a file stayed between the two of you, say so to the organizer; this page has nowhere to leave a note, so email them.
 
 ## What the statuses mean
 

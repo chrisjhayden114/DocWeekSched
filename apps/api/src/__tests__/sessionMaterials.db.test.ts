@@ -676,6 +676,47 @@ describe("shared presenter materials (DB, AGENDA-3)", () => {
       ).toBe(false);
       await prisma.readinessSubmission.delete({ where: { id: submission.id } });
     });
+
+    /**
+     * READY-SHARE-1 — the same requirement, with the organizer's checkbox on.
+     * `{ shareByDefault: true }` and nothing else is exactly what the
+     * requirement editor writes: no deck flag, so the flag is the only reason
+     * approving publishes this file.
+     */
+    it("auto-shares a plain file requirement once shareByDefault is on", async () => {
+      await prisma.readinessRequirement.update({
+        where: { id: ids.releaseRequirement! },
+        data: { config: { shareByDefault: true } },
+      });
+      const submission = await prisma.readinessSubmission.create({
+        data: {
+          assignmentId: ids.releaseAssignment!,
+          eventId: ids.event!,
+          fileName: "handout.pdf",
+          fileMime: "application/pdf",
+          fileSizeBytes: 512,
+          fileUrl: PDF_DATA_URL,
+          submittedVia: "portal",
+        },
+      });
+
+      const res = await fetch(`${base}/readiness/submissions/${submission.id}`, {
+        method: "PATCH",
+        headers: authHeaders(ids.admin!, "ADMIN"),
+        body: JSON.stringify({ action: "approve" }),
+      });
+      expect(res.status).toBe(200);
+      expect(
+        (await prisma.readinessSubmission.findUniqueOrThrow({ where: { id: submission.id } }))
+          .sharedWithAttendees,
+      ).toBe(true);
+
+      await prisma.readinessSubmission.delete({ where: { id: submission.id } });
+      await prisma.readinessRequirement.update({
+        where: { id: ids.releaseRequirement! },
+        data: { config: {} },
+      });
+    });
   });
 
   /**

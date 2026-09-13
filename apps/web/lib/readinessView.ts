@@ -40,6 +40,39 @@ export const REQUIREMENT_KIND_LABELS: Record<ReadinessRequirementKind, string> =
   internal_checklist: "Internal task (organizer-only)",
 };
 
+/**
+ * AGENDA-3 — the kinds that can carry something an attendee could open, and so
+ * the only kinds the auto-share checkbox is offered on. Mirrors
+ * SHAREABLE_REQUIREMENT_KINDS in the API's lib/readiness/materials.ts, which
+ * enforces it in SQL; this copy decides what the editor shows.
+ */
+export const SHAREABLE_REQUIREMENT_KINDS = ["file", "url"] as const;
+
+export function isShareableRequirementKind(kind: string | null | undefined): boolean {
+  return (SHAREABLE_REQUIREMENT_KINDS as readonly string[]).includes(kind ?? "");
+}
+
+/**
+ * Whether approving a submission for this requirement also puts it on the
+ * agenda — what the editor's checkbox and the row's "Auto-shares" badge read.
+ *
+ * Mirrors `sharesOnApproval` in the API's lib/readiness/materials.ts, deck
+ * fallback included: a requirement carrying only `deck: true` does auto-share,
+ * and an editor that showed the box unticked for it would quietly turn sharing
+ * off the next time someone fixed the label.
+ */
+export function requirementAutoShares(
+  config: Record<string, unknown> | null | undefined,
+): boolean {
+  if (typeof config?.shareByDefault === "boolean") return config.shareByDefault;
+  if (config?.deck === true || config?.isDeck === true) return true;
+  for (const key of ["role", "kind"] as const) {
+    const value = config?.[key];
+    if (typeof value === "string" && value.toLowerCase() === "deck") return true;
+  }
+  return false;
+}
+
 /** Optional helper under the Kind select — only kinds that need clarifying copy. */
 export const REQUIREMENT_KIND_HELPERS: Partial<Record<ReadinessRequirementKind, string>> = {
   internal_checklist:
