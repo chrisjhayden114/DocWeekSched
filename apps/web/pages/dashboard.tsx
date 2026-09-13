@@ -52,7 +52,7 @@ import { SegmentedToggle } from "../components/SegmentedToggle";
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../components/ScheduleTimetable";
 import { CardMaterialsHint, CardSpeakerAvatars } from "../components/SessionCardBits";
 import { SessionPeekSurface } from "../components/SessionPeekSurface";
-import { peekCardClick, useSessionPeek, type SessionPeekCardProps } from "../components/useSessionPeek";
+import { peekCardClass, peekCardClick, useSessionPeek, type SessionPeekCardProps } from "../components/useSessionPeek";
 import { ListEmpty, ListError, ListSkeleton } from "../components/ListState";
 import { AutoGrowTextarea, Composer, EmptyState, FeedCard, FilterPills, Lightbox, PageHeader } from "../components/kit";
 import { galleryPreview } from "../lib/gallery";
@@ -2616,7 +2616,7 @@ function ScheduleBoard({
                   const peekProps = cardProps?.(s.id);
                   return (
                     <article
-                      className={["schedule-event", "schedule-event--peekable", isMinimal ? "schedule-event--minimal" : "", sessionTrackTintClass(s.trackId, s.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
+                      className={["schedule-event", "schedule-event--peekable", isMinimal ? "schedule-event--minimal" : "", sessionTrackTintClass(s.trackId, s.track?.color ?? untrackedTint), peekCardClass(peekProps)].filter(Boolean).join(" ")}
                       key={s.id}
                       style={{ ["--track-color" as string]: trackColor(s.trackId, s.track?.color, orderedTrackIds, untrackedTint) }}
                       {...peekProps}

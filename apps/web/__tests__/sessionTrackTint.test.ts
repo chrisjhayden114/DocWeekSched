@@ -42,6 +42,7 @@ const dashboardSrc = readFileSync(join(webRoot, "pages", "dashboard.tsx"), "utf8
 const publicSrc = readFileSync(join(webRoot, "pages", "e", "[slug].tsx"), "utf8");
 const demoSrc = readFileSync(join(webRoot, "components", "marketing", "DemoScheduleFrame.tsx"), "utf8");
 const breakoutSrc = readFileSync(join(webRoot, "components", "BreakoutSlotBoard.tsx"), "utf8");
+const timetableSrc = readFileSync(join(webRoot, "components", "ScheduleTimetable.tsx"), "utf8");
 
 const AA = 4.5;
 
@@ -334,7 +335,6 @@ describe("UI-1.1 / UI-2 — pick-one amber vs track tint by view and state", () 
   });
 
   it("grid / by-room do not render pick-one slot rows, so amber is list-only", () => {
-    const timetableSrc = readFileSync(join(webRoot, "components", "ScheduleTimetable.tsx"), "utf8");
     expect(timetableSrc).not.toContain("breakout-slot");
     expect(timetableSrc).not.toContain("sessionDecisionAmberClass");
     expect(timetableSrc).not.toContain("Choose your session");
@@ -391,12 +391,17 @@ describe("UI-4 — the dark hairline that makes a card an object", () => {
     expect(tokensCss).toMatch(/--border-strong:\s*var\(--gray-300\)/);
   });
 
-  it("defines --shadow-popover as two layers and leaves --shadow-3 alone", () => {
+  it("defines --shadow-popover as three layers and leaves --shadow-3 alone", () => {
     const popover = /--shadow-popover:\s*([^;]+);/.exec(tokensCss)?.[1] ?? "";
-    // A tight contact layer plus a broad cast layer — that pair is what reads
-    // as "floating above" rather than "another panel in the stack".
-    expect(popover).toMatch(/0 1px 2px rgba\(22,\s*22,\s*22,\s*0\.2\)/);
-    expect(popover).toMatch(/0 16px 40px rgba\(22,\s*22,\s*22,\s*0\.24\)/);
+    // UI-5 — a contact layer that seats the edge, a mid cast that lifts the
+    // panel off the card behind it, and a wide ambient layer that separates it
+    // from the rest of the agenda. UI-4's two lighter layers still read as one
+    // more card on a page of outlined cards.
+    expect(popover).toMatch(/0 1px 2px rgba\(22,\s*22,\s*22,\s*0\.24\)/);
+    expect(popover).toMatch(/0 12px 28px rgba\(22,\s*22,\s*22,\s*0\.28\)/);
+    expect(popover).toMatch(/0 32px 64px rgba\(22,\s*22,\s*22,\s*0\.3\)/);
+    // Each layer is darker than UI-4's pair, so none of the old ones survive.
+    expect(popover).not.toMatch(/0\.2\)|0 16px 40px/);
     expect(tokensCss).toMatch(
       /--shadow-3:\s*0 8px 12px -6px rgba\(16, 24, 40, 0\.08\), 0 24px 48px -12px rgba\(16, 24, 40, 0\.18\);/,
     );
@@ -518,6 +523,116 @@ describe("UI-4 — the session peek reads as a floating panel", () => {
     const closeHover = ruleBody(globalsCss, ".session-peek-close:hover");
     expect(closeHover).toMatch(/color:\s*var\(--gray-900\)/);
     expect(contrastRatio(tokenHex("--gray-100"), tokenHex("--gray-900"))).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+/**
+ * UI-5 — the card the open peek belongs to. Every surface that can open a peek
+ * has to wear the same three signals, and none of them may move the layout:
+ * a card that jumped 2px when the popover opened would be worse than the
+ * ambiguity it was meant to fix.
+ */
+describe("UI-5 — the connected card", () => {
+  /** Selector list → body, for every rule that mentions `.is-peeking`. */
+  const peekingRules = [...globalsCss.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]*\.is-peeking[^{}]*)\{([^}]*)\}/g)].map(
+    ([, selectors, body]) => ({
+      selectors: selectors!.split(",").map((s) => s.trim()),
+      body: body!,
+    }),
+  );
+
+  /** Everything declared for one selector, however the rules are grouped. */
+  function declared(selector: string): string {
+    const bodies = peekingRules.filter((rule) => rule.selectors.includes(selector)).map((rule) => rule.body);
+    expect(bodies.length, `${selector} should be styled while peeking`).toBeGreaterThan(0);
+    return bodies.join("");
+  }
+
+  /** The four surfaces a card peek can be opened from (UI-4's, less the slot). */
+  const PEEK_SURFACES = [".schedule-event", ".breakout-choice", ".breakout-option", ".schedule-grid-block"] as const;
+
+  it("outlines the open card in the event accent, 1px outside its own line", () => {
+    for (const surface of PEEK_SURFACES) {
+      const body = declared(`${surface}.is-peeking`);
+      expect(body, surface).toMatch(/outline:\s*2px solid var\(--event-accent\)/);
+      // 1px clear of the card's 1px hairline: two lines, still legible as two.
+      expect(body, surface).toMatch(/outline-offset:\s*1px/);
+    }
+  });
+
+  it("lifts the fill to each surface's own hover fill, not a new colour", () => {
+    for (const surface of [".schedule-event", ".breakout-choice", ".breakout-option"]) {
+      expect(declared(`${surface}.is-peeking`), surface).toMatch(/background:\s*var\(--gray-25\)/);
+    }
+    // Tinted cards lift to the 8% wash their own hover uses.
+    for (const surface of [".schedule-event--tinted", ".breakout-choice.schedule-event--tinted"]) {
+      expect(declared(`${surface}.is-peeking`), surface).toMatch(
+        /background:\s*color-mix\(in srgb, var\(--track-color\) var\(--track-fill-mix-hover, 8%\), #ffffff\)/,
+      );
+    }
+    // A timetable cell's fill is the track wash, so its hover lift is a filter.
+    expect(declared(".schedule-grid-block.is-peeking")).toMatch(/filter:\s*brightness\(0\.97\)/);
+    expect(ruleBody(globalsCss, ".schedule-grid-block:hover")).toMatch(/filter:\s*brightness\(0\.97\)/);
+  });
+
+  it("puts the title in the accent on every surface", () => {
+    const titles = [
+      ".schedule-event.is-peeking .schedule-event-title",
+      ".breakout-choice.is-peeking .breakout-choice-title",
+      ".breakout-option.is-peeking .breakout-option-title",
+      ".schedule-grid-block.is-peeking .schedule-grid-block-title",
+    ];
+    for (const selector of titles) {
+      expect(declared(selector), selector).toMatch(/color:\s*var\(--event-accent\)/);
+    }
+  });
+
+  it("never moves the card — outline, fill and colour only", () => {
+    for (const rule of peekingRules) {
+      expect(rule.body, rule.selectors.join(",")).not.toMatch(
+        /(?:^|;|\s)(?:border-width|padding|margin|transform|top|left|width|height|font-size)\s*:/,
+      );
+    }
+  });
+
+  it("is applied from one place, off the same open id the surface reads", () => {
+    const hook = readFileSync(join(webRoot, "components", "useSessionPeek.ts"), "utf8");
+    expect(hook).toMatch(/export function peekCardClass/);
+    expect(hook).toMatch(/aria-expanded"\]\s*\?\s*"is-peeking"/);
+    // Every card surface takes the class from that helper, never inline.
+    for (const src of [dashboardSrc, publicSrc, breakoutSrc, timetableSrc]) {
+      expect(src).toContain("peekCardClass");
+      expect(src).not.toContain('"is-peeking"');
+    }
+  });
+});
+
+describe("UI-5 — the caret follows the card", () => {
+  it("takes its offset along the panel edge from the placement, not 50%", () => {
+    const popover = readFileSync(join(webRoot, "components", "SessionPeekPopover.tsx"), "utf8");
+    expect(popover).toContain("{ top: placed.caretOffset }");
+    expect(popover).toContain("{ left: placed.caretOffset }");
+    // The offset along the panel's edge is the placement's business, so the
+    // shared rule declares no position of its own for the inline style to
+    // fight with — only the axis rules below it do.
+    const caret = ruleBody(globalsCss, ".session-peek-pop-caret");
+    expect(caret).not.toMatch(/(?:top|left|right|bottom):/);
+  });
+
+  it("swaps the caret to the horizontal axis on the below/above fallback", () => {
+    const below = ruleBody(globalsCss, ".session-peek-pop--below .session-peek-pop-caret");
+    expect(below).toMatch(/top:\s*-6px/);
+    // The two edges facing into the panel come off, as they do beside a card.
+    expect(below).toMatch(/border-right:\s*none/);
+    expect(below).toMatch(/border-bottom:\s*none/);
+    const above = ruleBody(globalsCss, ".session-peek-pop--above .session-peek-pop-caret");
+    expect(above).toMatch(/bottom:\s*-6px/);
+    expect(above).toMatch(/border-left:\s*none/);
+    expect(above).toMatch(/border-top:\s*none/);
+    // Centred across the offset, rather than down it.
+    for (const body of [below, above]) {
+      expect(body).toMatch(/transform:\s*translateX\(-50%\) rotate\(45deg\)/);
+    }
   });
 });
 

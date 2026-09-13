@@ -8467,6 +8467,58 @@ button.schedule-meta-chip:hover {
 }
 
 /*
+ * —— UI-5: the card the open peek belongs to ——
+ *
+ * A panel floating 10px off a card, in a list of near-identical cards, still
+ * leaves "which one?" to inference. `is-peeking` answers it on the card side,
+ * and useSessionPeek#peekCardClass hangs it off the same open id the surface
+ * reads — so exactly one card can wear it, and it goes the instant the peek
+ * closes, popover or sheet.
+ *
+ * Three signals, none of which move the layout: the accent outline, held 1px
+ * clear of the card's own dark hairline so the two lines stay legible as two;
+ * the card's own hover fill, since the card *is* the thing being looked at;
+ * and the title in the accent, which is what a scan lands on first.
+ */
+.schedule-event.is-peeking,
+.breakout-choice.is-peeking,
+.breakout-option.is-peeking,
+.schedule-grid-block.is-peeking {
+  outline: 2px solid var(--event-accent);
+  outline-offset: 1px;
+}
+
+/* The lift is each surface's existing hover fill, not a fourth background. */
+.schedule-event.is-peeking,
+.breakout-choice.is-peeking,
+.breakout-option.is-peeking {
+  background: var(--gray-25);
+}
+
+.schedule-event--tinted.is-peeking,
+.breakout-choice.schedule-event--tinted.is-peeking {
+  background: color-mix(in srgb, var(--track-color) var(--track-fill-mix-hover, 8%), #ffffff);
+}
+
+/*
+ * A timetable cell's fill is the track wash, so its hover lift is a filter.
+ * Cells are absolutely placed and only 1px apart in a packed lane, so the open
+ * one comes up a layer: the outline sits outside its box, and a neighbour
+ * painted over it would break the very line that ties it to the panel.
+ */
+.schedule-grid-block.is-peeking {
+  z-index: 2;
+  filter: brightness(0.97);
+}
+
+.schedule-event.is-peeking .schedule-event-title,
+.breakout-choice.is-peeking .breakout-choice-title,
+.breakout-option.is-peeking .breakout-option-title,
+.schedule-grid-block.is-peeking .schedule-grid-block-title {
+  color: var(--event-accent);
+}
+
+/*
  * —— AGENDA-1: desktop session peek popover ——
  * Non-modal, anchored beside the card by lib/popupAnchor's anchorBeside, with a
  * caret pointing back at it. Geometry (top/left/width/max-height) is inline from
@@ -8500,6 +8552,10 @@ button.schedule-meta-chip:hover {
  * fill cover the segment of border running behind it. Painted as a child of
  * the panel, it sits above that border; the scroll body's 16px padding keeps
  * text off its inner half.
+ *
+ * UI-5 — the offset along the panel's edge is inline, from anchorBeside's
+ * caretOffset: the card's own centre, so the point tracks the card once the
+ * panel has been clamped to the viewport. Only the axis is CSS's business.
  */
 .session-peek-pop-caret {
   position: absolute;
@@ -8520,6 +8576,26 @@ button.schedule-meta-chip:hover {
   right: -6px;
   border-left: none;
   border-bottom: none;
+}
+
+/*
+ * The below/above fallback (a narrow window, or a full-width card) points the
+ * same caret along the horizontal axis instead, so a panel that cannot sit
+ * beside its card still says which card it belongs to.
+ */
+.session-peek-pop--below .session-peek-pop-caret {
+  top: -6px;
+  border-right: none;
+  border-bottom: none;
+  /* Centred across the offset, rather than down it. */
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.session-peek-pop--above .session-peek-pop-caret {
+  bottom: -6px;
+  border-left: none;
+  border-top: none;
+  transform: translateX(-50%) rotate(45deg);
 }
 
 @media (prefers-reduced-motion: reduce) {

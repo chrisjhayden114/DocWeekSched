@@ -8,7 +8,7 @@
 
 import { useMemo } from "react";
 import { trackColor } from "../lib/trackColors";
-import { peekCardClick, type SessionPeekCardProps } from "./useSessionPeek";
+import { peekCardClass, peekCardClick, type SessionPeekCardProps } from "./useSessionPeek";
 import {
   GUTTER,
   PX_PER_HOUR,
@@ -111,7 +111,9 @@ function TimetableBlock({
       {session.roomLabel ? <span className="schedule-grid-block-room">{session.roomLabel}</span> : null}
     </>
   );
-  const blockClass = `schedule-grid-block${marked ? " schedule-grid-block--marked" : ""}`;
+  const blockClass = ["schedule-grid-block", marked ? "schedule-grid-block--marked" : "", peekCardClass(peek)]
+    .filter(Boolean)
+    .join(" ");
   // Where a block cannot be opened (public page), never announce a control:
   // no button role, no pointer cursor, no focus stop.
   if (!interactive) {

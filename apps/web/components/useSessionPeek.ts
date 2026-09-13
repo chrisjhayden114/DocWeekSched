@@ -71,6 +71,15 @@ export function peekCardClick(
   };
 }
 
+/**
+ * UI-5 — the class that ties an open peek back to the card it belongs to.
+ * Read off the card's own props, so it cannot disagree with `aria-expanded`,
+ * and so only one card can ever carry it: the hook holds a single open id.
+ */
+export function peekCardClass(peek: SessionPeekCardProps | undefined): string {
+  return peek?.["aria-expanded"] ? "is-peeking" : "";
+}
+
 /** Same rule for Enter/Space on a card that is not already a button. */
 export function peekCardKeyDown(
   peek: SessionPeekCardProps | undefined,

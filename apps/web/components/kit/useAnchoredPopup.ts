@@ -110,9 +110,21 @@ export type UseAnchoredSidePopupOptions = {
 export type AnchoredSidePlacement = {
   style: CSSProperties;
   placement: BesidePlacement;
-  /** Caret offset from the popup's top edge; undefined on the below/above fallback. */
-  caretTop?: number;
+  /**
+   * Caret offset inside the popup: from its top edge beside the trigger, from
+   * its left edge on the below/above fallback.
+   */
+  caretOffset: number;
 };
+
+/** Same placement, down to the caret — nothing to re-render for. */
+function samePlacement(a: AnchoredSidePlacement | undefined, b: AnchoredSidePlacement): boolean {
+  if (!a || a.placement !== b.placement || a.caretOffset !== b.caretOffset) return false;
+  const before = a.style as Record<string, unknown>;
+  const after = b.style as Record<string, unknown>;
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].every((key) => before[key] === after[key]);
+}
 
 /**
  * AGENDA-1 — the same portal-anchoring contract as `useAnchoredPopup`, but
@@ -132,6 +144,14 @@ export function useAnchoredSidePopup({
 }: UseAnchoredSidePopupOptions): AnchoredSidePlacement | undefined {
   const [placed, setPlaced] = useState<AnchoredSidePlacement>();
 
+  /*
+   * UI-5 — the caret is clamped against the popup's real box, which only
+   * exists after it has been painted once: pass one places the popup from the
+   * height ceiling, pass two corrects it against what was drawn. Hence a
+   * measurement on every commit rather than on `open` alone — it also catches
+   * content that changes height under a popup already on screen — with an
+   * unchanged result bailing out instead of looping.
+   */
   useIsomorphicLayoutEffect(() => {
     if (!open) {
       setPlaced(undefined);
@@ -139,13 +159,19 @@ export function useAnchoredSidePopup({
     }
     const trigger = triggerRef.current;
     if (!trigger) return;
+    const popup = popupRef.current?.getBoundingClientRect();
     const result = anchorBeside(
       trigger.getBoundingClientRect(),
       { width: window.innerWidth, height: window.innerHeight },
-      { width, maxHeight },
+      { width, maxHeight, measured: popup && { width: popup.width, height: popup.height } },
     );
-    setPlaced({ style: result.style, placement: result.placement, caretTop: result.caretTop });
-  }, [open, width, maxHeight, triggerRef]);
+    const next: AnchoredSidePlacement = {
+      style: result.style,
+      placement: result.placement,
+      caretOffset: result.caretOffset,
+    };
+    setPlaced((current) => (samePlacement(current, next) ? current : next));
+  });
 
   useStaleAnchorClose(open, popupRef, onClose);
 

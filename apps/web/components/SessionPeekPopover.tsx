@@ -130,7 +130,10 @@ export function SessionPeekPopover({
 
   if (!open || !placed) return null;
 
-  const caretStyle = placed.caretTop === undefined ? undefined : { top: placed.caretTop };
+  // Beside the card the caret runs down the popover's side; on the below/above
+  // fallback it runs along its top or bottom edge. Same offset, other axis.
+  const beside = placed.placement === "right" || placed.placement === "left";
+  const caretStyle = beside ? { top: placed.caretOffset } : { left: placed.caretOffset };
 
   return (
     <Portal>
@@ -162,7 +165,7 @@ export function SessionPeekPopover({
           }
         }}
       >
-        {caretStyle ? <span className="session-peek-pop-caret" style={caretStyle} aria-hidden /> : null}
+        <span className="session-peek-pop-caret" style={caretStyle} aria-hidden />
         <button
           type="button"
           className="session-peek-close session-peek-pop-close"

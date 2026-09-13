@@ -11,9 +11,10 @@ import { act, useRef, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOVER_INFO_CLOSE_GRACE_MS, HOVER_INFO_OPEN_DELAY_MS } from "../components/kit/HoverInfo";
-import { SessionPeekPopover } from "../components/SessionPeekPopover";
+import { anchorBeside } from "../lib/popupAnchor";
+import { PEEK_POPOVER_WIDTH, SessionPeekPopover, peekPopoverMaxHeight } from "../components/SessionPeekPopover";
 import { SessionPeekSurface } from "../components/SessionPeekSurface";
-import { peekCardClick, peekCardKeyDown, useSessionPeek } from "../components/useSessionPeek";
+import { peekCardClass, peekCardClick, peekCardKeyDown, useSessionPeek } from "../components/useSessionPeek";
 import { PEEK_COPIED_MS } from "../components/SessionPeekContent";
 
 declare global {
@@ -115,12 +116,22 @@ function sheet() {
 function Agenda({ children }: { children?: ReactNode }) {
   const peek = useSessionPeek();
   const session = peek.openId === SESSION.id ? SESSION : null;
+  const one = peek.getCardProps(SESSION.id);
+  const two = peek.getCardProps("s2");
   return (
     <div>
-      <article className="schedule-event" data-testid="card-1" {...peek.getCardProps(SESSION.id)}>
+      <article
+        className={["schedule-event", peekCardClass(one)].filter(Boolean).join(" ")}
+        data-testid="card-1"
+        {...one}
+      >
         {SESSION.title}
       </article>
-      <article className="schedule-event" data-testid="card-2" {...peek.getCardProps("s2")}>
+      <article
+        className={["schedule-event", peekCardClass(two)].filter(Boolean).join(" ")}
+        data-testid="card-2"
+        {...two}
+      >
         Another session
       </article>
       <SessionPeekSurface
@@ -178,6 +189,26 @@ describe("popover shell", () => {
     render(<Harness />);
     expect(popover()!.className).toContain("session-peek-pop--right");
     expect(popover()!.querySelector(".session-peek-pop-caret")).not.toBeNull();
+  });
+
+  /**
+   * UI-5 — the caret is placed from anchorBeside's caretOffset, not pinned at
+   * 50%, and it is measured against the panel that was painted: every element
+   * in this suite reports the same 600×80 rect, so the popover is 80px tall
+   * and the card's centre (240) lands 40px down it.
+   */
+  it("puts the caret at the offset the anchoring math computed", () => {
+    render(<Harness />);
+    const caret = popover()!.querySelector<HTMLElement>(".session-peek-pop-caret")!;
+    const expected = anchorBeside(
+      { top: 200, bottom: 280, left: 100, right: 700, width: 600 },
+      { width: 1440, height: 900 },
+      { width: PEEK_POPOVER_WIDTH, maxHeight: peekPopoverMaxHeight(900), measured: { width: 600, height: 80 } },
+    );
+    expect(expected.caretOffset).toBe(40);
+    expect(caret.style.top).toBe(`${expected.caretOffset}px`);
+    // Vertical placement, so the caret is offset down the panel's side only.
+    expect(caret.style.left).toBe("");
   });
 });
 
@@ -311,6 +342,68 @@ describe("click pins", () => {
     expect(document.querySelectorAll(".session-peek-pop").length).toBeLessThanOrEqual(1);
     expect(card(1).getAttribute("aria-expanded")).toBe("false");
     expect(card(2).getAttribute("aria-expanded")).toBe("true");
+  });
+});
+
+/**
+ * UI-5 — the card wears the connection too, so the panel is never left to
+ * imply which of a dozen near-identical rows it came from.
+ */
+describe("the connected card", () => {
+  const peeking = (n: 1 | 2) => card(n).classList.contains("is-peeking");
+
+  it("marks the open card and no other", () => {
+    render(<Agenda />);
+    expect(peeking(1)).toBe(false);
+
+    fire(card(1), "click");
+    expect(peeking(1)).toBe(true);
+    expect(peeking(2)).toBe(false);
+  });
+
+  it("drops the mark the moment the peek closes", () => {
+    render(<Agenda />);
+
+    fire(card(1), "click");
+    press(document, "Escape");
+    expect(peeking(1)).toBe(false);
+
+    fire(card(1), "click");
+    fire(document.body, "mousedown");
+    expect(peeking(1)).toBe(false);
+  });
+
+  it("hands the mark to the other card rather than marking both", () => {
+    render(<Agenda />);
+    fire(card(1), "click");
+    fire(card(2), "click");
+    expect(peeking(1)).toBe(false);
+    expect(peeking(2)).toBe(true);
+    expect(clipper.querySelectorAll(".is-peeking").length).toBe(1);
+  });
+
+  it("marks the card behind the bottom sheet too", () => {
+    mockHover(false);
+    render(<Agenda />);
+    fire(card(1), "click");
+    expect(sheet()).not.toBeNull();
+    expect(peeking(1)).toBe(true);
+  });
+
+  it("comes and goes with a hover-opened popover", () => {
+    vi.useFakeTimers();
+    render(<Agenda />);
+    fire(card(1), "mouseover");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_OPEN_DELAY_MS);
+    });
+    expect(peeking(1)).toBe(true);
+
+    fire(card(1), "mouseout");
+    act(() => {
+      vi.advanceTimersByTime(HOVER_INFO_CLOSE_GRACE_MS);
+    });
+    expect(peeking(1)).toBe(false);
   });
 });
 

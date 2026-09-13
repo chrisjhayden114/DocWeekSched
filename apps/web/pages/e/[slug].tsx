@@ -18,7 +18,7 @@ import { ScheduleViewSwitcher, type ScheduleViewMode } from "../../components/Sc
 import { ScheduleByRoomView, ScheduleGridView, type TimetableSession } from "../../components/ScheduleTimetable";
 import { CardMaterialsHint, CardSpeakerAvatars } from "../../components/SessionCardBits";
 import { SessionPeekSurface } from "../../components/SessionPeekSurface";
-import { useSessionPeek } from "../../components/useSessionPeek";
+import { peekCardClass, useSessionPeek } from "../../components/useSessionPeek";
 import { SiteFooter } from "../../components/marketing/SiteFooter";
 import { useAgendaFilters } from "../../components/useAgendaFilters";
 import {
@@ -504,13 +504,15 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
                     <div className="schedule-concurrent-note">{slotSessions.length} concurrent sessions</div>
                   )}
                   <div className="schedule-events">
-                    {slotSessions.map((s) => (
+                    {slotSessions.map((s) => {
+                      const peekProps = peek.getCardProps(s.id);
+                      return (
                       <article
                         key={s.id}
                         id={publicSessionAnchorId(s.id)}
-                        className={["schedule-event", "schedule-event--peekable", sessionTrackTintClass(s.trackName, s.trackColor ?? untrackedTint)].filter(Boolean).join(" ")}
+                        className={["schedule-event", "schedule-event--peekable", sessionTrackTintClass(s.trackName, s.trackColor ?? untrackedTint), peekCardClass(peekProps)].filter(Boolean).join(" ")}
                         style={{ ["--track-color" as string]: trackColor(s.trackName, s.trackColor, orderedTrackIds, untrackedTint) }}
-                        {...peek.getCardProps(s.id)}
+                        {...peekProps}
                       >
                         <div className="schedule-event-main">
                           <h4 className="schedule-event-title">
@@ -547,7 +549,8 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
                           ) : null}
                         </div>
                       </article>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>

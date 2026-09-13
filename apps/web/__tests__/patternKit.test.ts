@@ -147,7 +147,8 @@ describe("F1.1 — warmer tokens extend the scale (nothing replaced)", () => {
     expect(tokensCss).toMatch(/--shadow-1:/);
     expect(tokensCss).toMatch(/--shadow-2:/);
     expect(tokensCss).toMatch(/--shadow-3:/);
-    expect(tokensCss).toMatch(/--shadow-popover:\s*0 1px 2px[^;]+,\s*0 16px 40px[^;]+;/);
+    // UI-5 deepened it to three layers: contact, mid cast, wide ambient.
+    expect(tokensCss).toMatch(/--shadow-popover:\s*0 1px 2px[^;]+,\s*0 12px 28px[^;]+,\s*0 32px 64px[^;]+;/);
   });
 
   it("kit surfaces are token-driven: cards and pills use the new radii", () => {

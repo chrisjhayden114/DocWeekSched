@@ -133,18 +133,36 @@ export type BesideOptions = {
   maxHeight: number;
   gap?: number;
   margin?: number;
+  /**
+   * UI-5 — the popup's painted box, once it has one. `maxHeight` is only a
+   * ceiling: a short session fills far less of it, and both the vertical
+   * centring and the caret's clamp have to work against the box the attendee
+   * can actually see. Omitted on the first pass, where the ceiling is the only
+   * estimate available.
+   */
+  measured?: { width: number; height: number };
 };
 
 export type AnchoredBesidePopup = {
   placement: BesidePlacement;
   style: AnchorStyle;
   /**
-   * Distance from the popup's top edge to the caret's tip, so the caret keeps
-   * pointing at the card after the vertical position is clamped. Undefined on
-   * the below/above fallback, which renders no caret.
+   * Where the caret's tip goes, in the popup's own coordinates: the anchor
+   * card's centre, measured from the popup's top edge beside the card and from
+   * its left edge on the below/above fallback. Clamped to keep the tip off the
+   * rounded corners, which is what keeps it pointing at the card after the
+   * popup itself has been clamped to the viewport.
    */
-  caretTop?: number;
+  caretOffset: number;
 };
+
+/**
+ * The anchor's centre expressed inside the popup, held `CARET_INSET` clear of
+ * both ends so the tip never lands on a rounded corner.
+ */
+function caretWithin(anchorCentre: number, popupStart: number, popupSize: number): number {
+  return clamp(anchorCentre - popupStart, CARET_INSET, Math.max(CARET_INSET, popupSize - CARET_INSET));
+}
 
 /**
  * AGENDA-1 — places the session peek popover *beside* its card the way
@@ -171,7 +189,8 @@ export function anchorBeside(
     roomRight >= width ? "right" : roomLeft >= width ? "left" : null;
 
   if (!side) {
-    // No side fits — a plain dropdown below/above the card, no caret.
+    // No side fits — a plain dropdown below/above the card. The caret swaps
+    // axes with the placement and points at the card's centre x.
     const { placement, style } = anchorPopup(rect, viewport, {
       align: "start",
       maxHeight: options.maxHeight,
@@ -179,23 +198,28 @@ export function anchorBeside(
       gap,
       margin,
     });
-    return { placement, style };
+    return {
+      placement,
+      style,
+      // "start" alignment always resolves to a left edge, never a right one.
+      caretOffset: caretWithin(rect.left + rect.width / 2, style.left ?? margin, options.measured?.width ?? width),
+    };
   }
 
-  const maxHeight = Math.min(options.maxHeight, Math.max(0, viewport.height - margin * 2));
+  const ceiling = Math.min(options.maxHeight, Math.max(0, viewport.height - margin * 2));
+  const height = Math.min(options.measured?.height ?? ceiling, ceiling);
   // Centre on the card, then clamp so the whole popup stays on screen.
   const cardMid = rect.top + (rect.bottom - rect.top) / 2;
-  const top = clamp(cardMid - maxHeight / 2, margin, Math.max(margin, viewport.height - margin - maxHeight));
-  // After clamping, the card may sit above or below the popup's midpoint, so
-  // the caret follows the card rather than staying centred.
-  const caretTop = clamp(cardMid - top, CARET_INSET, Math.max(CARET_INSET, maxHeight - CARET_INSET));
+  const top = clamp(cardMid - height / 2, margin, Math.max(margin, viewport.height - margin - height));
 
   return {
     placement: side,
-    caretTop,
+    // After clamping, the card may sit above or below the popup's midpoint, so
+    // the caret follows the card rather than staying centred.
+    caretOffset: caretWithin(cardMid, top, height),
     style: {
       position: "fixed",
-      maxHeight,
+      maxHeight: ceiling,
       top,
       width,
       maxWidth: width,

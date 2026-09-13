@@ -21,7 +21,7 @@ import {
   sessionTrackTintClass,
   type AgendaScheduleView,
 } from "../lib/trackColors";
-import { peekCardClick, peekCardKeyDown, type SessionPeekCardProps } from "./useSessionPeek";
+import { peekCardClass, peekCardClick, peekCardKeyDown, type SessionPeekCardProps } from "./useSessionPeek";
 
 export type BreakoutBoardSession = BreakoutSlotSession & {
   location?: string | null;
@@ -166,7 +166,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
     return (
       <div
         key={session.id}
-        className="breakout-option"
+        className={["breakout-option", peekCardClass(peek)].filter(Boolean).join(" ")}
         style={{ ["--track-color" as string]: trackColor(session) }}
         role="button"
         tabIndex={0}
@@ -225,7 +225,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                 return (
                   <article
                     key={slot.key}
-                    className={["schedule-event", "schedule-event--minimal", "breakout-minimal", sessionTrackTintClass(only.trackId, only.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
+                    className={["schedule-event", "schedule-event--minimal", "breakout-minimal", sessionTrackTintClass(only.trackId, only.track?.color ?? untrackedTint), peekCardClass(peek)].filter(Boolean).join(" ")}
                     style={{ ["--track-color" as string]: trackColor(only) }}
                     {...peek}
                     onClick={peekCardClick(peek, () => onOpenSession?.(only.id))}
@@ -274,7 +274,7 @@ export function BreakoutSlotBoard<T extends BreakoutBoardSession>({
                 return (
                   <article
                     key={slot.key}
-                    className={["breakout-choice", sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color ?? untrackedTint)].filter(Boolean).join(" ")}
+                    className={["breakout-choice", sessionTrackTintClass(chosenSession.trackId, chosenSession.track?.color ?? untrackedTint), peekCardClass(chosenPeek)].filter(Boolean).join(" ")}
                     style={{ ["--track-color" as string]: trackColor(chosenSession) }}
                   >
                     <button

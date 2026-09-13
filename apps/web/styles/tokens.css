@@ -152,12 +152,16 @@
      assistant sheet, dropdowns/popovers. Depth as punctuation, not decoration. */
   --shadow-3: 0 8px 12px -6px rgba(16, 24, 40, 0.08), 0 24px 48px -12px rgba(16, 24, 40, 0.18);
   /*
-   * UI-4 — the session peek reads as a pop-up, not another panel in the
-   * page's gray stack. Two layers: a tight contact shadow that seats the
-   * edge, and a broad cast shadow that lifts it off whatever is behind.
+   * UI-4 / UI-5 — the session peek reads as a pop-up, not another panel in the
+   * page's gray stack. Three layers now: a tight contact shadow that seats the
+   * edge, a mid cast that lifts the panel off the card behind it, and a wide
+   * ambient layer that separates it from the agenda further out. UI-4's two
+   * layers still read as "one more card" on a page of outlined cards, so all
+   * three are darker and the far layer reaches twice as far.
    * --shadow-3 is deliberately left alone; other floating surfaces use it.
    */
-  --shadow-popover: 0 1px 2px rgba(22, 22, 22, 0.2), 0 16px 40px rgba(22, 22, 22, 0.24);
+  --shadow-popover: 0 1px 2px rgba(22, 22, 22, 0.24), 0 12px 28px rgba(22, 22, 22, 0.28),
+    0 32px 64px rgba(22, 22, 22, 0.3);
 
   /* —— Focus (E29.2) —— */
   /* Keyboard focus: 2px accent outline at 2px offset (globals :focus-visible).
