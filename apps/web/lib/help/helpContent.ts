@@ -46,6 +46,8 @@ No program yet? The **Describe it** tab on the same page is the third way in: gi
 
 Organizing the program: on the event's **Program** tab, tick several sessions (or **Select all** under a day heading) and use **Assign track** / **Assign room** to update them all in one step — no per-session editing needed.
 
+Each session also has a **Format** — **Keynote**, **Talk**, **Workshop**, **Panel**, **Lightning talk**, **Poster**, **Break**, **Social**, or **Other** — which is what attendees narrow the agenda by under **Filter by format**. It starts at **No format** and stays there unless you set it: the AI import fills it in only when a title says so outright ("Opening keynote", "Workshop block A", "Lunch"), because guessing "Talk" for every row named "Paper session 3B" would fill the attendee's filter with a category you never chose. CSV export and import both carry a \`format\` column in the same lowercase words, so a program you export, edit in a spreadsheet, and re-import keeps its formats.
+
 ## 3. Invite attendees
 
 From the dashboard, use **Invite** to send links (email when configured). Inviting marks the checklist’s **Invite attendees** step. To invite a group from a spreadsheet, manage the roster, or set up participant labels, see [Invite participants and manage the roster](/help/participants-and-invites). If you charge a fee, [Registration fees](/help/registration-fees) publishes how to pay and records who has paid — {{product}} never processes the money.
@@ -325,6 +327,29 @@ Open **Details** and you'll see each submission with **Preview** or a download l
 
 Rejecting doesn't send an email. If the deadline is close, tell them directly — the reminder cadence may already be spent.
 
+## Sharing approved materials with attendees
+
+An approved submission can go on the agenda, where attendees see it on the session. Open **Details**, and any approved **File upload** or **URL** item carries a **Share with attendees** checkbox beside it. Tick it and the deck or link appears on that session — a quiet **Slides** hint on the agenda card, and a chip attendees can open in the session popover. Untick it and it leaves the agenda again.
+
+It's off by default, and nothing is shared until you tick it. An event that shares nothing looks exactly as it did before.
+
+One case shares itself. A requirement marked as the presenter's deck puts its submission on the agenda the moment you approve it, so approving and sharing aren't two chores. In the product today the only requirement built that way is **Slides 16:9** in the **Speaker pack** template — the requirement editor has no switch for it, so a template you build yourself shares nothing until you tick a submission by hand.
+
+Only **File upload** and **URL** items can be shared at all. An **Agreement**, a **Yes/no confirmation**, and every text answer never can: the checkbox doesn't appear on them, so a signed release or a dietary note can't reach the agenda by accident.
+
+Where a shared item lands depends on who it was assigned to. An item on a **session** shows on that session; an item on a **speaker** shows on every session that speaker is presenting.
+
+**Reject…** on something you'd already approved un-approves it and un-shares it in the same step, so a deck you pull back leaves the agenda immediately.
+
+### Who can open them
+
+**Event settings → More options → Who can open shared materials** is one event-wide choice, and it only matters once a submission is both approved and shared:
+
+- **People who joined this event** — the default. The reader has to be signed in and on your attendee list. Someone browsing your public event page is told the slides exist and pointed at sign-in, rather than handed a link that fails.
+- **Anyone who can see the public event page** — no account and no sign-in. Choose this only if your presenters expect their slides to be on the open web.
+
+Turning **Speaker & Session Readiness** off on the **Features** tab withdraws all of it. Shared materials disappear from the agenda and their links stop working, including a link someone already has. Nothing is deleted — turn the feature back on and the same materials return.
+
 ## The reminders, and what they cost you
 
 Nothing. Each dated item is chased automatically:
@@ -465,6 +490,24 @@ After you join, open the dashboard. **Agenda** shows the full program; save sess
 
 Session times can show in the event's timezone or yours — use the toggle on the Agenda.
 
+## Can I see what a session is about without leaving the Agenda?
+
+Yes. On a computer, hover a session and a panel opens beside it with the description, the speakers, any papers, and any materials; click the session to pin the panel open. **Esc** or the **×** in its corner closes it and puts you back on the card you came from. On a phone, a narrow window, or any touch screen, the same panel opens as a sheet from the bottom of the screen instead — there's no room to put it beside a card.
+
+## Where are the slides?
+
+On the session, if the organizer shared them. A session whose presenter has shared something carries a quiet **Slides** hint on its Agenda card; the hint isn't a link, so open the session panel to get at the files. In there each one is a chip you can click, labeled with whatever the organizer called it and showing the file size.
+
+Two reasons you might not find them. The organizer shares each file or link deliberately, one at a time, so a presenter's deck existing doesn't mean it was published. And some events only open materials to people who joined — there you'll see **Slides available to attendees** with a link to sign in.
+
+## How do I narrow the Agenda down?
+
+On a wide screen the filter rail runs down the side of the Agenda. On a narrower one, the **Filters** button opens the same list as a sheet, with a count on it when something is already filtering. At the top is a search box and the day chips, then the sections your event actually uses: **Filter by format**, **Filter by track**, **Filter by room**, and **Speaker**. Format, track, and room let you tick several at once. Below them sit **Has slides or materials** and, on the in-app Agenda, **My schedule only**. **Clear all** appears as soon as anything is on.
+
+A section only appears when the event has something to put in it, so an event with one room never shows a room filter.
+
+Every filter you set is written into the page address, so copying the URL out of the address bar shares exactly the view you're looking at. Back and refresh both keep your filters.
+
 ## Why does the Agenda ask me to pick one session?
 
 If your organizer enabled breakout choices, the Agenda asks you to pick one session per breakout block.
@@ -529,6 +572,10 @@ Accepted formats are **PDF**, **PowerPoint**, **Word**, and images (**PNG** or *
 If your deck lives somewhere online — Canva, Google Slides, anything with a shareable URL — you don't have to export it. Use **…or paste a link instead** on the same item and paste the URL. That's also the answer when a file is too big: the page will tell you the size and suggest pasting a link to it.
 
 After you submit, PDFs and images preview in place. PowerPoint and Word files download instead, because browsers can't display them.
+
+## Your deck may end up on the agenda
+
+Once the organizer approves a file or a link, they can choose to put it on the event agenda, where attendees open it from the session. That's their decision and it's per item — nothing you send is shared unless they turn it on for that submission, and they can turn it off again at any point. Text answers and agreements are never shared. If you'd rather a file stayed between the two of you, say so to the organizer; this page has nowhere to leave a note, so email them.
 
 ## What the statuses mean
 

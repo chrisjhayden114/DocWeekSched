@@ -25,6 +25,24 @@ After you join, open the dashboard. **Agenda** shows the full program; save sess
 
 Session times can show in the event's timezone or yours — use the toggle on the Agenda.
 
+## Can I see what a session is about without leaving the Agenda?
+
+Yes. On a computer, hover a session and a panel opens beside it with the description, the speakers, any papers, and any materials; click the session to pin the panel open. **Esc** or the **×** in its corner closes it and puts you back on the card you came from. On a phone, a narrow window, or any touch screen, the same panel opens as a sheet from the bottom of the screen instead — there's no room to put it beside a card.
+
+## Where are the slides?
+
+On the session, if the organizer shared them. A session whose presenter has shared something carries a quiet **Slides** hint on its Agenda card; the hint isn't a link, so open the session panel to get at the files. In there each one is a chip you can click, labeled with whatever the organizer called it and showing the file size.
+
+Two reasons you might not find them. The organizer shares each file or link deliberately, one at a time, so a presenter's deck existing doesn't mean it was published. And some events only open materials to people who joined — there you'll see **Slides available to attendees** with a link to sign in.
+
+## How do I narrow the Agenda down?
+
+On a wide screen the filter rail runs down the side of the Agenda. On a narrower one, the **Filters** button opens the same list as a sheet, with a count on it when something is already filtering. At the top is a search box and the day chips, then the sections your event actually uses: **Filter by format**, **Filter by track**, **Filter by room**, and **Speaker**. Format, track, and room let you tick several at once. Below them sit **Has slides or materials** and, on the in-app Agenda, **My schedule only**. **Clear all** appears as soon as anything is on.
+
+A section only appears when the event has something to put in it, so an event with one room never shows a room filter.
+
+Every filter you set is written into the page address, so copying the URL out of the address bar shares exactly the view you're looking at. Back and refresh both keep your filters.
+
 ## Why does the Agenda ask me to pick one session?
 
 If your organizer enabled breakout choices, the Agenda asks you to pick one session per breakout block.

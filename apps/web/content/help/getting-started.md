@@ -34,6 +34,8 @@ No program yet? The **Describe it** tab on the same page is the third way in: gi
 
 Organizing the program: on the event's **Program** tab, tick several sessions (or **Select all** under a day heading) and use **Assign track** / **Assign room** to update them all in one step — no per-session editing needed.
 
+Each session also has a **Format** — **Keynote**, **Talk**, **Workshop**, **Panel**, **Lightning talk**, **Poster**, **Break**, **Social**, or **Other** — which is what attendees narrow the agenda by under **Filter by format**. It starts at **No format** and stays there unless you set it: the AI import fills it in only when a title says so outright ("Opening keynote", "Workshop block A", "Lunch"), because guessing "Talk" for every row named "Paper session 3B" would fill the attendee's filter with a category you never chose. CSV export and import both carry a `format` column in the same lowercase words, so a program you export, edit in a spreadsheet, and re-import keeps its formats.
+
 ## 3. Invite attendees
 
 From the dashboard, use **Invite** to send links (email when configured). Inviting marks the checklist’s **Invite attendees** step. To invite a group from a spreadsheet, manage the roster, or set up participant labels, see [Invite participants and manage the roster](/help/participants-and-invites). If you charge a fee, [Registration fees](/help/registration-fees) publishes how to pay and records who has paid — {{product}} never processes the money.

@@ -58,6 +58,29 @@ Open **Details** and you'll see each submission with **Preview** or a download l
 
 Rejecting doesn't send an email. If the deadline is close, tell them directly — the reminder cadence may already be spent.
 
+## Sharing approved materials with attendees
+
+An approved submission can go on the agenda, where attendees see it on the session. Open **Details**, and any approved **File upload** or **URL** item carries a **Share with attendees** checkbox beside it. Tick it and the deck or link appears on that session — a quiet **Slides** hint on the agenda card, and a chip attendees can open in the session popover. Untick it and it leaves the agenda again.
+
+It's off by default, and nothing is shared until you tick it. An event that shares nothing looks exactly as it did before.
+
+One case shares itself. A requirement marked as the presenter's deck puts its submission on the agenda the moment you approve it, so approving and sharing aren't two chores. In the product today the only requirement built that way is **Slides 16:9** in the **Speaker pack** template — the requirement editor has no switch for it, so a template you build yourself shares nothing until you tick a submission by hand.
+
+Only **File upload** and **URL** items can be shared at all. An **Agreement**, a **Yes/no confirmation**, and every text answer never can: the checkbox doesn't appear on them, so a signed release or a dietary note can't reach the agenda by accident.
+
+Where a shared item lands depends on who it was assigned to. An item on a **session** shows on that session; an item on a **speaker** shows on every session that speaker is presenting.
+
+**Reject…** on something you'd already approved un-approves it and un-shares it in the same step, so a deck you pull back leaves the agenda immediately.
+
+### Who can open them
+
+**Event settings → More options → Who can open shared materials** is one event-wide choice, and it only matters once a submission is both approved and shared:
+
+- **People who joined this event** — the default. The reader has to be signed in and on your attendee list. Someone browsing your public event page is told the slides exist and pointed at sign-in, rather than handed a link that fails.
+- **Anyone who can see the public event page** — no account and no sign-in. Choose this only if your presenters expect their slides to be on the open web.
+
+Turning **Speaker & Session Readiness** off on the **Features** tab withdraws all of it. Shared materials disappear from the agenda and their links stop working, including a link someone already has. Nothing is deleted — turn the feature back on and the same materials return.
+
 ## The reminders, and what they cost you
 
 Nothing. Each dated item is chased automatically:

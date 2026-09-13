@@ -35,6 +35,10 @@ If your deck lives somewhere online — Canva, Google Slides, anything with a sh
 
 After you submit, PDFs and images preview in place. PowerPoint and Word files download instead, because browsers can't display them.
 
+## Your deck may end up on the agenda
+
+Once the organizer approves a file or a link, they can choose to put it on the event agenda, where attendees open it from the session. That's their decision and it's per item — nothing you send is shared unless they turn it on for that submission, and they can turn it off again at any point. Text answers and agreements are never shared. If you'd rather a file stayed between the two of you, say so to the organizer; this page has nowhere to leave a note, so email them.
+
 ## What the statuses mean
 
 - **Not started** — nothing sent yet.

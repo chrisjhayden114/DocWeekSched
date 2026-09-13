@@ -163,11 +163,12 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
       "Planned for a later phase, default off. Only Enterprise includes it today. Do not promise a ranked contest to attendees.",
   },
   timezone_toggle: {
-    imageAlt: "Agenda filter rail with the My timezone / Event timezone control highlighted",
+    imageAlt:
+      "Agenda filter rail with the My timezone / Event timezone control above the format, track, and room filter sections",
     whatItDoes:
       "The timezone toggle lets attendees switch Agenda times between their local zone and the event timezone. When it is off, Agenda is locked to the event timezone. The Agenda always states which zone is showing.",
     experience:
-      "On the Agenda tab, a My timezone / Event timezone control sits in the filter rail (and the desktop context bar). Session pages currently still show their own timezone switch even when this event flag is off.",
+      "On the Agenda tab, a My timezone / Event timezone control sits in the filter rail (and the desktop context bar). The rest of that rail is the program's own filters — a search box, day chips, Filter by format, Filter by track, Filter by room, Speaker, and a Has slides or materials switch — and each section hides itself when the program has nothing to put in it. Filters live in the page URL, so a narrowed agenda is a link an attendee can send. Session pages currently still show their own timezone switch even when this event flag is off.",
     goodToKnow:
       "On by default and included on every plan. The PD day and Talk showcase presets turn it off so a single-building day stays in event time. Turning it off removes the Agenda toggle immediately.",
   },
@@ -176,7 +177,7 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
     whatItDoes:
       "Pick-one breakouts changes the Event Schedule list into a slot-by-slot chooser: attendees pick one session per timeslot. Choosing a different session in a filled slot asks them to confirm the swap. Grid and room views stay as a normal timetable. Single-session slots render as ordinary rows.",
     experience:
-      "Attendees see an accordion chooser on Event Schedule (list layout) with a Change action to reopen a decided slot. Full — waitlist chips stay factual. Organizers edit sessions as usual; ingest can suggest this shape for a PD-style program.",
+      "Attendees see an accordion chooser on Event Schedule (list layout) with a Change action to reopen a decided slot. Hovering or clicking a session here, as on any agenda, opens a peek panel with its description, speakers, papers, and shared materials, closed by Esc or its × — touch screens and narrow windows get the same panel as a bottom sheet. Full — waitlist chips stay factual. Organizers edit sessions as usual; ingest can suggest this shape for a PD-style program.",
     goodToKnow:
       "Off by default, and it is not plan-gated — any organizer can turn it on. The PD day preset turns it on; Talk showcase leaves it off. Turning it off returns the card-wall list with no leftover chooser state.",
   },
@@ -335,11 +336,11 @@ export const FEATURE_GUIDE: Record<FeatureKey, FeatureGuideEntry> = {
     imageSrc: "/feature-guide/readiness.png",
     imageAlt: "Speaker Readiness status board with per-presenter progress",
     whatItDoes:
-      "Speaker & Session Readiness tracks what each accepted speaker or session still needs — bios, slides, forms, agreements — as a template you assign once. Each presenter gets a personal link (no account): they upload a file up to 250 MB or paste a slides link. You approve or request a change. Automatic reminders are polite (7 days out, 2 days out, and once if overdue); portal links last 30 days.",
+      "Speaker & Session Readiness tracks what each accepted speaker or session still needs — bios, slides, forms, agreements — as a template you assign once. Each presenter gets a personal link (no account): they upload a file up to 250 MB or paste a slides link, and you approve or request a change. An approved file or link can then be shared onto the agenda for attendees, one tick per submission, and nothing reaches the agenda unless you tick it. Automatic reminders are polite (7 days out, 2 days out, and once if overdue); portal links last 30 days.",
     experience:
-      "Organizers get a Readiness tab on the event console once this is on (deep links still explain how to enable it when it is off). Presenters work on their personal link, not in the attendee app. The Speakers tab stays available either way.",
+      "Organizers get a Readiness tab on the event console once this is on (deep links still explain how to enable it when it is off). Presenters work on their personal link, not in the attendee app. Approved file and URL submissions carry a Share with attendees checkbox in Details, and Event settings › More options › Who can open shared materials decides whether a shared deck needs a signed-in attendee or is open to anyone on the public event page. The Speakers tab stays available either way.",
     goodToKnow:
-      "Off by default, and granted on every plan. Free is capped at 10 presenters per event; paid plans are unlimited. Turning it off disables Readiness pages and links; templates, assignments, and uploads stay. This software feature is separate from the optional hands-on concierge service.",
+      "Off by default, and granted on every plan. Free is capped at 10 presenters per event; paid plans are unlimited. Turning it off disables Readiness pages and links and pulls shared materials off the agenda, including a file link someone already holds; templates, assignments, and uploads stay. This software feature is separate from the optional hands-on concierge service.",
   },
 };
 

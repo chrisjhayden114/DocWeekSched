@@ -298,6 +298,10 @@ export default function SpeakerReadinessPage() {
                   <strong>Every action lands in an audit trail.</strong> Invite, reminder, approval,
                   change request — a committee can see who did what, and when.
                 </li>
+                <li>
+                  <strong>Approval can be the last step.</strong> Approved decks and links can appear
+                  on the agenda for attendees, one toggle per submission.
+                </li>
               </ul>
               <figure className="mkt-screenshot">
                 <img
