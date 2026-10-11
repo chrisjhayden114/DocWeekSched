@@ -23,6 +23,7 @@ import type { AddressInfo } from "net";
 import type { Server } from "http";
 import { EventMemberRole, OrgRole, PrismaClient } from "@prisma/client";
 import { hashPassword, hashToken, signToken } from "../lib/auth";
+import { portalExpiresAt } from "../lib/readiness/portalTokens";
 import { upsertFeatureOverrides } from "../lib/features";
 import { _resetRateLimitBucketsForTests } from "../lib/rateLimit";
 import { portalRouter } from "../routes/portal";
@@ -531,7 +532,16 @@ describe("readiness presenter portal (DB, ER4)", () => {
     expect(afterOne.previousTokenHash).toBe(hashToken(oldest));
     // Grace runs down the OLD clock: the carried expiry is the one it had.
     expect(afterOne.previousExpiresAt?.getTime()).toBe(before.expiresAt.getTime());
-    expect(afterOne.previousExpiresAt!.getTime()).toBeLessThan(afterOne.expiresAt.getTime());
+    // This fixture ends in 2027, so event end + 7 days is later than now + 30
+    // days. A remint lands on that same instant: later or equal, not strictly later.
+    const event = await prisma.event.findUniqueOrThrow({
+      where: { id: ids.eventA! },
+      select: { endDate: true },
+    });
+    const sameExpiry = portalExpiresAt(new Date(), event.endDate);
+    expect(afterOne.expiresAt.getTime()).toBeGreaterThanOrEqual(afterOne.previousExpiresAt!.getTime());
+    expect(afterOne.previousExpiresAt!.getTime()).toBe(sameExpiry.getTime());
+    expect(afterOne.expiresAt.getTime()).toBe(sameExpiry.getTime());
 
     // Using the older link is still using the portal — lastUsedAt moves either way.
     await prisma.readinessPortalAccess.update({
@@ -589,6 +599,44 @@ describe("readiness presenter portal (DB, ER4)", () => {
     // Leave the fixture with one working link for the remaining tests.
     rawToken = await remint();
     expect((await fetch(`${base}/portal/${rawToken}`)).status).toBe(200);
+  }, 60_000);
+
+  it("ER5.1 — an event that ended long ago remints at now + 30 days, strictly later than the older token", async () => {
+    const fixtureEnd = new Date("2027-03-03T12:00:00Z");
+    const longAgo = new Date("2020-01-01T00:00:00Z");
+    const olderExpiry = new Date("2024-06-01T00:00:00Z");
+    await prisma.event.update({
+      where: { id: ids.eventA! },
+      data: { endDate: longAgo },
+    });
+    try {
+      await prisma.readinessPortalAccess.update({
+        where: { id: ids.accessId! },
+        data: { expiresAt: olderExpiry, revokedAt: null },
+      });
+      const beforeCall = new Date();
+      const res = await fetch(`${base}/readiness/portal-access/${ids.accessId}/remint`, {
+        method: "POST",
+        headers: adminHeaders(),
+      });
+      const afterCall = new Date();
+      expect(res.status).toBe(200);
+      const minted = ((await res.json()) as { url: string }).url.split("/r/")[1]!;
+      const row = await prisma.readinessPortalAccess.findUniqueOrThrow({
+        where: { id: ids.accessId! },
+      });
+      expect(row.previousExpiresAt?.getTime()).toBe(olderExpiry.getTime());
+      expect(row.expiresAt.getTime()).toBeGreaterThanOrEqual(portalExpiresAt(beforeCall, longAgo).getTime());
+      expect(row.expiresAt.getTime()).toBeLessThanOrEqual(portalExpiresAt(afterCall, longAgo).getTime());
+      expect(row.expiresAt.getTime()).toBeGreaterThan(row.previousExpiresAt!.getTime());
+      rawToken = minted;
+      expect((await fetch(`${base}/portal/${rawToken}`)).status).toBe(200);
+    } finally {
+      await prisma.event.update({
+        where: { id: ids.eventA! },
+        data: { endDate: fixtureEnd },
+      });
+    }
   }, 60_000);
 
   it("cross-speaker assignmentId 404s; organizer file route 403s for attendees", async () => {
