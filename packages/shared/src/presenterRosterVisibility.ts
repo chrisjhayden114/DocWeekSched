@@ -130,7 +130,11 @@ export type PresenterRosterSession = {
   related?: PresenterRelatedSession[];
 };
 
-/** One row of "Sessions like yours". Names only — no speaker ids, no emails. */
+/**
+ * One row of "Sessions like yours". Names only — no speaker ids, no emails.
+ * Track and format use the same null-when-empty shaping as the presenter's
+ * own session card. Omitted only on older payloads.
+ */
 export type PresenterRelatedSession = {
   id: string;
   title: string;
@@ -139,6 +143,9 @@ export type PresenterRelatedSession = {
   roomName: string | null;
   speakers: string[];
   overlapsYours: boolean;
+  trackName?: string | null;
+  trackColor?: string | null;
+  format?: string | null;
 };
 
 function emptyToNull(value: string | null | undefined): string | null {

@@ -29,7 +29,7 @@ The roster loads when you open the page. It does not update on its own — refre
 
 When nobody has joined, the card says **Nobody has added this session yet.** The names line, the search box, **Sort by affiliation**, and the grid stay hidden. You can still write a note.
 
-**Sessions like yours** sits under the roster. It lists other published sessions that share words with this one: the title, the speakers, the day and time in the event's timezone, and the room. Each one links into the conference schedule. When one runs at the same time as one of your sessions, it says **Runs at the same time as yours**. The list is hidden when there is nothing to show.
+**Sessions like yours** sits under the roster. It is a grid of cards for other published sessions that share words with this one: the title, the speakers, the day and time in the event's timezone, and the room. When the organizer set a track, the card shows a chip with a color dot and the track name. When they set a format, the card shows that chip too. Only the title links into the conference schedule. When one runs at the same time as one of your sessions, the card says **Same time as yours**. The heading and the grid are hidden when there is nothing to show.
 
 ## Sending a note to attendees
 

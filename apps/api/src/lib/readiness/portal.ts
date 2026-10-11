@@ -2,6 +2,7 @@ import { Prisma, SessionPublishStatus } from "@prisma/client";
 import {
   eventLogoWithOrgFallback,
   shapePortalEvent,
+  shapePortalSessionDetail,
   shapePortalSpeaker,
   type PresenterRelatedSession,
 } from "@event-app/shared";
@@ -494,7 +495,29 @@ const RELATED_SESSION_LIMIT = 5;
 type RelatedCatalogRow = RelatedSessionDoc & {
   roomName: string | null;
   speakers: string[];
+  trackColor: string | null;
 };
+
+/** Same trim-to-null as the presenter's own session card. */
+function relatedSessionChips(row: {
+  trackName?: string | null;
+  trackColor?: string | null;
+  format?: string | null;
+}): Pick<PresenterRelatedSession, "trackName" | "trackColor" | "format"> {
+  const detail = shapePortalSessionDetail({
+    description: null,
+    trackName: row.trackName ?? null,
+    trackColor: row.trackColor ?? null,
+    format: row.format ?? null,
+    zoomLink: null,
+    items: [],
+  });
+  return {
+    trackName: detail.trackName,
+    trackColor: detail.trackColor,
+    format: detail.format,
+  };
+}
 
 /** Every session on this event. The scorer drops own, unpublished, break, and social. */
 async function loadRelatedCatalog(eventId: string): Promise<RelatedCatalogRow[]> {
@@ -509,7 +532,7 @@ async function loadRelatedCatalog(eventId: string): Promise<RelatedCatalogRow[]>
       startsAt: true,
       endsAt: true,
       room: { select: { name: true } },
-      track: { select: { name: true } },
+      track: { select: { name: true, color: true } },
       items: {
         orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
         select: { title: true, abstract: true },
@@ -525,6 +548,7 @@ async function loadRelatedCatalog(eventId: string): Promise<RelatedCatalogRow[]>
     title: row.title,
     description: row.description,
     trackName: row.track?.name ?? null,
+    trackColor: row.track?.color ?? null,
     format: row.format,
     published: row.publishStatus === SessionPublishStatus.PUBLISHED,
     startsAt: row.startsAt,
@@ -556,6 +580,7 @@ function withRelatedSessions<T extends { id: string; startsAt: string; endsAt: s
           roomName: row.roomName,
           speakers: row.speakers,
           overlapsYours: overlapsYours(row, presenterRanges),
+          ...relatedSessionChips(row),
         }))
       : [];
     return { ...session, related };

@@ -7,6 +7,7 @@ import {
   type PresenterRosterSession,
 } from "@event-app/shared";
 import { useState } from "react";
+import { RelatedSessionCard } from "./RelatedSessionCard";
 import { CardAvatar } from "./SessionCardBits";
 import { AutoGrowTextarea } from "./kit";
 import { HoverInfo } from "./kit/HoverInfo";
@@ -25,7 +26,6 @@ import {
   PRESENTER_ROSTER_SHOW_MORE,
   PRESENTER_ROSTER_SORT_AFFILIATION,
   PRESENTER_ROSTER_TRUNCATED,
-  RUNS_AT_THE_SAME_TIME,
   SESSION_PAGE_PRESENTER_ROSTER_TITLE,
   SESSIONS_LIKE_YOURS,
   hasPresenterRosterNames,
@@ -355,34 +355,14 @@ function RelatedSessionsList({
 }) {
   if (!eventSlug || !related || related.length === 0) return null;
   return (
-    <section className="presenter-related" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+    <section className="presenter-related">
       <h4 className="text-h3" style={{ margin: 0 }}>
         {SESSIONS_LIKE_YOURS}
       </h4>
-      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
+      <ul className="presenter-related-grid">
         {related.map((item) => (
           <li key={item.id}>
-            <a href={`/e/${encodeURIComponent(eventSlug)}?session=${encodeURIComponent(item.id)}`}>
-              <span style={{ display: "block", overflowWrap: "anywhere" }}>{item.title}</span>
-              {item.speakers.length > 0 ? (
-                <span className="text-meta" style={{ display: "block" }}>
-                  {item.speakers.join(", ")}
-                </span>
-              ) : null}
-              <span className="text-meta" style={{ display: "block" }}>
-                {formatEventTimeRange(item.startsAt, item.endsAt, timezone)}
-              </span>
-              {item.roomName ? (
-                <span className="text-meta" style={{ display: "block" }}>
-                  {item.roomName}
-                </span>
-              ) : null}
-            </a>
-            {item.overlapsYours ? (
-              <p className="text-meta" style={{ margin: 0 }}>
-                {RUNS_AT_THE_SAME_TIME}
-              </p>
-            ) : null}
+            <RelatedSessionCard session={item} eventSlug={eventSlug} timezone={timezone} />
           </li>
         ))}
       </ul>

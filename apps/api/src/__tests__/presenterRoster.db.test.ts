@@ -187,6 +187,28 @@ describe("presenter roster (DB, PRESENTER-ROSTER-1)", () => {
     ids.sessionTheirs = theirs.id;
     ids.sessionAssigned = assigned.id;
 
+    const keynoteTrack = await prisma.track.create({
+      data: { eventId: event.id, name: "Keynote", color: "#0033A0" },
+    });
+    await prisma.session.create({
+      data: {
+        eventId: event.id,
+        title: "Quiet keynote hour",
+        startsAt: new Date("2027-03-02T21:00:00Z"),
+        endsAt: new Date("2027-03-02T22:00:00Z"),
+        format: "workshop",
+        trackId: keynoteTrack.id,
+      },
+    });
+    await prisma.session.create({
+      data: {
+        eventId: event.id,
+        title: "Another keynote",
+        startsAt: new Date("2027-03-03T17:00:00Z"),
+        endsAt: new Date("2027-03-03T18:00:00Z"),
+      },
+    });
+
     const template = await prisma.readinessTemplate.create({
       data: { eventId: event.id, organizationId: org.id, name: "Presenter pack" },
     });
@@ -294,6 +316,7 @@ describe("presenter roster (DB, PRESENTER-ROSTER-1)", () => {
       await prisma.readinessTemplate.deleteMany({ where: { eventId: ids.event } });
       await prisma.readinessPortalAccess.deleteMany({ where: { eventId: ids.event } });
       await prisma.session.deleteMany({ where: { eventId: ids.event } });
+      await prisma.track.deleteMany({ where: { eventId: ids.event } });
       await prisma.speaker.deleteMany({ where: { eventId: ids.event } });
       await prisma.eventFeatureConfig.deleteMany({ where: { eventId: ids.event } });
       await prisma.eventMembership.deleteMany({ where: { eventId: ids.event } });
@@ -361,6 +384,57 @@ describe("presenter roster (DB, PRESENTER-ROSTER-1)", () => {
     expect(keynote.attendees).toEqual([{ displayName: "Visible Joiner", affiliation: "Riverside" }]);
     expect(keynote.hiddenCount).toBe(1);
     assertNoSecrets(body);
+  }, 60_000);
+
+  it("related sessions include track and format when set, and null when the session has none", async () => {
+    const res = await fetch(`${base}/portal/${rawToken}/sessions`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      sessions: Array<{
+        id: string;
+        related?: Array<{
+          id: string;
+          title: string;
+          startsAt: string;
+          endsAt: string;
+          roomName: string | null;
+          speakers: string[];
+          overlapsYours: boolean;
+          trackName: string | null;
+          trackColor: string | null;
+          format: string | null;
+        }>;
+      }>;
+    };
+    const keynote = body.sessions.find((session) => session.id === ids.sessionMine);
+    const withTrack = keynote?.related?.find((row) => row.title === "Quiet keynote hour");
+    const without = keynote?.related?.find((row) => row.title === "Another keynote");
+    expect(withTrack && Object.keys(withTrack)).toEqual([
+      "id",
+      "title",
+      "startsAt",
+      "endsAt",
+      "roomName",
+      "speakers",
+      "overlapsYours",
+      "trackName",
+      "trackColor",
+      "format",
+    ]);
+    expect(withTrack).toMatchObject({
+      title: "Quiet keynote hour",
+      speakers: [],
+      trackName: "Keynote",
+      trackColor: "#0033A0",
+      format: "workshop",
+    });
+    expect(without).toMatchObject({
+      title: "Another keynote",
+      trackName: null,
+      trackColor: null,
+      format: null,
+    });
+    expect(without && Object.keys(without)).toEqual(Object.keys(withTrack!));
   }, 60_000);
 
   it("COUNTS carries no attendees array", async () => {

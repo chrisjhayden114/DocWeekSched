@@ -22,7 +22,7 @@ export const PRESENTER_ROSTER_TRUNCATED = "Showing the first 500";
 export const PRESENTER_NOTES_HEADING = "From the presenter";
 export const PRESENTER_NOTES_TO_ATTENDEES = "Notes to attendees";
 export const SESSIONS_LIKE_YOURS = "Sessions like yours";
-export const RUNS_AT_THE_SAME_TIME = "Runs at the same time as yours";
+export const SAME_TIME_AS_YOURS = "Same time as yours";
 export const PRESENTER_NOTE_COMPOSER_LABEL = "Send a note to everyone who joined";
 export const PRESENTER_NOTE_SEND = "Send";
 

@@ -8376,6 +8376,91 @@ button.schedule-meta-chip:hover {
   margin: 0;
 }
 
+/* PRESENTER-HOME-D — same card chrome as the roster grid, two columns on the 960 layout. */
+.presenter-related {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.presenter-related-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+@media (max-width: 639px) {
+  .presenter-related-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.presenter-related-grid > li {
+  min-width: 0;
+}
+
+.presenter-related-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2);
+  box-sizing: border-box;
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .presenter-related-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-2);
+  }
+}
+
+.presenter-related-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.presenter-related-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: var(--text-body);
+}
+
+.presenter-related-presenters,
+.presenter-related-meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-peek-format.presenter-related-same-time {
+  flex: none;
+  font: var(--text-meta);
+  background: var(--warning-50);
+  color: var(--warning);
+  white-space: nowrap;
+}
+
+.presenter-related-chips {
+  margin: 0;
+}
+
 /*
  * Speaker bio: four lines, then More. The paragraph must not be the grid
  * item — a grid item's min-size is the full text, so the clamp never clips.

@@ -736,15 +736,15 @@ describe("PRESENTER-HOME-C card polish", () => {
     expect(list.textContent).toContain("Sessions like yours");
     const overlap = list.querySelector("a[href='/e/demo?session=rel-1']");
     expect(overlap?.textContent).toContain("Quiet energy workshop");
-    expect(overlap?.textContent).toContain("Elena Ruiz, Jonas Okonkwo");
-    expect(overlap?.textContent).toContain("Room 12");
-    expect(overlap?.textContent).toContain(
+    const overlapItem = overlap?.closest(".presenter-related-card");
+    expect(overlapItem?.textContent).toContain("Elena Ruiz, Jonas Okonkwo");
+    expect(overlapItem?.textContent).toContain("Room 12");
+    expect(overlapItem?.textContent).toContain(
       formatEventTimeRange(related[0]!.startsAt, related[0]!.endsAt, "America/Los_Angeles"),
     );
-    const overlapItem = overlap?.closest("li");
-    expect(overlapItem?.textContent).toContain("Runs at the same time as yours");
+    expect(overlapItem?.textContent).toContain("Same time as yours");
     const quiet = list.querySelector("a[href='/e/demo?session=rel-2']");
-    expect(quiet?.closest("li")?.textContent).not.toContain("Runs at the same time as yours");
+    expect(quiet?.closest(".presenter-related-card")?.textContent).not.toContain("Same time as yours");
     const text = container.querySelector(".presenter-session-card")?.textContent ?? "";
     expect(text.indexOf("42 joined")).toBeLessThan(text.indexOf("Sessions like yours"));
 
@@ -756,6 +756,136 @@ describe("PRESENTER-HOME-C card polish", () => {
       />,
     );
     expect(container.textContent).not.toContain("Sessions like yours");
+  });
+});
+
+describe("PRESENTER-HOME-D related session cards", () => {
+  const related = [
+    {
+      id: "rel-1",
+      title: "Quiet energy workshop",
+      startsAt: "2027-03-01T19:00:00.000Z",
+      endsAt: "2027-03-01T20:00:00.000Z",
+      roomName: "Room 12",
+      speakers: ["Elena Ruiz", "Jonas Okonkwo"],
+      overlapsYours: true,
+    },
+    {
+      id: "rel-2",
+      title: "Calm staff hour",
+      startsAt: "2027-03-02T17:00:00.000Z",
+      endsAt: "2027-03-02T18:00:00.000Z",
+      roomName: "Library",
+      speakers: ["Elena Ruiz"],
+      overlapsYours: false,
+    },
+  ];
+
+  it("renders one RelatedSessionCard per related session, with the title linking to ?session=", () => {
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[{ ...homeSession, zoomLink: null, related }]}
+        timezone="America/Los_Angeles"
+        eventSlug="demo"
+      />,
+    );
+    const cards = [...container.querySelectorAll(".presenter-related-card")];
+    expect(cards).toHaveLength(related.length);
+    expect(cards.map((card) => card.querySelector("a")?.getAttribute("href"))).toEqual([
+      "/e/demo?session=rel-1",
+      "/e/demo?session=rel-2",
+    ]);
+    expect(cards.map((card) => card.querySelector("a")?.textContent)).toEqual([
+      "Quiet energy workshop",
+      "Calm staff hour",
+    ]);
+    for (const card of cards) {
+      expect(card.querySelectorAll("a")).toHaveLength(1);
+      expect(card.tagName).not.toBe("A");
+    }
+  });
+
+  it("renders the same-time chip only when overlapsYours is true", () => {
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[{ ...homeSession, zoomLink: null, related }]}
+        timezone="America/Los_Angeles"
+        eventSlug="demo"
+      />,
+    );
+    const cards = [...container.querySelectorAll(".presenter-related-card")];
+    expect(cards[0]?.querySelector(".presenter-related-same-time")?.textContent).toBe("Same time as yours");
+    expect(cards[0]?.querySelector("a")?.textContent).not.toContain("Same time as yours");
+    expect(cards[1]?.querySelector(".presenter-related-same-time")).toBeNull();
+    expect(cards[1]?.textContent).not.toContain("Same time as yours");
+    expect(container.textContent).not.toContain("Runs at the same time as yours");
+  });
+
+  it("hides the heading when the API returns no related sessions", () => {
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[{ ...homeSession, zoomLink: null, related: [] }]}
+        timezone="UTC"
+        eventSlug="demo"
+      />,
+    );
+    expect(container.querySelector(".presenter-related")).toBeNull();
+    expect(container.textContent).not.toContain("Sessions like yours");
+  });
+
+  it("renders track and format chips from the related-session payload", () => {
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[
+          {
+            ...homeSession,
+            zoomLink: null,
+            related: [
+              {
+                id: "rel-track",
+                title: "Quiet keynote hour",
+                startsAt: "2027-03-02T21:00:00.000Z",
+                endsAt: "2027-03-02T22:00:00.000Z",
+                roomName: null,
+                speakers: [],
+                overlapsYours: false,
+                trackName: "Keynote",
+                trackColor: "#0033A0",
+                format: "workshop",
+              },
+              {
+                id: "rel-plain",
+                title: "Another keynote",
+                startsAt: "2027-03-03T17:00:00.000Z",
+                endsAt: "2027-03-03T18:00:00.000Z",
+                roomName: null,
+                speakers: [],
+                overlapsYours: false,
+                trackName: null,
+                trackColor: null,
+                format: null,
+              },
+            ],
+          },
+        ]}
+        timezone="America/Los_Angeles"
+        eventSlug="demo"
+      />,
+    );
+    const cards = [...container.querySelectorAll(".presenter-related-card")];
+    expect(cards).toHaveLength(2);
+    const tracked = cards[0]!;
+    const trackChip = tracked.querySelector(".session-peek-track");
+    expect(trackChip?.textContent).toContain("Keynote");
+    expect(trackChip?.querySelector(".session-peek-track-dot")).not.toBeNull();
+    expect(trackChip?.getAttribute("style")).toContain("#0033A0");
+    const formatChip = [...tracked.querySelectorAll(".session-peek-format")].find(
+      (el) => !el.classList.contains("presenter-related-same-time"),
+    );
+    expect(formatChip?.textContent).toBe("Workshop");
+    const plain = cards[1]!;
+    expect(plain.querySelector(".session-peek-track")).toBeNull();
+    expect(plain.querySelector(".session-peek-format")).toBeNull();
   });
 });
 
