@@ -18,11 +18,13 @@ import type { AddressInfo } from "net";
 import type { Server } from "http";
 import {
   EventMemberRole,
+  EventStatus,
   NotificationDelivery,
   OrgRole,
   PrismaClient,
   SessionAttendanceStatus,
   SessionJoinMode,
+  SessionPublishStatus,
 } from "@prisma/client";
 import { presenterNoteNotificationTitle } from "@event-app/shared";
 import { hashPassword, signToken } from "../lib/auth";
@@ -89,6 +91,9 @@ describe("presenter notes (DB, PRESENTER-HOME-B)", () => {
         endDate: new Date("2027-03-03T12:00:00Z"),
         organizationId: org.id,
         createdById: admin.id,
+        // Attendees only see a session when the event is ACTIVE. DRAFT makes
+        // GET /sessions/:id 404 for the joining member (same rule as the demo).
+        status: EventStatus.ACTIVE,
         presenterRosterVisibility: "NAMES",
         presenterNotesEnabled: true,
         memberships: {
@@ -118,6 +123,7 @@ describe("presenter notes (DB, PRESENTER-HOME-B)", () => {
         title: "Opening keynote",
         startsAt: new Date("2027-03-01T17:00:00Z"),
         endsAt: new Date("2027-03-01T18:00:00Z"),
+        publishStatus: SessionPublishStatus.PUBLISHED,
         sessionSpeakers: { create: [{ speakerId: speaker1.id, sortOrder: 0 }] },
       },
     });
@@ -127,6 +133,7 @@ describe("presenter notes (DB, PRESENTER-HOME-B)", () => {
         title: "Someone else's workshop",
         startsAt: new Date("2027-03-01T19:00:00Z"),
         endsAt: new Date("2027-03-01T20:00:00Z"),
+        publishStatus: SessionPublishStatus.PUBLISHED,
         sessionSpeakers: { create: [{ speakerId: speaker2.id, sortOrder: 0 }] },
       },
     });
