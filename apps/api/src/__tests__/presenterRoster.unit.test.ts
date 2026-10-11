@@ -199,12 +199,25 @@ describe("presenter home payload", () => {
       expect(joiner.bio).not.toMatch(/\n/);
       expect(joiner.bio.trim().length).toBeGreaterThan(10);
     }
+    const photoByName: Record<string, string> = {
+      "Priya Shah": "/demo/speakers/priya-shah.svg",
+      "Sam Ortiz": "/demo/people/sam-ortiz.jpg",
+      "Tom Hale": "/demo/speakers/tom-hale.svg",
+      "Amina Farah": "/demo/people/amina-farah.jpg",
+      "Ben Cho": "/demo/people/ben-cho.jpg",
+      "Carmen Diaz": "/demo/people/carmen-diaz.jpg",
+      "Greg Walsh": "/demo/people/greg-walsh.jpg",
+      "Lila Grant": "/demo/people/lila-grant.jpg",
+    };
     for (const joiner of DEMO_ROSTER_JOINERS) {
-      if ("photoUrl" in joiner && joiner.photoUrl) {
-        expect(joiner.photoUrl).toMatch(/^\/demo\/speakers\/.+\.svg$/);
-      }
+      const expected = photoByName[joiner.name];
+      const photo = "photoUrl" in joiner ? joiner.photoUrl : undefined;
+      if (expected) expect(photo).toBe(expected);
+      else expect(photo).toBeUndefined();
     }
-    expect(DEMO_ROSTER_JOINERS.filter((joiner) => "photoUrl" in joiner && joiner.photoUrl)).toHaveLength(3);
+    expect(DEMO_ROSTER_JOINERS.filter((joiner) => "photoUrl" in joiner && joiner.photoUrl)).toHaveLength(
+      Object.keys(photoByName).length,
+    );
     expect(DEMO_PRESENTER_NOTE.trim().length).toBeGreaterThan(0);
     expect(DEMO_PRESENTER_NOTE.length).toBeLessThanOrEqual(600);
   });

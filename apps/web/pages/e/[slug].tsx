@@ -108,6 +108,7 @@ export type PublicEventView = {
     items: Array<{
       id?: string;
       title: string;
+      abstract?: string | null;
       authors: Array<{ name: string; isPresenter?: boolean }>;
     }>;
   }>;

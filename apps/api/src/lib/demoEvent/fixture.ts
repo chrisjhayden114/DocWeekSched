@@ -43,8 +43,8 @@ export type DemoFixtureSpec = {
   }>;
   /**
    * PRESENTER-HOME-B — 14 directory-visible people on Maya's keynote, each
-   * with a one-line bio. Portraits stay on the original three. reset.ts copies
-   * these fields through the existing user upsert.
+   * with a one-line bio. photoUrl is set only where a portrait exists.
+   * reset.ts copies these fields through the existing user upsert.
    */
   rosterJoiners: Array<{
     name: string;
@@ -90,8 +90,8 @@ export type DemoFixtureSpec = {
 };
 
 /**
- * Named joiners on Maya's opening keynote. The first three keep the demo
- * portraits. Everyone else is initials. Each bio is one line.
+ * Named joiners on Maya's opening keynote. People with a portrait set
+ * photoUrl; everyone else is initials. Each bio is one line.
  */
 export const DEMO_ROSTER_JOINERS = [
   {
@@ -108,7 +108,7 @@ export const DEMO_ROSTER_JOINERS = [
     title: "Literacy specialist",
     affiliation: "Open Learning Collaborative",
     bio: "Sits with grade-level teams while they choose what to stop assigning.",
-    photoUrl: "/demo/speakers/sam-ortiz.svg",
+    photoUrl: "/demo/people/sam-ortiz.jpg",
   },
   {
     name: "Tom Hale",
@@ -124,6 +124,7 @@ export const DEMO_ROSTER_JOINERS = [
     title: "Science lead",
     affiliation: "Riverside School District",
     bio: "Keeps lab days short enough that the discussion still fits.",
+    photoUrl: "/demo/people/amina-farah.jpg",
   },
   {
     name: "Ben Cho",
@@ -131,6 +132,7 @@ export const DEMO_ROSTER_JOINERS = [
     title: "Grade 2 teacher",
     affiliation: "Harbor Elementary",
     bio: "Protects the first twenty minutes for reading aloud.",
+    photoUrl: "/demo/people/ben-cho.jpg",
   },
   {
     name: "Carmen Diaz",
@@ -138,6 +140,7 @@ export const DEMO_ROSTER_JOINERS = [
     title: "Assistant principal",
     affiliation: "Northbridge Academy",
     bio: "Looks at the master schedule for meetings that could be a note.",
+    photoUrl: "/demo/people/carmen-diaz.jpg",
   },
   {
     name: "David Okoye",
@@ -159,6 +162,7 @@ export const DEMO_ROSTER_JOINERS = [
     title: "PE teacher",
     affiliation: "Riverside School District",
     bio: "Treats outdoor time as part of the day, not a reward.",
+    photoUrl: "/demo/people/greg-walsh.jpg",
   },
   {
     name: "Hannah Brooks",
@@ -194,6 +198,7 @@ export const DEMO_ROSTER_JOINERS = [
     title: "Special education teacher",
     affiliation: "Open Learning Collaborative",
     bio: "Writes the accommodation into the lesson instead of beside it.",
+    photoUrl: "/demo/people/lila-grant.jpg",
   },
 ] as const;
 
@@ -297,7 +302,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Head of Teaching and Learning",
         affiliation: "Northbridge Academy",
         bio: "Runs the school's coaching and mentoring program.",
-        photoUrl: "/demo/speakers/jonas-okonkwo.svg",
+        photoUrl: "/demo/people/jonas-okonkwo.jpg",
       },
       {
         key: "elena",
@@ -305,7 +310,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Curriculum Lead",
         affiliation: "Open Learning Collaborative",
         bio: "Designs training materials for classroom teams.",
-        photoUrl: "/demo/speakers/elena-ruiz.svg",
+        photoUrl: "/demo/people/elena-ruiz.jpg",
       },
     ],
     sponsors: [
@@ -327,7 +332,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
     sessions: [
       {
         title: "Opening keynote: Designing calm learning days",
-        description: "How organizers reduce noise without losing energy.",
+        description:
+          "Abstract: Most schools do not need another program; they need fewer interruptions to the ones they have. This keynote looks at what a learning day costs in attention, who pays it, and which small structural choices give the most of it back. Drawing on three years of grade-level team visits, it proposes a short list of things worth protecting, a shorter list worth quieting, and a way of deciding between them that a staff can run without the coach in the room.",
         trackIndex: 0,
         format: "keynote",
         roomIndex: 0,
@@ -339,7 +345,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
           {
             title: "What a calm learning day actually protects",
             abstract:
-              "Which parts of the school day can go quiet without losing the energy of the room, and what a staff has to keep.",
+              "Which parts of the school day can go quiet without losing the energy of the room, and what a staff has to keep. Based on 41 classroom visits across one district, the paper separates interruptions that cost attention from those that restore it, and proposes a protected-time standard a team can audit in an afternoon.",
             authors: [
               { name: "Maya Chen", isPresenter: true },
               { name: "Jonas Okonkwo" },
@@ -360,7 +366,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       },
       {
         title: "Workshop block A: Reading conferences",
-        description: "Running short one-to-one reading check-ins without losing the room.",
+        description:
+          "Abstract: Reading conferences are the first thing cut when the day gets crowded. This workshop treats them as infrastructure rather than enrichment: a fixed slot, a two-minute protocol, and a record that takes less time to keep than to skip. We practice the protocol in pairs, look at a term of real conference notes, and plan how a team protects the slot when the timetable moves.",
         trackIndex: 1,
         format: "workshop",
         roomIndex: 1,
@@ -371,7 +378,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       },
       {
         title: "Workshop block A: Small-group math routines",
-        description: "Routines a grade-level team can start on Monday.",
+        description:
+          "Abstract: A working session on the ten-minute routines that make small-group math sustainable: how groups are formed and re-formed, what the rest of the class is doing, and which routines survive a substitute. Participants bring one routine they already use, test it against four questions, and leave with a version they can run on Monday. Materials include the planning card and two classroom clips.",
         trackIndex: 1,
         format: "workshop",
         roomIndex: 2,
@@ -382,7 +390,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       },
       {
         title: "Practice showcase: What worked this year",
-        description: "Short talks from teams trying something new.",
+        description:
+          "Abstract: Six short talks from teams that tried one concrete change this year and measured something. Each presenter gets eight minutes and one slide. The point is not polish; it is a specific practice, the evidence that it helped, and what the team would tell another school trying it. Abstracts for the individual talks are listed below.",
         trackIndex: 2,
         format: "lightning",
         roomIndex: 3,
@@ -394,7 +403,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         items: [
           {
             title: "Ten minutes of reading conferences, every day",
-            abstract: "What changed when one grade-level team protected ten minutes a day.",
+            abstract:
+              "What changed when one grade-level team protected ten minutes a day for reading conferences across a full term: conference counts, the share of students seen weekly, and what teachers reported about knowing their readers. Includes the one-page protocol and the timetable change that made it possible.",
             authors: [
               { name: "Aisha Rahman", isPresenter: true },
               { name: "Jonas Okonkwo" },
@@ -402,7 +412,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
           },
           {
             title: "Planning time as infrastructure",
-            abstract: "When protected planning time becomes the real professional learning.",
+            abstract:
+              "A case for treating common planning time as infrastructure rather than a perk: what one school stopped doing to protect it, how the time was used across a term, and the three agreements that kept it from being reclaimed by meetings.",
             authors: [{ name: "Elena Ruiz", isPresenter: true }],
           },
         ],
@@ -420,7 +431,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       },
       {
         title: "Workshop block B: Feedback students actually use",
-        description: "Hands-on session on written and spoken feedback.",
+        description:
+          "Abstract: Most written feedback is read once and filed. This workshop looks at the forms of feedback students return to: a conference note, a two-line comment with a next step, a rubric row circled. We examine student work with the feedback attached, sort what was acted on from what was not, and rewrite three comments so they are. Bring one piece of marked work.",
         trackIndex: 1,
         format: "workshop",
         roomIndex: 1,
@@ -431,7 +443,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       },
       {
         title: "Closing roundtable: What we will change next term",
-        description: "Each team leaves with one commitment.",
+        description:
+          "Abstract: Every team leaves with one commitment. Tables work through a three-question protocol (what we protect, what we quiet, what we will measure), write the commitment on one card, and read it aloud. The cards are collected and sent back to each team in six weeks. Facilitated by Maya Chen and Jonas Okonkwo.",
         trackIndex: 0,
         format: "panel",
         roomIndex: 0,
@@ -443,7 +456,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       // PRESENTER-HOME-C — share Maya's keynote vocabulary so "Sessions like yours" has rows.
       {
         title: "Keeping a calm learning block",
-        description: "How a staff protects quiet energy without adding another program.",
+        description:
+          "Abstract: A 30-minute talk on the single uninterrupted block: why 50 protected minutes beats 90 fragmented ones, how two schools cleared announcements, pull-outs, and device checks from the block, and what their teachers noticed within a month. Includes the one-page agreement each staff signed and the two exceptions they allowed.",
         trackIndex: 0,
         format: "talk",
         roomIndex: 1,
@@ -454,7 +468,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       },
       {
         title: "What quiet time protects",
-        description: "A staff learns which parts of learning can stay calm.",
+        description:
+          "Abstract: Quiet is not the absence of learning; it is where a lot of it happens. This workshop maps the quiet parts of a typical day (independent reading, writing, practice) and shows what gets lost when each is interrupted. Participants audit one day of their own timetable for interruptions, sort them into avoidable and unavoidable, and draft a quiet-time agreement for their team.",
         trackIndex: 0,
         format: "workshop",
         roomIndex: 2,
@@ -465,7 +480,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       },
       {
         title: "Energy after a quiet morning",
-        description: "Protect the calm a learning day needs, then decide what the staff keeps.",
+        description:
+          "Abstract: A panel on the afternoon problem: how to keep energy up after a calm, focused morning without turning the afternoon into noise. Three teachers and a coach compare what they schedule after lunch, what they stopped scheduling, and how they read a room that has gone flat. Questions from the floor for the second half.",
         trackIndex: 0,
         format: "panel",
         roomIndex: 3,
@@ -476,7 +492,8 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
       },
       {
         title: "Staff energy when learning goes quiet",
-        description: "Protect the calm in the room while the staff keeps its energy.",
+        description:
+          "Abstract: When a school succeeds in quieting the day, the adults sometimes feel it as a loss of energy. This session is for leaders and coaches: how to tell calm from disengagement, what to watch in the first term of a change, and how to keep a staff's energy without reintroducing the noise. Includes a short observation protocol used across four schools.",
         trackIndex: 0,
         format: "workshop",
         roomIndex: 1,

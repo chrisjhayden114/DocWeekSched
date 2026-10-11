@@ -17,6 +17,7 @@ import {
   shapePortalSpeaker,
   type PresenterRosterSession,
 } from "@event-app/shared";
+import { programCopy } from "@event-app/config";
 import { PresenterPortalSessionsCard } from "../components/PresenterRosterCard";
 import { RelatedSessionCard } from "../components/RelatedSessionCard";
 import { formatEventDateTime, formatEventTimeRange } from "../lib/dateFormat";
@@ -256,7 +257,15 @@ describe("presenter home session card", () => {
     );
     expect(container.textContent).toContain("How organizers reduce noise without losing energy.");
     expect(container.textContent).toContain("What a calm learning day actually protects");
-    expect(container.textContent).toContain("Which parts of the school day can go quiet.");
+    const paper = container.querySelector(".session-peek-paper");
+    const label = paper?.querySelector(".text-meta");
+    const abstract = [...(paper?.querySelectorAll("p") ?? [])].find(
+      (node) => node.textContent?.trim() === "Which parts of the school day can go quiet.",
+    );
+    expect(label?.tagName).toBe("P");
+    expect(label?.textContent?.trim()).toBe(programCopy.paper.abstractLabel);
+    expect(abstract).toBeTruthy();
+    expect(label!.compareDocumentPosition(abstract!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const presenter = container.querySelector(".session-peek-paper-authors strong");
     expect(presenter?.textContent).toBe("Maya Chen");
     expect(container.textContent).toContain("Jonas Okonkwo");

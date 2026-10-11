@@ -447,6 +447,8 @@ export const programCopy = {
   paper: {
     noun: "Paper",
     hint: "A paper or presentation — authors or presenters in order, with an optional abstract. Appears in the program under the session.",
+    /** Small label above a paper's abstract. Not a heading. */
+    abstractLabel: "Abstract",
   },
   resource: {
     noun: "Resource",

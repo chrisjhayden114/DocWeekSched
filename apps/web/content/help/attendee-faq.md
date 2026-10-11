@@ -31,7 +31,7 @@ Session times can show in the event's timezone or yours — use the toggle on th
 
 ## Can I see what a session is about without leaving the Agenda?
 
-Yes. On a computer, hover a session and a panel opens beside it with the description, the speakers, any papers, and any materials; click the session to pin the panel open. **Esc** or the **×** in its corner closes it and puts you back on the card you came from. On a phone, a narrow window, or any touch screen, the same panel opens as a sheet from the bottom of the screen instead — there's no room to put it beside a card.
+Yes. On a computer, hover a session and a panel opens beside it with the description, the speakers, any papers (an Abstract label above each abstract), and any materials; click the session to pin the panel open. **Esc** or the **×** in its corner closes it and puts you back on the card you came from. On a phone, a narrow window, or any touch screen, the same panel opens as a sheet from the bottom of the screen instead — there's no room to put it beside a card.
 
 ## Where are the slides?
 

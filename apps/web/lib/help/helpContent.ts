@@ -514,7 +514,7 @@ Session times can show in the event's timezone or yours — use the toggle on th
 
 ## Can I see what a session is about without leaving the Agenda?
 
-Yes. On a computer, hover a session and a panel opens beside it with the description, the speakers, any papers, and any materials; click the session to pin the panel open. **Esc** or the **×** in its corner closes it and puts you back on the card you came from. On a phone, a narrow window, or any touch screen, the same panel opens as a sheet from the bottom of the screen instead — there's no room to put it beside a card.
+Yes. On a computer, hover a session and a panel opens beside it with the description, the speakers, any papers (an Abstract label above each abstract), and any materials; click the session to pin the panel open. **Esc** or the **×** in its corner closes it and puts you back on the card you came from. On a phone, a narrow window, or any touch screen, the same panel opens as a sheet from the bottom of the screen instead — there's no room to put it beside a card.
 
 ## Where are the slides?
 
@@ -583,7 +583,7 @@ Your page lists only the items that organizer needs from you. You won't see othe
 
 The page opens with your profile: your photo, or your initials when you have no photo, then your name, your title and affiliation, and your bio. A long bio shows four lines, then **More**. The event's name, dates, and logo sit directly under that.
 
-**Your sessions** lists each session you're presenting. Each session is its own card, in start-time order, and the title is the card heading. A card shows the day and time in the event's timezone (and your local time in parentheses when your browser's timezone differs), the room, the track, and the format when the organizer set one. The description is shown in full, and each paper lists its title, abstract, and authors, with the presenting author in bold. **Open in the conference schedule** and **Full program** sit at the bottom-right of the card. **Join online** appears only when that session has an online link.
+**Your sessions** lists each session you're presenting. Each session is its own card, in start-time order, and the title is the card heading. A card shows the day and time in the event's timezone (and your local time in parentheses when your browser's timezone differs), the room, the track, and the format when the organizer set one. The description is shown in full, and each paper lists its title, an Abstract label above the abstract, and the authors, with the presenting author in bold. **Open in the conference schedule** and **Full program** sit at the bottom-right of the card. **Join online** appears only when that session has an online link.
 
 The line under each session reads **42 joined · 60 seats · 3 waiting** when 42 people have joined a session of 60 seats and 3 are waiting. When the organizer allows names, a second line reads **2 names shown, 1 keep their profile private** — how many directory-visible names are in the list, and how many people who joined stay unnamed.
 

@@ -16,6 +16,7 @@
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { programCopy } from "@event-app/config";
 import { SessionPeekContent } from "../components/SessionPeekContent";
 import { formatEventTimeRange } from "../lib/dateFormat";
 
@@ -74,6 +75,32 @@ const trackRow = () => container.querySelector(".session-peek-track-row");
  * component uses — the assertions here are about what surrounds it, and
  * hard-coding it would break on an ICU update rather than on a real change. */
 const TIME = formatEventTimeRange(SESSION.startsAt, SESSION.endsAt, "America/New_York");
+
+describe("paper abstracts", () => {
+  it("renders the Abstract label above a paper abstract", () => {
+    peek({
+      session: {
+        ...SESSION,
+        items: [
+          {
+            title: "What a calm learning day actually protects",
+            abstract: "Which parts of the school day can go quiet.",
+            authors: [{ name: "Maya Chen", isPresenter: true }],
+          },
+        ],
+      },
+    });
+    const paper = container.querySelector(".session-peek-paper");
+    const label = paper?.querySelector(".text-meta");
+    const abstract = [...(paper?.querySelectorAll("p") ?? [])].find(
+      (node) => node.textContent?.trim() === "Which parts of the school day can go quiet.",
+    );
+    expect(label?.tagName).toBe("P");
+    expect(label?.textContent?.trim()).toBe(programCopy.paper.abstractLabel);
+    expect(abstract).toBeTruthy();
+    expect(label!.compareDocumentPosition(abstract!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
 
 describe("the meta line", () => {
   it("holds the time and the room, and nothing else", () => {

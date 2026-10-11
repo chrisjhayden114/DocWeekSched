@@ -1,3 +1,4 @@
+import { programCopy } from "@event-app/config";
 import {
   PRESENTER_NOTE_MAX_CHARS,
   sessionFormatLabel,
@@ -430,9 +431,14 @@ function PresenterHomeSession({
             <li key={`${paper.title}-${index}`} className="session-peek-paper">
               <span className="session-peek-paper-title">{paper.title}</span>
               {paper.abstract ? (
-                <p className="help-text" style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}>
-                  {paper.abstract}
-                </p>
+                <>
+                  <p className="text-meta" style={{ margin: "4px 0 0" }}>
+                    {programCopy.paper.abstractLabel}
+                  </p>
+                  <p className="help-text" style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}>
+                    {paper.abstract}
+                  </p>
+                </>
               ) : null}
               {paper.authors.length > 0 ? (
                 <span className="session-peek-paper-authors">

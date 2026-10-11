@@ -122,6 +122,7 @@ export function speakerCredit(person: PeekSpeaker): string {
 export type PeekPaper = {
   id?: string;
   title: string;
+  abstract?: string | null;
   authors?: Array<{ name: string; isPresenter?: boolean }> | null;
 };
 

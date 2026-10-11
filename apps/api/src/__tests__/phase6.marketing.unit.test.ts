@@ -62,10 +62,22 @@ describe("public demo fixture feeds the session peek", () => {
     }
   });
 
-  it("gives every speaker a photo", () => {
-    for (const speaker of spec.speakers) {
-      expect(speaker.photoUrl).toMatch(/^\/demo\/speakers\/.+\.svg$/);
+  it("starts every non-break demo session description with Abstract:", () => {
+    const sessions = spec.sessions.filter(
+      (session) => session.format !== "break" && session.title !== "Evening reception",
+    );
+    expect(sessions.length).toBeGreaterThan(0);
+    for (const session of sessions) {
+      expect(session.description.startsWith("Abstract:")).toBe(true);
     }
+  });
+
+  it("gives every speaker a photo", () => {
+    expect(spec.speakers.map((speaker) => [speaker.key, speaker.photoUrl])).toEqual([
+      ["maya", "/demo/speakers/maya-chen.svg"],
+      ["jonas", "/demo/people/jonas-okonkwo.jpg"],
+      ["elena", "/demo/people/elena-ruiz.jpg"],
+    ]);
   });
 
   it("has at least two sessions with two speakers who both have photos", () => {

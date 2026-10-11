@@ -9,6 +9,7 @@
  * lib/sessionPeek.ts so they are unit-testable; this file is layout and state.
  */
 
+import { programCopy } from "@event-app/config";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   PEEK_ACTION_LABEL,
@@ -379,6 +380,16 @@ export function SessionPeekContent({
             return (
               <li key={paper.id || `${paper.title}-${idx}`} className="session-peek-paper">
                 <span className="session-peek-paper-title">{paper.title}</span>
+                {paper.abstract ? (
+                  <>
+                    <p className="text-meta" style={{ margin: 0 }}>
+                      {programCopy.paper.abstractLabel}
+                    </p>
+                    <p className="help-text" style={{ margin: 0, overflowWrap: "anywhere" }}>
+                      {paper.abstract}
+                    </p>
+                  </>
+                ) : null}
                 {authors.length > 0 ? (
                   <span className="session-peek-paper-authors">
                     {authors.map((author, i) => (

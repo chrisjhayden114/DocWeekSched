@@ -128,6 +128,7 @@ type Session = {
   items?: {
     id: string;
     title: string;
+    abstract?: string | null;
     sortOrder?: number;
     authors?: { name: string; isPresenter?: boolean; sortOrder?: number }[];
   }[];

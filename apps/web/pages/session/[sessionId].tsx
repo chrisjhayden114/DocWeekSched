@@ -84,6 +84,7 @@ type Session = {
   items?: {
     id: string;
     title: string;
+    abstract?: string | null;
     sortOrder: number;
     authors: { name: string; sortOrder: number }[];
     discussantSpeaker?: { id: string; name: string } | null;
@@ -1109,6 +1110,16 @@ export default function SessionPage() {
                 {session.items.map((item) => (
                   <li key={item.id} className="session-paper">
                     <p className="session-paper-title">{item.title}</p>
+                    {item.abstract ? (
+                      <>
+                        <p className="text-meta" style={{ margin: "3px 0 0" }}>
+                          {programCopy.paper.abstractLabel}
+                        </p>
+                        <p className="session-paper-authors" style={{ whiteSpace: "pre-wrap" }}>
+                          {item.abstract}
+                        </p>
+                      </>
+                    ) : null}
                     {item.authors?.length ? (
                       <p className="session-paper-authors">{item.authors.map((a) => a.name).join(", ")}</p>
                     ) : null}
