@@ -57,7 +57,7 @@ When the agenda looks right, publish the event so `/e/your-slug` is public. Publ
 
 Explore a read-only sample conference at [/e/demo](/e/demo) — no account required.
 
-The explorer links are [readyhall.com/demo/presenter](https://readyhall.com/demo/presenter) and [readyhall.com/demo/attendee](https://readyhall.com/demo/attendee).
+Two explorer views of the same demo: [/demo/presenter](/demo/presenter) opens a presenter's page without a login, and [/demo/attendee](/demo/attendee) signs you in as a demo attendee.
 
 ## Need help?
 

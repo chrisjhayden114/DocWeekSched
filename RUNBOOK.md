@@ -209,6 +209,7 @@ warning line each (`[preflight] …`). Full var-by-var documentation lives in th
 | Job intervals (`JOB_POLL_INTERVAL_MS`, `JOB_POLL_STALE_MS`, `NOTIFICATION_JOB_INTERVAL_MS`, `OPS_DETECT_SWEEP_INTERVAL_MS`) | Defaults are fine; only tune with a reason |
 | Product tuning (`NOTIFICATION_DAILY_PUSH_BUDGET`, `WAITLIST_SEAT_HOLD_HOURS`, `ANNOUNCEMENT_EMAIL_RATE_PER_HOUR`) | Defaults 5 / 24h / 3 per hour |
 | `ALLOW_DESTRUCTIVE_DB` | Must **never** be set in production (see §6) |
+| `DEMO_EXPLORER_PASSWORD` | optional; when set, the demo reset creates two attendee explorer accounts with this password; unset means none are created |
 
 ---
 
