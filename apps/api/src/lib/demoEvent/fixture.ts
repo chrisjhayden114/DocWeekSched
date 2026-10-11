@@ -197,6 +197,26 @@ export const DEMO_ROSTER_JOINERS = [
   },
 ] as const;
 
+/**
+ * DEMO-EXPLORERS-1 — shareable attendee logins. Not part of DEMO_ROSTER_JOINERS,
+ * so they do not change the "14 names shown" fixture count. reset.ts creates
+ * them only when DEMO_EXPLORER_PASSWORD is set.
+ */
+export const DEMO_EXPLORERS = [
+  {
+    email: "explorer.one@demo.readyhall.com",
+    name: "Explorer One",
+    title: "Visitor",
+    affiliation: "Readyhall demo",
+  },
+  {
+    email: "explorer.two@demo.readyhall.com",
+    name: "Explorer Two",
+    title: "Visitor",
+    affiliation: "Readyhall demo",
+  },
+] as const;
+
 /** JOINING attendees who stay out of the directory. Counted, not named. */
 export const DEMO_ROSTER_PRIVATE = [
   {

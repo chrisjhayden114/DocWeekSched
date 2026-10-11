@@ -66,9 +66,56 @@ describe("REDIR-1 — legacy domain redirects", () => {
     expect(rules.some((rule) => rule.from.includes("readyhall.com"))).toBe(false);
   });
 
-  it("scopes every rule to a host, so deploy previews keep working", () => {
+  it("scopes every rule except the demo short links to a host, so deploy previews keep working", () => {
+    const demoFrom = new Set(["/demo/presenter", "/demo/presenter-2", "/demo/attendee"]);
     for (const rule of rules) {
+      if (demoFrom.has(rule.from)) continue;
       expect(rule.from, rule.from).toMatch(/^https:\/\//);
+    }
+  });
+});
+
+describe("DEMO-EXPLORERS-1 — short demo links", () => {
+  const resetSource = readFileSync(
+    resolve(__dirname, "../../../apps/api/src/lib/demoEvent/reset.ts"),
+    "utf8",
+  );
+
+  function exportedToken(name: string): string {
+    const match = resetSource.match(
+      new RegExp(String.raw`export const ${name}\s*=\s*"([0-9a-f]{64})"`),
+    );
+    if (!match?.[1]) {
+      throw new Error(`reset.ts does not export ${name} as a 64-hex string literal`);
+    }
+    return match[1];
+  }
+
+  function ruleFrom(path: string): Rule | undefined {
+    return rules.find((rule) => rule.from === path);
+  }
+
+  it("redirects the three public shortcuts with a relative 302 and no force flag", () => {
+    const maya = exportedToken("DEMO_PRESENTER_PORTAL_TOKEN");
+    const jonas = exportedToken("DEMO_PRESENTER_PORTAL_TOKEN_2");
+    expect(ruleFrom("/demo/presenter")).toEqual({
+      from: "/demo/presenter",
+      to: `/r/${maya}`,
+      status: "302",
+    });
+    expect(ruleFrom("/demo/presenter-2")).toEqual({
+      from: "/demo/presenter-2",
+      to: `/r/${jonas}`,
+      status: "302",
+    });
+    expect(ruleFrom("/demo/attendee")).toEqual({
+      from: "/demo/attendee",
+      to: "/login",
+      status: "302",
+    });
+    for (const path of ["/demo/presenter", "/demo/presenter-2", "/demo/attendee"]) {
+      expect(ruleFrom(path)?.status, path).not.toContain("!");
+      expect(ruleFrom(path)?.from, path).not.toMatch(/^https:\/\//);
     }
   });
 });

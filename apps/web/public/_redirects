@@ -17,3 +17,8 @@
 
 https://ukedl.com/*      https://readyhall.com/:splat  301!
 https://www.ukedl.com/*  https://readyhall.com/:splat  301!
+
+# DEMO-EXPLORERS-1: short demo links
+/demo/presenter    /r/34744ac9325599ab0f858c209250e398a8a9f708d98c9c0e642214a9d3fa4b80  302
+/demo/presenter-2  /r/31a33c8e5892699769bf3f830ec1604fdd25c4a6ae6dc3c55d6983a22b477137  302
+/demo/attendee     /login  302

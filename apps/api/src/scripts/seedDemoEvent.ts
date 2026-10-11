@@ -12,7 +12,12 @@ for (const p of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../../.
 }
 
 import { assertDestructiveAllowed } from "../lib/destructiveGuard";
-import { resetPublicDemoEvent } from "../lib/demoEvent";
+import {
+  DEMO_PRESENTER_PORTAL_TOKEN,
+  DEMO_PRESENTER_PORTAL_TOKEN_2,
+  resetPublicDemoEvent,
+} from "../lib/demoEvent";
+import { DEMO_EXPLORERS } from "../lib/demoEvent/fixture";
 
 async function main() {
   // Fail fast with a clear message before touching the database. The reset
@@ -25,6 +30,11 @@ async function main() {
         ok: true,
         ...result,
         path: `/e/${result.slug}`,
+        presenterLinks: {
+          maya: `/r/${DEMO_PRESENTER_PORTAL_TOKEN}`,
+          jonas: `/r/${DEMO_PRESENTER_PORTAL_TOKEN_2}`,
+        },
+        explorerAccounts: DEMO_EXPLORERS.map((explorer) => explorer.email),
       },
       null,
       2,

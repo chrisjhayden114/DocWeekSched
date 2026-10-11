@@ -69,6 +69,8 @@ When the agenda looks right, publish the event so \`/e/your-slug\` is public. Pu
 
 Explore a read-only sample conference at [/e/demo](/e/demo) — no account required.
 
+The explorer links are [readyhall.com/demo/presenter](https://readyhall.com/demo/presenter) and [readyhall.com/demo/attendee](https://readyhall.com/demo/attendee).
+
 ## Need help?
 
 Email [{{support}}](mailto:{{support}}). Support hours: {{hours}}

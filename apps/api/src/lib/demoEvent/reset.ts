@@ -16,6 +16,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "../db";
 import { hashPassword, hashToken } from "../auth";
+import { log } from "../log";
 import { assertDestructiveAllowed } from "../destructiveGuard";
 import { upsertFeatureOverrides } from "../features/featureEnabled";
 import { newJoinToken } from "../inviteTokens";
@@ -27,6 +28,7 @@ import {
   DEMO_DECK_SIZE_BYTES,
 } from "./demoDeck";
 import {
+  DEMO_EXPLORERS,
   DEMO_PRESENTER_NOTE,
   DEMO_ROSTER_JOINERS,
   DEMO_ROSTER_PRIVATE,
@@ -37,11 +39,15 @@ import {
 export const DEMO_RESET_JOB = "demo.event.reset";
 
 /**
- * Stable presenter-portal token for Maya Chen on the public demo.
- * 64 hex chars so it matches a minted portal link. Open `/r/<token>`.
+ * Stable presenter-portal tokens on the public demo.
+ * 64 hex chars so each matches a minted portal link. Open `/r/<token>`.
+ * Maya Chen uses DEMO_PRESENTER_PORTAL_TOKEN; Jonas Okonkwo uses
+ * DEMO_PRESENTER_PORTAL_TOKEN_2.
  */
 export const DEMO_PRESENTER_PORTAL_TOKEN =
-  "d0c0de01aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  "34744ac9325599ab0f858c209250e398a8a9f708d98c9c0e642214a9d3fa4b80";
+export const DEMO_PRESENTER_PORTAL_TOKEN_2 =
+  "31a33c8e5892699769bf3f830ec1604fdd25c4a6ae6dc3c55d6983a22b477137";
 
 let cachedDemoEventId: string | null | undefined;
 
@@ -332,7 +338,9 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
     eventId: event.id,
     organizationId: org.id,
     speakerId: speakerByKey.get("maya"),
+    jonasSpeakerId: speakerByKey.get("jonas"),
   });
+  await seedDemoExplorers(event.id);
 
   clearDemoEventIdCache();
   return { eventId: event.id, slug: brand.demoEventSlug, created };
@@ -415,6 +423,7 @@ async function seedDemoPresenterRoster(input: {
   eventId: string;
   organizationId: string;
   speakerId: string | undefined;
+  jonasSpeakerId: string | undefined;
 }): Promise<void> {
   if (!input.speakerId) return;
 
@@ -441,6 +450,22 @@ async function seedDemoPresenterRoster(input: {
       speakerId: input.speakerId,
       email: "maya.chen@demo.readyhall.com",
       tokenHash: hashToken(DEMO_PRESENTER_PORTAL_TOKEN),
+      expiresAt: portalExpiresAt(new Date(), event?.endDate),
+    },
+  });
+
+  if (!input.jonasSpeakerId) {
+    throw new Error(
+      "Refusing demo presenter portal seed: Jonas Okonkwo has no speaker row, so the second presenter link was not minted.",
+    );
+  }
+  await prisma.readinessPortalAccess.create({
+    data: {
+      organizationId: input.organizationId,
+      eventId: input.eventId,
+      speakerId: input.jonasSpeakerId,
+      email: "jonas.okonkwo@demo.readyhall.com",
+      tokenHash: hashToken(DEMO_PRESENTER_PORTAL_TOKEN_2),
       expiresAt: portalExpiresAt(new Date(), event?.endDate),
     },
   });
@@ -551,6 +576,104 @@ async function seedDemoPresenterRoster(input: {
       body: DEMO_PRESENTER_NOTE,
     },
   });
+}
+
+/**
+ * DEMO-EXPLORERS-1 — two attendee logins for the public demo.
+ * Skipped (one log line, no password) when DEMO_EXPLORER_PASSWORD is empty.
+ * Memberships and keynote joins are recreated by the event-scoped wipe above;
+ * this never deletes users and refuses to update an account that has data
+ * outside the demo event.
+ */
+async function seedDemoExplorers(eventId: string): Promise<void> {
+  const password = process.env.DEMO_EXPLORER_PASSWORD;
+  if (typeof password !== "string" || password.length === 0) {
+    log("info", "DEMO_EXPLORER_PASSWORD is not set; skipping explorer accounts.");
+    return;
+  }
+
+  const keynote = await prisma.session.findFirst({
+    where: { eventId, title: { startsWith: "Opening keynote" } },
+    select: { id: true },
+  });
+  if (!keynote) {
+    throw new Error(
+      'Refusing explorer seed: no session titled "Opening keynote" on the demo event, so explorer accounts were not created.',
+    );
+  }
+
+  for (const explorer of DEMO_EXPLORERS) {
+    await assertExplorerUserIsDemoOnly(explorer.email, eventId);
+  }
+
+  for (const explorer of DEMO_EXPLORERS) {
+    const passwordHash = await hashPassword(password);
+    const user = await prisma.user.upsert({
+      where: { email: explorer.email },
+      update: {
+        name: explorer.name,
+        title: explorer.title,
+        affiliation: explorer.affiliation,
+        passwordHash,
+        emailVerifiedAt: new Date(),
+        role: "ATTENDEE",
+      },
+      create: {
+        email: explorer.email,
+        name: explorer.name,
+        title: explorer.title,
+        affiliation: explorer.affiliation,
+        passwordHash,
+        emailVerifiedAt: new Date(),
+        role: "ATTENDEE",
+      },
+    });
+    await prisma.eventMembership.create({
+      data: {
+        eventId,
+        userId: user.id,
+        role: EventMemberRole.ATTENDEE,
+        directoryOptIn: true,
+        welcomeSeenAt: new Date(),
+      },
+    });
+    await prisma.sessionAttendance.create({
+      data: {
+        userId: user.id,
+        sessionId: keynote.id,
+        status: SessionAttendanceStatus.JOINING,
+        joinMode: SessionJoinMode.IN_PERSON,
+      },
+    });
+  }
+}
+
+/**
+ * An existing user with this email may be updated only when they have no org
+ * membership and no attendance or membership outside the demo event. The
+ * event-scoped wipe has already removed their demo-event rows.
+ */
+async function assertExplorerUserIsDemoOnly(email: string, demoEventId: string): Promise<void> {
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+  if (!existing) return;
+
+  const [orgMemberships, foreignMemberships, foreignAttendance] = await Promise.all([
+    prisma.orgMembership.count({ where: { userId: existing.id } }),
+    prisma.eventMembership.count({
+      where: { userId: existing.id, eventId: { not: demoEventId } },
+    }),
+    prisma.sessionAttendance.count({
+      where: { userId: existing.id, session: { eventId: { not: demoEventId } } },
+    }),
+  ]);
+  if (orgMemberships > 0 || foreignMemberships > 0 || foreignAttendance > 0) {
+    throw new Error(
+      `Refusing explorer seed for user ${existing.id}: account has data outside the demo event, so this reset will not change it.`,
+    );
+  }
 }
 
 /**
