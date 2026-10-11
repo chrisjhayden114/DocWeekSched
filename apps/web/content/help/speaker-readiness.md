@@ -41,7 +41,7 @@ When someone genuinely doesn't owe you an item, **Waive** it. A waived item stop
 
 Open **Details** on a speaker, enter their **Presenter email** under **Presenter portal**, and choose **Send portal invite**.
 
-They get a personal link that works for 30 days. No account, no password, no app — see [Submit your materials as a presenter](/help/presenter-portal) for what they see, which you're welcome to forward.
+They get a personal link that works for 30 days, or until a week after the event ends, whichever is later. No account, no password, no app — see [Submit your materials as a presenter](/help/presenter-portal) for what they see, which you're welcome to forward.
 
 Presenters can upload PDF, PowerPoint, Word, or images up to 250 MB, or paste a link (Google Slides, Canva, etc.).
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readinessReminderCopy } from "@event-app/config";
 import { buildReadinessInviteEmail } from "../lib/mail";
 
 describe("buildReadinessInviteEmail (ER4)", () => {
@@ -21,9 +22,21 @@ describe("buildReadinessInviteEmail (ER4)", () => {
     expect(built.html).toMatch(/30 days/i);
   });
 
+  it("puts the presenter-page sentence directly under the personal link", () => {
+    const linkAt = built.html.indexOf(readinessReminderCopy.portalCta);
+    const pageAt = built.html.indexOf(readinessReminderCopy.presenterPageNote);
+    const expiryAt = built.html.indexOf(readinessReminderCopy.linkExpiryNote);
+    expect(readinessReminderCopy.presenterPageNote).toBe(
+      "This link is also your presenter page: your sessions, who has joined, and your materials, any time.",
+    );
+    expect(pageAt).toBeGreaterThan(linkAt);
+    expect(expiryAt).toBeGreaterThan(pageAt);
+    expect(built.subject).toBe("Materials needed for DocWeek 2027");
+  });
+
   it("ER5.1 — promises grace for older links instead of killing them", () => {
     expect(built.html).toContain(
-      "This link works for 30 days. Links from earlier emails keep working until their own expiry.",
+      "This link works until a week after the event ends (at least 30 days). Links from earlier emails keep working until their own expiry.",
     );
     expect(built.html).not.toMatch(/replaces earlier|no longer work/i);
   });

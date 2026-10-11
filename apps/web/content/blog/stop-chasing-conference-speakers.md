@@ -28,7 +28,7 @@ Look at how presenter materials are usually collected and the problem explains i
 
 When I built [Readyhall](https://readyhall.com), Speaker Readiness was the feature I designed first, around three decisions.
 
-**1. No accounts. A personal link.** Every presenter gets their own link. Click it, see exactly what's needed (deck, bio, headshot, whatever you've defined), and upload. No registration, no password, no app. The link works for thirty days and can be re-sent or revoked at any time. When the barrier is one click, most people just do the thing.
+**1. No accounts. A personal link.** Every presenter gets their own link. Click it, see exactly what's needed (deck, bio, headshot, whatever you've defined), and upload. No registration, no password, no app. The link works until a week after the event ends (at least thirty days) and can be re-sent or revoked at any time. When the barrier is one click, most people just do the thing.
 
 **2. Reminders on a schedule, not a mood.** Readyhall reminds each presenter at seven days before their deadline, two days before, and once (only once) when overdue. The reminders are polite, specific, and stop the moment the person submits. You never write a checking-in email again, and no one gets nagged after they've done the work.
 

@@ -1,23 +1,35 @@
-import { sessionFormatLabel, type PresenterRosterAttendee, type PresenterRosterNote, type PresenterRosterSession } from "@event-app/shared";
+import {
+  PRESENTER_NOTE_MAX_CHARS,
+  sessionFormatLabel,
+  type PresenterRelatedSession,
+  type PresenterRosterAttendee,
+  type PresenterRosterNote,
+  type PresenterRosterSession,
+} from "@event-app/shared";
 import { useState } from "react";
 import { CardAvatar } from "./SessionCardBits";
 import { AutoGrowTextarea } from "./kit";
 import { HoverInfo } from "./kit/HoverInfo";
-import { formatEventTimeRange } from "../lib/dateFormat";
+import { formatEventDateTime, formatEventTimeRange } from "../lib/dateFormat";
 import { API_URL } from "../lib/api";
 import {
   PRESENTER_NOTE_COMPOSER_LABEL,
   PRESENTER_NOTE_HELP,
   PRESENTER_NOTE_SEND,
   PRESENTER_NOTES_HEADING,
+  PRESENTER_NOTES_TO_ATTENDEES,
   PRESENTER_PORTAL_SESSIONS_TITLE,
+  PRESENTER_ROSTER_EMPTY,
   PRESENTER_ROSTER_PAGE_SIZE,
   PRESENTER_ROSTER_SEARCH_PLACEHOLDER,
   PRESENTER_ROSTER_SHOW_MORE,
   PRESENTER_ROSTER_SORT_AFFILIATION,
   PRESENTER_ROSTER_TRUNCATED,
+  RUNS_AT_THE_SAME_TIME,
   SESSION_PAGE_PRESENTER_ROSTER_TITLE,
+  SESSIONS_LIKE_YOURS,
   hasPresenterRosterNames,
+  presenterNoteCountLabel,
   presenterRosterHeadline,
   presenterRosterMatchesQuery,
   presenterRosterNamesShownLine,
@@ -203,14 +215,33 @@ function PresenterNoteList({ notes }: { notes: PresenterRosterNote[] }) {
   );
 }
 
+function PortalNoteList({ notes, timezone }: { notes: PresenterRosterNote[]; timezone: string }) {
+  if (notes.length === 0) return null;
+  const ordered = [...notes].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  return (
+    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
+      {ordered.map((note) => (
+        <li key={note.id}>
+          <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{note.body}</p>
+          <p className="text-meta" style={{ margin: 0 }}>
+            {formatEventDateTime(note.createdAt, timezone)}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function PresenterNoteComposer({
   session,
   token,
   enabled,
+  timezone,
 }: {
   session: PresenterRosterSession;
   token: string;
   enabled: boolean;
+  timezone: string;
 }) {
   const [draft, setDraft] = useState("");
   const [notes, setNotes] = useState<PresenterRosterNote[]>(session.notes ?? []);
@@ -256,21 +287,27 @@ function PresenterNoteComposer({
     }
   }
 
+  if (!enabled && notes.length === 0) return null;
+
   return (
-    <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
+    <section className="presenter-notes" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+      <h4 className="text-h3" style={{ margin: 0 }}>
+        {PRESENTER_NOTES_TO_ATTENDEES}
+      </h4>
+      <PortalNoteList notes={notes} timezone={timezone} />
       {enabled ? (
         <>
           <label style={{ display: "grid", gap: 6 }}>
             <span>{PRESENTER_NOTE_COMPOSER_LABEL}</span>
             <AutoGrowTextarea
               value={draft}
-              maxLength={600}
+              maxLength={PRESENTER_NOTE_MAX_CHARS}
               onChange={(event) => setDraft(event.target.value)}
               aria-label={PRESENTER_NOTE_COMPOSER_LABEL}
             />
           </label>
           <p className="text-meta" style={{ margin: 0 }}>
-            {draft.length}/600
+            {presenterNoteCountLabel(draft.length)}
           </p>
           <p className="help-text" style={{ margin: 0 }}>
             {PRESENTER_NOTE_HELP}
@@ -291,8 +328,7 @@ function PresenterNoteComposer({
           </button>
         </>
       ) : null}
-      <PresenterNoteList notes={notes} />
-    </div>
+    </section>
   );
 }
 
@@ -306,6 +342,62 @@ export function PresenterSessionNotes({ notes }: { notes: PresenterRosterNote[] 
       <PresenterNoteList notes={notes} />
     </section>
   );
+}
+
+function RelatedSessionsList({
+  related,
+  eventSlug,
+  timezone,
+}: {
+  related: PresenterRelatedSession[] | undefined;
+  eventSlug?: string;
+  timezone: string;
+}) {
+  if (!eventSlug || !related || related.length === 0) return null;
+  return (
+    <section className="presenter-related" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+      <h4 className="text-h3" style={{ margin: 0 }}>
+        {SESSIONS_LIKE_YOURS}
+      </h4>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
+        {related.map((item) => (
+          <li key={item.id}>
+            <a href={`/e/${encodeURIComponent(eventSlug)}?session=${encodeURIComponent(item.id)}`}>
+              <span style={{ display: "block", overflowWrap: "anywhere" }}>{item.title}</span>
+              {item.speakers.length > 0 ? (
+                <span className="text-meta" style={{ display: "block" }}>
+                  {item.speakers.join(", ")}
+                </span>
+              ) : null}
+              <span className="text-meta" style={{ display: "block" }}>
+                {formatEventTimeRange(item.startsAt, item.endsAt, timezone)}
+              </span>
+              {item.roomName ? (
+                <span className="text-meta" style={{ display: "block" }}>
+                  {item.roomName}
+                </span>
+              ) : null}
+            </a>
+            {item.overlapsYours ? (
+              <p className="text-meta" style={{ margin: 0 }}>
+                {RUNS_AT_THE_SAME_TIME}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function sessionsByStart(sessions: PresenterRosterSession[]): PresenterRosterSession[] {
+  return [...sessions].sort((a, b) => {
+    if (a.startsAt < b.startsAt) return -1;
+    if (a.startsAt > b.startsAt) return 1;
+    if (a.id < b.id) return -1;
+    if (a.id > b.id) return 1;
+    return 0;
+  });
 }
 
 function PresenterHomeSession({
@@ -325,8 +417,8 @@ function PresenterHomeSession({
   const zoom = session.zoomLink?.trim() || "";
   const papers = session.items ?? [];
   return (
-    <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
-      <strong style={{ overflowWrap: "anywhere" }}>{session.title}</strong>
+    <>
+      <h3 className="text-h3 presenter-session-title">{session.title}</h3>
       <p className="text-meta" style={{ margin: 0, overflowWrap: "anywhere" }}>
         {sessionTimeLine(session.startsAt, session.endsAt, timezone)}
       </p>
@@ -377,17 +469,19 @@ function PresenterHomeSession({
         </ul>
       ) : null}
       <RosterHeadline session={session} />
-      <RosterNames session={session} />
+      {session.joinedCount === 0 ? (
+        <p style={{ margin: 0 }}>{PRESENTER_ROSTER_EMPTY}</p>
+      ) : (
+        <RosterNames session={session} />
+      )}
+      <RelatedSessionsList related={session.related} eventSlug={eventSlug} timezone={timezone} />
       {portalToken ? (
-        <PresenterNoteComposer session={session} token={portalToken} enabled={notesEnabled} />
-      ) : null}
-      {eventSlug ? (
-        <p className="text-meta" style={{ margin: 0, display: "flex", flexWrap: "wrap", gap: 12 }}>
-          <a href={`/e/${encodeURIComponent(eventSlug)}?session=${encodeURIComponent(session.id)}`}>
-            Open in the conference schedule
-          </a>
-          <a href={`/e/${encodeURIComponent(eventSlug)}`}>Full program</a>
-        </p>
+        <PresenterNoteComposer
+          session={session}
+          token={portalToken}
+          enabled={notesEnabled}
+          timezone={timezone}
+        />
       ) : null}
       {zoom ? (
         <a
@@ -400,7 +494,15 @@ function PresenterHomeSession({
           Join online
         </a>
       ) : null}
-    </div>
+      {eventSlug ? (
+        <p className="text-meta presenter-session-links">
+          <a href={`/e/${encodeURIComponent(eventSlug)}?session=${encodeURIComponent(session.id)}`}>
+            Open in the conference schedule
+          </a>
+          <a href={`/e/${encodeURIComponent(eventSlug)}`}>Full program</a>
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -418,22 +520,24 @@ export function PresenterPortalSessionsCard({
   notesEnabled?: boolean;
 }) {
   if (sessions.length === 0) return null;
+  const ordered = sessionsByStart(sessions);
   return (
-    <section className="card" style={{ padding: 16, display: "grid", gap: 16, minWidth: 0 }}>
+    <div className="presenter-session-stack">
       <h2 className="text-h3" style={{ margin: 0 }}>
         {PRESENTER_PORTAL_SESSIONS_TITLE}
       </h2>
-      {sessions.map((session) => (
-        <PresenterHomeSession
-          key={session.id}
-          session={session}
-          timezone={timezone}
-          eventSlug={eventSlug}
-          portalToken={portalToken}
-          notesEnabled={notesEnabled}
-        />
+      {ordered.map((session) => (
+        <section key={session.id} className="card presenter-session-card">
+          <PresenterHomeSession
+            session={session}
+            timezone={timezone}
+            eventSlug={eventSlug}
+            portalToken={portalToken}
+            notesEnabled={notesEnabled}
+          />
+        </section>
       ))}
-    </section>
+    </div>
   );
 }
 

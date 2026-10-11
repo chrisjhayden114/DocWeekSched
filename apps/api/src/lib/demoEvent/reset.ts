@@ -424,6 +424,11 @@ async function seedDemoPresenterRoster(input: {
   });
   if (!keynote) return;
 
+  const event = await prisma.event.findUnique({
+    where: { id: input.eventId },
+    select: { endDate: true },
+  });
+
   await prisma.session.update({
     where: { id: keynote.id },
     data: { inPersonCapacity: 60 },
@@ -436,7 +441,7 @@ async function seedDemoPresenterRoster(input: {
       speakerId: input.speakerId,
       email: "maya.chen@demo.readyhall.com",
       tokenHash: hashToken(DEMO_PRESENTER_PORTAL_TOKEN),
-      expiresAt: portalExpiresAt(),
+      expiresAt: portalExpiresAt(new Date(), event?.endDate),
     },
   });
 

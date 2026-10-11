@@ -106,10 +106,19 @@ describe("presenter roster UI", () => {
     expect(container.querySelector("details")).toBeNull();
   });
 
-  it("an empty session still shows the headline", () => {
-    render(<PresenterPortalSessionsCard sessions={[empty]} timezone="UTC" />);
+  it("an empty session shows the empty sentence and hides the name tools", () => {
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[{ ...empty, attendees: [{ displayName: "Priya Shah" }], hiddenCount: 0 }]}
+        timezone="UTC"
+      />,
+    );
     expect(container.textContent).toContain("0 joined · 0 waiting");
-    expect(container.textContent).not.toContain(PRESENTER_ROSTER_EMPTY);
+    expect(container.textContent).toContain(PRESENTER_ROSTER_EMPTY);
+    expect(container.textContent).not.toContain("Priya Shah");
+    expect(container.querySelector('input[type="search"]')).toBeNull();
+    expect(container.querySelector(".presenter-roster-grid")).toBeNull();
+    expect(container.textContent).not.toContain("Sort by affiliation");
   });
 
   it("session-page panel uses the presenter-only heading and is absent without data", () => {

@@ -18,6 +18,7 @@ import {
   type PresenterRosterSession,
 } from "@event-app/shared";
 import { PresenterPortalSessionsCard } from "../components/PresenterRosterCard";
+import { formatEventDateTime, formatEventTimeRange } from "../lib/dateFormat";
 import PresenterPortalPage from "../pages/r/[token]";
 import PublicEventPage, { type PublicEventView } from "../pages/e/[slug]";
 
@@ -497,6 +498,10 @@ describe("presenter portal page", () => {
     expect(container.querySelector(".presenter-home-photo img")?.getAttribute("src")).toBe(
       "/demo/speakers/maya-chen.svg",
     );
+    expect(container.querySelector(".presenter-home-bio-slot .presenter-home-bio")).toBeTruthy();
+    expect(readFileSync(join(__dirname, "../styles/globals.css"), "utf8")).toMatch(
+      /\.presenter-home-bio \{[^}]*-webkit-line-clamp:\s*4/,
+    );
     expect(container.textContent).toContain("Maya Chen");
     expect(container.textContent).toContain("Instructional Coach, Riverside School District");
     expect(container.textContent).toContain("Leads professional learning at a K-12 school.");
@@ -519,6 +524,41 @@ describe("presenter portal page", () => {
     expect(container.querySelector(".presenter-portal")?.getAttribute("style")).toContain("overflow-x: clip");
     expect(container.querySelector("main")?.getAttribute("style")).toContain("max-width: 960px");
     expect(container.querySelector("main")?.getAttribute("style")).not.toContain("640");
+  });
+
+  it("shows More when the bio is taller than the four-line clamp", async () => {
+    const proto = HTMLElement.prototype;
+    const previousScroll = Object.getOwnPropertyDescriptor(proto, "scrollHeight");
+    const previousClient = Object.getOwnPropertyDescriptor(proto, "clientHeight");
+    Object.defineProperty(proto, "scrollHeight", { configurable: true, get: () => 200 });
+    Object.defineProperty(proto, "clientHeight", { configurable: true, get: () => 40 });
+    try {
+      routerState.pathname = "/r/[token]";
+      routerState.query = { token: "tok" };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+          if (String(url).endsWith("/sessions")) return jsonResponse({ sessions: [] });
+          return jsonResponse({
+            ...portalView,
+            speaker: {
+              ...portalView.speaker,
+              bio: "Line one. Line two. Line three. Line four. Line five that should stay behind More.",
+            },
+          });
+        }),
+      );
+      render(<PresenterPortalPage />);
+      await flush();
+      const more = [...container.querySelectorAll("button")].find((button) => button.textContent === "More");
+      expect(more).toBeTruthy();
+      expect(container.querySelector(".presenter-home-bio.is-expanded")).toBeNull();
+    } finally {
+      if (previousScroll) Object.defineProperty(proto, "scrollHeight", previousScroll);
+      else delete (proto as { scrollHeight?: number }).scrollHeight;
+      if (previousClient) Object.defineProperty(proto, "clientHeight", previousClient);
+      else delete (proto as { clientHeight?: number }).clientHeight;
+    }
   });
 
   it("OFF hides the sessions card", async () => {
@@ -582,6 +622,142 @@ const publicEvent: PublicEventView = {
   speakers: [],
   sponsors: [],
 };
+
+describe("PRESENTER-HOME-C card polish", () => {
+  it("orders cards by startsAt and keeps the card's reading order", () => {
+    const later: PresenterRosterSession = {
+      ...homeSession,
+      id: "later",
+      title: "Later workshop",
+      startsAt: "2027-03-02T17:00:00.000Z",
+      endsAt: "2027-03-02T18:00:00.000Z",
+      roomName: "Room 12",
+    };
+    const earlier: PresenterRosterSession = { ...homeSession, id: "earlier", title: "Earlier keynote" };
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[later, earlier]}
+        timezone="America/Los_Angeles"
+        eventSlug="demo"
+      />,
+    );
+    const cards = [...container.querySelectorAll(".presenter-session-card")];
+    expect(cards).toHaveLength(2);
+    expect(cards.map((card) => card.querySelector("h3")?.textContent)).toEqual([
+      "Earlier keynote",
+      "Later workshop",
+    ]);
+    const text = cards[0]?.textContent ?? "";
+    const at = (label: string) => text.indexOf(label);
+    const order = [
+      "Earlier keynote",
+      "Hall A",
+      "Keynote",
+      "How organizers reduce noise without losing energy.",
+      "What a calm learning day actually protects",
+      "42 joined · 60 seats · 3 waiting",
+      "Open in the conference schedule",
+    ];
+    for (let i = 1; i < order.length; i += 1) {
+      expect(at(order[i]!), order[i]).toBeGreaterThan(at(order[i - 1]!));
+    }
+    expect(cards[0]?.lastElementChild?.classList.contains("presenter-session-links")).toBe(true);
+    const schedule = cards[0]?.querySelector("a[href='/e/demo?session=earlier']");
+    expect(schedule?.textContent).toBe("Open in the conference schedule");
+  });
+
+  it("shows only the empty sentence for the roster when nobody has joined, and keeps the composer below", () => {
+    const empty: PresenterRosterSession = {
+      ...homeSession,
+      id: "empty",
+      title: "Empty session",
+      joinedCount: 0,
+      waitlistCount: 0,
+      zoomLink: null,
+      attendees: [{ displayName: "Priya Shah", title: "Grade 4 teacher" }],
+      hiddenCount: 1,
+      notes: [{ id: "n1", body: "Bring a pen.", createdAt: "2027-03-01T17:00:00.000Z" }],
+    };
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[empty]}
+        timezone="America/Los_Angeles"
+        eventSlug="demo"
+        portalToken="tok"
+      />,
+    );
+    const card = container.querySelector(".presenter-session-card")!;
+    const text = card.textContent ?? "";
+    expect(text).toContain("Nobody has added this session yet.");
+    expect(text).not.toContain("Priya Shah");
+    expect(text).not.toContain("names shown");
+    expect(card.querySelector('input[type="search"]')).toBeNull();
+    expect(card.querySelector(".presenter-roster-grid")).toBeNull();
+    expect(text).not.toContain("Sort by affiliation");
+    expect(text.indexOf("Nobody has added this session yet.")).toBeLessThan(text.indexOf("Notes to attendees"));
+    expect(text.indexOf("Notes to attendees")).toBeLessThan(text.indexOf("Bring a pen."));
+    expect(text.indexOf("Bring a pen.")).toBeLessThan(text.indexOf("Send a note to everyone who joined"));
+    expect(text).toContain(formatEventDateTime("2027-03-01T17:00:00.000Z", "America/Los_Angeles"));
+    expect(text).toContain("0 of 600");
+    const send = [...card.querySelectorAll("button")].find((button) => button.textContent === "Send");
+    expect(send).toBeInstanceOf(HTMLButtonElement);
+    expect((send as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("renders Sessions like yours with a schedule link, and hides the list when it is empty", () => {
+    const related = [
+      {
+        id: "rel-1",
+        title: "Quiet energy workshop",
+        startsAt: "2027-03-01T19:00:00.000Z",
+        endsAt: "2027-03-01T20:00:00.000Z",
+        roomName: "Room 12",
+        speakers: ["Elena Ruiz", "Jonas Okonkwo"],
+        overlapsYours: true,
+      },
+      {
+        id: "rel-2",
+        title: "Calm staff hour",
+        startsAt: "2027-03-02T17:00:00.000Z",
+        endsAt: "2027-03-02T18:00:00.000Z",
+        roomName: "Library",
+        speakers: ["Elena Ruiz"],
+        overlapsYours: false,
+      },
+    ];
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[{ ...homeSession, zoomLink: null, related }]}
+        timezone="America/Los_Angeles"
+        eventSlug="demo"
+      />,
+    );
+    const list = container.querySelector(".presenter-related")!;
+    expect(list.textContent).toContain("Sessions like yours");
+    const overlap = list.querySelector("a[href='/e/demo?session=rel-1']");
+    expect(overlap?.textContent).toContain("Quiet energy workshop");
+    expect(overlap?.textContent).toContain("Elena Ruiz, Jonas Okonkwo");
+    expect(overlap?.textContent).toContain("Room 12");
+    expect(overlap?.textContent).toContain(
+      formatEventTimeRange(related[0]!.startsAt, related[0]!.endsAt, "America/Los_Angeles"),
+    );
+    const overlapItem = overlap?.closest("li");
+    expect(overlapItem?.textContent).toContain("Runs at the same time as yours");
+    const quiet = list.querySelector("a[href='/e/demo?session=rel-2']");
+    expect(quiet?.closest("li")?.textContent).not.toContain("Runs at the same time as yours");
+    const text = container.querySelector(".presenter-session-card")?.textContent ?? "";
+    expect(text.indexOf("42 joined")).toBeLessThan(text.indexOf("Sessions like yours"));
+
+    render(
+      <PresenterPortalSessionsCard
+        sessions={[{ ...homeSession, zoomLink: null, related: [] }]}
+        timezone="UTC"
+        eventSlug="demo"
+      />,
+    );
+    expect(container.textContent).not.toContain("Sessions like yours");
+  });
+});
 
 describe("public agenda ?session=", () => {
   it("opens the pinned peek on that card and scrolls it into view", async () => {

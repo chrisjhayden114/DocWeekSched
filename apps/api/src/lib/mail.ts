@@ -267,6 +267,7 @@ export function buildReadinessInviteEmail(opts: {
 ${items}
 ${due}
 <p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">${readinessReminderCopy.portalCta}</a></p>
+<p>${readinessReminderCopy.presenterPageNote}</p>
 <p>${readinessReminderCopy.linkExpiryNote}</p>
 <p>${readinessReminderCopy.linkFallback}<br/>${escapeHtml(opts.portalUrl)}</p>`;
   return { subject, html };
@@ -350,6 +351,7 @@ export function buildReadinessReminderEmail(opts: {
   }</p>
 <ul style="padding-left:20px;margin:0 0 16px">${rows}</ul>
 <p><a href="${opts.portalUrl.replace(/"/g, "&quot;")}">${readinessReminderCopy.portalCta}</a></p>
+<p>${readinessReminderCopy.presenterPageNote}</p>
 <p>${readinessReminderCopy.linkExpiryNote}</p>
 <p>${readinessReminderCopy.linkFallback}<br/>${escapeHtml(opts.portalUrl)}</p>
 <p style="color:#555;font-size:13px;margin-top:16px">${readinessReminderCopy.alreadySent}</p>

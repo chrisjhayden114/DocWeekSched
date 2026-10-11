@@ -81,12 +81,8 @@ function ClampedBio({ text }: { text: string }) {
   }, [text, expanded]);
 
   return (
-    <>
-      <p
-        ref={ref}
-        className={`presenter-home-bio${expanded ? " is-expanded" : ""}`}
-        style={{ margin: 0, overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}
-      >
+    <div className="presenter-home-bio-slot">
+      <p ref={ref} className={`presenter-home-bio${expanded ? " is-expanded" : ""}`}>
         {text}
       </p>
       {clipped || expanded ? (
@@ -94,7 +90,7 @@ function ClampedBio({ text }: { text: string }) {
           {expanded ? "Less" : "More"}
         </button>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -786,17 +782,6 @@ export default function PresenterPortalPage() {
           margin-left: 0;
           flex: none;
           font-size: 20px;
-        }
-        .presenter-home-bio {
-          display: -webkit-box;
-          -webkit-box-orient: vertical;
-          -webkit-line-clamp: 4;
-          overflow: hidden;
-        }
-        .presenter-home-bio.is-expanded {
-          display: block;
-          -webkit-line-clamp: unset;
-          overflow: visible;
         }
       `}</style>
       <main style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 48px", display: "grid", gap: 16, minWidth: 0 }}>

@@ -58,7 +58,7 @@ const LIMITS = [
     body: "Presenters still write. We collect, remind, and show you what’s missing.",
   },
   {
-    title: "Portal links expire after 30 days",
+    title: "Portal links expire after 30 days, or until a week after the event ends, whichever is later",
     body: "A fresh link is one click. Older links keep working until their own expiry — a reminder does not revoke last week’s email.",
   },
   {
@@ -268,6 +268,7 @@ export default function SpeakerReadinessPage() {
                   <p>
                     <span className="mkt-email-cta">{readinessReminderCopy.portalCta}</span>
                   </p>
+                  <p>{readinessReminderCopy.presenterPageNote}</p>
                   <p>{readinessReminderCopy.linkExpiryNote}</p>
                   <p className="mkt-email-already">{readinessReminderCopy.alreadySent}</p>
                 </div>

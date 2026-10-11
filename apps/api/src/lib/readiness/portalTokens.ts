@@ -1,17 +1,31 @@
 import { generateOpaqueToken, hashToken } from "../auth";
 
-/** O1 — portal tokens expire 30 days from mint/remint. */
+/** O1 — a portal token lasts at least 30 days from mint/remint. */
 export const PORTAL_TOKEN_DAYS = 30;
+/** PRESENTER-HOME-C — also through a week after the event ends, when that is later. */
+export const PORTAL_EVENT_GRACE_DAYS = 7;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type PortalTokenDenial = "unknown" | "expired" | "revoked";
 
-export function portalExpiresAt(from = new Date()): Date {
-  return new Date(from.getTime() + PORTAL_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+/**
+ * The later of (from + 30 days) and (eventEnd + 7 days).
+ * A missing or invalid event end falls back to from + 30 days.
+ */
+export function portalExpiresAt(from = new Date(), eventEnd?: Date | null): Date {
+  const fromNow = new Date(from.getTime() + PORTAL_TOKEN_DAYS * DAY_MS);
+  if (eventEnd == null || Number.isNaN(eventEnd.getTime())) return fromNow;
+  const afterEvent = new Date(eventEnd.getTime() + PORTAL_EVENT_GRACE_DAYS * DAY_MS);
+  return afterEvent.getTime() > fromNow.getTime() ? afterEvent : fromNow;
 }
 
-export function newPortalToken(from = new Date()): { raw: string; hash: string; expiresAt: Date } {
+export function newPortalToken(
+  from = new Date(),
+  eventEnd?: Date | null,
+): { raw: string; hash: string; expiresAt: Date } {
   const raw = generateOpaqueToken(32);
-  return { raw, hash: hashToken(raw), expiresAt: portalExpiresAt(from) };
+  return { raw, hash: hashToken(raw), expiresAt: portalExpiresAt(from, eventEnd) };
 }
 
 export function hashPortalToken(raw: string): string {

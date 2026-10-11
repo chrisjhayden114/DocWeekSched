@@ -423,8 +423,11 @@ export const readinessReminderCopy = {
   bodyDue: (eventName: string) => `A reminder about the materials ${eventName} still needs from you.`,
   bodyOverdue: (eventName: string) => `Some materials for ${eventName} are past their due date.`,
   portalCta: "Open your presenter portal",
+  /** Sits directly under the personal link in the invite and the reminders. */
+  presenterPageNote:
+    "This link is also your presenter page: your sessions, who has joined, and your materials, any time.",
   linkExpiryNote:
-    "This link works for 30 days. Links from earlier emails keep working until their own expiry.",
+    "This link works until a week after the event ends (at least 30 days). Links from earlier emails keep working until their own expiry.",
   linkFallback: "If the button does not work, copy this link into your browser:",
   alreadySent: "Already sent these? Your organizer may still be reviewing — no action needed.",
   itemDue: (formattedDate: string) => `due ${formattedDate}`,

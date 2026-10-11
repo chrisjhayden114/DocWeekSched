@@ -1,10 +1,16 @@
-import { Prisma } from "@prisma/client";
-import { eventLogoWithOrgFallback, shapePortalEvent, shapePortalSpeaker } from "@event-app/shared";
+import { Prisma, SessionPublishStatus } from "@prisma/client";
+import {
+  eventLogoWithOrgFallback,
+  shapePortalEvent,
+  shapePortalSpeaker,
+  type PresenterRelatedSession,
+} from "@event-app/shared";
 import {
   buildPresenterRosterSessions,
   rosterVisibilityOf,
   sessionIdsForPortalSpeaker,
 } from "../presenterRoster";
+import { overlapsYours, relatedSessions, type RelatedSessionDoc } from "../relatedSessions";
 import { writeAuditLog } from "../ai";
 import { HttpError } from "../authorization";
 import { prisma } from "../db";
@@ -155,9 +161,9 @@ export async function mintPortalAccess(
   const speaker = await assertSpeakerAssignable(eventId, input.speakerId);
   const event = await prisma.event.findUniqueOrThrow({
     where: { id: eventId },
-    select: { name: true },
+    select: { name: true, endDate: true },
   });
-  const token = newPortalToken(now);
+  const token = newPortalToken(now, event.endDate);
   const email = input.email.trim().toLowerCase();
 
   // Inviting a speaker who already has access is a resend, so it gets the same
@@ -224,7 +230,7 @@ export async function mintPortalAccess(
 async function loadAccessForEvent(eventId: string, accessId: string) {
   const row = await prisma.readinessPortalAccess.findFirst({
     where: { id: accessId, eventId },
-    include: { speaker: { select: { name: true } }, event: { select: { name: true } } },
+    include: { speaker: { select: { name: true } }, event: { select: { name: true, endDate: true } } },
   });
   if (!row) throw new HttpError(404, { error: "Portal access not found" });
   return row;
@@ -237,7 +243,7 @@ export async function remintPortalAccess(
   now = new Date(),
 ) {
   const existing = await loadAccessForEvent(eventId, accessId);
-  const token = newPortalToken(now);
+  const token = newPortalToken(now, existing.event.endDate);
   const row = await prisma.readinessPortalAccess.update({
     where: { id: existing.id },
     data: {
@@ -300,11 +306,11 @@ export async function mintReminderPortalUrl(
 ): Promise<string | null> {
   const current = await prisma.readinessPortalAccess.findFirst({
     where: { id: accessId, revokedAt: null },
-    select: { tokenHash: true, expiresAt: true },
+    select: { tokenHash: true, expiresAt: true, event: { select: { endDate: true } } },
   });
   if (!current) return null;
 
-  const token = newPortalToken(now);
+  const token = newPortalToken(now, current.event.endDate);
   const claimed = await prisma.readinessPortalAccess.updateMany({
     where: { id: accessId, revokedAt: null, tokenHash: current.tokenHash },
     data: { ...portalRemintData(current, token), lastSentAt: now },
@@ -483,6 +489,79 @@ export async function getPortalView(rawToken: string, now = new Date()) {
   };
 }
 
+const RELATED_SESSION_LIMIT = 5;
+
+type RelatedCatalogRow = RelatedSessionDoc & {
+  roomName: string | null;
+  speakers: string[];
+};
+
+/** Every session on this event. The scorer drops own, unpublished, break, and social. */
+async function loadRelatedCatalog(eventId: string): Promise<RelatedCatalogRow[]> {
+  const rows = await prisma.session.findMany({
+    where: { eventId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      format: true,
+      publishStatus: true,
+      startsAt: true,
+      endsAt: true,
+      room: { select: { name: true } },
+      track: { select: { name: true } },
+      items: {
+        orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+        select: { title: true, abstract: true },
+      },
+      sessionSpeakers: {
+        orderBy: { sortOrder: "asc" },
+        select: { speaker: { select: { name: true } } },
+      },
+    },
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    trackName: row.track?.name ?? null,
+    format: row.format,
+    published: row.publishStatus === SessionPublishStatus.PUBLISHED,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    items: row.items.map((item) => ({ title: item.title, abstract: item.abstract })),
+    roomName: row.room?.name ?? null,
+    speakers: row.sessionSpeakers.map((link) => link.speaker.name.trim()).filter((name) => name.length > 0),
+  }));
+}
+
+function withRelatedSessions<T extends { id: string; startsAt: string; endsAt: string }>(
+  sessions: T[],
+  catalog: RelatedCatalogRow[],
+): Array<T & { related: PresenterRelatedSession[] }> {
+  const ownIds = new Set(sessions.map((session) => session.id));
+  const docs = catalog.map((row) => ({ ...row, own: ownIds.has(row.id) }));
+  const presenterRanges = sessions.map((session) => ({
+    startsAt: new Date(session.startsAt),
+    endsAt: new Date(session.endsAt),
+  }));
+  return sessions.map((session) => {
+    const target = docs.find((row) => row.id === session.id);
+    const related = target
+      ? relatedSessions(target, docs, { limit: RELATED_SESSION_LIMIT }).map((row) => ({
+          id: row.id,
+          title: row.title,
+          startsAt: row.startsAt.toISOString(),
+          endsAt: row.endsAt.toISOString(),
+          roomName: row.roomName,
+          speakers: row.speakers,
+          overlapsYours: overlapsYours(row, presenterRanges),
+        }))
+      : [];
+    return { ...session, related };
+  });
+}
+
 /**
  * PRESENTER-ROSTER-1 — sessions this portal speaker is presenting, with
  * joined counts (and names, when the organizer chose NAMES).
@@ -490,6 +569,7 @@ export async function getPortalView(rawToken: string, now = new Date()) {
  * OFF 404s so a presenter cannot tell the setting from "you have no
  * sessions". Token expiry, revoke, and the readiness flag are the same
  * gates every other portal route uses (`resolvePortalAccess`).
+ * PRESENTER-HOME-C adds `related` (limit 5) from this event's sessions only.
  */
 export async function getPortalSessions(rawToken: string, now = new Date()) {
   const access = await resolvePortalAccess(rawToken, now);
@@ -514,7 +594,11 @@ export async function getPortalSessions(rawToken: string, now = new Date()) {
     visibility,
     includeNotes: true,
   });
-  return { sessions, presenterNotesEnabled: access.event.presenterNotesEnabled };
+  const catalog = await loadRelatedCatalog(access.eventId);
+  return {
+    sessions: withRelatedSessions(sessions, catalog),
+    presenterNotesEnabled: access.event.presenterNotesEnabled,
+  };
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

@@ -7,6 +7,7 @@ import {
   matchPortalToken,
   newPortalToken,
   PORTAL_TOKEN_DAYS,
+  PORTAL_EVENT_GRACE_DAYS,
   portalExpiresAt,
   portalRemintData,
 } from "../lib/readiness/portalTokens";
@@ -35,6 +36,20 @@ describe("readiness portal tokens (ER4 / O1)", () => {
     expect(
       evaluatePortalAccess({ expiresAt: portalExpiresAt(now), revokedAt: null }, now),
     ).toEqual({ ok: true });
+  });
+
+  it("uses event end + 7 days when the event is far in the future", () => {
+    const eventEnd = new Date(now.getTime() + 120 * 24 * 60 * 60 * 1000);
+    const expires = portalExpiresAt(now, eventEnd);
+    expect(expires.getTime()).toBe(eventEnd.getTime() + PORTAL_EVENT_GRACE_DAYS * 24 * 60 * 60 * 1000);
+    expect(newPortalToken(now, eventEnd).expiresAt.getTime()).toBe(expires.getTime());
+  });
+
+  it("uses now + 30 days when the event is already over", () => {
+    const eventEnd = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+    const expires = portalExpiresAt(now, eventEnd);
+    expect(expires.getTime() - now.getTime()).toBe(PORTAL_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+    expect(newPortalToken(now, eventEnd).expiresAt.getTime()).toBe(expires.getTime());
   });
 
   it("remint produces a new hash so the old raw token no longer matches", () => {

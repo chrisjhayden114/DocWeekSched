@@ -1900,13 +1900,14 @@ export function ReadinessTab({
                                 : ""}
                           </p>
                           <p className="help-text" style={{ margin: 0 }}>
-                            Resending sends a fresh 30-day link. The link in their last email keeps
-                            working until it expires. Revoking kills every link at once.
+                            Resending sends a fresh link with the same expiry; earlier links keep working
+                            until their own expiry. Revoking kills every link at once.
                           </p>
                         </>
                       ) : (
                         <p className="help-text" style={{ margin: 0 }}>
-                          Sends a 30-day link. The presenter never creates an account.
+                          Sends a personal link that works until a week after the event ends (at least
+                          30 days). The presenter never creates an account.
                         </p>
                       )}
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

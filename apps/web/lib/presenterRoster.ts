@@ -4,7 +4,11 @@
  * against the same strings the components render.
  */
 
-import type { PresenterRosterAttendee, PresenterRosterSession } from "@event-app/shared";
+import {
+  PRESENTER_NOTE_MAX_CHARS,
+  type PresenterRosterAttendee,
+  type PresenterRosterSession,
+} from "@event-app/shared";
 
 export const PRESENTER_PORTAL_SESSIONS_TITLE = "Your sessions";
 export const SESSION_PAGE_PRESENTER_ROSTER_TITLE = "You're presenting this session";
@@ -16,8 +20,15 @@ export const PRESENTER_ROSTER_SEARCH_PLACEHOLDER =
   "Search by name, school, role, or anything in their profile";
 export const PRESENTER_ROSTER_TRUNCATED = "Showing the first 500";
 export const PRESENTER_NOTES_HEADING = "From the presenter";
+export const PRESENTER_NOTES_TO_ATTENDEES = "Notes to attendees";
+export const SESSIONS_LIKE_YOURS = "Sessions like yours";
+export const RUNS_AT_THE_SAME_TIME = "Runs at the same time as yours";
 export const PRESENTER_NOTE_COMPOSER_LABEL = "Send a note to everyone who joined";
 export const PRESENTER_NOTE_SEND = "Send";
+
+export function presenterNoteCountLabel(length: number): string {
+  return `${length} of ${PRESENTER_NOTE_MAX_CHARS}`;
+}
 export const PRESENTER_NOTE_HELP =
   "Everyone who joined gets this as a notification. For one-to-one messages, sign in with the email this link was sent to and use Messages.";
 export const PRESENTER_NOTES_SETTING_LABEL =

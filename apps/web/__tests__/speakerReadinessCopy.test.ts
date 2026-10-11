@@ -13,8 +13,11 @@ describe("Speaker Readiness reminder copy stays in sync (MKT-2)", () => {
     expect(readinessReminderCopy.alreadySent).toBe(
       "Already sent these? Your organizer may still be reviewing — no action needed.",
     );
+    expect(readinessReminderCopy.presenterPageNote).toBe(
+      "This link is also your presenter page: your sessions, who has joined, and your materials, any time.",
+    );
     expect(readinessReminderCopy.linkExpiryNote).toBe(
-      "This link works for 30 days. Links from earlier emails keep working until their own expiry.",
+      "This link works until a week after the event ends (at least 30 days). Links from earlier emails keep working until their own expiry.",
     );
     expect(readinessReminderCopy.itemNoDue).toBe("no due date");
   });
@@ -25,10 +28,12 @@ describe("Speaker Readiness reminder copy stays in sync (MKT-2)", () => {
     expect(page).toContain("readinessReminderCopy");
     expect(page).toContain("subjectDue");
     expect(page).toContain("alreadySent");
+    expect(page).toContain("presenterPageNote");
     expect(page).toContain("linkExpiryNote");
     expect(mail).toContain("readinessReminderCopy");
     expect(mail).toContain("subjectDue");
     expect(mail).toContain("alreadySent");
+    expect(mail).toContain("presenterPageNote");
     expect(mail).toContain("linkExpiryNote");
   });
 

@@ -126,6 +126,19 @@ export type PresenterRosterSession = {
   truncated?: boolean;
   /** Notes this presenter has sent, newest first. Portal sessions payload. */
   notes?: PresenterRosterNote[];
+  /** PRESENTER-HOME-C — other published sessions that share vocabulary. Portal only. */
+  related?: PresenterRelatedSession[];
+};
+
+/** One row of "Sessions like yours". Names only — no speaker ids, no emails. */
+export type PresenterRelatedSession = {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  roomName: string | null;
+  speakers: string[];
+  overlapsYours: boolean;
 };
 
 function emptyToNull(value: string | null | undefined): string | null {
