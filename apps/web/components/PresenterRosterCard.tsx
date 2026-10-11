@@ -1,36 +1,29 @@
-import { sessionFormatLabel, type PresenterRosterSession } from "@event-app/shared";
-import { useEffect, useState } from "react";
+import { sessionFormatLabel, type PresenterRosterAttendee, type PresenterRosterNote, type PresenterRosterSession } from "@event-app/shared";
+import { useState } from "react";
 import { CardAvatar } from "./SessionCardBits";
+import { AutoGrowTextarea } from "./kit";
+import { HoverInfo } from "./kit/HoverInfo";
 import { formatEventTimeRange } from "../lib/dateFormat";
+import { API_URL } from "../lib/api";
 import {
+  PRESENTER_NOTE_COMPOSER_LABEL,
+  PRESENTER_NOTE_HELP,
+  PRESENTER_NOTE_SEND,
+  PRESENTER_NOTES_HEADING,
   PRESENTER_PORTAL_SESSIONS_TITLE,
-  PRESENTER_ROSTER_EMPTY,
+  PRESENTER_ROSTER_PAGE_SIZE,
+  PRESENTER_ROSTER_SEARCH_PLACEHOLDER,
+  PRESENTER_ROSTER_SHOW_MORE,
+  PRESENTER_ROSTER_SORT_AFFILIATION,
+  PRESENTER_ROSTER_TRUNCATED,
   SESSION_PAGE_PRESENTER_ROSTER_TITLE,
   hasPresenterRosterNames,
-  presenterRosterHiddenLine,
-  presenterRosterJoinedLine,
-  presenterRosterWaitlistLine,
+  presenterRosterHeadline,
+  presenterRosterMatchesQuery,
+  presenterRosterNamesShownLine,
+  sortPresenterRosterAttendees,
 } from "../lib/presenterRoster";
 import { browserTimezone } from "../lib/timezones";
-
-/** Under 480px the roster grid is a single column. */
-function rosterIsOneColumn(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(max-width: 479px)").matches;
-}
-
-function useOneColumnRoster(): boolean {
-  const [oneColumn, setOneColumn] = useState(rosterIsOneColumn);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia("(max-width: 479px)");
-    const apply = () => setOneColumn(query.matches);
-    apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
-  }, []);
-  return oneColumn;
-}
 
 function sessionTimeLine(startsAt: string, endsAt: string, eventZone: string): string {
   const eventTime = formatEventTimeRange(startsAt, endsAt, eventZone);
@@ -41,77 +34,134 @@ function sessionTimeLine(startsAt: string, endsAt: string, eventZone: string): s
   return `${eventTime} (${localTime})`;
 }
 
-function RosterCounts({ session }: { session: PresenterRosterSession }) {
-  const waitlist = presenterRosterWaitlistLine(session.waitlistCount);
-  if (session.joinedCount === 0 && session.waitlistCount === 0) {
-    return <p className="help-text" style={{ margin: 0 }}>{PRESENTER_ROSTER_EMPTY}</p>;
-  }
+function formatChipLabel(session: PresenterRosterSession): string | null {
+  const label = sessionFormatLabel(session.format);
+  if (!label) return null;
+  const track = session.trackName?.trim() ?? "";
+  if (track && label.toLowerCase() === track.toLowerCase()) return null;
+  return label;
+}
+
+function rosterMeta(person: PresenterRosterAttendee): string | null {
+  const parts = [person.title, person.affiliation].filter((part): part is string => Boolean(part && part.trim()));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function popoverBody(person: PresenterRosterAttendee): string {
+  const meta = rosterMeta(person);
+  const bio = person.bio?.trim() ?? "";
+  return [meta, bio].filter(Boolean).join("\n\n");
+}
+
+function RosterHeadline({ session }: { session: PresenterRosterSession }) {
   return (
     <p className="text-meta" style={{ margin: 0 }}>
-      {presenterRosterJoinedLine(session)}
-      {waitlist ? ` ${waitlist}` : ""}
+      {presenterRosterHeadline(session)}
     </p>
   );
 }
 
+function RosterPersonCard({ person }: { person: PresenterRosterAttendee }) {
+  const meta = rosterMeta(person);
+  return (
+    <HoverInfo
+      trigger="label"
+      title={person.displayName}
+      body={popoverBody(person)}
+      imageSrc={person.photoUrl}
+    >
+      <span className="card presenter-roster-person">
+        <CardAvatar
+          className="presenter-roster-avatar"
+          person={{ name: person.displayName, photoUrl: person.photoUrl ?? null }}
+        />
+        <span style={{ minWidth: 0 }}>
+          <span className="presenter-roster-name">{person.displayName}</span>
+          {meta ? <span className="text-meta presenter-roster-meta">{meta}</span> : null}
+        </span>
+      </span>
+    </HoverInfo>
+  );
+}
+
 function RosterNames({ session }: { session: PresenterRosterSession }) {
-  const oneColumn = useOneColumnRoster();
+  const [query, setQuery] = useState("");
+  const [byAffiliation, setByAffiliation] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PRESENTER_ROSTER_PAGE_SIZE);
   if (!hasPresenterRosterNames(session)) return null;
-  const hidden = presenterRosterHiddenLine(session.hiddenCount ?? 0);
-  if (session.attendees.length === 0 && !hidden) return null;
+
+  const filtered = session.attendees.filter((person) => presenterRosterMatchesQuery(person, query));
+  const ordered = sortPresenterRosterAttendees(filtered, byAffiliation ? "affiliation" : "name");
+  const page = ordered.slice(0, visibleCount);
+  const groups: Array<{ affiliation: string; people: PresenterRosterAttendee[] }> = [];
+  if (byAffiliation) {
+    for (const person of page) {
+      const affiliation = person.affiliation?.trim() ?? "";
+      const last = groups[groups.length - 1];
+      if (last && last.affiliation === affiliation) last.people.push(person);
+      else groups.push({ affiliation, people: [person] });
+    }
+  } else {
+    groups.push({ affiliation: "", people: page });
+  }
 
   return (
     <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
-      {session.attendees.length > 0 ? (
-        <ul
-          className="presenter-roster-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: oneColumn ? "1fr" : "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 8,
-            margin: 0,
-            padding: 0,
-            listStyle: "none",
-            minWidth: 0,
-          }}
-        >
-          {session.attendees.map((person, index) => (
-            <li
-              key={`${person.displayName}-${person.affiliation ?? ""}-${index}`}
-              className="card"
-              style={{
-                margin: 0,
-                padding: 12,
-                minWidth: 0,
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
-              <CardAvatar
-                person={{ name: person.displayName, photoUrl: person.photoUrl ?? null }}
-              />
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: "block", overflowWrap: "anywhere" }}>{person.displayName}</span>
-                {person.title ? (
-                  <span className="text-meta" style={{ display: "block", overflowWrap: "anywhere" }}>
-                    {person.title}
-                  </span>
-                ) : null}
-                {person.affiliation ? (
-                  <span className="text-meta" style={{ display: "block", overflowWrap: "anywhere" }}>
-                    {person.affiliation}
-                  </span>
-                ) : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {hidden ? (
+      <p className="text-meta" style={{ margin: 0 }}>
+        {presenterRosterNamesShownLine(session.attendees.length, session.hiddenCount ?? 0)}
+      </p>
+      {session.truncated ? (
         <p className="help-text" style={{ margin: 0 }}>
-          {hidden}
+          {PRESENTER_ROSTER_TRUNCATED}
         </p>
+      ) : null}
+      <input
+        type="search"
+        className="input"
+        value={query}
+        placeholder={PRESENTER_ROSTER_SEARCH_PLACEHOLDER}
+        aria-label={PRESENTER_ROSTER_SEARCH_PLACEHOLDER}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setVisibleCount(PRESENTER_ROSTER_PAGE_SIZE);
+        }}
+      />
+      <button
+        type="button"
+        className="button secondary"
+        aria-pressed={byAffiliation}
+        style={{ justifySelf: "start" }}
+        onClick={() => setByAffiliation((on) => !on)}
+      >
+        {PRESENTER_ROSTER_SORT_AFFILIATION}
+      </button>
+      {groups.map((group) => (
+        <div key={group.affiliation || "none"} style={{ display: "grid", gap: 8, minWidth: 0 }}>
+          {byAffiliation && group.affiliation ? (
+            <p className="text-meta presenter-roster-group" style={{ margin: 0 }}>
+              {group.affiliation}
+            </p>
+          ) : null}
+          {group.people.length > 0 ? (
+            <ul className="presenter-roster-grid">
+              {group.people.map((person, index) => (
+                <li key={`${person.displayName}-${person.affiliation ?? ""}-${index}`}>
+                  <RosterPersonCard person={person} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ))}
+      {ordered.length > visibleCount ? (
+        <button
+          type="button"
+          className="button secondary"
+          style={{ justifySelf: "start" }}
+          onClick={() => setVisibleCount((count) => count + PRESENTER_ROSTER_PAGE_SIZE)}
+        >
+          {PRESENTER_ROSTER_SHOW_MORE}
+        </button>
       ) : null}
     </div>
   );
@@ -133,9 +183,128 @@ export function PresenterRosterSessionRow({
         {formatEventTimeRange(session.startsAt, session.endsAt, timezone)}
         {session.roomName ? ` · ${session.roomName}` : ""}
       </p>
-      <RosterCounts session={session} />
+      <RosterHeadline session={session} />
       <RosterNames session={session} />
     </div>
+  );
+}
+
+function PresenterNoteList({ notes }: { notes: PresenterRosterNote[] }) {
+  if (notes.length === 0) return null;
+  const ordered = [...notes].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  return (
+    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
+      {ordered.map((note) => (
+        <li key={note.id} style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+          {note.body}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PresenterNoteComposer({
+  session,
+  token,
+  enabled,
+}: {
+  session: PresenterRosterSession;
+  token: string;
+  enabled: boolean;
+}) {
+  const [draft, setDraft] = useState("");
+  const [notes, setNotes] = useState<PresenterRosterNote[]>(session.notes ?? []);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const trimmed = draft.trim();
+
+  async function send() {
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${API_URL}/portal/${encodeURIComponent(token)}/sessions/${encodeURIComponent(session.id)}/note`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: trimmed }),
+        },
+      );
+      let json: { error?: string; id?: string; body?: string; createdAt?: string } = {};
+      try {
+        json = (await res.json()) as typeof json;
+      } catch {
+        throw new Error(
+          res.ok
+            ? "The server returned a note the page could not read. Refresh before sending again."
+            : "Could not send the note.",
+        );
+      }
+      if (!res.ok) {
+        throw new Error(typeof json.error === "string" ? json.error : "Could not send the note.");
+      }
+      if (!json.id || typeof json.body !== "string" || !json.createdAt) {
+        throw new Error("The server did not return the note. Refresh before sending again.");
+      }
+      setNotes((prev) => [{ id: json.id!, body: json.body!, createdAt: json.createdAt! }, ...prev]);
+      setDraft("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send the note.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
+      {enabled ? (
+        <>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>{PRESENTER_NOTE_COMPOSER_LABEL}</span>
+            <AutoGrowTextarea
+              value={draft}
+              maxLength={600}
+              onChange={(event) => setDraft(event.target.value)}
+              aria-label={PRESENTER_NOTE_COMPOSER_LABEL}
+            />
+          </label>
+          <p className="text-meta" style={{ margin: 0 }}>
+            {draft.length}/600
+          </p>
+          <p className="help-text" style={{ margin: 0 }}>
+            {PRESENTER_NOTE_HELP}
+          </p>
+          {error ? (
+            <p role="alert" style={{ color: "var(--danger)", margin: 0 }}>
+              {error}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className="button"
+            style={{ justifySelf: "start", minHeight: 44 }}
+            disabled={busy || trimmed.length === 0}
+            onClick={() => void send()}
+          >
+            {PRESENTER_NOTE_SEND}
+          </button>
+        </>
+      ) : null}
+      <PresenterNoteList notes={notes} />
+    </div>
+  );
+}
+
+export function PresenterSessionNotes({ notes }: { notes: PresenterRosterNote[] }) {
+  if (notes.length === 0) return null;
+  return (
+    <section style={{ display: "grid", gap: 8, margin: "0 0 12px" }}>
+      <h2 className="text-h3" style={{ margin: 0 }}>
+        {PRESENTER_NOTES_HEADING}
+      </h2>
+      <PresenterNoteList notes={notes} />
+    </section>
   );
 }
 
@@ -143,12 +312,16 @@ function PresenterHomeSession({
   session,
   timezone,
   eventSlug,
+  portalToken,
+  notesEnabled,
 }: {
   session: PresenterRosterSession;
   timezone: string;
   eventSlug?: string;
+  portalToken?: string;
+  notesEnabled: boolean;
 }) {
-  const formatLabel = sessionFormatLabel(session.format);
+  const formatLabel = formatChipLabel(session);
   const zoom = session.zoomLink?.trim() || "";
   const papers = session.items ?? [];
   return (
@@ -162,18 +335,20 @@ function PresenterHomeSession({
           {session.roomName}
         </p>
       ) : null}
-      {session.trackName ? (
-        <p className="session-peek-track-row" style={{ margin: 0 }}>
-          <span
-            className="session-peek-track"
-            style={session.trackColor ? { ["--track-color" as string]: session.trackColor } : undefined}
-          >
-            <span className="session-peek-track-dot" aria-hidden />
-            {session.trackName}
-          </span>
+      {session.trackName || formatLabel ? (
+        <p className="session-peek-track-row presenter-chip-row" style={{ margin: 0 }}>
+          {session.trackName ? (
+            <span
+              className="session-peek-track"
+              style={session.trackColor ? { ["--track-color" as string]: session.trackColor } : undefined}
+            >
+              <span className="session-peek-track-dot" aria-hidden />
+              {session.trackName}
+            </span>
+          ) : null}
+          {formatLabel ? <span className="session-peek-format">{formatLabel}</span> : null}
         </p>
       ) : null}
-      {formatLabel ? <span className="schedule-option-chip">{formatLabel}</span> : null}
       {session.description ? (
         <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{session.description}</p>
       ) : null}
@@ -201,8 +376,11 @@ function PresenterHomeSession({
           ))}
         </ul>
       ) : null}
-      <RosterCounts session={session} />
+      <RosterHeadline session={session} />
       <RosterNames session={session} />
+      {portalToken ? (
+        <PresenterNoteComposer session={session} token={portalToken} enabled={notesEnabled} />
+      ) : null}
       {eventSlug ? (
         <p className="text-meta" style={{ margin: 0, display: "flex", flexWrap: "wrap", gap: 12 }}>
           <a href={`/e/${encodeURIComponent(eventSlug)}?session=${encodeURIComponent(session.id)}`}>
@@ -230,10 +408,14 @@ export function PresenterPortalSessionsCard({
   sessions,
   timezone,
   eventSlug,
+  portalToken,
+  notesEnabled = true,
 }: {
   sessions: PresenterRosterSession[];
   timezone: string;
   eventSlug?: string;
+  portalToken?: string;
+  notesEnabled?: boolean;
 }) {
   if (sessions.length === 0) return null;
   return (
@@ -242,7 +424,14 @@ export function PresenterPortalSessionsCard({
         {PRESENTER_PORTAL_SESSIONS_TITLE}
       </h2>
       {sessions.map((session) => (
-        <PresenterHomeSession key={session.id} session={session} timezone={timezone} eventSlug={eventSlug} />
+        <PresenterHomeSession
+          key={session.id}
+          session={session}
+          timezone={timezone}
+          eventSlug={eventSlug}
+          portalToken={portalToken}
+          notesEnabled={notesEnabled}
+        />
       ))}
     </section>
   );

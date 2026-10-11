@@ -5,6 +5,8 @@
  * and the public agenda's ?session= deep link.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -91,7 +93,7 @@ function identityKeys(value: unknown): string[] {
       return;
     }
     for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
-      if (key === "email" || key === "userId") found.push(key);
+      if (key === "email" || key === "userId" || key === "joinMode") found.push(key);
       walk(child);
     }
   };
@@ -189,6 +191,8 @@ describe("presenter home payload", () => {
       title: "Grade 4 teacher",
       affiliation: "Riverside School District",
       photoUrl: "/demo/speakers/priya-shah.svg",
+      bio: "Plans the morning block so reading is not the thing that gets squeezed.",
+      joinMode: "IN_PERSON",
     };
     const paperAuthors = [
       { name: "Maya Chen", isPresenter: true, speakerId: "spk_1", email: "maya@example.com" },
@@ -235,7 +239,9 @@ describe("presenter home payload", () => {
     const raw = JSON.stringify(payload);
     expect(raw).not.toMatch(/"email"/);
     expect(raw).not.toMatch(/"userId"/);
+    expect(raw).not.toMatch(/"joinMode"/);
     expect(identityKeys(payload)).toEqual([]);
+    expect(payload.sessions[0]!.attendees?.[0]?.bio).toContain("morning block");
     expect(raw).not.toContain("priya.shah@demo.readyhall.com");
     expect(raw).not.toContain("user_1");
   });
@@ -253,8 +259,9 @@ describe("presenter home session card", () => {
     expect(presenter?.textContent).toBe("Maya Chen");
     expect(container.textContent).toContain("Jonas Okonkwo");
     expect(container.querySelector(".session-peek-track")?.textContent).toContain("Keynote");
+    expect(container.querySelector(".session-peek-format")).toBeNull();
     expect(container.textContent).toContain("Hall A");
-    expect(container.textContent).toContain("42 of 60 seats");
+    expect(container.textContent).toContain("42 joined · 60 seats · 3 waiting");
     expect(container.textContent).toContain("(");
     const schedule = container.querySelector("a[href='/e/demo?session=sess-1']");
     expect(schedule?.textContent).toBe("Open in the conference schedule");
@@ -296,7 +303,7 @@ describe("presenter home session card", () => {
     expect(container.textContent).toContain("Grade 4 teacher");
     expect(container.textContent).toContain("Riverside School District");
     expect(container.textContent).toContain("TH");
-    expect(container.textContent).toContain("and 1 more who keeps their profile private");
+    expect(container.textContent).toContain("2 names shown, 1 keep their profile private");
     expect(container.querySelector("details")).toBeNull();
 
     render(
@@ -306,25 +313,104 @@ describe("presenter home session card", () => {
       />,
     );
     expect(container.querySelector(".presenter-roster-grid")).toBeNull();
-    expect(container.textContent).toContain("42 of 60 seats");
+    expect(container.textContent).toContain("42 joined · 60 seats · 3 waiting");
     expect(container.textContent).not.toContain("Priya Shah");
 
     render(<PresenterPortalSessionsCard sessions={[]} timezone="America/Los_Angeles" />);
     expect(container.textContent).toBe("");
   });
 
-  it("uses one column under 480px", () => {
-    narrowRoster = true;
-    installMatchMedia();
+  it("lays the roster out as 4, 2, and 1 columns", () => {
+    const css = readFileSync(join(__dirname, "../styles/globals.css"), "utf8");
+    expect(css).toMatch(/\.presenter-roster-grid \{[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(
+      /@media \(max-width: 959px\) \{[^}]*\.presenter-roster-grid \{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 479px\) \{[^}]*\.presenter-roster-grid \{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/,
+    );
+    expect(css).toMatch(/\.presenter-roster-avatar\.card-avatar \{[^}]*width:\s*40px/);
+  });
+
+  it("searches the full list by bio and pages 24 at a time", () => {
+    const attendees = Array.from({ length: 25 }, (_, index) => ({
+      displayName: `Person ${String(index + 1).padStart(2, "0")}`,
+      title: "Teacher",
+      affiliation: index % 2 === 0 ? "Harbor Elementary" : "Northbridge Academy",
+      bio: index === 24 ? "keeps bees on the weekend" : "Plans the morning block.",
+    }));
     const people: PresenterRosterSession = {
       ...homeSession,
       zoomLink: null,
-      attendees: [{ displayName: "Priya Shah", affiliation: "Riverside School District" }],
+      attendees,
+      hiddenCount: 2,
+      truncated: true,
+    };
+    render(<PresenterPortalSessionsCard sessions={[people]} timezone="UTC" />);
+    expect(container.textContent).toContain("25 names shown, 2 keep their profile private");
+    expect(container.textContent).toContain("Showing the first 500");
+    expect(container.querySelectorAll(".presenter-roster-grid li")).toHaveLength(24);
+    expect(container.textContent).not.toContain("Person 25");
+
+    const more = [...container.querySelectorAll("button")].find((button) => button.textContent === "Show 24 more");
+    act(() => {
+      more?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelectorAll(".presenter-roster-grid li")).toHaveLength(25);
+
+    const sort = [...container.querySelectorAll("button")].find((button) => button.textContent === "Sort by affiliation");
+    act(() => {
+      sort?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("Harbor Elementary");
+    expect(container.querySelector(".presenter-roster-group")).toBeTruthy();
+
+    const search = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    setter?.call(search, "bees");
+    act(() => {
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("Person 25");
+    expect(container.textContent).not.toContain("Person 01");
+    expect(container.querySelectorAll(".presenter-roster-grid li")).toHaveLength(1);
+  });
+
+  it("opens the hover card with the bio and closes it on Esc", async () => {
+    const people: PresenterRosterSession = {
+      ...homeSession,
+      zoomLink: null,
+      format: "workshop",
+      attendees: [
+        {
+          displayName: "Priya Shah",
+          title: "Grade 4 teacher",
+          affiliation: "Riverside School District",
+          photoUrl: "/demo/speakers/priya-shah.svg",
+          bio: "Plans the morning block so reading is not the thing that gets squeezed.",
+        },
+      ],
       hiddenCount: 0,
     };
     render(<PresenterPortalSessionsCard sessions={[people]} timezone="UTC" />);
-    const grid = container.querySelector<HTMLElement>(".presenter-roster-grid");
-    expect(grid?.style.gridTemplateColumns).toBe("1fr");
+    expect(container.querySelector(".session-peek-format")?.textContent).toBe("Workshop");
+    const trigger = container.querySelector(".hover-info")!;
+    await act(async () => {
+      trigger.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true, cancelable: true, relatedTarget: null }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    const popover = document.body.querySelector(".hover-info-popover");
+    expect(popover?.textContent).toContain("Priya Shah");
+    expect(popover?.textContent).toContain("Grade 4 teacher");
+    expect(popover?.textContent).toContain("Riverside School District");
+    expect(popover?.textContent).toContain("Plans the morning block");
+    expect(popover?.querySelector("img")?.getAttribute("src")).toBe("/demo/speakers/priya-shah.svg");
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(document.body.querySelector(".hover-info-popover")).toBeNull();
   });
 });
 
@@ -431,6 +517,8 @@ describe("presenter portal page", () => {
     expect(privateCard?.textContent).toContain("Approved ✓");
     expect(privateCard?.textContent).not.toContain("On the agenda for attendees");
     expect(container.querySelector(".presenter-portal")?.getAttribute("style")).toContain("overflow-x: clip");
+    expect(container.querySelector("main")?.getAttribute("style")).toContain("max-width: 960px");
+    expect(container.querySelector("main")?.getAttribute("style")).not.toContain("640");
   });
 
   it("OFF hides the sessions card", async () => {

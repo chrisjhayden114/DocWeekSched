@@ -3,6 +3,7 @@ import { z } from "zod";
 import { asyncHandler } from "../lib/authorization";
 import { validationErrorBody } from "../lib/errors";
 import { authRateLimit, testUnlimitedMax } from "../lib/rateLimit";
+import { createPresenterSessionNote } from "../lib/presenterNotes";
 import {
   createPortalUploadIntent,
   getPortalSessions,
@@ -47,6 +48,18 @@ portalRouter.get(
       });
     }
     return res.json(await getPortalSessions(token));
+  }),
+);
+
+portalRouter.post(
+  "/:token/sessions/:id/note",
+  portalRateLimit,
+  asyncHandler(async (req, res) => {
+    const token = String(req.params.token || "").trim();
+    const sessionId = String(req.params.id || "").trim();
+    const body = req.body && typeof req.body === "object" ? (req.body as { body?: unknown }).body : undefined;
+    const note = await createPresenterSessionNote({ token, sessionId, body });
+    return res.status(201).json(note);
   }),
 );
 

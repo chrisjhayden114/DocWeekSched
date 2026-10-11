@@ -23,10 +23,7 @@ import { applyBrandTokens, listHelpArticles } from "../lib/help/articles";
 import { HELP_SOURCE } from "../lib/help/helpContent";
 import { PEEK_POPOVER_MIN_WIDTH } from "../lib/sessionPeekSurface";
 import { SESSION_CSV_FIELDS } from "../lib/sessionCsv";
-import {
-  PRESENTER_PORTAL_SESSIONS_TITLE,
-  PRESENTER_ROSTER_EMPTY,
-} from "../lib/presenterRoster";
+import { PRESENTER_PORTAL_SESSIONS_TITLE } from "../lib/presenterRoster";
 
 const CONTENT_DIR = join(__dirname, "../content/help");
 
@@ -181,12 +178,32 @@ describe("HELP-3 — AGENDA-1/2/3 help sections", () => {
       expect(read("components/PresenterRosterCard.tsx")).toContain("Open in the conference schedule");
       expect(read("components/PresenterRosterCard.tsx")).toContain("Full program");
       expect(read("components/PresenterRosterCard.tsx")).toContain("Join online");
-      expect(md).toContain("their photo, or initials when they have no photo");
+      expect(md).toContain("a photo, or initials when there is no photo");
       expect(md).not.toContain("you can open the list");
-      expect(md).toContain(`**${PRESENTER_ROSTER_EMPTY}**`);
-      expect(md).toContain("**42 of 60 seats**");
-      expect(md).toContain("**+3 waiting**");
-      expect(md).toContain("**and N more who keep their profile private**");
+      expect(md).toContain("**42 joined · 60 seats · 3 waiting**");
+      expect(md).toContain("**2 names shown, 1 keep their profile private**");
+      expect(md).toContain("**Search by name, school, role, or anything in their profile**");
+      expect(md).toContain("**Show 24 more**");
+      expect(md).toContain("**Sort by affiliation**");
+      expect(md).toContain("**Showing the first 500**");
+      expect(md).toContain("**Esc**");
+    });
+
+    it("documents sending a note to people who joined", () => {
+      expect(md).toContain("## Sending a note to attendees");
+      expect(md).toContain("**Send a note to everyone who joined**");
+      expect(md).toContain(
+        "**Everyone who joined gets this as a notification. For one-to-one messages, sign in with the email this link was sent to and use Messages.**",
+      );
+      expect(md).toContain("**From the presenter**");
+      expect(md).toContain("does not send email");
+      expect(read("lib/presenterRoster.ts")).toContain(
+        'export const PRESENTER_NOTE_COMPOSER_LABEL = "Send a note to everyone who joined"',
+      );
+      expect(read("components/PresenterRosterCard.tsx")).toContain("PRESENTER_NOTE_COMPOSER_LABEL");
+      expect(read("lib/presenterRoster.ts")).toContain(
+        "Everyone who joined gets this as a notification. For one-to-one messages, sign in with the email this link was sent to and use Messages.",
+      );
     });
   });
 
@@ -199,6 +216,17 @@ describe("HELP-3 — AGENDA-1/2/3 help sections", () => {
       expect(md).toContain("**×**");
       expect(md).toContain("opens as a sheet from the bottom");
       expect(PEEK_POPOVER_MIN_WIDTH).toBe(768);
+    });
+
+    it("explains a note from the presenter", () => {
+      expect(md).toContain("## What is a note from the presenter?");
+      expect(md).toContain("**From the presenter**");
+      expect(md).toContain("**Note from**");
+      expect(md).toContain("not an email");
+      expect(read("lib/presenterRoster.ts")).toContain(
+        'export const PRESENTER_NOTES_HEADING = "From the presenter"',
+      );
+      expect(read("components/PresenterRosterCard.tsx")).toContain("PRESENTER_NOTES_HEADING");
     });
 
     it("answers where the slides are, in the card hint's own word", () => {

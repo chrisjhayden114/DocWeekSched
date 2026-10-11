@@ -26,7 +26,13 @@ import {
   DEMO_DECK_MIME,
   DEMO_DECK_SIZE_BYTES,
 } from "./demoDeck";
-import { DEMO_ROSTER_JOINERS, buildDemoFixtureSpec, demoConferenceWindow } from "./fixture";
+import {
+  DEMO_PRESENTER_NOTE,
+  DEMO_ROSTER_JOINERS,
+  DEMO_ROSTER_PRIVATE,
+  buildDemoFixtureSpec,
+  demoConferenceWindow,
+} from "./fixture";
 
 export const DEMO_RESET_JOB = "demo.event.reset";
 
@@ -401,10 +407,9 @@ async function seedDemoSharedDeck(
 }
 
 /**
- * PRESENTER-ROSTER-1 — Maya's portal shows a few named joiners on the
- * opening keynote so the roster can be demonstrated live. One joiner stays
- * directory-hidden so hiddenCount is visible. Capacity and a short waitlist
- * fill the "42 of 60 seats +N waiting" line at demo scale.
+ * PRESENTER-HOME-B — Maya's keynote has 14 directory-visible joiners and 2
+ * who stay private, plus one presenter note. The waitlist is unchanged.
+ * Profile fields, including bio, are copied through the existing user upsert.
  */
 async function seedDemoPresenterRoster(input: {
   eventId: string;
@@ -436,6 +441,7 @@ async function seedDemoPresenterRoster(input: {
   });
 
   const passwordHash = await hashPassword("DemoRoster.not-for-login.1");
+  const profiles = [...DEMO_ROSTER_JOINERS, ...DEMO_ROSTER_PRIVATE];
   const people: Array<{
     email: string;
     name: string;
@@ -443,34 +449,20 @@ async function seedDemoPresenterRoster(input: {
     directoryOptIn: boolean;
     joining: boolean;
   }> = [
-    {
-      email: "priya.shah@demo.readyhall.com",
-      name: "Priya Shah",
-      affiliation: "Riverside School District",
+    ...DEMO_ROSTER_JOINERS.map((joiner) => ({
+      email: joiner.email,
+      name: joiner.name,
+      affiliation: joiner.affiliation,
       directoryOptIn: true,
       joining: true,
-    },
-    {
-      email: "tom.hale@demo.readyhall.com",
-      name: "Tom Hale",
-      affiliation: "Northbridge Academy",
-      directoryOptIn: true,
-      joining: true,
-    },
-    {
-      email: "sam.ortiz@demo.readyhall.com",
-      name: "Sam Ortiz",
-      affiliation: "Open Learning Collaborative",
-      directoryOptIn: true,
-      joining: true,
-    },
-    {
-      email: "hidden.joiner@demo.readyhall.com",
-      name: "Jordan Ellis",
-      affiliation: "Visitor",
+    })),
+    ...DEMO_ROSTER_PRIVATE.map((joiner) => ({
+      email: joiner.email,
+      name: joiner.name,
+      affiliation: joiner.affiliation,
       directoryOptIn: false,
       joining: true,
-    },
+    })),
     {
       email: "wait-1@demo.readyhall.com",
       name: "Alex Kim",
@@ -496,23 +488,23 @@ async function seedDemoPresenterRoster(input: {
 
   let waitPosition = 1;
   for (const person of people) {
-    // Profile fields for the three named joiners come from the fixture.
-    // Who joins, who is hidden, and the waitlist are unchanged.
-    const profile = DEMO_ROSTER_JOINERS.find((joiner) => joiner.name === person.name);
+    const profile = profiles.find((joiner) => joiner.name === person.name);
     const user = await prisma.user.upsert({
       where: { email: person.email },
       update: {
         name: person.name,
         affiliation: profile?.affiliation ?? person.affiliation,
         title: profile?.title ?? null,
-        photoUrl: profile?.photoUrl ?? null,
+        photoUrl: profile && "photoUrl" in profile ? profile.photoUrl ?? null : null,
+        bio: profile?.bio ?? null,
       },
       create: {
         email: person.email,
         name: person.name,
         affiliation: profile?.affiliation ?? person.affiliation,
         title: profile?.title ?? null,
-        photoUrl: profile?.photoUrl ?? null,
+        photoUrl: profile && "photoUrl" in profile ? profile.photoUrl ?? null : null,
+        bio: profile?.bio ?? null,
         passwordHash,
         role: "ATTENDEE",
       },
@@ -546,6 +538,14 @@ async function seedDemoPresenterRoster(input: {
       waitPosition += 1;
     }
   }
+
+  await prisma.presenterNote.create({
+    data: {
+      sessionId: keynote.id,
+      speakerId: input.speakerId,
+      body: DEMO_PRESENTER_NOTE,
+    },
+  });
 }
 
 /**

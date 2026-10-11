@@ -586,7 +586,13 @@ sessionsRouter.get(
       throw new HttpError(404, { error: "Session not found" });
     }
 
-    return res.json(full);
+    const presenterNotes = await prisma.presenterNote.findMany({
+      where: { sessionId: session.id },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { id: true, body: true, createdAt: true },
+    });
+
+    return res.json({ ...full, presenterNotes });
   }),
 );
 

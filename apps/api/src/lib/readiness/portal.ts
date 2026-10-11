@@ -361,6 +361,7 @@ export async function resolvePortalAccess(rawToken: string, now = new Date()) {
           logoUrl: true,
           brandColor: true,
           presenterRosterVisibility: true,
+          presenterNotesEnabled: true,
           // ORG-1 — fallback logo for an event that never uploaded one.
           organization: { select: { logoUrl: true } },
         },
@@ -511,8 +512,9 @@ export async function getPortalSessions(rawToken: string, now = new Date()) {
     eventId: access.eventId,
     sessionIds,
     visibility,
+    includeNotes: true,
   });
-  return { sessions };
+  return { sessions, presenterNotesEnabled: access.event.presenterNotesEnabled };
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

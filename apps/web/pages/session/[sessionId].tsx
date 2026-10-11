@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DELETED_PARTICIPANT_LABEL, resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue, type PresenterRosterSession } from "@event-app/shared";
-import { SessionPresenterRosterPanel } from "../../components/PresenterRosterCard";
+import { PresenterSessionNotes, SessionPresenterRosterPanel } from "../../components/PresenterRosterCard";
 import { AppShell, type ShellNavGroup } from "../../components/AppShell";
 import { MainNavIcon } from "../../components/dashboardNavIcons";
 import { ListSkeleton } from "../../components/ListState";
@@ -95,6 +95,7 @@ type Session = {
     user: Pick<User, "id" | "name" | "email" | "photoUrl">;
   }[];
   likes?: { userId: string; user: Pick<User, "id" | "name" | "email" | "photoUrl"> }[];
+  presenterNotes?: { id: string; body: string; createdAt: string }[];
 };
 
 type ThreadAuthor = { id: string; name: string; role: string; photoUrl?: string | null };
@@ -778,6 +779,7 @@ export default function SessionPage() {
             {session.description && (
               <p style={{ margin: "0 0 12px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{session.description}</p>
             )}
+            <PresenterSessionNotes notes={session.presenterNotes ?? []} />
             <div className="schedule-links" style={{ marginBottom: 12 }}>
               {session.zoomLink && <OnlineMeetingLink href={session.zoomLink} />}
               {session.recordingUrl && (

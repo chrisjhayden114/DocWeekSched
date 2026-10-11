@@ -7,8 +7,11 @@ import {
   PRESENTER_ROSTER_EMPTY,
   SESSION_PAGE_PRESENTER_ROSTER_TITLE,
   hasPresenterRosterNames,
+  presenterRosterHeadline,
   presenterRosterHiddenLine,
   presenterRosterJoinedLine,
+  presenterRosterMatchesQuery,
+  presenterRosterNamesShownLine,
   presenterRosterWaitlistLine,
 } from "../lib/presenterRoster";
 
@@ -49,6 +52,21 @@ describe("presenter roster view model", () => {
     expect(presenterRosterHiddenLine(0)).toBeNull();
     expect(presenterRosterHiddenLine(1)).toBe("and 1 more who keeps their profile private");
     expect(presenterRosterHiddenLine(4)).toBe("and 4 more who keep their profile private");
+  });
+
+  it("writes the scalable headline and matches a bio", () => {
+    expect(presenterRosterHeadline(countsSession)).toBe("42 joined · 60 seats · 3 waiting");
+    expect(
+      presenterRosterHeadline({ ...countsSession, inPersonCapacity: null, virtualCapacity: null, joinedCount: 0, waitlistCount: 0 }),
+    ).toBe("0 joined · 0 waiting");
+    expect(presenterRosterNamesShownLine(14, 2)).toBe("14 names shown, 2 keep their profile private");
+    expect(
+      presenterRosterMatchesQuery(
+        { displayName: "Priya Shah", title: "Teacher", affiliation: "Riverside", bio: "keeps bees" },
+        "BEES",
+      ),
+    ).toBe(true);
+    expect(presenterRosterMatchesQuery({ displayName: "Priya Shah" }, "bees")).toBe(false);
   });
 
   it("treats a missing attendees array as COUNTS, not an empty NAMES list", () => {

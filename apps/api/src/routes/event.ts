@@ -143,6 +143,12 @@ const eventSchema = z.object({
    * "leave it alone" is `undefined`.
    */
   presenterRosterVisibility: z.enum(PRESENTER_ROSTER_VISIBILITIES).optional(),
+  /**
+   * PRESENTER-HOME-B — checkbox in More options. Absent leaves the stored
+   * value (default true). false hides the portal form and the note route
+   * returns 403.
+   */
+  presenterNotesEnabled: z.boolean().optional(),
 });
 
 const publicEventSelect = {
@@ -474,6 +480,9 @@ eventRouter.put(
         ...(parsed.data.presenterRosterVisibility === undefined
           ? {}
           : { presenterRosterVisibility: parsed.data.presenterRosterVisibility }),
+        ...(parsed.data.presenterNotesEnabled === undefined
+          ? {}
+          : { presenterNotesEnabled: parsed.data.presenterNotesEnabled }),
         timezone: parsed.data.timezone,
         startDate: new Date(parsed.data.startDate),
         endDate: new Date(parsed.data.endDate),

@@ -20,6 +20,7 @@ import { EventBrandingFields } from "./EventBrandingFields";
 import { EventOrganizationTransfer } from "./EventOrganizationTransfer";
 import { toLocalInputValueInTimeZone, zonedDateTimeLocalToIso } from "../../lib/eventTimezone";
 import { organizerFetch } from "../../lib/organizerApi";
+import { PRESENTER_NOTES_SETTING_LABEL } from "../../lib/presenterRoster";
 
 export type EventSettingsEvent = {
   id: string;
@@ -40,6 +41,8 @@ export type EventSettingsEvent = {
   materialsVisibility?: string | null;
   /** PRESENTER-ROSTER-1 — OFF | COUNTS | NAMES. Absent reads as COUNTS. */
   presenterRosterVisibility?: string | null;
+  /** Absent on an older payload reads as on. */
+  presenterNotesEnabled?: boolean | null;
   /** ORG-2 — gates the draft-only "Move to another organization" section. */
   status?: string;
 };
@@ -76,6 +79,7 @@ type FormState = {
   cfpLabel: string;
   materialsVisibility: MaterialsVisibility;
   presenterRosterVisibility: PresenterRosterVisibility;
+  presenterNotesEnabled: boolean;
 };
 
 function initialForm(event: EventSettingsEvent): FormState {
@@ -97,6 +101,7 @@ function initialForm(event: EventSettingsEvent): FormState {
     cfpLabel: event.cfpLabel || "",
     materialsVisibility: materialsVisibilityOrDefault(event.materialsVisibility),
     presenterRosterVisibility: presenterRosterVisibilityOrDefault(event.presenterRosterVisibility),
+    presenterNotesEnabled: event.presenterNotesEnabled !== false,
   };
 }
 
@@ -192,6 +197,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
           cfpLabel: form.cfpLabel.trim() || null,
           materialsVisibility: form.materialsVisibility,
           presenterRosterVisibility: form.presenterRosterVisibility,
+          presenterNotesEnabled: form.presenterNotesEnabled,
           timezone: form.timezone,
           startDate: startIso,
           endDate: endIso,
@@ -353,6 +359,14 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
                   options={presenterRosterVisibilitySelectOptions()}
                 />
                 <span className="help-text">{PRESENTER_ROSTER_VISIBILITY_SETTING_HELP}</span>
+              </label>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <input
+                  type="checkbox"
+                  checked={form.presenterNotesEnabled}
+                  onChange={(e) => set("presenterNotesEnabled", e.target.checked)}
+                />
+                <span>{PRESENTER_NOTES_SETTING_LABEL}</span>
               </label>
               <EventBrandingFields
                 value={{

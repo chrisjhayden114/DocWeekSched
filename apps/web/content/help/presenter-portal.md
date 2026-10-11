@@ -21,11 +21,17 @@ The page opens with your profile: your photo, or your initials when you have no 
 
 **Your sessions** lists each session you're presenting: the title, the day and time in the event's timezone (and your local time in parentheses when your browser's timezone differs), the room, the track, and the format when the organizer set one. The description is shown in full, and each paper lists its title, abstract, and authors, with the presenting author in bold. Each card links to **Open in the conference schedule** and **Full program**. **Join online** appears only when that session has an online link.
 
-Next to that is how many people have joined — **42 of 60 seats** when the organizer set a capacity, and **+3 waiting** if anyone is on the waitlist.
+The line under each session reads **42 joined · 60 seats · 3 waiting** when 42 people have joined a session of 60 seats and 3 are waiting. When the organizer allows names, a second line reads **2 names shown, 1 keep their profile private** — how many directory-visible names are in the list, and how many people who joined stay unnamed.
 
-When the organizer allows names, each person who is visible in the attendee directory is a card: their photo, or initials when they have no photo, then their name, title, and affiliation. Anyone else is counted but not named, shown as **and N more who keep their profile private**. If nobody has joined yet, it says **Nobody has added this session yet.**
+Those names are a grid of small cards: a photo, or initials when there is no photo, then the name, and the title and affiliation on one line. Search with **Search by name, school, role, or anything in their profile**. It looks through the whole list — name, title, affiliation, and the bio when that person shows a directory profile — not only the cards on screen. Hover a card, or tap it, to open the larger photo, name, title, affiliation, and the full bio. **Esc** closes it. The grid shows 24 people at a time; **Show 24 more** reveals the next 24. **Sort by affiliation** groups the cards by school or organization. If the list was cut off, it says **Showing the first 500**.
 
 The list loads when you open the page. It does not update on its own — refresh if you want a later count. Some events hide this card entirely.
+
+## Sending a note to attendees
+
+Under the roster, **Send a note to everyone who joined** is a text box with a 600-character counter and **Send**. **Everyone who joined gets this as a notification. For one-to-one messages, sign in with the email this link was sent to and use Messages.**
+
+Notes you have already sent are listed there, newest first. The same text appears on the session page for attendees, under **From the presenter**. This does not send email. If the organizer has turned notes off, the box is not shown.
 
 ## The link expires after 30 days
 

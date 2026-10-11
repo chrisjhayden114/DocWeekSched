@@ -19,8 +19,10 @@ import {
   shapePortalEvent,
   shapePortalSessionDetail,
   shapePortalSpeaker,
+  capPresenterRosterAttendees,
+  PRESENTER_ROSTER_ATTENDEE_CAP,
 } from "@event-app/shared";
-import { DEMO_ROSTER_JOINERS, buildDemoFixtureSpec } from "../lib/demoEvent/fixture";
+import { DEMO_PRESENTER_NOTE, DEMO_ROSTER_JOINERS, DEMO_ROSTER_PRIVATE, buildDemoFixtureSpec } from "../lib/demoEvent/fixture";
 
 function identityKeys(value: unknown): string[] {
   const found: string[] = [];
@@ -31,7 +33,7 @@ function identityKeys(value: unknown): string[] {
       return;
     }
     for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
-      if (key === "email" || key === "userId") found.push(key);
+      if (key === "email" || key === "userId" || key === "joinMode") found.push(key);
       walk(child);
     }
   };
@@ -87,6 +89,7 @@ describe("presenter home payload", () => {
       title: "Grade 4 teacher",
       affiliation: "Riverside School District",
       photoUrl: "/demo/speakers/priya-shah.svg",
+      bio: "Plans the morning block so reading is not the thing that gets squeezed.",
     };
     const paperAuthors = [
       { name: "Maya Chen", isPresenter: true, speakerId: "spk_1", email: "maya@example.com" },
@@ -145,7 +148,23 @@ describe("presenter home payload", () => {
       title: "Grade 4 teacher",
       affiliation: "Riverside School District",
       photoUrl: "/demo/speakers/priya-shah.svg",
+      bio: "Plans the morning block so reading is not the thing that gets squeezed.",
     });
+    const blankBio = shapeDirectoryVisibleAttendee({ name: "Tom Hale", bio: "  " });
+    expect(blankBio.bio).toBeUndefined();
+    expect(Object.keys(blankBio)).not.toContain("email");
+    expect(Object.keys(blankBio)).not.toContain("userId");
+    expect(Object.keys(blankBio)).not.toContain("joinMode");
+  });
+
+  it("caps named attendees at 500 and sets truncated only past the cap", () => {
+    const under = capPresenterRosterAttendees(Array.from({ length: PRESENTER_ROSTER_ATTENDEE_CAP }, (_, i) => i));
+    expect(under.truncated).toBe(false);
+    expect(under.attendees).toHaveLength(PRESENTER_ROSTER_ATTENDEE_CAP);
+    const over = capPresenterRosterAttendees(Array.from({ length: PRESENTER_ROSTER_ATTENDEE_CAP + 1 }, (_, i) => i));
+    expect(over.truncated).toBe(true);
+    expect(over.attendees).toHaveLength(PRESENTER_ROSTER_ATTENDEE_CAP);
+    expect(over.attendees[0]).toBe(0);
   });
 
   it("keeps a directory name that has no title or photo in the old shape", () => {
@@ -171,13 +190,22 @@ describe("presenter home payload", () => {
     expect(keynote?.items?.[0]?.abstract.trim().length).toBeGreaterThan(0);
     expect(keynote?.items?.[0]?.authors).toHaveLength(2);
     expect(keynote?.items?.[0]?.authors.some((author) => author.isPresenter)).toBe(true);
-    expect(DEMO_ROSTER_JOINERS.map((joiner) => joiner.name).sort()).toEqual(
-      ["Priya Shah", "Sam Ortiz", "Tom Hale"].sort(),
+    expect(DEMO_ROSTER_JOINERS).toHaveLength(14);
+    expect(DEMO_ROSTER_PRIVATE).toHaveLength(2);
+    expect(DEMO_ROSTER_JOINERS.map((joiner) => joiner.name)).toEqual(
+      expect.arrayContaining(["Priya Shah", "Sam Ortiz", "Tom Hale"]),
     );
-    for (const joiner of DEMO_ROSTER_JOINERS) {
-      expect(joiner.title.trim().length).toBeGreaterThan(0);
-      expect(joiner.affiliation.trim().length).toBeGreaterThan(0);
-      expect(joiner.photoUrl).toMatch(/^\/demo\/speakers\/.+\.svg$/);
+    for (const joiner of [...DEMO_ROSTER_JOINERS, ...DEMO_ROSTER_PRIVATE]) {
+      expect(joiner.bio).not.toMatch(/\n/);
+      expect(joiner.bio.trim().length).toBeGreaterThan(10);
     }
+    for (const joiner of DEMO_ROSTER_JOINERS) {
+      if ("photoUrl" in joiner && joiner.photoUrl) {
+        expect(joiner.photoUrl).toMatch(/^\/demo\/speakers\/.+\.svg$/);
+      }
+    }
+    expect(DEMO_ROSTER_JOINERS.filter((joiner) => "photoUrl" in joiner && joiner.photoUrl)).toHaveLength(3);
+    expect(DEMO_PRESENTER_NOTE.trim().length).toBeGreaterThan(0);
+    expect(DEMO_PRESENTER_NOTE.length).toBeLessThanOrEqual(600);
   });
 });

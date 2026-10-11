@@ -67,6 +67,10 @@ If your organizer issues certificates, you get an email with a **download link**
 
 If the organizer published a fee, the notice is informational: pay via their link or instructions (card, purchase order, or check). {{product}} never takes the money. Your status — unpaid, PO on file, paid, waived, or refunded — is recorded only by the organizer.
 
+## What is a note from the presenter?
+
+A presenter can send a short note to everyone who joined their session. It arrives as a notification whose title is **Note from** the presenter's name **about** the session title, and the same text is on the session page under **From the presenter**, newest first. It is plain text. It is not an email, and it is not a private message. For a one-to-one conversation, use Messages.
+
 ## Can I message other attendees?
 
 Only if your organizer enabled messaging or community features for that event. Disabled features do not appear in the navigation. See [Use Community](/help/community) for the five Community channels.

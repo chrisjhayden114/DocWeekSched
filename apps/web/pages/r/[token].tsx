@@ -544,6 +544,7 @@ export default function PresenterPortalPage() {
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [rosterSessions, setRosterSessions] = useState<PresenterRosterSession[] | null>(null);
   const [rosterTimezone, setRosterTimezone] = useState("UTC");
+  const [notesEnabled, setNotesEnabled] = useState(true);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -590,9 +591,11 @@ export default function PresenterPortalPage() {
       }
       const json = (await res.json().catch(() => ({}))) as {
         sessions?: PresenterRosterSession[];
+        presenterNotesEnabled?: boolean;
         event?: { timezone?: string };
       };
       setRosterSessions(Array.isArray(json.sessions) ? json.sessions : []);
+      setNotesEnabled(json.presenterNotesEnabled !== false);
     })().catch(() => {
       if (!cancelled) setRosterSessions(null);
     });
@@ -796,7 +799,7 @@ export default function PresenterPortalPage() {
           overflow: visible;
         }
       `}</style>
-      <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 48px", display: "grid", gap: 16, minWidth: 0 }}>
+      <main style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 48px", display: "grid", gap: 16, minWidth: 0 }}>
         {denial ? (
           <section className="card" style={{ padding: 24 }}>
             <h1 className="text-display-sm" style={{ marginTop: 0 }}>
@@ -849,6 +852,8 @@ export default function PresenterPortalPage() {
                 sessions={rosterSessions}
                 timezone={rosterTimezone}
                 eventSlug={view.event.slug}
+                portalToken={token}
+                notesEnabled={notesEnabled}
               />
             ) : null}
             {view.assignments.map((a) => {

@@ -8267,6 +8267,89 @@ button.schedule-meta-chip:hover {
   background: var(--track-color, var(--gray-300));
 }
 
+/* PRESENTER-HOME-B — format chip matches the track chip's padding and type,
+   with a neutral fill, and stays on the same row instead of stretching. */
+.presenter-chip-row {
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.session-peek-format {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--gray-100);
+  color: var(--text-color);
+}
+
+.presenter-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+@media (max-width: 959px) {
+  .presenter-roster-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 479px) {
+  .presenter-roster-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.presenter-roster-grid > li > .hover-info {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  align-items: stretch;
+}
+
+.presenter-roster-grid .hover-info-label {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.presenter-roster-grid .hover-info-label:hover,
+.presenter-roster-grid .hover-info--label:hover .hover-info-label {
+  text-decoration: none;
+}
+
+.presenter-roster-person {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2);
+  box-sizing: border-box;
+}
+
+.presenter-roster-avatar.card-avatar {
+  width: 40px;
+  height: 40px;
+  margin-left: 0;
+  flex: none;
+  font-size: 14px;
+}
+
+.presenter-roster-name,
+.presenter-roster-meta {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
 /* d. Description: six lines, then "More" expands in place. */
 .session-peek-desc {
   margin: var(--space-3) 0 0;

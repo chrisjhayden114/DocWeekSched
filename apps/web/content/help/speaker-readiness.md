@@ -93,6 +93,10 @@ Turning **Speaker & Session Readiness** off on the **Features** tab withdraws al
 
 Presenters open this from their personal link. Names come only from attendees who are visible in the attendee directory; everyone else is counted but not named.
 
+## Notes presenters can send
+
+**Event settings → More options → Presenters can send notes to attendees who joined their session** is on unless you turn it off. A presenter writes from their personal link. Everyone who joined that session gets an in-app notification, and the note stays on the session page under **From the presenter**. Turning it off hides the form. It does not send email.
+
 ## The reminders, and what they cost you
 
 Nothing. Each dated item is chased automatically:

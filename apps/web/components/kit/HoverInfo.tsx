@@ -147,6 +147,8 @@ export function HoverInfo({
   const [bodyEl, setBodyEl] = useState<HTMLParagraphElement | null>(null);
   const openTimer = useRef<number | null>(null);
   const closeTimer = useRef<number | null>(null);
+  // Esc moves focus back to the trigger. That focus must not reopen the card.
+  const suppressFocusOpen = useRef(false);
   const tooltipId = useId();
   const labelMode = trigger === "label";
   const showIcon = !hideIcon && !labelMode;
@@ -169,6 +171,11 @@ export function HoverInfo({
     clearTimers();
     setOpen(true);
   }, [clearTimers, resolvedImageSrc]);
+
+  const openFromFocus = useCallback(() => {
+    if (suppressFocusOpen.current) return;
+    openNow();
+  }, [openNow]);
 
   const scheduleOpen = useCallback(() => {
     if (resolvedImageSrc) preloadImage(resolvedImageSrc);
@@ -208,7 +215,15 @@ export function HoverInfo({
       if (event.key === "Escape") {
         event.stopPropagation();
         close();
-        (triggerRef.current ?? iconRef.current)?.focus();
+        const trigger = triggerRef.current ?? iconRef.current;
+        if (!trigger) return;
+        if (document.activeElement !== trigger) {
+          suppressFocusOpen.current = true;
+          trigger.focus();
+          queueMicrotask(() => {
+            suppressFocusOpen.current = false;
+          });
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -288,7 +303,7 @@ export function HoverInfo({
       onMouseLeave={() => {
         if (canHover()) scheduleClose();
       }}
-      onFocusCapture={labelMode ? openNow : undefined}
+      onFocusCapture={labelMode ? openFromFocus : undefined}
     >
       {labelButton ? (
         <button
@@ -297,7 +312,7 @@ export function HoverInfo({
           className="hover-info-label"
           aria-label={`About ${title}`}
           aria-describedby={open ? tooltipId : undefined}
-          onFocus={openNow}
+          onFocus={openFromFocus}
           onBlur={onBlur}
           onClick={() => {
             clearTimers();
@@ -324,7 +339,7 @@ export function HoverInfo({
           className="hover-info-trigger"
           aria-label={`About ${title}`}
           aria-describedby={open ? tooltipId : undefined}
-          onFocus={openNow}
+          onFocus={openFromFocus}
           onBlur={onBlur}
           onClick={() => {
             clearTimers();

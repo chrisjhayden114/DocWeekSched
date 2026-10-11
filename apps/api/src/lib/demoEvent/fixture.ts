@@ -42,15 +42,25 @@ export type DemoFixtureSpec = {
     sortOrder: number;
   }>;
   /**
-   * PRESENTER-HOME-A — directory-visible people on Maya's keynote.
-   * Titles, affiliations, and portraits live here; reset.ts copies them onto
-   * the existing joiner rows and does not change who joins or who is hidden.
+   * PRESENTER-HOME-B — 14 directory-visible people on Maya's keynote, each
+   * with a one-line bio. Portraits stay on the original three. reset.ts copies
+   * these fields through the existing user upsert.
    */
   rosterJoiners: Array<{
     name: string;
+    email: string;
     title: string;
     affiliation: string;
-    photoUrl: string;
+    bio: string;
+    photoUrl?: string;
+  }>;
+  /** Two JOINING people who keep their directory profile private. */
+  rosterPrivate: Array<{
+    name: string;
+    email: string;
+    title: string;
+    affiliation: string;
+    bio: string;
   }>;
   sessions: Array<{
     title: string;
@@ -80,29 +90,134 @@ export type DemoFixtureSpec = {
 };
 
 /**
- * The three named joiners on Maya's opening keynote. Portraits are the same
- * flat style as the speaker SVGs under apps/web/public/demo/speakers/.
+ * Named joiners on Maya's opening keynote. The first three keep the demo
+ * portraits. Everyone else is initials. Each bio is one line.
  */
 export const DEMO_ROSTER_JOINERS = [
   {
     name: "Priya Shah",
+    email: "priya.shah@demo.readyhall.com",
     title: "Grade 4 teacher",
     affiliation: "Riverside School District",
+    bio: "Plans the morning block so reading is not the thing that gets squeezed.",
     photoUrl: "/demo/speakers/priya-shah.svg",
   },
   {
     name: "Sam Ortiz",
+    email: "sam.ortiz@demo.readyhall.com",
     title: "Literacy specialist",
     affiliation: "Open Learning Collaborative",
+    bio: "Sits with grade-level teams while they choose what to stop assigning.",
     photoUrl: "/demo/speakers/sam-ortiz.svg",
   },
   {
     name: "Tom Hale",
+    email: "tom.hale@demo.readyhall.com",
     title: "Math coach",
     affiliation: "Northbridge Academy",
+    bio: "Watches how a problem is launched, not how many problems get finished.",
     photoUrl: "/demo/speakers/tom-hale.svg",
   },
+  {
+    name: "Amina Farah",
+    email: "amina.farah@demo.readyhall.com",
+    title: "Science lead",
+    affiliation: "Riverside School District",
+    bio: "Keeps lab days short enough that the discussion still fits.",
+  },
+  {
+    name: "Ben Cho",
+    email: "ben.cho@demo.readyhall.com",
+    title: "Grade 2 teacher",
+    affiliation: "Harbor Elementary",
+    bio: "Protects the first twenty minutes for reading aloud.",
+  },
+  {
+    name: "Carmen Diaz",
+    email: "carmen.diaz@demo.readyhall.com",
+    title: "Assistant principal",
+    affiliation: "Northbridge Academy",
+    bio: "Looks at the master schedule for meetings that could be a note.",
+  },
+  {
+    name: "David Okoye",
+    email: "david.okoye@demo.readyhall.com",
+    title: "Counselor",
+    affiliation: "Open Learning Collaborative",
+    bio: "Asks which part of the day students actually get a quiet stretch.",
+  },
+  {
+    name: "Fatima Noor",
+    email: "fatima.noor@demo.readyhall.com",
+    title: "Librarian",
+    affiliation: "Harbor Elementary",
+    bio: "Runs the library as a place to finish a book, not a rotation.",
+  },
+  {
+    name: "Greg Walsh",
+    email: "greg.walsh@demo.readyhall.com",
+    title: "PE teacher",
+    affiliation: "Riverside School District",
+    bio: "Treats outdoor time as part of the day, not a reward.",
+  },
+  {
+    name: "Hannah Brooks",
+    email: "hannah.brooks@demo.readyhall.com",
+    title: "Grade 6 teacher",
+    affiliation: "Westfield Middle School",
+    bio: "Cuts the warm-up when the lesson is the thing that matters.",
+  },
+  {
+    name: "Ivan Petrov",
+    email: "ivan.petrov@demo.readyhall.com",
+    title: "Instructional aide",
+    affiliation: "Westfield Middle School",
+    bio: "Stays with one group instead of circulating the whole period.",
+  },
+  {
+    name: "Julia Nguyen",
+    email: "julia.nguyen@demo.readyhall.com",
+    title: "Reading specialist",
+    affiliation: "Harbor Elementary",
+    bio: "Pulls small groups only after the whole class has started reading.",
+  },
+  {
+    name: "Kenji Mori",
+    email: "kenji.mori@demo.readyhall.com",
+    title: "Grade 5 teacher",
+    affiliation: "Northbridge Academy",
+    bio: "Ends the day with one question, not a packet.",
+  },
+  {
+    name: "Lila Grant",
+    email: "lila.grant@demo.readyhall.com",
+    title: "Special education teacher",
+    affiliation: "Open Learning Collaborative",
+    bio: "Writes the accommodation into the lesson instead of beside it.",
+  },
 ] as const;
+
+/** JOINING attendees who stay out of the directory. Counted, not named. */
+export const DEMO_ROSTER_PRIVATE = [
+  {
+    name: "Jordan Ellis",
+    email: "hidden.joiner@demo.readyhall.com",
+    title: "Visitor",
+    affiliation: "Visitor",
+    bio: "Joined the keynote and keeps a directory profile private.",
+  },
+  {
+    name: "Quinn Adler",
+    email: "quinn.adler@demo.readyhall.com",
+    title: "Guest",
+    affiliation: "Guest",
+    bio: "Joined the keynote without opting into the attendee directory.",
+  },
+] as const;
+
+/** One note already on the keynote so the presenter page lists it. */
+export const DEMO_PRESENTER_NOTE =
+  "I'll start with one part of the day worth protecting, then leave time for the room.";
 
 /** Anchor: next Monday-ish from a fixed epoch so resets stay stable within a week. */
 export function demoConferenceWindow(now = new Date()): { start: Date; end: Date } {
@@ -133,6 +248,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
     startOffsetDays: 0,
     endOffsetDays: DEMO_EVENT_DAYS - 1,
     rosterJoiners: [...DEMO_ROSTER_JOINERS],
+    rosterPrivate: [...DEMO_ROSTER_PRIVATE],
     tracks: [
       { name: "Keynote", color: "#0033A0" },
       { name: "Workshops", color: "#0F6B4C" },

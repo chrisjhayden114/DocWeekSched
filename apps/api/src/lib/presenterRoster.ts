@@ -9,10 +9,12 @@
 
 import { SessionAttendanceStatus } from "@prisma/client";
 import {
+  capPresenterRosterAttendees,
   presenterRosterVisibilityOrDefault,
   shapeDirectoryVisibleAttendee,
   shapePortalSessionDetail,
   type PresenterRosterAttendee,
+  type PresenterRosterNote,
   type PresenterRosterSession,
   type PresenterRosterVisibility,
 } from "@event-app/shared";
@@ -51,6 +53,8 @@ function shapeRosterSession(input: {
   visibility: PresenterRosterVisibility;
   attendees?: PresenterRosterAttendee[];
   hiddenCount?: number;
+  truncated?: boolean;
+  notes?: PresenterRosterNote[];
 }): PresenterRosterSession {
   const row: PresenterRosterSession = {
     id: input.id,
@@ -74,7 +78,9 @@ function shapeRosterSession(input: {
   if (input.visibility === "NAMES") {
     row.attendees = input.attendees ?? [];
     row.hiddenCount = input.hiddenCount ?? 0;
+    if (input.truncated) row.truncated = true;
   }
+  if (input.notes) row.notes = input.notes;
   return row;
 }
 
@@ -119,9 +125,9 @@ async function loadSessionsForRoster(sessionIds: string[]) {
 async function namedJoiningAttendees(
   eventId: string,
   sessionIds: string[],
-): Promise<Map<string, { visible: PresenterRosterAttendee[]; hiddenCount: number }>> {
-  const out = new Map<string, { visible: PresenterRosterAttendee[]; hiddenCount: number }>();
-  for (const id of sessionIds) out.set(id, { visible: [], hiddenCount: 0 });
+): Promise<Map<string, { visible: PresenterRosterAttendee[]; hiddenCount: number; truncated: boolean }>> {
+  const out = new Map<string, { visible: PresenterRosterAttendee[]; hiddenCount: number; truncated: boolean }>();
+  for (const id of sessionIds) out.set(id, { visible: [], hiddenCount: 0, truncated: false });
   if (sessionIds.length === 0) return out;
 
   const rows = await prisma.sessionAttendance.findMany({
@@ -131,7 +137,7 @@ async function namedJoiningAttendees(
     },
     select: {
       sessionId: true,
-      user: { select: { id: true, name: true, title: true, affiliation: true, photoUrl: true } },
+      user: { select: { id: true, name: true, title: true, affiliation: true, photoUrl: true, bio: true } },
     },
   });
 
@@ -160,6 +166,26 @@ async function namedJoiningAttendees(
     bucket.visible.sort((a, b) =>
       a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" }),
     );
+    const capped = capPresenterRosterAttendees(bucket.visible);
+    bucket.visible = capped.attendees;
+    bucket.truncated = capped.truncated;
+  }
+  return out;
+}
+
+async function notesForSessions(sessionIds: string[]): Promise<Map<string, PresenterRosterNote[]>> {
+  const out = new Map<string, PresenterRosterNote[]>();
+  for (const id of sessionIds) out.set(id, []);
+  if (sessionIds.length === 0) return out;
+  const rows = await prisma.presenterNote.findMany({
+    where: { sessionId: { in: sessionIds } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { id: true, sessionId: true, body: true, createdAt: true },
+  });
+  for (const row of rows) {
+    const bucket = out.get(row.sessionId);
+    if (!bucket) continue;
+    bucket.push({ id: row.id, body: row.body, createdAt: row.createdAt.toISOString() });
   }
   return out;
 }
@@ -168,12 +194,15 @@ export async function buildPresenterRosterSessions(input: {
   eventId: string;
   sessionIds: string[];
   visibility: PresenterRosterVisibility;
+  /** Portal home lists notes the presenter already sent. The session-page roster does not. */
+  includeNotes?: boolean;
 }): Promise<PresenterRosterSession[]> {
   const sessions = await loadSessionsForRoster(input.sessionIds);
   const names =
     input.visibility === "NAMES"
       ? await namedJoiningAttendees(input.eventId, sessions.map((s) => s.id))
       : null;
+  const notes = input.includeNotes ? await notesForSessions(sessions.map((s) => s.id)) : null;
 
   return sessions.map((session) => {
     const named = names?.get(session.id);
@@ -203,6 +232,8 @@ export async function buildPresenterRosterSessions(input: {
       visibility: input.visibility,
       attendees: named?.visible,
       hiddenCount: named?.hiddenCount,
+      truncated: named?.truncated,
+      notes: notes?.get(session.id),
     });
   });
 }

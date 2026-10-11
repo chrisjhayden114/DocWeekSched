@@ -59,7 +59,38 @@ export type PresenterRosterAttendee = {
   title?: string;
   affiliation?: string;
   photoUrl?: string;
+  /**
+   * Directory-visible bio. Same rule as title and affiliation: only present
+   * when this attendee is in the directory and the field is non-empty.
+   */
+  bio?: string;
 };
+
+/** Named attendees returned for one session. The rest set `truncated`. */
+export const PRESENTER_ROSTER_ATTENDEE_CAP = 500;
+
+export function capPresenterRosterAttendees<T>(rows: readonly T[]): {
+  attendees: T[];
+  truncated: boolean;
+} {
+  if (rows.length <= PRESENTER_ROSTER_ATTENDEE_CAP) {
+    return { attendees: [...rows], truncated: false };
+  }
+  return { attendees: rows.slice(0, PRESENTER_ROSTER_ATTENDEE_CAP), truncated: true };
+}
+
+/** A note the presenter already sent. No speaker id, no email. */
+export type PresenterRosterNote = {
+  id: string;
+  body: string;
+  createdAt: string;
+};
+
+export const PRESENTER_NOTE_MAX_CHARS = 600;
+
+export function presenterNoteNotificationTitle(speakerName: string, sessionTitle: string): string {
+  return `Note from ${speakerName} about ${sessionTitle}`;
+}
 
 export type PresenterRosterPaper = {
   title: string;
@@ -91,6 +122,10 @@ export type PresenterRosterSession = {
   attendees?: PresenterRosterAttendee[];
   /** Present only when visibility is NAMES — JOINING people who stay unnamed. */
   hiddenCount?: number;
+  /** Present only when the named list was cut at PRESENTER_ROSTER_ATTENDEE_CAP. */
+  truncated?: boolean;
+  /** Notes this presenter has sent, newest first. Portal sessions payload. */
+  notes?: PresenterRosterNote[];
 };
 
 function emptyToNull(value: string | null | undefined): string | null {
@@ -114,6 +149,7 @@ export function shapeDirectoryVisibleAttendee(user: {
   title?: string | null;
   affiliation?: string | null;
   photoUrl?: string | null;
+  bio?: string | null;
 }): PresenterRosterAttendee {
   const row: PresenterRosterAttendee = {
     displayName: emptyToNull(user.name) ?? "Attendee",
@@ -121,9 +157,11 @@ export function shapeDirectoryVisibleAttendee(user: {
   const title = optionalProfile(user.title);
   const affiliation = optionalProfile(user.affiliation);
   const photoUrl = optionalProfile(user.photoUrl);
+  const bio = optionalProfile(user.bio);
   if (title) row.title = title;
   if (affiliation) row.affiliation = affiliation;
   if (photoUrl) row.photoUrl = photoUrl;
+  if (bio) row.bio = bio;
   return row;
 }
 
