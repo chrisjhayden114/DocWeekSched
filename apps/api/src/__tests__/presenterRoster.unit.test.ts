@@ -119,7 +119,7 @@ describe("presenter home payload", () => {
           id: "sess_1",
           ...shapePortalSessionDetail({
             description: "How organizers reduce noise without losing energy.",
-            trackName: "Keynote",
+            trackName: "Leadership",
             trackColor: "#0033A0",
             format: "keynote",
             zoomLink: null,

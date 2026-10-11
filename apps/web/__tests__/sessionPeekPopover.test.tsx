@@ -32,7 +32,7 @@ const SESSION = {
   title: "Opening keynote: Designing calm learning days",
   description: "How organizers reduce noise without losing energy.",
   room: { id: "r1", name: "Hall A" },
-  track: { id: "t1", name: "Keynote", color: "#0033A0" },
+  track: { id: "t1", name: "Leadership", color: "#0033A0" },
   startsAt: "2026-06-08T13:00:00.000Z",
   endsAt: "2026-06-08T14:00:00.000Z",
   speakers: [
@@ -575,7 +575,7 @@ describe("content", () => {
 
     // peekMeta's parts, rendered as nodes rather than one string.
     expect(pop.textContent).toContain("Mon, Jun 8 · 1:00 PM – 2:00 PM UTC");
-    expect(pop.querySelector(".session-peek-track")!.textContent).toContain("Keynote");
+    expect(pop.querySelector(".session-peek-track")!.textContent).toContain("Leadership");
     expect(pop.querySelector(".session-peek-track-dot")).not.toBeNull();
 
     const avatars = pop.querySelectorAll(".session-peek-avatar");

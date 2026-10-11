@@ -250,9 +250,9 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
     rosterJoiners: [...DEMO_ROSTER_JOINERS],
     rosterPrivate: [...DEMO_ROSTER_PRIVATE],
     tracks: [
-      { name: "Keynote", color: "#0033A0" },
-      { name: "Workshops", color: "#0F6B4C" },
-      { name: "Practice", color: "#8A4B08" },
+      { name: "Leadership", color: "#0033A0" },
+      { name: "Classroom practice", color: "#0F6B4C" },
+      { name: "Student support", color: "#8A4B08" },
     ],
     // Realistic rooms so the By-room schedule view demonstrates itself on the
     // flagship demo instead of grouping everything under "No room".

@@ -18,6 +18,7 @@ import {
   type PresenterRosterSession,
 } from "@event-app/shared";
 import { PresenterPortalSessionsCard } from "../components/PresenterRosterCard";
+import { RelatedSessionCard } from "../components/RelatedSessionCard";
 import { formatEventDateTime, formatEventTimeRange } from "../lib/dateFormat";
 import PresenterPortalPage from "../pages/r/[token]";
 import PublicEventPage, { type PublicEventView } from "../pages/e/[slug]";
@@ -162,7 +163,7 @@ const homeSession: PresenterRosterSession = {
   startsAt: "2027-03-01T17:00:00.000Z",
   endsAt: "2027-03-01T18:00:00.000Z",
   roomName: "Hall A",
-  trackName: "Keynote",
+  trackName: "Leadership",
   trackColor: "#0033A0",
   format: "keynote",
   zoomLink: "https://example.com/zoom",
@@ -221,7 +222,7 @@ describe("presenter home payload", () => {
         {
           ...shapePortalSessionDetail({
             description: homeSession.description ?? null,
-            trackName: "Keynote",
+            trackName: "Leadership",
             trackColor: "#0033A0",
             format: "keynote",
             zoomLink: null,
@@ -259,8 +260,8 @@ describe("presenter home session card", () => {
     const presenter = container.querySelector(".session-peek-paper-authors strong");
     expect(presenter?.textContent).toBe("Maya Chen");
     expect(container.textContent).toContain("Jonas Okonkwo");
-    expect(container.querySelector(".session-peek-track")?.textContent).toContain("Keynote");
-    expect(container.querySelector(".session-peek-format")).toBeNull();
+    expect(container.querySelector(".session-peek-track")?.textContent).toContain("Leadership");
+    expect(container.querySelector(".session-peek-format")?.textContent).toBe("Keynote");
     expect(container.textContent).toContain("Hall A");
     expect(container.textContent).toContain("42 joined · 60 seats · 3 waiting");
     expect(container.textContent).toContain("(");
@@ -601,7 +602,7 @@ const publicEvent: PublicEventView = {
       location: null,
       startsAt: "2027-03-01T17:00:00.000Z",
       endsAt: "2027-03-01T18:00:00.000Z",
-      trackName: "Keynote",
+      trackName: "Leadership",
       roomName: "Hall A",
       speakers: [],
       items: [],
@@ -652,7 +653,7 @@ describe("PRESENTER-HOME-C card polish", () => {
     const order = [
       "Earlier keynote",
       "Hall A",
-      "Keynote",
+      "Leadership",
       "How organizers reduce noise without losing energy.",
       "What a calm learning day actually protects",
       "42 joined · 60 seats · 3 waiting",
@@ -886,6 +887,28 @@ describe("PRESENTER-HOME-D related session cards", () => {
     const plain = cards[1]!;
     expect(plain.querySelector(".session-peek-track")).toBeNull();
     expect(plain.querySelector(".session-peek-format")).toBeNull();
+  });
+
+  it("hides the format chip when the track name equals the format label", () => {
+    render(
+      <RelatedSessionCard
+        eventSlug="demo"
+        timezone="America/Los_Angeles"
+        session={{
+          id: "rel-equal",
+          title: "Feedback block",
+          startsAt: "2027-03-02T17:00:00.000Z",
+          endsAt: "2027-03-02T18:00:00.000Z",
+          roomName: null,
+          speakers: [],
+          overlapsYours: false,
+          trackName: "Workshop",
+          format: "workshop",
+        }}
+      />,
+    );
+    expect(container.querySelector(".session-peek-track")?.textContent).toContain("Workshop");
+    expect(container.querySelector(".session-peek-format")).toBeNull();
   });
 });
 

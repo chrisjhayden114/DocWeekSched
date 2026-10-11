@@ -18,7 +18,7 @@ const row: PublicSessionRow = {
   startsAt: new Date("2026-06-08T16:00:00.000Z"),
   endsAt: new Date("2026-06-08T17:30:00.000Z"),
   format: "lightning",
-  track: { name: "Practice", color: "#8A4B08" },
+  track: { name: "Student support", color: "#8A4B08" },
   room: { id: "room-library", name: "Library" },
   sessionSpeakers: [
     {
@@ -59,8 +59,8 @@ describe("toPublicSession", () => {
     expect(toPublicSession(row).trackColor).toBe("#8A4B08");
     expect(toPublicSession({ ...row, track: null }).trackColor).toBeNull();
     // A track with no organizer color still names itself; the palette decides.
-    expect(toPublicSession({ ...row, track: { name: "Practice", color: null } })).toMatchObject({
-      trackName: "Practice",
+    expect(toPublicSession({ ...row, track: { name: "Student support", color: null } })).toMatchObject({
+      trackName: "Student support",
       trackColor: null,
     });
   });
@@ -89,7 +89,7 @@ describe("toPublicSession", () => {
       description: "Short talks from teams trying something new.",
       startsAt: "2026-06-08T16:00:00.000Z",
       endsAt: "2026-06-08T17:30:00.000Z",
-      trackName: "Practice",
+      trackName: "Student support",
       roomName: "Library",
     });
     expect(payload.items[0]).toMatchObject({ title: "Ten minutes of reading conferences, every day" });

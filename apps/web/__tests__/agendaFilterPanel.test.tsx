@@ -72,8 +72,8 @@ const FORMAT_OPTIONS = formatFilterOptions(
 );
 
 const TRACK_OPTIONS = [
-  { id: "t-keynote", label: "Keynote", dot: "#0033A0", count: 2 },
-  { id: "t-workshops", label: "Workshops", dot: "#0F6B4C", count: 2 },
+  { id: "t-keynote", label: "Leadership", dot: "#0033A0", count: 2 },
+  { id: "t-workshops", label: "Classroom practice", dot: "#0F6B4C", count: 2 },
 ];
 
 const ROOM_OPTIONS = [
@@ -166,7 +166,7 @@ describe("AgendaFilterRail — section order and a11y", () => {
 
   it("shows the track color dot, so the rows double as the legend", () => {
     render(<Rail />);
-    const dot = rowByLabel("Workshops").querySelector<HTMLElement>(".agenda-filter-dot");
+    const dot = rowByLabel("Classroom practice").querySelector<HTMLElement>(".agenda-filter-dot");
     expect(dot).not.toBeNull();
     expect(dot!.style.background).toBeTruthy();
   });
