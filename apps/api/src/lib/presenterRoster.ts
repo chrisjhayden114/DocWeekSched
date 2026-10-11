@@ -10,6 +10,8 @@
 import { SessionAttendanceStatus } from "@prisma/client";
 import {
   presenterRosterVisibilityOrDefault,
+  shapeDirectoryVisibleAttendee,
+  shapePortalSessionDetail,
   type PresenterRosterAttendee,
   type PresenterRosterSession,
   type PresenterRosterVisibility,
@@ -26,22 +28,22 @@ export function rosterVisibilityOf(value: unknown): PresenterRosterVisibility {
   return presenterRosterVisibilityOrDefault(value);
 }
 
-function displayNameOf(name: string | null | undefined): string {
-  const trimmed = name?.trim();
-  return trimmed || "Attendee";
-}
-
-function affiliationOf(value: string | null | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed || undefined;
-}
-
 function shapeRosterSession(input: {
   id: string;
   title: string;
   startsAt: Date;
   endsAt: Date;
   roomName: string | null;
+  description: string | null;
+  trackName: string | null;
+  trackColor: string | null;
+  format: string | null;
+  zoomLink: string | null;
+  items: Array<{
+    title: string;
+    abstract: string | null;
+    authors: Array<{ name: string; isPresenter: boolean }>;
+  }>;
   inPersonCapacity: number | null;
   virtualCapacity: number | null;
   joinedCount: number;
@@ -56,6 +58,14 @@ function shapeRosterSession(input: {
     startsAt: input.startsAt.toISOString(),
     endsAt: input.endsAt.toISOString(),
     roomName: input.roomName,
+    ...shapePortalSessionDetail({
+      description: input.description,
+      trackName: input.trackName,
+      trackColor: input.trackColor,
+      format: input.format,
+      zoomLink: input.zoomLink,
+      items: input.items,
+    }),
     joinedCount: input.joinedCount,
     inPersonCapacity: input.inPersonCapacity,
     virtualCapacity: input.virtualCapacity,
@@ -75,11 +85,26 @@ async function loadSessionsForRoster(sessionIds: string[]) {
     select: {
       id: true,
       title: true,
+      description: true,
+      format: true,
+      zoomLink: true,
       startsAt: true,
       endsAt: true,
       inPersonCapacity: true,
       virtualCapacity: true,
       room: { select: { name: true } },
+      track: { select: { name: true, color: true } },
+      items: {
+        orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+        select: {
+          title: true,
+          abstract: true,
+          authors: {
+            orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+            select: { name: true, isPresenter: true },
+          },
+        },
+      },
       _count: {
         select: {
           attendances: { where: { status: SessionAttendanceStatus.JOINING } },
@@ -106,7 +131,7 @@ async function namedJoiningAttendees(
     },
     select: {
       sessionId: true,
-      user: { select: { id: true, name: true, affiliation: true } },
+      user: { select: { id: true, name: true, title: true, affiliation: true, photoUrl: true } },
     },
   });
 
@@ -125,12 +150,7 @@ async function namedJoiningAttendees(
     const bucket = out.get(row.sessionId);
     if (!bucket) continue;
     if (visibleIds.has(row.user.id)) {
-      bucket.visible.push({
-        displayName: displayNameOf(row.user.name),
-        ...(affiliationOf(row.user.affiliation)
-          ? { affiliation: affiliationOf(row.user.affiliation) }
-          : {}),
-      });
+      bucket.visible.push(shapeDirectoryVisibleAttendee(row.user));
     } else {
       bucket.hiddenCount += 1;
     }
@@ -163,6 +183,19 @@ export async function buildPresenterRosterSessions(input: {
       startsAt: session.startsAt,
       endsAt: session.endsAt,
       roomName: session.room?.name ?? null,
+      description: session.description,
+      trackName: session.track?.name ?? null,
+      trackColor: session.track?.color ?? null,
+      format: session.format,
+      zoomLink: session.zoomLink,
+      items: session.items.map((item) => ({
+        title: item.title,
+        abstract: item.abstract,
+        authors: item.authors.map((author) => ({
+          name: author.name,
+          isPresenter: author.isPresenter,
+        })),
+      })),
       inPersonCapacity: session.inPersonCapacity,
       virtualCapacity: session.virtualCapacity,
       joinedCount: session._count.attendances,

@@ -55,7 +55,16 @@ export const PRESENTER_ROSTER_VISIBILITY_SETTING_TITLE = "What presenters can se
 
 export type PresenterRosterAttendee = {
   displayName: string;
+  /** Directory-visible profile fields. Omitted when the attendee left them blank. */
+  title?: string;
   affiliation?: string;
+  photoUrl?: string;
+};
+
+export type PresenterRosterPaper = {
+  title: string;
+  abstract: string | null;
+  authors: Array<{ name: string; isPresenter: boolean }>;
 };
 
 export type PresenterRosterSession = {
@@ -68,11 +77,156 @@ export type PresenterRosterSession = {
   inPersonCapacity: number | null;
   virtualCapacity: number | null;
   waitlistCount: number;
+  /**
+   * Presenter-home detail. Set on COUNTS and NAMES responses. The portal
+   * sessions route still 404s for OFF, so these never travel in that case.
+   */
+  description?: string | null;
+  trackName?: string | null;
+  trackColor?: string | null;
+  format?: string | null;
+  zoomLink?: string | null;
+  items?: PresenterRosterPaper[];
   /** Present only when visibility is NAMES. */
   attendees?: PresenterRosterAttendee[];
   /** Present only when visibility is NAMES — JOINING people who stay unnamed. */
   hiddenCount?: number;
 };
+
+function emptyToNull(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function optionalProfile(value: string | null | undefined): string | undefined {
+  const trimmed = emptyToNull(value);
+  return trimmed ?? undefined;
+}
+
+/**
+ * One directory-visible joiner, for the presenter roster.
+ * Picks name / title / affiliation / photoUrl only. Email, user id, and join
+ * mode are not parameters and cannot be copied onto the result.
+ */
+export function shapeDirectoryVisibleAttendee(user: {
+  name: string | null;
+  title?: string | null;
+  affiliation?: string | null;
+  photoUrl?: string | null;
+}): PresenterRosterAttendee {
+  const row: PresenterRosterAttendee = {
+    displayName: emptyToNull(user.name) ?? "Attendee",
+  };
+  const title = optionalProfile(user.title);
+  const affiliation = optionalProfile(user.affiliation);
+  const photoUrl = optionalProfile(user.photoUrl);
+  if (title) row.title = title;
+  if (affiliation) row.affiliation = affiliation;
+  if (photoUrl) row.photoUrl = photoUrl;
+  return row;
+}
+
+/** Speaker row for GET /portal/:token. No id, no email. */
+export function shapePortalSpeaker(speaker: {
+  name: string;
+  title: string | null;
+  affiliation: string | null;
+  bio: string | null;
+  photoUrl: string | null;
+}): {
+  name: string;
+  title: string | null;
+  affiliation: string | null;
+  bio: string | null;
+  photoUrl: string | null;
+} {
+  return {
+    name: speaker.name,
+    title: emptyToNull(speaker.title),
+    affiliation: emptyToNull(speaker.affiliation),
+    bio: emptyToNull(speaker.bio),
+    photoUrl: emptyToNull(speaker.photoUrl),
+  };
+}
+
+/**
+ * Event block for GET /portal/:token. Keeps the fields the portal already
+ * returned and adds the home-page ones. No event id.
+ */
+export function shapePortalEvent(event: {
+  name: string;
+  dates: string;
+  timezone: string;
+  displayLogoUrl: string | null;
+  brandColor: string | null;
+  startDate: string;
+  endDate: string;
+  venueName: string | null;
+  slug: string;
+}): {
+  name: string;
+  dates: string;
+  timezone: string;
+  displayLogoUrl: string | null;
+  brandColor: string | null;
+  startDate: string;
+  endDate: string;
+  venueName: string | null;
+  slug: string;
+} {
+  return {
+    name: event.name,
+    dates: event.dates,
+    timezone: event.timezone,
+    displayLogoUrl: event.displayLogoUrl,
+    brandColor: event.brandColor,
+    startDate: event.startDate,
+    endDate: event.endDate,
+    venueName: emptyToNull(event.venueName),
+    slug: event.slug,
+  };
+}
+
+/**
+ * Session detail added to GET /portal/:token/sessions.
+ * Authors are name + isPresenter only, in the order given (authored order).
+ */
+export function shapePortalSessionDetail(input: {
+  description: string | null;
+  trackName: string | null;
+  trackColor: string | null;
+  format: string | null;
+  zoomLink: string | null;
+  items: Array<{
+    title: string;
+    abstract: string | null;
+    authors: Array<{ name: string; isPresenter?: boolean }>;
+  }>;
+}): {
+  description: string | null;
+  trackName: string | null;
+  trackColor: string | null;
+  format: string | null;
+  zoomLink: string | null;
+  items: PresenterRosterPaper[];
+} {
+  return {
+    description: input.description,
+    trackName: emptyToNull(input.trackName),
+    trackColor: emptyToNull(input.trackColor),
+    format: emptyToNull(input.format),
+    zoomLink: emptyToNull(input.zoomLink),
+    items: input.items.map((item) => ({
+      title: item.title,
+      abstract: item.abstract,
+      authors: item.authors.map((author) => ({
+        name: author.name,
+        isPresenter: Boolean(author.isPresenter),
+      })),
+    })),
+  };
+}
 
 /**
  * Narrow an unknown value from the database or a request body. Anything the

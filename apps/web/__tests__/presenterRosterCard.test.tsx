@@ -93,7 +93,7 @@ describe("presenter roster UI", () => {
     expect(container.querySelector("details")).toBeNull();
   });
 
-  it("NAMES adds an expandable list with muted affiliation and the private remainder", () => {
+  it("NAMES shows a card grid with muted affiliation and the private remainder", () => {
     render(<PresenterPortalSessionsCard sessions={[names]} timezone="UTC" />);
     expect(container.textContent).toContain("Priya Shah");
     expect(container.textContent).toContain("Riverside School District");
@@ -102,7 +102,8 @@ describe("presenter roster UI", () => {
     const affiliation = container.querySelector(".text-meta");
     expect(container.innerHTML).toContain("text-meta");
     expect(affiliation).toBeTruthy();
-    expect(container.querySelector("details")).toBeTruthy();
+    expect(container.querySelector(".presenter-roster-grid")).toBeTruthy();
+    expect(container.querySelector("details")).toBeNull();
   });
 
   it("empty session uses the nobody-has-added copy", () => {

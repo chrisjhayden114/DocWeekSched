@@ -38,6 +38,11 @@ export type SessionPeek = {
   titleId: string;
   close: () => void;
   /**
+   * Pin the peek on a card. The public agenda uses this for `?session=` so
+   * the deep link shares the hook's open id instead of a second state model.
+   */
+  open: (sessionId: string, anchor: HTMLElement | null) => void;
+  /**
    * Props for a session card. `native` omits role/tabIndex for elements that
    * are already buttons (the timetable blocks).
    */
@@ -160,6 +165,17 @@ export function useSessionPeek(): SessionPeek {
     [clearTimers],
   );
 
+  const open = useCallback(
+    (sessionId: string, anchor: HTMLElement | null) => {
+      openNow(sessionId, anchor, {
+        pin: true,
+        focus: false,
+        surface: peekSurfaceFor(viewportWidth(), canHover()),
+      });
+    },
+    [openNow],
+  );
+
   const getCardProps = useCallback(
     (sessionId: string, opts?: { native?: boolean }): SessionPeekCardProps => ({
       ...(opts?.native ? {} : { role: "button" as const, tabIndex: 0 as const }),
@@ -233,6 +249,7 @@ export function useSessionPeek(): SessionPeek {
     anchorRef,
     titleId,
     close,
+    open,
     getCardProps,
     onPopoverPointerEnter,
     onPopoverPointerLeave,

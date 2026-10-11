@@ -174,6 +174,15 @@ describe("HELP-3 — AGENDA-1/2/3 help sections", () => {
       expect(read("lib/presenterRoster.ts")).toContain(
         `export const PRESENTER_PORTAL_SESSIONS_TITLE = "${PRESENTER_PORTAL_SESSIONS_TITLE}"`,
       );
+      expect(md).toContain("your photo, or your initials when you have no photo");
+      expect(md).toContain("**Open in the conference schedule**");
+      expect(md).toContain("**Full program**");
+      expect(md).toContain("**Join online**");
+      expect(read("components/PresenterRosterCard.tsx")).toContain("Open in the conference schedule");
+      expect(read("components/PresenterRosterCard.tsx")).toContain("Full program");
+      expect(read("components/PresenterRosterCard.tsx")).toContain("Join online");
+      expect(md).toContain("their photo, or initials when they have no photo");
+      expect(md).not.toContain("you can open the list");
       expect(md).toContain(`**${PRESENTER_ROSTER_EMPTY}**`);
       expect(md).toContain("**42 of 60 seats**");
       expect(md).toContain("**+3 waiting**");

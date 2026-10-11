@@ -1,13 +1,15 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { PresenterRosterSession } from "@event-app/shared";
 import { EventHero } from "../../components/EventHero";
 import { PresenterPortalSessionsCard } from "../../components/PresenterRosterCard";
+import { CardAvatar } from "../../components/SessionCardBits";
 import { AutoGrowTextarea } from "../../components/kit";
 import { StatusChip } from "../../components/StatusChip";
 import { API_URL } from "../../lib/api";
 import { eventAccentStyle } from "../../lib/eventAccent";
+import { speakerCredit } from "../../lib/sessionPeek";
 import { isReadinessFilePreviewable, portalAssignmentChip, portalAssignmentStatus, READINESS_OFFICE_DOWNLOAD_NOTE, type ReadinessStatus } from "../../lib/readinessView";
 
 type PortalRequirement = {
@@ -27,6 +29,7 @@ type PortalSubmission = {
   approvedAt: string | null;
   rejectedAt: string | null;
   rejectedReason: string | null;
+  sharedWithAttendees?: boolean;
 };
 
 type PortalAssignment = {
@@ -37,6 +40,14 @@ type PortalAssignment = {
   latestSubmission: PortalSubmission | null;
 };
 
+type PortalSpeaker = {
+  name: string;
+  title: string | null;
+  affiliation: string | null;
+  bio: string | null;
+  photoUrl: string | null;
+};
+
 type PortalView = {
   /** ORG-1 — displayLogoUrl is this event's logo, or the organization's. */
   event: {
@@ -45,10 +56,47 @@ type PortalView = {
     timezone?: string;
     displayLogoUrl: string | null;
     brandColor: string | null;
+    startDate?: string;
+    endDate?: string;
+    venueName?: string | null;
+    slug?: string;
   };
   speakerName: string;
+  speaker?: PortalSpeaker;
   assignments: PortalAssignment[];
 };
+
+const PRESENTER_HOME_INTRO =
+  "This is your presenter page. Come back any time to see your sessions, who has joined, and your materials.";
+
+function ClampedBio({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [clipped, setClipped] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || expanded) return;
+    setClipped(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  return (
+    <>
+      <p
+        ref={ref}
+        className={`presenter-home-bio${expanded ? " is-expanded" : ""}`}
+        style={{ margin: 0, overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}
+      >
+        {text}
+      </p>
+      {clipped || expanded ? (
+        <button type="button" className="session-peek-more" onClick={() => setExpanded((open) => !open)}>
+          {expanded ? "Less" : "More"}
+        </button>
+      ) : null}
+    </>
+  );
+}
 
 type PickedFile = {
   file: File;
@@ -713,13 +761,42 @@ export default function PresenterPortalPage() {
 
   const title = view ? `${view.event.name} — materials` : "Presenter portal";
 
+  const speaker = view?.speaker;
+  const speakerName = speaker?.name?.trim() || view?.speakerName || "";
+  const speakerCreditLine = speaker
+    ? speakerCredit({ name: speakerName, title: speaker.title, affiliation: speaker.affiliation })
+    : "";
+
   return (
-    <div style={eventAccentStyle(view?.event.brandColor)} className="container">
+    <div
+      style={{ ...eventAccentStyle(view?.event.brandColor), overflowX: "clip", maxWidth: "100%" }}
+      className="container presenter-portal"
+    >
       <Head>
         <title>{title}</title>
         <meta name="robots" content="noindex,nofollow" />
       </Head>
-      <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 48px", display: "grid", gap: 16 }}>
+      <style>{`
+        .presenter-home-photo.card-avatar {
+          width: 64px;
+          height: 64px;
+          margin-left: 0;
+          flex: none;
+          font-size: 20px;
+        }
+        .presenter-home-bio {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 4;
+          overflow: hidden;
+        }
+        .presenter-home-bio.is-expanded {
+          display: block;
+          -webkit-line-clamp: unset;
+          overflow: visible;
+        }
+      `}</style>
+      <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 48px", display: "grid", gap: 16, minWidth: 0 }}>
         {denial ? (
           <section className="card" style={{ padding: 24 }}>
             <h1 className="text-display-sm" style={{ marginTop: 0 }}>
@@ -739,6 +816,25 @@ export default function PresenterPortalPage() {
 
         {view && !denial ? (
           <>
+            <section className="card presenter-home" style={{ padding: 16, display: "grid", gap: 12, minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                <CardAvatar
+                  className="presenter-home-photo"
+                  person={{ name: speakerName, photoUrl: speaker?.photoUrl ?? null }}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <p className="text-h3" style={{ margin: 0, overflowWrap: "anywhere" }}>
+                    {speakerName}
+                  </p>
+                  {speakerCreditLine ? (
+                    <p className="text-meta" style={{ margin: 0, overflowWrap: "anywhere" }}>
+                      {speakerCreditLine}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              {speaker?.bio ? <ClampedBio text={speaker.bio} /> : null}
+            </section>
             <EventHero
               name={view.event.name}
               dateRange={view.event.dates}
@@ -746,10 +842,14 @@ export default function PresenterPortalPage() {
               accentColor={view.event.brandColor}
             />
             <p className="text-body-md" style={{ margin: 0 }}>
-              Hi {view.speakerName} — please complete the items below.
+              {PRESENTER_HOME_INTRO}
             </p>
             {rosterSessions ? (
-              <PresenterPortalSessionsCard sessions={rosterSessions} timezone={rosterTimezone} />
+              <PresenterPortalSessionsCard
+                sessions={rosterSessions}
+                timezone={rosterTimezone}
+                eventSlug={view.event.slug}
+              />
             ) : null}
             {view.assignments.map((a) => {
               const chip = portalAssignmentChip(a);
@@ -804,8 +904,12 @@ export default function PresenterPortalPage() {
                     </p>
                   ) : null}
                   {approved ? (
-                    <p className="text-meta" style={{ margin: 0, color: "var(--success)" }}>
-                      Approved ✓
+                    <p
+                      className="text-meta"
+                      style={{ margin: 0, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline" }}
+                    >
+                      <span style={{ color: "var(--success)" }}>Approved ✓</span>
+                      {a.latestSubmission?.sharedWithAttendees ? <span>On the agenda for attendees</span> : null}
                     </p>
                   ) : null}
                   {rejected ? (

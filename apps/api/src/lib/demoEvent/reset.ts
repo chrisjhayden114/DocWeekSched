@@ -26,7 +26,7 @@ import {
   DEMO_DECK_MIME,
   DEMO_DECK_SIZE_BYTES,
 } from "./demoDeck";
-import { buildDemoFixtureSpec, demoConferenceWindow } from "./fixture";
+import { DEMO_ROSTER_JOINERS, buildDemoFixtureSpec, demoConferenceWindow } from "./fixture";
 
 export const DEMO_RESET_JOB = "demo.event.reset";
 
@@ -496,13 +496,23 @@ async function seedDemoPresenterRoster(input: {
 
   let waitPosition = 1;
   for (const person of people) {
+    // Profile fields for the three named joiners come from the fixture.
+    // Who joins, who is hidden, and the waitlist are unchanged.
+    const profile = DEMO_ROSTER_JOINERS.find((joiner) => joiner.name === person.name);
     const user = await prisma.user.upsert({
       where: { email: person.email },
-      update: { name: person.name, affiliation: person.affiliation },
+      update: {
+        name: person.name,
+        affiliation: profile?.affiliation ?? person.affiliation,
+        title: profile?.title ?? null,
+        photoUrl: profile?.photoUrl ?? null,
+      },
       create: {
         email: person.email,
         name: person.name,
-        affiliation: person.affiliation,
+        affiliation: profile?.affiliation ?? person.affiliation,
+        title: profile?.title ?? null,
+        photoUrl: profile?.photoUrl ?? null,
         passwordHash,
         role: "ATTENDEE",
       },

@@ -41,6 +41,17 @@ export type DemoFixtureSpec = {
     description: string;
     sortOrder: number;
   }>;
+  /**
+   * PRESENTER-HOME-A — directory-visible people on Maya's keynote.
+   * Titles, affiliations, and portraits live here; reset.ts copies them onto
+   * the existing joiner rows and does not change who joins or who is hidden.
+   */
+  rosterJoiners: Array<{
+    name: string;
+    title: string;
+    affiliation: string;
+    photoUrl: string;
+  }>;
   sessions: Array<{
     title: string;
     description: string;
@@ -67,6 +78,31 @@ export type DemoFixtureSpec = {
     }>;
   }>;
 };
+
+/**
+ * The three named joiners on Maya's opening keynote. Portraits are the same
+ * flat style as the speaker SVGs under apps/web/public/demo/speakers/.
+ */
+export const DEMO_ROSTER_JOINERS = [
+  {
+    name: "Priya Shah",
+    title: "Grade 4 teacher",
+    affiliation: "Riverside School District",
+    photoUrl: "/demo/speakers/priya-shah.svg",
+  },
+  {
+    name: "Sam Ortiz",
+    title: "Literacy specialist",
+    affiliation: "Open Learning Collaborative",
+    photoUrl: "/demo/speakers/sam-ortiz.svg",
+  },
+  {
+    name: "Tom Hale",
+    title: "Math coach",
+    affiliation: "Northbridge Academy",
+    photoUrl: "/demo/speakers/tom-hale.svg",
+  },
+] as const;
 
 /** Anchor: next Monday-ish from a fixed epoch so resets stay stable within a week. */
 export function demoConferenceWindow(now = new Date()): { start: Date; end: Date } {
@@ -96,6 +132,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
     venueAddress: "220 Riverside Avenue, Example City, CA",
     startOffsetDays: 0,
     endOffsetDays: DEMO_EVENT_DAYS - 1,
+    rosterJoiners: [...DEMO_ROSTER_JOINERS],
     tracks: [
       { name: "Keynote", color: "#0033A0" },
       { name: "Workshops", color: "#0F6B4C" },
@@ -115,7 +152,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         name: "Maya Chen",
         title: "Instructional Coach",
         affiliation: "Riverside School District",
-        bio: "Leads professional learning at a K-12 school.",
+        bio: "Leads professional learning at a K-12 school. She works with grade-level teams on the shape of the day: what to protect, what to quiet, and how a staff learns a change without a new program every term. Her sessions are built from classrooms she still visits, and from the questions teachers ask when the plan meets a real Tuesday morning.",
         photoUrl: "/demo/speakers/maya-chen.svg",
       },
       {
@@ -162,6 +199,17 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         startMinute: 0,
         durationMinutes: 60,
         speakerKeys: ["maya"],
+        items: [
+          {
+            title: "What a calm learning day actually protects",
+            abstract:
+              "Which parts of the school day can go quiet without losing the energy of the room, and what a staff has to keep.",
+            authors: [
+              { name: "Maya Chen", isPresenter: true },
+              { name: "Jonas Okonkwo" },
+            ],
+          },
+        ],
       },
       {
         title: "Coffee and registration",

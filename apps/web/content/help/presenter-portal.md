@@ -17,9 +17,13 @@ Your page lists only the items that organizer needs from you. You won't see othe
 
 ## Your sessions
 
-Above the requirements, **Your sessions** lists each session you're presenting: the title, the day and time in the event's timezone, and the room. Next to that is how many people have joined — **42 of 60 seats** when the organizer set a capacity, and **+3 waiting** if anyone is on the waitlist.
+The page opens with your profile: your photo, or your initials when you have no photo, then your name, your title and affiliation, and your bio. The event's name, dates, and logo sit directly under that.
 
-If the organizer lets presenters see names, you can open the list. Names come only from attendees who are visible in the attendee directory; anyone else is counted but not named, shown as **and N more who keep their profile private**. If nobody has joined yet, it says **Nobody has added this session yet.**
+**Your sessions** lists each session you're presenting: the title, the day and time in the event's timezone (and your local time in parentheses when your browser's timezone differs), the room, the track, and the format when the organizer set one. The description is shown in full, and each paper lists its title, abstract, and authors, with the presenting author in bold. Each card links to **Open in the conference schedule** and **Full program**. **Join online** appears only when that session has an online link.
+
+Next to that is how many people have joined — **42 of 60 seats** when the organizer set a capacity, and **+3 waiting** if anyone is on the waitlist.
+
+When the organizer allows names, each person who is visible in the attendee directory is a card: their photo, or initials when they have no photo, then their name, title, and affiliation. Anyone else is counted but not named, shown as **and N more who keep their profile private**. If nobody has joined yet, it says **Nobody has added this session yet.**
 
 The list loads when you open the page. It does not update on its own — refresh if you want a later count. Some events hide this card entirely.
 

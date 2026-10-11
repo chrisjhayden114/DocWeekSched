@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { eventLogoWithOrgFallback } from "@event-app/shared";
+import { eventLogoWithOrgFallback, shapePortalEvent, shapePortalSpeaker } from "@event-app/shared";
 import {
   buildPresenterRosterSessions,
   rosterVisibilityOf,
@@ -348,14 +348,16 @@ export async function resolvePortalAccess(rawToken: string, now = new Date()) {
   const row = await prisma.readinessPortalAccess.findFirst({
     where: { OR: [{ tokenHash: hash }, { previousTokenHash: hash }] },
     include: {
-      speaker: { select: { id: true, name: true } },
+      speaker: { select: { id: true, name: true, title: true, affiliation: true, bio: true, photoUrl: true } },
       event: {
         select: {
           id: true,
           name: true,
+          slug: true,
           startDate: true,
           endDate: true,
           timezone: true,
+          venueName: true,
           logoUrl: true,
           brandColor: true,
           presenterRosterVisibility: true,
@@ -390,6 +392,7 @@ function shapeLatestSubmission(sub: {
   approvedAt: Date | null;
   rejectedAt: Date | null;
   reviewNote: string | null;
+  sharedWithAttendees: boolean;
 } | null) {
   if (!sub) return null;
   return {
@@ -401,6 +404,7 @@ function shapeLatestSubmission(sub: {
     approvedAt: sub.approvedAt,
     rejectedAt: sub.rejectedAt,
     rejectedReason: sub.reviewNote,
+    sharedWithAttendees: sub.sharedWithAttendees,
   };
 }
 
@@ -434,7 +438,7 @@ export async function getPortalView(rawToken: string, now = new Date()) {
   });
 
   return {
-    event: {
+    event: shapePortalEvent({
       name: access.event.name,
       dates: formatEventDates(access.event),
       timezone: access.event.timezone,
@@ -443,8 +447,19 @@ export async function getPortalView(rawToken: string, now = new Date()) {
         access.event.organization.logoUrl,
       ),
       brandColor: access.event.brandColor,
-    },
+      startDate: access.event.startDate.toISOString(),
+      endDate: access.event.endDate.toISOString(),
+      venueName: access.event.venueName,
+      slug: access.event.slug,
+    }),
     speakerName: access.speaker.name,
+    speaker: shapePortalSpeaker({
+      name: access.speaker.name,
+      title: access.speaker.title,
+      affiliation: access.speaker.affiliation,
+      bio: access.speaker.bio,
+      photoUrl: access.speaker.photoUrl,
+    }),
     assignments: assignments
       .filter((a) => !isOrganizerOnlyKind(a.requirement.kind))
       .map((a) => {

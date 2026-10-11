@@ -2,6 +2,7 @@ import { brand } from "@event-app/config";
 import type { FeeNotice as FeeNoticeData } from "@event-app/shared";
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import type { GetServerSideProps } from "next";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -274,8 +275,26 @@ function PublicSchedule({ event, loginHref }: { event: PublicEventView; loginHre
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [scheduleLayout, setScheduleLayout] = useState<ScheduleViewMode>("list");
   const peek = useSessionPeek();
+  const openPinnedSession = peek.open;
+  const router = useRouter();
 
   const timeZone = event.timezone;
+
+  /*
+   * PRESENTER-HOME-A — /e/{slug}?session={id} opens that card's peek, pinned,
+   * when the id is in the program that was loaded. Same hook as a click.
+   * Scroll first so the popover measures the card where it landed.
+   */
+  useEffect(() => {
+    if (!router.isReady) return;
+    const raw = router.query.session;
+    if (typeof raw !== "string" || !raw) return;
+    if (!event.sessions.some((session) => session.id === raw)) return;
+    const el = document.getElementById(publicSessionAnchorId(raw));
+    if (!(el instanceof HTMLElement)) return;
+    el.scrollIntoView?.({ block: "center" });
+    openPinnedSession(raw, el);
+  }, [router.isReady, router.query.session, event.sessions, openPinnedSession]);
 
   /*
    * Map public sessions onto the shared filter shape (track/room names as ids).
