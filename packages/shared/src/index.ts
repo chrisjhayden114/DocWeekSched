@@ -19,3 +19,4 @@ export * from "./entryRedirects";
 export * from "./deletedParticipant";
 export * from "./sessionFormat";
 export * from "./materialsVisibility";
+export * from "./presenterRosterVisibility";

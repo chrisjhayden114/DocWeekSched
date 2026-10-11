@@ -1,6 +1,7 @@
 export { buildDemoFixtureSpec, demoConferenceWindow } from "./fixture";
 export {
   DEMO_RESET_JOB,
+  DEMO_PRESENTER_PORTAL_TOKEN,
   clearDemoEventIdCache,
   createSampleEventForOrg,
   ensureInternalDemoOrg,

@@ -83,6 +83,16 @@ Where a shared item lands depends on who it was assigned to. An item on a **sess
 
 Turning **Speaker & Session Readiness** off on the **Features** tab withdraws all of it. Shared materials disappear from the agenda and their links stop working, including a link someone already has. Nothing is deleted — turn the feature back on and the same materials return.
 
+## What presenters can see about their sessions
+
+**Event settings → More options → What presenters can see about their sessions** is one event-wide choice. Presenters open it from their personal link (and, when they have an account, from the session page). The default is **How many people joined**:
+
+- **Nothing — hide the list** — presenters do not see who added their sessions, or how many people did.
+- **How many people joined** — the default. Joined count, capacity if you set one, and waitlist count. No names.
+- **Names of people who joined** — the counts, plus names of attendees who are visible in the attendee directory. Everyone else is counted but not named.
+
+Presenters open this from their personal link. Names come only from attendees who are visible in the attendee directory; everyone else is counted but not named.
+
 ## The reminders, and what they cost you
 
 Nothing. Each dated item is chased automatically:

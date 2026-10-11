@@ -394,6 +394,9 @@ export function ProfileEditor({
             />
             Show me in this event&apos;s attendee directory (opt-in; required for DMs)
           </label>
+          <p className="help-text" style={{ margin: "-4px 0 0 26px" }}>
+            Presenters of sessions you join may see your name when the organizer allows it.
+          </p>
           <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
               type="checkbox"

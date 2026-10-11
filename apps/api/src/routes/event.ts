@@ -7,6 +7,7 @@ import {
   EVENT_TRANSFER_SAME_ORG_MESSAGE,
   EVENT_TRANSFER_TARGET_ROLE_MESSAGE,
   MATERIALS_VISIBILITIES,
+  PRESENTER_ROSTER_VISIBILITIES,
   describeEventTransferBlockers,
   eventLogoWithOrgFallback,
 } from "@event-app/shared";
@@ -136,6 +137,12 @@ const eventSchema = z.object({
    * answer to "who may open a shared deck".
    */
   materialsVisibility: z.enum(MATERIALS_VISIBILITIES).optional(),
+  /**
+   * PRESENTER-ROSTER-1 — closed vocabulary, enforced here rather than by a
+   * database enum. Not nullable: the column is NOT NULL with a default, so
+   * "leave it alone" is `undefined`.
+   */
+  presenterRosterVisibility: z.enum(PRESENTER_ROSTER_VISIBILITIES).optional(),
 });
 
 const publicEventSelect = {
@@ -464,6 +471,9 @@ eventRouter.put(
         ...(parsed.data.materialsVisibility === undefined
           ? {}
           : { materialsVisibility: parsed.data.materialsVisibility }),
+        ...(parsed.data.presenterRosterVisibility === undefined
+          ? {}
+          : { presenterRosterVisibility: parsed.data.presenterRosterVisibility }),
         timezone: parsed.data.timezone,
         startDate: new Date(parsed.data.startDate),
         endDate: new Date(parsed.data.endDate),

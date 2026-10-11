@@ -5,6 +5,7 @@ import { validationErrorBody } from "../lib/errors";
 import { authRateLimit, testUnlimitedMax } from "../lib/rateLimit";
 import {
   createPortalUploadIntent,
+  getPortalSessions,
   getPortalView,
   streamPortalFile,
   submitPortalAssignment,
@@ -31,6 +32,21 @@ portalRouter.get(
     if (!token) return res.status(404).json({ error: "This link is not valid — contact the event organizer for a fresh one.", reason: "unknown" });
     const view = await getPortalView(token);
     return res.json(view);
+  }),
+);
+
+portalRouter.get(
+  "/:token/sessions",
+  portalRateLimit,
+  asyncHandler(async (req, res) => {
+    const token = String(req.params.token || "").trim();
+    if (!token) {
+      return res.status(404).json({
+        error: "This link is not valid — contact the event organizer for a fresh one.",
+        reason: "unknown",
+      });
+    }
+    return res.json(await getPortalSessions(token));
   }),
 );
 

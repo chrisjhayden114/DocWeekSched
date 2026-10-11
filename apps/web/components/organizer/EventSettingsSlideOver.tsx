@@ -1,9 +1,14 @@
 import { overviewCopy } from "@event-app/config";
 import {
   MATERIALS_VISIBILITY_HELP,
+  PRESENTER_ROSTER_VISIBILITY_SETTING_HELP,
+  PRESENTER_ROSTER_VISIBILITY_SETTING_TITLE,
   materialsVisibilityOrDefault,
   materialsVisibilitySelectOptions,
+  presenterRosterVisibilityOrDefault,
+  presenterRosterVisibilitySelectOptions,
   type MaterialsVisibility,
+  type PresenterRosterVisibility,
 } from "@event-app/shared";
 import { FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -33,6 +38,8 @@ export type EventSettingsEvent = {
   cfpLabel?: string | null;
   /** AGENDA-3 — ATTENDEES | PUBLIC. Absent on an older payload reads as the default. */
   materialsVisibility?: string | null;
+  /** PRESENTER-ROSTER-1 — OFF | COUNTS | NAMES. Absent reads as COUNTS. */
+  presenterRosterVisibility?: string | null;
   /** ORG-2 — gates the draft-only "Move to another organization" section. */
   status?: string;
 };
@@ -68,6 +75,7 @@ type FormState = {
   bannerUrl: string;
   cfpLabel: string;
   materialsVisibility: MaterialsVisibility;
+  presenterRosterVisibility: PresenterRosterVisibility;
 };
 
 function initialForm(event: EventSettingsEvent): FormState {
@@ -88,6 +96,7 @@ function initialForm(event: EventSettingsEvent): FormState {
     bannerUrl: event.bannerUrl || "",
     cfpLabel: event.cfpLabel || "",
     materialsVisibility: materialsVisibilityOrDefault(event.materialsVisibility),
+    presenterRosterVisibility: presenterRosterVisibilityOrDefault(event.presenterRosterVisibility),
   };
 }
 
@@ -182,6 +191,7 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
           bannerUrl: form.bannerUrl.trim() || null,
           cfpLabel: form.cfpLabel.trim() || null,
           materialsVisibility: form.materialsVisibility,
+          presenterRosterVisibility: form.presenterRosterVisibility,
           timezone: form.timezone,
           startDate: startIso,
           endDate: endIso,
@@ -329,6 +339,20 @@ export function EventSettingsSlideOver({ open, onClose, eventId, event, onSaved 
                 <span className="help-text">
                   {MATERIALS_VISIBILITY_HELP[form.materialsVisibility]}
                 </span>
+              </label>
+              <label>
+                <FieldHelp
+                  title={PRESENTER_ROSTER_VISIBILITY_SETTING_TITLE}
+                  help={PRESENTER_ROSTER_VISIBILITY_SETTING_HELP}
+                />
+                <Select
+                  value={form.presenterRosterVisibility}
+                  onChange={(value) =>
+                    set("presenterRosterVisibility", presenterRosterVisibilityOrDefault(value))
+                  }
+                  options={presenterRosterVisibilitySelectOptions()}
+                />
+                <span className="help-text">{PRESENTER_ROSTER_VISIBILITY_SETTING_HELP}</span>
               </label>
               <EventBrandingFields
                 value={{

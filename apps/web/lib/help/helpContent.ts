@@ -352,6 +352,16 @@ Where a shared item lands depends on who it was assigned to. An item on a **sess
 
 Turning **Speaker & Session Readiness** off on the **Features** tab withdraws all of it. Shared materials disappear from the agenda and their links stop working, including a link someone already has. Nothing is deleted — turn the feature back on and the same materials return.
 
+## What presenters can see about their sessions
+
+**Event settings → More options → What presenters can see about their sessions** is one event-wide choice. Presenters open it from their personal link (and, when they have an account, from the session page). The default is **How many people joined**:
+
+- **Nothing — hide the list** — presenters do not see who added their sessions, or how many people did.
+- **How many people joined** — the default. Joined count, capacity if you set one, and waitlist count. No names.
+- **Names of people who joined** — the counts, plus names of attendees who are visible in the attendee directory. Everyone else is counted but not named.
+
+Presenters open this from their personal link. Names come only from attendees who are visible in the attendee directory; everyone else is counted but not named.
+
 ## The reminders, and what they cost you
 
 Nothing. Each dated item is chased automatically:
@@ -484,6 +494,10 @@ Open the link your organizer shared — usually \`/e/event-slug\` or an invite U
 
 No. {{product}} works in the browser on phone and desktop.
 
+## Is there an app to download?
+
+No. Open the event link in your phone's browser. To get an icon: iPhone Safari, tap Share then Add to Home Screen; Android Chrome, tap the menu then Add to Home screen (or accept the install banner). It then opens full-screen and can send announcements as notifications if you allow them.
+
 ## Where is the schedule?
 
 After you join, open the dashboard. **Agenda** shows the full program; save sessions to build **My Schedule**.
@@ -554,6 +568,14 @@ You're presenting at an event and the organizer sent you a link to send them you
 The link in your email opens straight onto your own page. There's no account to create, no password to choose, and no app to install — the link itself is what lets you in, which is why it's personal to you and worth not forwarding.
 
 Your page lists only the items that organizer needs from you. You won't see other speakers, and it isn't the event program.
+
+## Your sessions
+
+Above the requirements, **Your sessions** lists each session you're presenting: the title, the day and time in the event's timezone, and the room. Next to that is how many people have joined — **42 of 60 seats** when the organizer set a capacity, and **+3 waiting** if anyone is on the waitlist.
+
+If the organizer lets presenters see names, you can open the list. Names come only from attendees who are visible in the attendee directory; anyone else is counted but not named, shown as **and N more who keep their profile private**. If nobody has joined yet, it says **Nobody has added this session yet.**
+
+The list loads when you open the page. It does not update on its own — refresh if you want a later count. Some events hide this card entirely.
 
 ## The link expires after 30 days
 

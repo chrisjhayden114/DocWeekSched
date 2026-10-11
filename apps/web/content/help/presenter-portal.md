@@ -15,6 +15,14 @@ The link in your email opens straight onto your own page. There's no account to 
 
 Your page lists only the items that organizer needs from you. You won't see other speakers, and it isn't the event program.
 
+## Your sessions
+
+Above the requirements, **Your sessions** lists each session you're presenting: the title, the day and time in the event's timezone, and the room. Next to that is how many people have joined — **42 of 60 seats** when the organizer set a capacity, and **+3 waiting** if anyone is on the waitlist.
+
+If the organizer lets presenters see names, you can open the list. Names come only from attendees who are visible in the attendee directory; anyone else is counted but not named, shown as **and N more who keep their profile private**. If nobody has joined yet, it says **Nobody has added this session yet.**
+
+The list loads when you open the page. It does not update on its own — refresh if you want a later count. Some events hide this card entirely.
+
 ## The link expires after 30 days
 
 If the organizer sends you a new link — say, along with a reminder — the older one keeps working until its own 30 days are up. You don't have to hunt for the newest email.

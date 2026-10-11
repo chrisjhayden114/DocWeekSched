@@ -10,12 +10,16 @@ import {
   PlanTier,
   BillingProvider,
   SubscriptionStatus,
+  SessionAttendanceStatus,
+  SessionJoinMode,
   SessionPublishStatus,
 } from "@prisma/client";
 import { prisma } from "../db";
+import { hashPassword, hashToken } from "../auth";
 import { assertDestructiveAllowed } from "../destructiveGuard";
 import { upsertFeatureOverrides } from "../features/featureEnabled";
 import { newJoinToken } from "../inviteTokens";
+import { portalExpiresAt } from "../readiness/portalTokens";
 import {
   DEMO_DECK_DATA_URL,
   DEMO_DECK_FILE_NAME,
@@ -25,6 +29,13 @@ import {
 import { buildDemoFixtureSpec, demoConferenceWindow } from "./fixture";
 
 export const DEMO_RESET_JOB = "demo.event.reset";
+
+/**
+ * Stable presenter-portal token for Maya Chen on the public demo.
+ * 64 hex chars so it matches a minted portal link. Open `/r/<token>`.
+ */
+export const DEMO_PRESENTER_PORTAL_TOKEN =
+  "d0c0de01aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 let cachedDemoEventId: string | null | undefined;
 
@@ -92,6 +103,7 @@ async function wipeEventChildren(eventId: string): Promise<void> {
   await prisma.sessionResource.deleteMany({ where: { session: { eventId } } });
   await prisma.sessionBookmark.deleteMany({ where: { session: { eventId } } });
   await prisma.sessionAttendance.deleteMany({ where: { session: { eventId } } });
+  await prisma.waitlistEntry.deleteMany({ where: { session: { eventId } } });
   await prisma.sessionLike.deleteMany({ where: { session: { eventId } } });
   await prisma.sessionDiscussionReply.deleteMany({
     where: { thread: { session: { eventId } } },
@@ -166,6 +178,7 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
         // AGENDA-3 — the demo is a shop window: a visitor with no account has
         // to be able to open the shared deck, or the feature cannot be seen.
         materialsVisibility: "PUBLIC",
+        presenterRosterVisibility: "NAMES",
         joinTokenHash: joinHash,
         attendeeCap: 10_000,
       },
@@ -187,6 +200,7 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
         organizationId: org.id,
         slugInviteEnabled: true,
         materialsVisibility: "PUBLIC",
+        presenterRosterVisibility: "NAMES",
         joinTokenRevokedAt: null,
       },
     });
@@ -308,6 +322,11 @@ export async function resetPublicDemoEvent(): Promise<{ eventId: string; slug: s
   }
 
   await seedDemoSharedDeck(event.id, org.id, speakerByKey.get("maya"));
+  await seedDemoPresenterRoster({
+    eventId: event.id,
+    organizationId: org.id,
+    speakerId: speakerByKey.get("maya"),
+  });
 
   clearDemoEventIdCache();
   return { eventId: event.id, slug: brand.demoEventSlug, created };
@@ -379,6 +398,144 @@ async function seedDemoSharedDeck(
       sharedWithAttendees: true,
     },
   });
+}
+
+/**
+ * PRESENTER-ROSTER-1 — Maya's portal shows a few named joiners on the
+ * opening keynote so the roster can be demonstrated live. One joiner stays
+ * directory-hidden so hiddenCount is visible. Capacity and a short waitlist
+ * fill the "42 of 60 seats +N waiting" line at demo scale.
+ */
+async function seedDemoPresenterRoster(input: {
+  eventId: string;
+  organizationId: string;
+  speakerId: string | undefined;
+}): Promise<void> {
+  if (!input.speakerId) return;
+
+  const keynote = await prisma.session.findFirst({
+    where: { eventId: input.eventId, title: { startsWith: "Opening keynote" } },
+    select: { id: true },
+  });
+  if (!keynote) return;
+
+  await prisma.session.update({
+    where: { id: keynote.id },
+    data: { inPersonCapacity: 60 },
+  });
+
+  await prisma.readinessPortalAccess.create({
+    data: {
+      organizationId: input.organizationId,
+      eventId: input.eventId,
+      speakerId: input.speakerId,
+      email: "maya.chen@demo.readyhall.com",
+      tokenHash: hashToken(DEMO_PRESENTER_PORTAL_TOKEN),
+      expiresAt: portalExpiresAt(),
+    },
+  });
+
+  const passwordHash = await hashPassword("DemoRoster.not-for-login.1");
+  const people: Array<{
+    email: string;
+    name: string;
+    affiliation: string | null;
+    directoryOptIn: boolean;
+    joining: boolean;
+  }> = [
+    {
+      email: "priya.shah@demo.readyhall.com",
+      name: "Priya Shah",
+      affiliation: "Riverside School District",
+      directoryOptIn: true,
+      joining: true,
+    },
+    {
+      email: "tom.hale@demo.readyhall.com",
+      name: "Tom Hale",
+      affiliation: "Northbridge Academy",
+      directoryOptIn: true,
+      joining: true,
+    },
+    {
+      email: "sam.ortiz@demo.readyhall.com",
+      name: "Sam Ortiz",
+      affiliation: "Open Learning Collaborative",
+      directoryOptIn: true,
+      joining: true,
+    },
+    {
+      email: "hidden.joiner@demo.readyhall.com",
+      name: "Jordan Ellis",
+      affiliation: "Visitor",
+      directoryOptIn: false,
+      joining: true,
+    },
+    {
+      email: "wait-1@demo.readyhall.com",
+      name: "Alex Kim",
+      affiliation: null,
+      directoryOptIn: true,
+      joining: false,
+    },
+    {
+      email: "wait-2@demo.readyhall.com",
+      name: "Riley Chen",
+      affiliation: null,
+      directoryOptIn: true,
+      joining: false,
+    },
+    {
+      email: "wait-3@demo.readyhall.com",
+      name: "Morgan Patel",
+      affiliation: null,
+      directoryOptIn: true,
+      joining: false,
+    },
+  ];
+
+  let waitPosition = 1;
+  for (const person of people) {
+    const user = await prisma.user.upsert({
+      where: { email: person.email },
+      update: { name: person.name, affiliation: person.affiliation },
+      create: {
+        email: person.email,
+        name: person.name,
+        affiliation: person.affiliation,
+        passwordHash,
+        role: "ATTENDEE",
+      },
+    });
+    await prisma.eventMembership.create({
+      data: {
+        eventId: input.eventId,
+        userId: user.id,
+        role: EventMemberRole.ATTENDEE,
+        directoryOptIn: person.directoryOptIn,
+      },
+    });
+    if (person.joining) {
+      await prisma.sessionAttendance.create({
+        data: {
+          userId: user.id,
+          sessionId: keynote.id,
+          status: SessionAttendanceStatus.JOINING,
+          joinMode: SessionJoinMode.IN_PERSON,
+        },
+      });
+    } else {
+      await prisma.waitlistEntry.create({
+        data: {
+          sessionId: keynote.id,
+          userId: user.id,
+          mode: SessionJoinMode.IN_PERSON,
+          position: waitPosition,
+        },
+      });
+      waitPosition += 1;
+    }
+  }
 }
 
 /**

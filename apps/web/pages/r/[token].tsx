@@ -1,7 +1,9 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import type { PresenterRosterSession } from "@event-app/shared";
 import { EventHero } from "../../components/EventHero";
+import { PresenterPortalSessionsCard } from "../../components/PresenterRosterCard";
 import { AutoGrowTextarea } from "../../components/kit";
 import { StatusChip } from "../../components/StatusChip";
 import { API_URL } from "../../lib/api";
@@ -37,7 +39,13 @@ type PortalAssignment = {
 
 type PortalView = {
   /** ORG-1 — displayLogoUrl is this event's logo, or the organization's. */
-  event: { name: string; dates: string; displayLogoUrl: string | null; brandColor: string | null };
+  event: {
+    name: string;
+    dates: string;
+    timezone?: string;
+    displayLogoUrl: string | null;
+    brandColor: string | null;
+  };
   speakerName: string;
   assignments: PortalAssignment[];
 };
@@ -486,6 +494,8 @@ export default function PresenterPortalPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [rosterSessions, setRosterSessions] = useState<PresenterRosterSession[] | null>(null);
+  const [rosterTimezone, setRosterTimezone] = useState("UTC");
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -519,6 +529,33 @@ export default function PresenterPortalPage() {
     setLoadError(null);
     load().catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load this page."));
   }, [token, router.isReady, load]);
+
+  useEffect(() => {
+    if (!token || !router.isReady) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`${API_URL}/portal/${encodeURIComponent(token)}/sessions`);
+      if (cancelled) return;
+      if (!res.ok) {
+        setRosterSessions(null);
+        return;
+      }
+      const json = (await res.json().catch(() => ({}))) as {
+        sessions?: PresenterRosterSession[];
+        event?: { timezone?: string };
+      };
+      setRosterSessions(Array.isArray(json.sessions) ? json.sessions : []);
+    })().catch(() => {
+      if (!cancelled) setRosterSessions(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, router.isReady]);
+
+  useEffect(() => {
+    if (view?.event.timezone) setRosterTimezone(view.event.timezone);
+  }, [view]);
 
   async function submitFileDirect(assignment: PortalAssignment, picked: PickedFile) {
     let intent = await requestUploadIntent(token, assignment.id, picked);
@@ -711,6 +748,9 @@ export default function PresenterPortalPage() {
             <p className="text-body-md" style={{ margin: 0 }}>
               Hi {view.speakerName} — please complete the items below.
             </p>
+            {rosterSessions ? (
+              <PresenterPortalSessionsCard sessions={rosterSessions} timezone={rosterTimezone} />
+            ) : null}
             {view.assignments.map((a) => {
               const chip = portalAssignmentChip(a);
               const due = formatDue(a.dueAt);

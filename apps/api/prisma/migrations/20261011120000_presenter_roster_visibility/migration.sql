@@ -1,0 +1,42 @@
+-- PRESENTER-ROSTER-1 — Event.presenterRosterVisibility, what a presenter
+-- may see about people who joined their sessions.
+-- NOT APPLIED by the agent — CI and Render's build run migrate deploy.
+--
+-- WHY A COLUMN AT ALL:
+-- Some events want presenters to walk into a room knowing how many seats
+-- filled; some want the names so a workshop lead can greet people; some want
+-- presenters to see nothing at all. That is a stored organizer decision, not
+-- something to infer from readiness being on or from the attendee directory
+-- existing. Getting NAMES wrong is a privacy incident; getting OFF wrong is
+-- a presenter who cannot prepare. The answer is per-event and permanent
+-- enough to be a setting.
+--
+-- MUST-CONFIRMS (read before deploy):
+-- 1) Additive only. One NEW column on "Event":
+--    presenterRosterVisibility TEXT NOT NULL DEFAULT 'COUNTS'.
+-- 2) NOT NULL WITH a DEFAULT, added in one statement. On PostgreSQL 11+ that
+--    is metadata-only: the default is stored in the catalog and existing rows
+--    are NOT rewritten, so there is no table rewrite and no long lock. No
+--    backfill needed.
+-- 3) NO new enum and NO ADD VALUE on any existing enum. The vocabulary
+--    (OFF | COUNTS | NAMES) is closed in
+--    packages/shared/src/presenterRosterVisibility.ts and enforced by Zod on
+--    write, matching AGENDA-3's materialsVisibility. Keeping it out of the
+--    database means adding a fourth value later is a code deploy rather than
+--    a migration that locks "Event". The read side narrows through
+--    presenterRosterVisibilityOrDefault(), which collapses any value it does
+--    not recognise to COUNTS — an unreadable row never hands out names.
+-- 4) NO new table, index, or foreign key. This is read once per request
+--    alongside the event row that is already being loaded by primary key.
+-- 5) NO drop, rename, retype, or NOT NULL on any existing column. Existing
+--    readers select Event columns explicitly and cannot break on an added
+--    scalar.
+-- 6) EVERY existing event reads 'COUNTS'. Applying this changes no UI and
+--    no behaviour on its own until an organizer picks NAMES or OFF.
+-- 7) Rollback = deploy the previous API commit. The column stays behind,
+--    unread and harmless. Schema rollbacks are forward-fix only (RUNBOOK §4).
+-- 8) Idempotent: ADD COLUMN IF NOT EXISTS.
+-- Do NOT set ALLOW_DESTRUCTIVE_DB. Do NOT run against production.
+
+ALTER TABLE "Event"
+  ADD COLUMN IF NOT EXISTS "presenterRosterVisibility" TEXT NOT NULL DEFAULT 'COUNTS';

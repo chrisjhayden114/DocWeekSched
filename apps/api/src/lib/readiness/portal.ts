@@ -1,5 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { eventLogoWithOrgFallback } from "@event-app/shared";
+import {
+  buildPresenterRosterSessions,
+  rosterVisibilityOf,
+  sessionIdsForPortalSpeaker,
+} from "../presenterRoster";
 import { writeAuditLog } from "../ai";
 import { HttpError } from "../authorization";
 import { prisma } from "../db";
@@ -353,6 +358,7 @@ export async function resolvePortalAccess(rawToken: string, now = new Date()) {
           timezone: true,
           logoUrl: true,
           brandColor: true,
+          presenterRosterVisibility: true,
           // ORG-1 — fallback logo for an event that never uploaded one.
           organization: { select: { logoUrl: true } },
         },
@@ -431,6 +437,7 @@ export async function getPortalView(rawToken: string, now = new Date()) {
     event: {
       name: access.event.name,
       dates: formatEventDates(access.event),
+      timezone: access.event.timezone,
       displayLogoUrl: eventLogoWithOrgFallback(
         access.event.logoUrl,
         access.event.organization.logoUrl,
@@ -458,6 +465,39 @@ export async function getPortalView(rawToken: string, now = new Date()) {
         };
       }),
   };
+}
+
+/**
+ * PRESENTER-ROSTER-1 — sessions this portal speaker is presenting, with
+ * joined counts (and names, when the organizer chose NAMES).
+ *
+ * OFF 404s so a presenter cannot tell the setting from "you have no
+ * sessions". Token expiry, revoke, and the readiness flag are the same
+ * gates every other portal route uses (`resolvePortalAccess`).
+ */
+export async function getPortalSessions(rawToken: string, now = new Date()) {
+  const access = await resolvePortalAccess(rawToken, now);
+  const visibility = rosterVisibilityOf(access.event.presenterRosterVisibility);
+  if (visibility === "OFF") {
+    throw portalNotFound("unknown");
+  }
+
+  await prisma.readinessPortalAccess.update({
+    where: { id: access.id },
+    data: { lastUsedAt: now },
+  });
+
+  const sessionIds = await sessionIdsForPortalSpeaker({
+    eventId: access.eventId,
+    speakerId: access.speakerId,
+    portalEmail: access.email,
+  });
+  const sessions = await buildPresenterRosterSessions({
+    eventId: access.eventId,
+    sessionIds,
+    visibility,
+  });
+  return { sessions };
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

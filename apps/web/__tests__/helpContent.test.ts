@@ -10,6 +10,9 @@ import { join } from "path";
 import { brand } from "@event-app/config";
 import {
   MATERIALS_VISIBILITY_LABELS,
+  PRESENTER_ROSTER_VISIBILITY_LABELS,
+  PRESENTER_ROSTER_VISIBILITY_SETTING_HELP,
+  PRESENTER_ROSTER_VISIBILITY_SETTING_TITLE,
   SESSION_FORMATS,
   SESSION_FORMAT_LABELS,
   SPEAKER_PACK_REQUIREMENTS,
@@ -20,6 +23,10 @@ import { applyBrandTokens, listHelpArticles } from "../lib/help/articles";
 import { HELP_SOURCE } from "../lib/help/helpContent";
 import { PEEK_POPOVER_MIN_WIDTH } from "../lib/sessionPeekSurface";
 import { SESSION_CSV_FIELDS } from "../lib/sessionCsv";
+import {
+  PRESENTER_PORTAL_SESSIONS_TITLE,
+  PRESENTER_ROSTER_EMPTY,
+} from "../lib/presenterRoster";
 
 const CONTENT_DIR = join(__dirname, "../content/help");
 
@@ -121,6 +128,22 @@ describe("HELP-3 — AGENDA-1/2/3 help sections", () => {
       );
       expect(md).toContain("their links stop working");
     });
+
+    it("documents the presenter roster setting in the select's own words", () => {
+      expect(eventSettings).toContain(`title={PRESENTER_ROSTER_VISIBILITY_SETTING_TITLE}`);
+      expect(PRESENTER_ROSTER_VISIBILITY_SETTING_TITLE).toBe(
+        "What presenters can see about their sessions",
+      );
+      expect(md).toContain(
+        `**Event settings → More options → ${PRESENTER_ROSTER_VISIBILITY_SETTING_TITLE}**`,
+      );
+      expect(eventSettings).toContain("{PRESENTER_ROSTER_VISIBILITY_SETTING_HELP}");
+      expect(md).toContain(PRESENTER_ROSTER_VISIBILITY_SETTING_HELP);
+      for (const label of Object.values(PRESENTER_ROSTER_VISIBILITY_LABELS)) {
+        expect(md, label).toContain(`**${label}**`);
+      }
+      expect(md).toMatch(/\*\*How many people joined\*\* — the default/);
+    });
   });
 
   describe("presenter-portal — what a presenter should expect", () => {
@@ -143,6 +166,18 @@ describe("HELP-3 — AGENDA-1/2/3 help sections", () => {
     it("does not send presenters to a notes field the portal has no room for", () => {
       expect(md).toContain("this page has nowhere to leave a note, so email them");
       expect(read("pages/r/[token].tsx")).not.toMatch(/notes? to the organizer/i);
+    });
+
+    it("documents Your sessions in the portal card's own words", () => {
+      expect(md).toContain(`## ${PRESENTER_PORTAL_SESSIONS_TITLE}`);
+      expect(md).toContain(`**${PRESENTER_PORTAL_SESSIONS_TITLE}**`);
+      expect(read("lib/presenterRoster.ts")).toContain(
+        `export const PRESENTER_PORTAL_SESSIONS_TITLE = "${PRESENTER_PORTAL_SESSIONS_TITLE}"`,
+      );
+      expect(md).toContain(`**${PRESENTER_ROSTER_EMPTY}**`);
+      expect(md).toContain("**42 of 60 seats**");
+      expect(md).toContain("**+3 waiting**");
+      expect(md).toContain("**and N more who keep their profile private**");
     });
   });
 
@@ -183,6 +218,18 @@ describe("HELP-3 — AGENDA-1/2/3 help sections", () => {
 
     it("tells attendees a filtered view is shareable as a URL", () => {
       expect(md).toContain("copying the URL out of the address bar shares exactly the view");
+    });
+
+    it("answers Is there an app to download? only after the manifest and service worker still ship", () => {
+      expect(md).toContain("## Is there an app to download?");
+      expect(md).toContain("Add to Home Screen");
+      expect(md).toContain("Add to Home screen");
+      const app = read("pages/_app.tsx");
+      expect(app).toContain('<link rel="manifest" href="/api/manifest" />');
+      expect(app).toContain("registerServiceWorker");
+      expect(read("lib/pwa.ts")).toContain('navigator.serviceWorker.register("/sw.js")');
+      expect(read("pages/api/manifest.ts")).toContain('display: "standalone"');
+      expect(read("public/sw.js")).toContain("/api/manifest");
     });
   });
 

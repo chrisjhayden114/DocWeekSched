@@ -22,6 +22,11 @@ import { parsePagination, setPageHeaders, slicePage } from "../lib/pagination";
 import { patchFields, trimmedOrNull } from "../lib/patchFields";
 import { getRequestId } from "../lib/requestId";
 import { SESSION_FORMATS } from "@event-app/shared";
+import {
+  buildPresenterRosterSessions,
+  isSessionPresenter,
+  rosterVisibilityOf,
+} from "../lib/presenterRoster";
 
 export const sessionsRouter = Router();
 
@@ -372,6 +377,58 @@ sessionsRouter.get(
     if (!visible) return res.status(404).json({ error: "Session not found" });
 
     return res.json(await sharedMaterialsForSession(session.eventId, session.id));
+  }),
+);
+
+/**
+ * PRESENTER-ROSTER-1 — joined counts (and names, when NAMES) for the
+ * signed-in presenter of this session. Anyone else gets 403. OFF 404s so
+ * the session page hides the panel the same way the portal hides the card.
+ */
+sessionsRouter.get(
+  "/:id/presenter-roster",
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const session = await prisma.session.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        eventId: true,
+        event: { select: { presenterRosterVisibility: true } },
+      },
+    });
+    if (!session) throw new HttpError(404, { error: "Session not found" });
+
+    await requireEventAccess(req.user!.id, session.eventId);
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { id: true, email: true },
+    });
+    if (!user) throw new HttpError(401, { error: "Unauthorized" });
+
+    const presenting = await isSessionPresenter({
+      sessionId: session.id,
+      eventId: session.eventId,
+      userId: user.id,
+      userEmail: user.email,
+    });
+    if (!presenting) {
+      throw new HttpError(403, { error: "Forbidden" });
+    }
+
+    const visibility = rosterVisibilityOf(session.event.presenterRosterVisibility);
+    if (visibility === "OFF") {
+      throw new HttpError(404, { error: "Session not found" });
+    }
+
+    const [row] = await buildPresenterRosterSessions({
+      eventId: session.eventId,
+      sessionIds: [session.id],
+      visibility,
+    });
+    if (!row) throw new HttpError(404, { error: "Session not found" });
+    return res.json(row);
   }),
 );
 

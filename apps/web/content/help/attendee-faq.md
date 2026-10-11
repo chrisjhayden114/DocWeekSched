@@ -17,6 +17,10 @@ Open the link your organizer shared — usually `/e/event-slug` or an invite URL
 
 No. {{product}} works in the browser on phone and desktop.
 
+## Is there an app to download?
+
+No. Open the event link in your phone's browser. To get an icon: iPhone Safari, tap Share then Add to Home Screen; Android Chrome, tap the menu then Add to Home screen (or accept the install banner). It then opens full-screen and can send announcements as notifications if you allow them.
+
 ## Where is the schedule?
 
 After you join, open the dashboard. **Agenda** shows the full program; save sessions to build **My Schedule**.

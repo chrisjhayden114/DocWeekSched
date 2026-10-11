@@ -97,6 +97,9 @@ describe("K-2.1 — Feature Guide completeness", () => {
     expect(FEATURE_GUIDE.checkin.imageSrc).toBe("/feature-guide/checkin.png");
     expect(FEATURE_GUIDE.certificates.imageSrc).toBe("/feature-guide/certificates.png");
     expect(FEATURE_GUIDE.readiness.imageSrc).toBe("/feature-guide/readiness.png");
+    expect(FEATURE_GUIDE.readiness.experience).toContain(
+      "What presenters can see about their sessions",
+    );
     expect(FEATURE_GUIDE.public_leaderboard.imageSrc).toBeUndefined();
     expect(featureGuideImageSrcs()).toEqual([
       "/feature-guide/community.png",

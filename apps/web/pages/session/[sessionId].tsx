@@ -2,7 +2,8 @@ import { brand, emptyStateCopy, programCopy, sessionQaCopy } from "@event-app/co
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DELETED_PARTICIPANT_LABEL, resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue } from "@event-app/shared";
+import { DELETED_PARTICIPANT_LABEL, resolveFeatureEnabled, type FeatureKey, type FeatureOverrideValue, type PresenterRosterSession } from "@event-app/shared";
+import { SessionPresenterRosterPanel } from "../../components/PresenterRosterCard";
 import { AppShell, type ShellNavGroup } from "../../components/AppShell";
 import { MainNavIcon } from "../../components/dashboardNavIcons";
 import { ListSkeleton } from "../../components/ListState";
@@ -247,6 +248,7 @@ export default function SessionPage() {
   /** AGENDA-3 — presenter materials shared through Speaker Readiness. */
   const [sharedMaterials, setSharedMaterials] = useState<PeekSharedMaterial[]>([]);
   const [materialsError, setMaterialsError] = useState<string | null>(null);
+  const [presenterRoster, setPresenterRoster] = useState<PresenterRosterSession | null>(null);
 
   const refreshUser = useCallback(async (t: string) => {
     const fresh = await apiFetch<User>("/auth/me", {}, t);
@@ -425,6 +427,27 @@ export default function SessionPage() {
         setMaterialsError(
           err instanceof Error ? err.message : "Could not load this session's materials",
         );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, sessionId]);
+
+  useEffect(() => {
+    if (!token || !sessionId) return;
+    const ev = withEventHeaders(window.localStorage.getItem("activeEventId"));
+    let cancelled = false;
+    (async () => {
+      try {
+        const row = await apiFetch<PresenterRosterSession>(
+          `/sessions/${sessionId}/presenter-roster`,
+          ev,
+          token,
+        );
+        if (!cancelled) setPresenterRoster(row);
+      } catch {
+        if (!cancelled) setPresenterRoster(null);
       }
     })();
     return () => {
@@ -746,6 +769,12 @@ export default function SessionPage() {
               value={timeMode}
               onChange={setTimeMode}
             />
+            {presenterRoster && event ? (
+              <SessionPresenterRosterPanel
+                session={presenterRoster}
+                timezone={event.timezone}
+              />
+            ) : null}
             {session.description && (
               <p style={{ margin: "0 0 12px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{session.description}</p>
             )}

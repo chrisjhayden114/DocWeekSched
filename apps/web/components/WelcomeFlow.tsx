@@ -247,7 +247,7 @@ export function WelcomeFlow({
               </label>
               <p className="help-text" style={{ margin: "8px 0 0" }}>
                 Opting in lets other attendees find you, message you, and (if you like) get introduction
-                suggestions. You can change this anytime in Profile. Off = invisible.
+                suggestions. You can change this anytime in Profile. Off = invisible. Presenters of sessions you join may see your name when the organizer allows it.
               </p>
             </div>
           ) : null}
