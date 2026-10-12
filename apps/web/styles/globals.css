@@ -7075,6 +7075,34 @@ button.schedule-meta-chip:hover {
   object-position: unset;
 }
 
+/* UI-6 — roster portraits sit beside the title, not in the 170px banner band. */
+.hover-info-portrait-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.hover-info-portrait-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hover-info-portrait {
+  display: block;
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.hover-info-body > p {
+  margin: 0;
+}
+
 .hover-info-inner {
   display: flex;
   flex-direction: column;

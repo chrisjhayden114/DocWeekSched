@@ -23,12 +23,18 @@ export const CARD_AVATAR_LIMIT = 3;
 export function CardAvatar({
   person,
   className,
+  omitNativeTitle = false,
 }: {
   person: PeekSpeaker;
   className?: string;
+  /** Roster hover cards already show the name; a native tooltip would stack on top. */
+  omitNativeTitle?: boolean;
 }) {
   return (
-    <span className={className ? `card-avatar ${className}` : "card-avatar"} title={person.name}>
+    <span
+      className={className ? `card-avatar ${className}` : "card-avatar"}
+      title={omitNativeTitle ? undefined : person.name}
+    >
       {person.photoUrl ? (
         <img src={person.photoUrl} alt="" />
       ) : (

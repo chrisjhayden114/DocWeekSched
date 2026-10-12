@@ -418,6 +418,24 @@ describe("presenter home session card", () => {
     expect(popover?.textContent).toContain("Riverside School District");
     expect(popover?.textContent).toContain("Plans the morning block");
     expect(popover?.querySelector("img")?.getAttribute("src")).toBe("/demo/speakers/priya-shah.svg");
+    const metaLine = popover?.querySelector(".text-meta");
+    const bioLine = [...(popover?.querySelectorAll("p") ?? [])].find((el) =>
+      el.textContent?.includes("Plans the morning"),
+    );
+    expect(metaLine).toBeTruthy();
+    expect(bioLine).toBeTruthy();
+    expect(metaLine).not.toBe(bioLine);
+    expect(metaLine!.textContent).toContain("Grade 4 teacher");
+    expect(metaLine!.textContent).toContain("Riverside School District");
+    expect(metaLine!.textContent).not.toContain("Plans the morning");
+    expect(bioLine!.textContent).not.toContain("Grade 4 teacher");
+    expect(bioLine!.tagName).toBe("P");
+    const rosterCard = container.querySelector(".presenter-roster-person")!;
+    expect(rosterCard.hasAttribute("title")).toBe(false);
+    expect(rosterCard.querySelector("[title]")).toBeNull();
+    const nameTrigger = container.querySelector(".hover-info-label")!;
+    expect(nameTrigger.hasAttribute("title")).toBe(false);
+    expect(nameTrigger.getAttribute("aria-label")).toContain("Priya Shah");
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });

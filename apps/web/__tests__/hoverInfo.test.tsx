@@ -5,6 +5,8 @@
  * keyboard (focusin immediate, Escape, blur). Hover delay is not asserted here.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -488,5 +490,49 @@ describe("HoverInfo Wikipedia persistence + fade", () => {
       img.dispatchEvent(new Event("load"));
     });
     expect(img.closest(".hover-info-art")!.classList.contains("is-wide")).toBe(true);
+  });
+});
+
+describe("HoverInfo portrait", () => {
+  it("renders imageSrc as a 96px avatar beside the text, never a banner", () => {
+    const css = readFileSync(join(__dirname, "../styles/globals.css"), "utf8");
+    expect(css).toMatch(/\.hover-info-portrait \{[^}]*width:\s*96px/);
+    expect(css).toMatch(/\.hover-info-portrait \{[^}]*height:\s*96px/);
+    expect(css).toMatch(/\.hover-info-portrait \{[^}]*object-fit:\s*cover/);
+    expect(css).toMatch(/\.hover-info-portrait \{[^}]*object-position:\s*center/);
+
+    render(
+      <HoverInfo portrait trigger="label" title="Lila Grant" body="Writes the accommodation." imageSrc="/people/lila.jpg">
+        <span>Lila Grant</span>
+      </HoverInfo>,
+    );
+    const trigger = clipper.querySelector<HTMLButtonElement>(".hover-info-label")!;
+    act(() => trigger.focus());
+
+    const card = tooltip()!;
+    const avatar = card.querySelector("img.hover-info-portrait");
+    expect(avatar).not.toBeNull();
+    expect(avatar!.getAttribute("src")).toBe("/people/lila.jpg");
+    expect(card.querySelector(".hover-info-art")).toBeNull();
+    expect(card.className).not.toContain("hover-info-popover--has-image");
+    const row = card.querySelector(".hover-info-portrait-row")!;
+    expect(row.contains(avatar)).toBe(true);
+    expect(row.querySelector(".hover-info-title")?.textContent).toBe("Lila Grant");
+    expect(row.querySelector("[data-hover-slot='body']")?.textContent).toContain("Writes the accommodation");
+  });
+
+  it("renders no image box when a portrait has no imageSrc", () => {
+    render(
+      <HoverInfo portrait trigger="label" title="Lila Grant" body="Writes the accommodation.">
+        <span>Lila Grant</span>
+      </HoverInfo>,
+    );
+    const trigger = clipper.querySelector<HTMLButtonElement>(".hover-info-label")!;
+    act(() => trigger.focus());
+    const card = tooltip()!;
+    expect(card.querySelector(".hover-info-portrait")).toBeNull();
+    expect(card.querySelector(".hover-info-art")).toBeNull();
+    expect(card.querySelector("img")).toBeNull();
+    expect(card.querySelector(".hover-info-title")?.textContent).toBe("Lila Grant");
   });
 });

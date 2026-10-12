@@ -91,9 +91,13 @@ export function useSegmentSlide(active: unknown) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
-  // Segment widths depend on the viewport; reposition instantly on resize.
+  // Fonts, element size, and returning to a visible tab can change segment
+  // widths after the first measurement. Those paths re-base with no animation.
+  // A genuine `active` change still uses the FLIP path above.
   useEffect(() => {
-    const onResize = () => {
+    let cancelled = false;
+    const snap = () => {
+      if (cancelled) return;
       const container = ref.current;
       if (!container) return;
       const indicator = container.querySelector<HTMLElement>(":scope > .seg-slide");
@@ -102,8 +106,42 @@ export function useSegmentSlide(active: unknown) {
       targetRef.current = rect;
       settle(indicator, container, rect);
     };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+
+    const fonts = "fonts" in document ? document.fonts : undefined;
+    if (fonts?.ready) {
+      void fonts.ready.then(() => {
+        snap();
+      });
+    }
+
+    let ro: ResizeObserver | null = null;
+    const onResize = () => snap();
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => snap());
+      ro = observer;
+      const container = ref.current;
+      if (container) {
+        observer.observe(container);
+        // Every segment, not only the one active at mount: switching tabs must
+        // not call observe() again. A fresh observation notifies on the next
+        // frame and would snap an in-flight FLIP.
+        container.querySelectorAll<HTMLElement>(":scope > button").forEach((btn) => observer.observe(btn));
+      }
+    } else {
+      window.addEventListener("resize", onResize);
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") snap();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      ro?.disconnect();
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

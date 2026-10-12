@@ -7,7 +7,7 @@ import {
   type PresenterRosterNote,
   type PresenterRosterSession,
 } from "@event-app/shared";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { RelatedSessionCard } from "./RelatedSessionCard";
 import { CardAvatar } from "./SessionCardBits";
 import { AutoGrowTextarea } from "./kit";
@@ -60,10 +60,16 @@ function rosterMeta(person: PresenterRosterAttendee): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-function popoverBody(person: PresenterRosterAttendee): string {
+function popoverBody(person: PresenterRosterAttendee): ReactNode {
   const meta = rosterMeta(person);
   const bio = person.bio?.trim() ?? "";
-  return [meta, bio].filter(Boolean).join("\n\n");
+  if (!meta && !bio) return undefined;
+  return (
+    <>
+      {meta ? <p className="text-meta">{meta}</p> : null}
+      {bio ? <p>{bio}</p> : null}
+    </>
+  );
 }
 
 function RosterHeadline({ session }: { session: PresenterRosterSession }) {
@@ -79,6 +85,7 @@ function RosterPersonCard({ person }: { person: PresenterRosterAttendee }) {
   return (
     <HoverInfo
       trigger="label"
+      portrait
       title={person.displayName}
       body={popoverBody(person)}
       imageSrc={person.photoUrl}
@@ -86,6 +93,7 @@ function RosterPersonCard({ person }: { person: PresenterRosterAttendee }) {
       <span className="card presenter-roster-person">
         <CardAvatar
           className="presenter-roster-avatar"
+          omitNativeTitle
           person={{ name: person.displayName, photoUrl: person.photoUrl ?? null }}
         />
         <span style={{ minWidth: 0 }}>

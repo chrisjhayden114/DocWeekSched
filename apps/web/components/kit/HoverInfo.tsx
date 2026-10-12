@@ -55,10 +55,15 @@ export type HoverInfoTrigger = "icon" | "label";
 export type HoverInfoProps = {
   title: string;
   /** Omit when `featureKey` is set — the card then uses FEATURE_GUIDE.whatItDoes. */
-  body?: string;
+  body?: ReactNode;
   appearsIn?: string;
   /** Future screenshot override; wins over `image` when set. */
   imageSrc?: string;
+  /**
+   * Square portrait (roster people). When true, `imageSrc` is a 96px avatar
+   * beside the title and body. Banner art is unchanged when this is false.
+   */
+  portrait?: boolean;
   /** Category art (or any decorative node) for the 16:9 top slot. */
   image?: ReactNode;
   children?: ReactNode;
@@ -117,6 +122,7 @@ export function HoverInfo({
   body,
   appearsIn,
   imageSrc,
+  portrait = false,
   image,
   children,
   trigger = "icon",
@@ -143,8 +149,8 @@ export function HoverInfo({
   const triggerRef = useRef<HTMLElement>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLParagraphElement>(null);
-  const [bodyEl, setBodyEl] = useState<HTMLParagraphElement | null>(null);
+  const bodyRef = useRef<HTMLElement>(null);
+  const [bodyEl, setBodyEl] = useState<HTMLElement | null>(null);
   const openTimer = useRef<number | null>(null);
   const closeTimer = useRef<number | null>(null);
   // Esc moves focus back to the trigger. That focus must not reopen the card.
@@ -230,7 +236,7 @@ export function HoverInfo({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
 
-  const attachBody = useCallback((el: HTMLParagraphElement | null) => {
+  const attachBody = useCallback((el: HTMLElement | null) => {
     bodyRef.current = el;
     setBodyEl(el);
   }, []);
@@ -282,6 +288,10 @@ export function HoverInfo({
   const onlyChild = childList.length === 1 && isValidElement(childList[0]) ? childList[0] : null;
   const interactiveLabel = labelMode && isInteractiveElement(onlyChild);
   const labelButton = labelMode && !interactiveLabel;
+  const showBanner = !portrait && hasImage;
+  const portraitSrc = portrait && imageSrc ? imageSrc : undefined;
+  const structuredBody = typeof resolvedBody !== "string";
+  const bodyClass = ["hover-info-body", clipped ? "is-clipped" : ""].filter(Boolean).join(" ");
 
   function onBlur(event: FocusEvent<HTMLElement>) {
     const next = event.relatedTarget as Node | null;
@@ -355,7 +365,7 @@ export function HoverInfo({
             id={tooltipId}
             ref={popupRef}
             role="tooltip"
-            className={["hover-info-popover", hasImage ? "hover-info-popover--has-image" : ""]
+            className={["hover-info-popover", showBanner ? "hover-info-popover--has-image" : ""]
               .filter(Boolean)
               .join(" ")}
             style={popupStyle}
@@ -366,7 +376,7 @@ export function HoverInfo({
               if (canHover()) scheduleClose();
             }}
           >
-            {hasImage ? (
+            {showBanner ? (
               <div
                 className={["hover-info-art", wideArt ? "is-wide" : ""].filter(Boolean).join(" ")}
                 data-hover-slot="art"
@@ -386,16 +396,42 @@ export function HoverInfo({
               </div>
             ) : null}
             <div className="hover-info-inner">
-              <p className="hover-info-title" data-hover-slot="title">
-                {title}
-              </p>
-              <p
-                ref={attachBody}
-                data-hover-slot="body"
-                className={["hover-info-body", clipped ? "is-clipped" : ""].filter(Boolean).join(" ")}
-              >
-                {resolvedBody}
-              </p>
+              {portrait ? (
+                <div className="hover-info-portrait-row">
+                  {portraitSrc ? (
+                    <img className="hover-info-portrait" src={portraitSrc} alt="" />
+                  ) : null}
+                  <div className="hover-info-portrait-copy">
+                    <p className="hover-info-title" data-hover-slot="title">
+                      {title}
+                    </p>
+                    {structuredBody ? (
+                      <div ref={attachBody} data-hover-slot="body" className={bodyClass}>
+                        {resolvedBody}
+                      </div>
+                    ) : (
+                      <p ref={attachBody} data-hover-slot="body" className={bodyClass}>
+                        {resolvedBody}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="hover-info-title" data-hover-slot="title">
+                    {title}
+                  </p>
+                  {structuredBody ? (
+                    <div ref={attachBody} data-hover-slot="body" className={bodyClass}>
+                      {resolvedBody}
+                    </div>
+                  ) : (
+                    <p ref={attachBody} data-hover-slot="body" className={bodyClass}>
+                      {resolvedBody}
+                    </p>
+                  )}
+                </>
+              )}
               {appearsIn ? <p className="hover-info-appears">Appears in: {appearsIn}</p> : null}
               {resolvedAction ? (
                 <div
