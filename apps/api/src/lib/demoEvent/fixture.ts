@@ -140,7 +140,6 @@ export const DEMO_ROSTER_JOINERS = [
     title: "Assistant principal",
     affiliation: "Northbridge Academy",
     bio: "Looks at the master schedule for meetings that could be a note.",
-    photoUrl: "/demo/people/carmen-diaz.jpg",
   },
   {
     name: "David Okoye",
@@ -294,7 +293,7 @@ export function buildDemoFixtureSpec(mode: DemoFixtureMode): DemoFixtureSpec {
         title: "Instructional Coach",
         affiliation: "Riverside School District",
         bio: "Leads professional learning at a K-12 school. She works with grade-level teams on the shape of the day: what to protect, what to quiet, and how a staff learns a change without a new program every term. Her sessions are built from classrooms she still visits, and from the questions teachers ask when the plan meets a real Tuesday morning.",
-        photoUrl: "/demo/speakers/maya-chen.svg",
+        photoUrl: "/demo/people/maya-chen.jpg",
       },
       {
         key: "jonas",

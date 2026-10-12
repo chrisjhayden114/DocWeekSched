@@ -205,7 +205,6 @@ describe("presenter home payload", () => {
       "Tom Hale": "/demo/speakers/tom-hale.svg",
       "Amina Farah": "/demo/people/amina-farah.jpg",
       "Ben Cho": "/demo/people/ben-cho.jpg",
-      "Carmen Diaz": "/demo/people/carmen-diaz.jpg",
       "Greg Walsh": "/demo/people/greg-walsh.jpg",
       "Lila Grant": "/demo/people/lila-grant.jpg",
     };

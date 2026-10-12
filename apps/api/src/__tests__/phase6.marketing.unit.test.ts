@@ -74,7 +74,7 @@ describe("public demo fixture feeds the session peek", () => {
 
   it("gives every speaker a photo", () => {
     expect(spec.speakers.map((speaker) => [speaker.key, speaker.photoUrl])).toEqual([
-      ["maya", "/demo/speakers/maya-chen.svg"],
+      ["maya", "/demo/people/maya-chen.jpg"],
       ["jonas", "/demo/people/jonas-okonkwo.jpg"],
       ["elena", "/demo/people/elena-ruiz.jpg"],
     ]);
