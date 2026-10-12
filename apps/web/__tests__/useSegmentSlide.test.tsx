@@ -34,34 +34,32 @@ function boxFor(el: HTMLElement): Box {
 const offsetProps = ["offsetLeft", "offsetTop", "offsetWidth", "offsetHeight"] as const;
 const savedOffsets: PropertyDescriptor[] = [];
 
-type ObserverRecord = {
-  cb: () => void;
-  els: Element[];
-  disconnected: boolean;
-};
-
-let observers: ObserverRecord[];
-let resolveFonts: () => void;
-let readyPromise: Promise<void>;
-let visibility: DocumentVisibilityState;
-
-class MockResizeObserver {
+class MockResizeObserver implements ResizeObserver {
   els: Element[] = [];
   disconnected = false;
-  constructor(private readonly cb: () => void) {
+
+  constructor(readonly callback: ResizeObserverCallback) {
     observers.push(this);
   }
-  observe(el: Element) {
-    this.els.push(el);
+
+  observe(target: Element) {
+    this.els.push(target);
   }
-  unobserve(el: Element) {
-    this.els = this.els.filter((item) => item !== el);
+
+  unobserve(target: Element) {
+    this.els = this.els.filter((item) => item !== target);
   }
+
   disconnect() {
     this.disconnected = true;
     this.els = [];
   }
 }
+
+let observers: MockResizeObserver[];
+let resolveFonts: () => void;
+let readyPromise: Promise<void>;
+let visibility: DocumentVisibilityState;
 
 let root: Root;
 let container: HTMLDivElement;
@@ -103,7 +101,7 @@ beforeEach(() => {
     configurable: true,
     get: () => visibility,
   });
-  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+  globalThis.ResizeObserver = MockResizeObserver;
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -150,7 +148,9 @@ describe("useSegmentSlide re-settle", () => {
     expect(observer.els.some((el) => (el as HTMLElement).classList.contains("active"))).toBe(true);
 
     boxes.List = { left: 6, top: 0, width: 77, height: 32 };
-    act(() => observer.cb());
+    act(() => {
+      observer.callback([], observer);
+    });
     expect(indicator().style.left).toBe("6px");
     expect(indicator().style.width).toBe("77px");
     expect(indicator().style.transform).toBe("");
