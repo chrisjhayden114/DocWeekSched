@@ -110,15 +110,25 @@ describe("screenshot manifest entries", () => {
     // attendee session, where the surface does not exist. Check-in is not on
     // this list: it has an attendee half (the personal QR), and that half
     // photographs honestly where the staff scanner's fake camera does not.
-    for (const key of ["sponsor_outreach", "ops_agent", "recap_agent", "readiness", "paid_attendance"] as const) {
+    for (const key of ["sponsor_outreach", "ops_agent", "recap_agent", "paid_attendance"] as const) {
       expect(SCREENSHOT_MANIFEST[key]!.as, key).toBe("organizer");
     }
   });
 
   it("frames console tabs from the first heading, not mid-row", () => {
-    for (const key of ["readiness", "ops_agent", "recap_agent"] as const) {
+    for (const key of ["ops_agent", "recap_agent"] as const) {
       expect(pageShot(key).alignTop, key).toBe(true);
     }
+  });
+
+  it("photographs the public presenter page on the keynote card once the roster is visible", () => {
+    const shot = pageShot("readiness");
+    expect(shot.path).toBe("/demo/presenter");
+    expect(shot.as).toBe("attendee");
+    expect(shot.alignTop).toBe(true);
+    expect(shot.waitFor).toBe(".presenter-roster-grid");
+    expect(shot.selector).toContain("presenter-session-card");
+    expect(shot.selector).toContain("Opening keynote: Designing calm learning days");
   });
 
   it("fills the CFP form and clips it to the shape a card shows whole", () => {

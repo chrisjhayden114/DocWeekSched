@@ -44,13 +44,21 @@ describe("K-2.1 — Feature Guide completeness", () => {
 
   it("each section is 2–4 sentences", () => {
     const sections = ["whatItDoes", "experience", "goodToKnow"] as const;
+    // MKT-PRESENTER-1 appends presenter-page sentences onto readiness, which was
+    // already at the four-sentence cap. Other keys stay at four.
+    const readinessMax: Record<(typeof sections)[number], number> = {
+      whatItDoes: 5,
+      experience: 6,
+      goodToKnow: 5,
+    };
     for (const key of KEYS) {
       const guide = FEATURE_GUIDE[key];
       for (const name of sections) {
         const text = guide[name];
         const count = sentences(text).length;
+        const max = key === "readiness" ? readinessMax[name] : 4;
         expect(count, `${key}.${name} (${count}): ${text}`).toBeGreaterThanOrEqual(2);
-        expect(count, `${key}.${name} (${count}): ${text}`).toBeLessThanOrEqual(4);
+        expect(count, `${key}.${name} (${count}): ${text}`).toBeLessThanOrEqual(max);
       }
       if (guide.imageSrc != null) {
         expect(guide.imageSrc.trim(), `${key}.imageSrc`).not.toBe("");
@@ -99,6 +107,13 @@ describe("K-2.1 — Feature Guide completeness", () => {
     expect(FEATURE_GUIDE.readiness.imageSrc).toBe("/feature-guide/readiness.png");
     expect(FEATURE_GUIDE.readiness.experience).toContain(
       "What presenters can see about their sessions",
+    );
+    expect(FEATURE_GUIDE.readiness.whatItDoes).toContain(
+      "Each presenter also gets a home page on that same link:",
+    );
+    expect(FEATURE_GUIDE.readiness.experience).toContain("there is no second login.");
+    expect(FEATURE_GUIDE.readiness.goodToKnow).toContain(
+      "attendees who keep their profile private appear in the count but never by name.",
     );
     expect(FEATURE_GUIDE.public_leaderboard.imageSrc).toBeUndefined();
     expect(featureGuideImageSrcs()).toEqual([

@@ -342,13 +342,16 @@ export const SCREENSHOT_MANIFEST: Record<string, FeatureShot> = {
       "The public submission form under its own page heading, with a filled-in Northbridge draft. Clipped to the card's own shape so the title is in the picture wherever the picture is shown.",
   },
   // MANUAL-1: founder-approved image overrides this auto shot — it will not show.
+  // Public page, same shape as the call-for-presentations shot: a route with no
+  // console login, framed from the top once the subject has rendered.
   readiness: {
-    path: "/organizer/events/{eventId}?tab=readiness",
-    selector: CONSOLE_TAB,
-    as: "organizer",
+    path: "/demo/presenter",
+    selector:
+      '.presenter-session-card:has(> h3.presenter-session-title:text-is("Opening keynote: Designing calm learning days"))',
+    as: "attendee",
     alignTop: true,
-    waitFor: ".console-panel-label",
-    note: "The board with assignments in every state the tracker can render. Framed from the first heading.",
+    waitFor: ".presenter-roster-grid",
+    note: "The public presenter page, on the opening keynote card, once the roster of who joined is on screen. No second login.",
   },
 
   // MANUAL-1: founder-approved image overrides this auto shot — it will not show.

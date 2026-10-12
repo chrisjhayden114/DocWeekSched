@@ -228,7 +228,47 @@ export default function SpeakerReadinessPage() {
             </div>
           </section>
 
-          <section className="mkt-section" aria-labelledby="sr-email">
+          <section className="mkt-section" aria-labelledby="sr-presenter-page">
+            <div className="mkt-section-inner">
+              <p className="mkt-eyebrow">The presenter&apos;s side</p>
+              <h2 id="sr-presenter-page" className="mkt-h2">
+                One link. Their whole conference.
+              </h2>
+              <p className="mkt-standfirst">
+                The link a presenter uploads with is also their home page for the event.
+              </p>
+              <ul className="mkt-trust-list">
+                <li>
+                  <strong>Their sessions, with abstracts.</strong> Time, room, track, and the abstract
+                  they wrote, on one page, no account.
+                </li>
+                <li>
+                  <strong>Who has joined.</strong> A count, or names and affiliations with a search
+                  box, or nothing. You choose per event; attendees who keep their profile private stay
+                  private.
+                </li>
+                <li>
+                  <strong>Sessions like theirs.</strong> Related sessions on the program, with a flag
+                  when one runs at the same time as theirs.
+                </li>
+                <li>
+                  <strong>Their approved materials.</strong> What you approved, shown exactly as
+                  attendees will see it.
+                </li>
+                <li>
+                  <strong>A note to the room.</strong> One-way notes to everyone who joined, delivered
+                  as notifications. Three a day per session, so it stays a note and not a channel.
+                </li>
+              </ul>
+              <div className="mkt-hero-cta" style={{ marginTop: 28, marginBottom: 0 }}>
+                <a className="button secondary" href="/demo/presenter">
+                  See a presenter&apos;s page
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <section className="mkt-section mkt-section--alt" aria-labelledby="sr-email">
             <div className="mkt-section-inner">
               <p className="mkt-eyebrow">The actual reminder email</p>
               <h2 id="sr-email" className="mkt-h2">
@@ -280,7 +320,7 @@ export default function SpeakerReadinessPage() {
             </div>
           </section>
 
-          <section className="mkt-section mkt-section--alt" aria-labelledby="sr-exceptions">
+          <section className="mkt-section" aria-labelledby="sr-exceptions">
             <div className="mkt-section-inner">
               <p className="mkt-eyebrow">Exception-first, with receipts</p>
               <h2 id="sr-exceptions" className="mkt-h2">
@@ -320,7 +360,7 @@ export default function SpeakerReadinessPage() {
             </div>
           </section>
 
-          <section className="mkt-section" aria-labelledby="sr-replaces">
+          <section className="mkt-section mkt-section--alt" aria-labelledby="sr-replaces">
             <div className="mkt-section-inner">
               <p className="mkt-eyebrow">What it replaces</p>
               <h2 id="sr-replaces" className="mkt-h2">
@@ -336,7 +376,7 @@ export default function SpeakerReadinessPage() {
             </div>
           </section>
 
-          <section className="mkt-section mkt-section--alt" aria-labelledby="sr-concierge">
+          <section className="mkt-section" aria-labelledby="sr-concierge">
             <div className="mkt-section-inner">
               <p className="mkt-eyebrow">The concierge service</p>
               <h2 id="sr-concierge" className="mkt-h2">
@@ -368,7 +408,7 @@ export default function SpeakerReadinessPage() {
             </div>
           </section>
 
-          <section className="mkt-section" aria-labelledby="sr-limits">
+          <section className="mkt-section mkt-section--alt" aria-labelledby="sr-limits">
             <div className="mkt-section-inner">
               <p className="mkt-eyebrow">Limits, stated plainly</p>
               <h2 id="sr-limits" className="mkt-h2">

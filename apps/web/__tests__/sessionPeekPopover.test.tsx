@@ -36,7 +36,7 @@ const SESSION = {
   startsAt: "2026-06-08T13:00:00.000Z",
   endsAt: "2026-06-08T14:00:00.000Z",
   speakers: [
-    { id: "sp1", name: "Maya Chen", title: "Instructional Coach", photoUrl: "/demo/speakers/maya-chen.svg" },
+    { id: "sp1", name: "Maya Chen", title: "Instructional Coach", photoUrl: "/demo/people/maya-chen.jpg" },
     { id: "sp2", name: "Jonas Okonkwo", title: "Head of Teaching and Learning" },
   ],
 };
@@ -580,7 +580,7 @@ describe("content", () => {
 
     const avatars = pop.querySelectorAll(".session-peek-avatar");
     expect(avatars.length).toBe(2);
-    expect(avatars[0]!.getAttribute("src")).toBe("/demo/speakers/maya-chen.svg");
+    expect(avatars[0]!.getAttribute("src")).toBe("/demo/people/maya-chen.jpg");
     // No photo on the second speaker, so initials.
     expect(avatars[1]!.textContent).toBe("JO");
 

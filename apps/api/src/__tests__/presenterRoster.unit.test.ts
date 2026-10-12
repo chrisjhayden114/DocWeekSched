@@ -101,7 +101,7 @@ describe("presenter home payload", () => {
         title: "Instructional Coach",
         affiliation: "Riverside School District",
         bio: "Leads professional learning at a K-12 school.",
-        photoUrl: "/demo/speakers/maya-chen.svg",
+        photoUrl: "/demo/people/maya-chen.jpg",
       }),
       event: shapePortalEvent({
         name: "Teaching institute",

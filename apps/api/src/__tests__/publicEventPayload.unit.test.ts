@@ -27,7 +27,7 @@ const row: PublicSessionRow = {
         name: "Jonas Okonkwo",
         title: "Head of Teaching and Learning",
         affiliation: "Northbridge Academy",
-        photoUrl: "/demo/speakers/jonas-okonkwo.svg",
+        photoUrl: "/demo/people/jonas-okonkwo.jpg",
       },
     },
     {
@@ -75,7 +75,7 @@ describe("toPublicSession", () => {
   it("carries each speaker's photo, in roster order", () => {
     const { speakers } = toPublicSession(row);
     expect(speakers.map((s) => s.name)).toEqual(["Jonas Okonkwo", "Elena Ruiz"]);
-    expect(speakers[0]!.photoUrl).toBe("/demo/speakers/jonas-okonkwo.svg");
+    expect(speakers[0]!.photoUrl).toBe("/demo/people/jonas-okonkwo.jpg");
     // A speaker with no photo is null, not absent — the peek renders initials.
     expect(speakers[1]!.photoUrl).toBeNull();
     expect("photoUrl" in speakers[1]!).toBe(true);

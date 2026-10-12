@@ -349,6 +349,11 @@ export default function LandingPage() {
                   when overdue — so nobody on your team has to write them.
                 </li>
                 <li>
+                  <strong>A presenter page, not just an upload form.</strong> The same link shows presenters their
+                  sessions, who has joined, and their approved materials. See it at{" "}
+                  <Link href="/demo/presenter">/demo/presenter</Link>.
+                </li>
+                <li>
                   <strong>
                     In every plan
                     {freePresenterCap == null

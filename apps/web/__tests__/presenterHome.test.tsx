@@ -206,7 +206,7 @@ describe("presenter home payload", () => {
         title: "Instructional Coach",
         affiliation: "Riverside School District",
         bio: "Leads professional learning at a K-12 school.",
-        photoUrl: "/demo/speakers/maya-chen.svg",
+        photoUrl: "/demo/people/maya-chen.jpg",
       }),
       event: shapePortalEvent({
         name: "Teaching institute",
@@ -443,7 +443,7 @@ const portalView = {
     title: "Instructional Coach",
     affiliation: "Riverside School District",
     bio: "Leads professional learning at a K-12 school. She still visits classrooms.",
-    photoUrl: "/demo/speakers/maya-chen.svg",
+    photoUrl: "/demo/people/maya-chen.jpg",
   },
   assignments: [
     {
@@ -506,7 +506,7 @@ describe("presenter portal page", () => {
     render(<PresenterPortalPage />);
     await flush();
     expect(container.querySelector(".presenter-home-photo img")?.getAttribute("src")).toBe(
-      "/demo/speakers/maya-chen.svg",
+      "/demo/people/maya-chen.jpg",
     );
     expect(container.querySelector(".presenter-home-bio-slot .presenter-home-bio")).toBeTruthy();
     expect(readFileSync(join(__dirname, "../styles/globals.css"), "utf8")).toMatch(

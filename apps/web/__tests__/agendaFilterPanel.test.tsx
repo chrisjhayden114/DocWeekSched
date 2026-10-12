@@ -82,7 +82,7 @@ const ROOM_OPTIONS = [
 ];
 
 const SPEAKER_OPTIONS = [
-  { id: "maya", name: "Maya Chen", photoUrl: "/demo/speakers/maya-chen.svg", count: 2 },
+  { id: "maya", name: "Maya Chen", photoUrl: "/demo/people/maya-chen.jpg", count: 2 },
   { id: "jonas", name: "Jonas Okonkwo", photoUrl: null, count: 2 },
 ];
 
@@ -359,7 +359,7 @@ describe("AgendaFilterRail — speaker picker", () => {
       "Maya Chen",
       "Jonas Okonkwo",
     ]);
-    expect(options[0]!.querySelector("img")!.getAttribute("src")).toBe("/demo/speakers/maya-chen.svg");
+    expect(options[0]!.querySelector("img")!.getAttribute("src")).toBe("/demo/people/maya-chen.jpg");
     // No photo on the second speaker, so the shared avatar falls back to initials.
     expect(options[1]!.querySelector(".agenda-speaker-avatar")!.textContent).toBe("JO");
   });

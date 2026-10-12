@@ -79,4 +79,15 @@ describe("Speaker Readiness reminder copy stays in sync (MKT-2)", () => {
     expect(home).toContain("PLAN_BY_SKU.free.limits.readinessPresentersPerEvent");
     expect(home).not.toMatch(/first 10 presenters/);
   });
+
+  it("tells prospects about the presenter page on /speaker-readiness and the homepage", () => {
+    const page = readFileSync(PAGE, "utf8");
+    expect(page).toContain('id="sr-presenter-page"');
+    expect(page).toContain('aria-labelledby="sr-presenter-page"');
+    expect(page).toContain('href="/demo/presenter"');
+    expect(page).toContain("See a presenter");
+    const home = readFileSync(join(__dirname, "../pages/index.tsx"), "utf8");
+    expect(home).toContain("A presenter page, not just an upload form.");
+    expect(home).toContain('<Link href="/demo/presenter">/demo/presenter</Link>');
+  });
 });
